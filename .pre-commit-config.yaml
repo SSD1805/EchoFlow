@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.7.4  # Use the latest stable version
+    hooks:
+      - id: ruff
+        args: [--fix]  # Automatically fix issues where possible
+        additional_dependencies: []  # Add if you need additional Ruff plugins
+
+  - repo: https://github.com/psf/black
+    rev: stable
+    hooks:
+      - id: black
+        args: [--line-length=88]  # Match Black’s line length to Ruff’s default
+
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.12.0  # Latest isort version
+    hooks:
+      - id: isort
+        args: [--profile=black]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0  # Pre-commit's utility hooks
+    hooks:
+      - id: end-of-file-fixer
+        name: Ensure newline at end of file
+      - id: trailing-whitespace
+        name: Remove trailing whitespace

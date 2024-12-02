@@ -1,0 +1,23 @@
+# Virtual environments
+.venv/         # In case `.venv` accidentally appears locally
+
+# Pre-commit cache
+.pre-commit/
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Editor/IDE files
+.vscode/
+.idea/
+
+# Logs and temporary files
+*.log
+*.tmp
+.DS_Store
+
+# OS-specific
+Thumbs.db

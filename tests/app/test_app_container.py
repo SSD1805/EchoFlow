@@ -1,8 +1,10 @@
-# tests/test_app_container.py
+# tests/app/test_app_container.py
+
+from unittest.mock import Mock
+
+import pytest
 
 from src.app.app_container import AppContainer
-import pytest
-from unittest.mock import Mock
 
 
 def test_app_container_initialization():

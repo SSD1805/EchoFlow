@@ -1,8 +1,10 @@
 # src/core/health_check.py
+from typing import Any, Dict
+
 from dependency_injector.wiring import Provide, inject
-from typing import Dict, Any
-from src.core.logger import ApplicationLogger
+
 from src.core.config import AppConfig
+from src.core.logger import ApplicationLogger
 from src.core.performance_tracker import PerformanceTracker
 
 

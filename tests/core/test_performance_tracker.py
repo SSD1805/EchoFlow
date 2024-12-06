@@ -1,6 +1,9 @@
-# tests/test_performance_tracker.py
-import pytest
+# tests/core/test_performance_tracker.py
+
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.core.performance_tracker import PerformanceTracker
 
 

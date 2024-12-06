@@ -1,6 +1,7 @@
 # src/main.py
 
 from dependency_injector.wiring import Provide, inject
+
 from src.app.app_container import AppContainer
 from src.core.health_check import HealthCheck
 

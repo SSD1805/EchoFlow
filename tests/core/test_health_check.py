@@ -1,8 +1,12 @@
-import pytest
+# tests/core/test_health_check.py
+
 from unittest.mock import Mock, PropertyMock
+
+import pytest
+
+from src.core.config import AppConfig
 from src.core.health_check import HealthCheck
 from src.core.logger import ApplicationLogger
-from src.core.config import AppConfig
 from src.core.performance_tracker import PerformanceTracker
 
 

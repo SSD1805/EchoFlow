@@ -1,8 +1,9 @@
-# tests/test_application_logger.py
+# tests/core/test_application_logger.py
+
+import threading
+from logging import FileHandler
 
 from src.core.logger import ApplicationLogger, log_info
-from logging import FileHandler
-import threading
 
 
 def test_log_info():
@@ -87,7 +88,7 @@ def test_add_custom_handler(tmp_path):
 
     # Verify log file content
     assert log_file.exists(), "Log file should exist"
-    with open(log_file, "r") as f:
+    with open(log_file) as f:
         log_content = f.read()
         assert "Test message to file handler" in log_content, "Log content should include the message"
 

@@ -1,5 +1,8 @@
+# tests/core/test_config.py
+
 import pytest
 from pydantic import ValidationError
+
 from src.core.config import AppConfig
 
 

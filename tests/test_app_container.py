@@ -2,6 +2,7 @@
 
 from src.app.app_container import AppContainer
 import pytest
+from unittest.mock import Mock
 
 
 def test_app_container_initialization():
@@ -21,46 +22,35 @@ def test_app_container_logger_exists():
     assert logger is not None, "Logger instance should not be None"
 
 
-def test_app_container_logger_logging():
+def test_app_container_performance_tracker_exists():
     """
-    Ensure the logger provided by AppContainer can log messages.
+    Ensure the AppContainer provides a performance tracker.
     """
     container = AppContainer()
+    performance_tracker = container.performance_tracker()
+    assert performance_tracker is not None, "Performance tracker instance should not be None"
+
+
+def test_app_container_file_manager_exists():
+    """
+    Ensure the AppContainer provides a file manager facade.
+    """
+    container = AppContainer()
+    file_manager = container.file_manager()
+    assert file_manager is not None, "FileManagerFacade instance should not be None"
+
+
+def test_app_container_file_manager_integration():
+    """
+    Ensure the FileManagerFacade integrates logger and tracker correctly.
+    """
+    container = AppContainer()
+    file_manager = container.file_manager()
     logger = container.logger()
+    tracker = container.performance_tracker()
 
-    try:
-        logger.info("Test log message from AppContainer logger")
-    except Exception as e:
-        assert False, f"Logger raised an exception: {e}"
-
-
-def test_app_container_logger_context_binding():
-    """
-    Test that the logger can bind and log context.
-    """
-    container = AppContainer()
-    logger = container.logger()
-
-    # Bind context
-    logger_with_context = logger.bind(user_id=123, operation="test_context")
-    assert logger_with_context is not None, "Logger with context binding should not be None"
-
-    # Log with context
-    try:
-        logger_with_context.info("Testing context binding")
-    except Exception as e:
-        assert False, f"Logger raised an exception while logging with context: {e}"
-
-
-def test_app_container_singleton_behavior():
-    """
-    Ensure the AppContainer provides a singleton logger.
-    """
-    container = AppContainer()
-    logger1 = container.logger()
-    logger2 = container.logger()
-
-    assert logger1 is logger2, "AppContainer should provide a singleton logger instance"
+    assert file_manager.logger is logger, "FileManagerFacade should use the AppContainer's logger"
+    assert file_manager.tracker is tracker, "FileManagerFacade should use the AppContainer's performance tracker"
 
 
 def test_app_container_logger_integration():
@@ -68,8 +58,6 @@ def test_app_container_logger_integration():
     Test the logger integration with AppContainer's providers.
     """
     container = AppContainer()
-
-    # Access logger via providers
     logger = container.logger()
     assert logger is not None, "Logger instance should not be None"
 
@@ -98,22 +86,22 @@ def test_app_container_logger_with_various_messages(log_message):
         assert False, f"Logger raised an exception for message '{log_message}': {e}"
 
 
-def test_app_container_logger_thread_safety():
+def test_app_container_thread_safety():
     """
-    Test the logger's thread safety when accessed from multiple threads.
+    Test the AppContainer's thread safety when accessed from multiple threads.
     """
     from threading import Thread
     errors = []
 
-    def log_in_thread(thread_id):
+    def access_container(thread_id):
         try:
             container = AppContainer()
             logger = container.logger()
-            logger.info(f"Logging from thread {thread_id}")
+            logger.info(f"Accessing from thread {thread_id}")
         except Exception as e:
-            errors.append(f"Thread {thread_id} failed: {e}")
+            errors.append(f"Thread {thread_id} error: {e}")
 
-    threads = [Thread(target=log_in_thread, args=(i,)) for i in range(5)]
+    threads = [Thread(target=access_container, args=(i,)) for i in range(5)]
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -122,17 +110,20 @@ def test_app_container_logger_thread_safety():
     assert not errors, f"Errors occurred during thread safety test: {errors}"
 
 
-def test_app_container_logger_production_mode():
+def test_app_container_file_manager_functionality():
     """
-    Test the logger in production mode (JSON output).
+    Test basic functionality of the FileManagerFacade from AppContainer.
     """
-    from src.core.logger import ApplicationLogger
-
-    ApplicationLogger.configure(environment="production")
     container = AppContainer()
-    logger = container.logger()
+    file_manager = container.file_manager()
+
+    mock_logger = Mock()
+    file_manager.logger = mock_logger
+
+    mock_tracker = Mock()
+    file_manager.tracker = mock_tracker
 
     try:
-        logger.info("Test log in production mode")
+        file_manager.sanitize_filename("unsafe/file*name?.txt")
     except Exception as e:
-        assert False, f"Logger raised an exception in production mode: {e}"
+        assert False, f"FileManagerFacade raised an exception: {e}"

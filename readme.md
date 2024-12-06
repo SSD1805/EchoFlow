@@ -1,3 +1,4 @@
+
 # EchoFlow
 
 **EchoFlow** is a modular, scalable Python-based application designed to streamline the process of **downloading**, **transcribing**, and **analyzing** audio content. With a strong focus on extensibility, maintainability, and efficiency, EchoFlow leverages modern software engineering principles and tools to deliver a robust foundation for handling audio pipelines.
@@ -7,16 +8,21 @@
 ## 🌟 **Key Features**
 
 1. **Scalable Architecture**
-   - Built with a focus on modularity and scalability to accommodate future expansion.
+   - Modular design adhering to **SOLID** and **DRY** principles.
    - Centralized dependency management using `Dependency Injector`.
+   - Well-defined **pipelines** for handling complex processes.
 
-2. **Audio Processing Pipelines**
-   - Designed to process and analyze audio content efficiently.
-   - Supports cutting-edge transcription tools like `OpenAI Whisper` and `WhisperX`.
+2. **Pipeline Management**
+   - **Four Core Pipelines**:
+     - **Download Pipeline**: Handles video and audio downloads.
+     - **Audio Pipeline**: Manages audio preprocessing and enhancement.
+     - **Text Pipeline**: Processes and refines transcriptions.
+     - **Transcription Pipeline**: Converts audio to text using tools like `OpenAI Whisper`.
+   - **Pipeline Manager**: Coordinates interactions between pipelines while maintaining separation of concerns.
 
 3. **Extensible Foundation**
-   - Incorporates clean coding principles such as SOLID and DRY.
-   - Designed to integrate with Django for a future web-based interface.
+   - Incorporates clean coding principles such as **SRP**, **SOLID**, and **DRY**.
+   - Designed for future integration with Django for a web-based interface.
 
 4. **Modern Development Practices**
    - Dependency and environment management using `Poetry` and `Pydantic`.
@@ -26,29 +32,35 @@
    - Prepared for integration with task queues (`Celery`), database systems, and REST APIs.
    - Flexible configuration using `.env` and environment variables.
 
-
 ---
 
 ## 🛠️ **What We've Built So Far**
 
 ### 1. **Foundation**
-- A well-structured project setup with **Dependency Injection**.
-- Centralized configuration management using **Pydantic** to handle environment variables and defaults.
+- A well-structured project setup with **Dependency Injection** for centralized control of services and utilities.
+- Core global features, such as a **Logger**, **Performance Tracker**, **HealthCheck Module**, and **FileManagerFacade**.
 
 ### 2. **Logger and Performance Tracker**
 - A global, singleton-based logging system using `structlog` for clear and efficient logging.
 - A performance tracker module to monitor key operations, ensuring system metrics are logged and tracked.
 
-### 3. **Configurable Settings**
-- Dynamic configuration loaded via `.env` or environment variables for:
-  - Application mode (`APP_ENV`)
-  - Debug mode (`DEBUG`)
-  - Log levels (`LOG_LEVEL`)
+### 3. **HealthCheck Module**
+- Independent health monitoring to assess the operational status of critical components.
+- Ensures issues in dependencies are identified and logged early.
+
+### 4. **File Manager**
+- A robust **FileManagerFacade** that handles:
+  - File and directory operations.
+  - Safe filename sanitization.
+  - File system integrity checks.
+
+### 5. **Configuration Management**
+- Dynamic configuration using **Pydantic** to handle environment variables and defaults.
 - Default values and validation ensure safe, reliable configurations.
 
-### 4. **Testing Framework**
-- Comprehensive testing suite using `pytest` for core modules (`Logger`, `Performance Tracker`, `Config`, and `Main`).
-- Mocked dependencies ensure all components are unit-tested without requiring external resources.
+### 6. **Testing Framework**
+- Comprehensive testing suite using `pytest` for all core modules (`Logger`, `Performance Tracker`, `Config`, `HealthCheck`, `FileManagerFacade`, and `Main`).
+- Mocked dependencies ensure unit tests are isolated from external resources.
 
 ---
 
@@ -96,12 +108,13 @@
 ## 🎯 **Roadmap**
 
 - **Phase 1: Core Components** (In Progress)
-  - Logger, Performance Tracker, and Configuration Management.
+  - Logger, Performance Tracker, File Manager, and HealthCheck Module.
   - Centralized dependency injection using `Dependency Injector`.
 
-- **Phase 2: Audio Pipelines**
-  - Implement pipelines for downloading and transcribing audio files.
-  - Integrate transcription tools like `Whisper`.
+- **Phase 2: Pipelines and Pipeline Manager**  
+  - Build **Download Pipeline** as the first pipeline.
+  - Implement additional pipelines (**Audio**, **Text**, **Transcription**) to ensure modular functionality.
+  - Develop a **Pipeline Manager** to coordinate workflows between pipelines.
 
 - **Phase 3: Web Interface**
   - Build a Django-based web interface for uploading and analyzing audio files.
@@ -128,3 +141,5 @@ We welcome contributions! If you'd like to collaborate:
 ## 📜 **License**
 
 This project is licensed under the **Apache-2.0 License**. See the `LICENSE` file for more details.
+
+--- 

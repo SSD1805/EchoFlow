@@ -1,6 +1,8 @@
- **EchoFlow**
+# EchoFlow
+
 ---
-### **What is EchoFlow?**
+
+## **What is EchoFlow?**
 
 **EchoFlow** is a Python-based application designed to explore modern software practices while providing a flexible and modular platform for audio processing. Built as a personal learning project, EchoFlow aims to handle tasks like **downloading**, **transcribing**, and **analyzing** audio content while following best practices in software engineering.
 
@@ -8,6 +10,7 @@ This application isn't just about solving a problem; it's about learning how to 
 
 Still under development, EchoFlow is an evolving project that reflects ongoing learning and a commitment to building robust, maintainable, and flexible software. Whether you're an individual looking for a tool to process audio content or a developer interested in clean, scalable codebases, EchoFlow has something to offer.
 
+---
 
 ## 🌟 **Key Features**
 
@@ -18,6 +21,7 @@ Still under development, EchoFlow is an evolving project that reflects ongoing l
 
 2. **Utility-Driven Foundation**
    - Extensible **utilities** for file operations, datetime handling, and configuration management.
+   - YAML utilities for configuration parsing and validation.
    - Security-focused utilities (in progress) for credential management and encryption.
 
 3. **Pipeline Management**
@@ -46,6 +50,7 @@ Still under development, EchoFlow is an evolving project that reflects ongoing l
 - Core utilities implemented, including:
   - **FileManagerFacade**: Handles file operations like saving, deleting, copying, and listing files.
   - **DateTimeUtility**: Offers robust timestamp handling, formatting, parsing, and elapsed time calculations.
+  - **YAMLUtility**: Simplifies YAML parsing, validation, and writing with extensible features.
 
 ### **2. Core Modules**
 - **Logger**: Singleton-based logging system for structured, configurable logs.
@@ -55,7 +60,7 @@ Still under development, EchoFlow is an evolving project that reflects ongoing l
 ### **3. Utilities**
 - **File Utilities**: Provide safe file operations, metadata retrieval, and sanitization.
 - **Datetime Utilities**: Facilitate robust time and date operations with features like ISO 8601 formatting and elapsed time calculations.
-- YAML and security utilities are planned for immediate implementation.
+- **YAML Utilities**: Streamline YAML operations with Pydantic-based validation and hooks for future features.
 
 ### **4. Testing Framework**
 - Organized, nested test directories aligned with the application structure.
@@ -107,7 +112,7 @@ Still under development, EchoFlow is an evolving project that reflects ongoing l
 ## 🎯 **Roadmap**
 
 - **Phase 1: Utility and Core Enhancements** (In Progress)
-  - Implement robust YAML utilities for configuration parsing and validation.
+  - Enhance YAML utilities with schema validation and security hooks.
   - Build security utilities for credential encryption, masking, and safe storage.
 
 - **Phase 2: Pipeline Development**
@@ -144,5 +149,5 @@ We welcome contributions! If you'd like to collaborate:
 ## 📜 **License**
 
 This project is licensed under the **Apache-2.0 License**. See the `LICENSE` file for more details.
-
+```
 

@@ -62,7 +62,7 @@ def test_application_logger_conformance(configure_test_logger):
     Test that ApplicationLogger conforms to ILogger protocol.
     """
     logger = ApplicationLogger.get_logger()
-    assert isinstance(logger, ILogger), "ApplicationLogger does not conform to ILogger"`
+    assert isinstance(logger, ILogger), "ApplicationLogger does not conform to ILogger"
 
 
 def test_application_logger_methods(configure_test_logger):

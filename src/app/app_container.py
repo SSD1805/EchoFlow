@@ -1,9 +1,11 @@
 from dependency_injector import containers, providers
 
 from src.core.config import AppConfig
-from src.core.file_manager import FileManagerFacade
+from src.core.file_manager_facade import FileManagerFacade
+from src.interfaces.base_file_manager import LocalFileManager
 from src.core.logger import ApplicationLogger
 from src.core.performance_tracker import PerformanceTracker
+
 
 
 class AppContainer(containers.DeclarativeContainer):

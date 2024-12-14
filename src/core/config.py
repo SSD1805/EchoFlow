@@ -41,5 +41,5 @@ class AppConfig(BaseSettings):
         env_file_encoding = "utf-8"  # Specify encoding for the .env file
 
 
-# Initialize the configuration instance
+# Instantiate and expose the configuration object
 config = AppConfig()

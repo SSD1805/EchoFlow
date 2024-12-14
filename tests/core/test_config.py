@@ -2,15 +2,13 @@
 
 import pytest
 from pydantic import ValidationError
-
-from src.core.config import AppConfig
+from src.core.config import AppConfig, config
 
 
 def test_config_defaults():
     """
     Test that default values are correctly set when no environment variables are provided.
     """
-    config = AppConfig()
     assert config.APP_ENV == "development"
     assert config.DEBUG is False
     assert config.DATABASE_URL is None
@@ -29,12 +27,12 @@ def test_config_env_override(monkeypatch):
     monkeypatch.setenv("LOG_LEVEL", "WARNING")
     monkeypatch.setenv("API_TIMEOUT", "60")
 
-    config = AppConfig()
+    overridden_config = AppConfig()  # Explicitly instantiate a new config instance
 
-    assert config.APP_ENV == "production"
-    assert config.DEBUG is True
-    assert config.LOG_LEVEL == "WARNING"
-    assert config.API_TIMEOUT == 60
+    assert overridden_config.APP_ENV == "production"
+    assert overridden_config.DEBUG is True
+    assert overridden_config.LOG_LEVEL == "WARNING"
+    assert overridden_config.API_TIMEOUT == 60
 
 
 def test_config_invalid_log_level():
@@ -51,12 +49,12 @@ def test_config_partial_override(monkeypatch):
     """
     monkeypatch.setenv("LOG_LEVEL", "ERROR")
 
-    config = AppConfig()
+    overridden_config = AppConfig()  # Explicitly instantiate a new config instance
 
-    assert config.LOG_LEVEL == "ERROR"
-    assert config.APP_ENV == "development"  # Default
-    assert config.DEBUG is False  # Default
-    assert config.API_TIMEOUT == 30  # Default
+    assert overridden_config.LOG_LEVEL == "ERROR"
+    assert overridden_config.APP_ENV == "development"  # Default
+    assert overridden_config.DEBUG is False  # Default
+    assert overridden_config.API_TIMEOUT == 30  # Default
 
 
 def test_env_file_loading(tmp_path, monkeypatch):
@@ -69,14 +67,12 @@ def test_env_file_loading(tmp_path, monkeypatch):
         "APP_ENV=testing\nDEBUG=true\nLOG_LEVEL=CRITICAL\nAPI_TIMEOUT=120"
     )
 
-    # Override the `env_file` path in the AppConfig class
-    monkeypatch.setattr(AppConfig.Config, "env_file", str(env_file))
-
-    # Force reloading the settings
-    config = AppConfig(_env_file=str(env_file))
+    # Instantiate a new config instance, explicitly specifying the env_file
+    env_config = AppConfig(_env_file=str(env_file))
 
     # Assert the values from the .env file
-    assert config.APP_ENV == "testing"
-    assert config.DEBUG is True
-    assert config.LOG_LEVEL == "CRITICAL"
-    assert config.API_TIMEOUT == 120
+    assert env_config.APP_ENV == "testing"
+    assert env_config.DEBUG is True
+    assert env_config.LOG_LEVEL == "CRITICAL"
+    assert env_config.API_TIMEOUT == 120
+

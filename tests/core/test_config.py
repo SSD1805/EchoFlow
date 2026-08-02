@@ -1,78 +1,48 @@
-# tests/core/test_config.py
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from src.core.config import AppConfig, config
+from src.core.config import AppConfig
 
 
-def test_config_defaults():
-    """
-    Test that default values are correctly set when no environment variables are provided.
-    """
+def test_local_defaults_are_valid():
+    config = AppConfig(_env_file=None)
     assert config.APP_ENV == "development"
     assert config.DEBUG is False
-    assert config.DATABASE_URL is None
-    assert config.CELERY_BROKER_URL is None
-    assert config.DJANGO_SECRET_KEY is None
     assert config.LOG_LEVEL == "INFO"
-    assert config.API_TIMEOUT == 30
+    assert Path.home() / ".echoflow" == config.WORKSPACE_DIR
+    assert config.WARN_FREE_DISK_BYTES >= config.MIN_FREE_DISK_BYTES
 
 
-def test_config_env_override(monkeypatch):
-    """
-    Test that environment variables override default values.
-    """
+def test_environment_overrides_local_settings(monkeypatch, tmp_path):
     monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("DEBUG", "1")  # `1` translates to True
-    monkeypatch.setenv("LOG_LEVEL", "WARNING")
-    monkeypatch.setenv("API_TIMEOUT", "60")
-
-    overridden_config = AppConfig()  # Explicitly instantiate a new config instance
-
-    assert overridden_config.APP_ENV == "production"
-    assert overridden_config.DEBUG is True
-    assert overridden_config.LOG_LEVEL == "WARNING"
-    assert overridden_config.API_TIMEOUT == 60
+    monkeypatch.setenv("DEBUG", "true")
+    monkeypatch.setenv("LOG_LEVEL", "warning")
+    monkeypatch.setenv("WORKSPACE_DIR", str(tmp_path))
+    config = AppConfig(_env_file=None)
+    assert config.APP_ENV == "production"
+    assert config.DEBUG is True
+    assert config.LOG_LEVEL == "WARNING"
+    assert tmp_path == config.WORKSPACE_DIR
 
 
-def test_config_invalid_log_level():
-    """
-    Test that invalid log levels raise a ValidationError.
-    """
+@pytest.mark.parametrize("log_level", ["TRACE", "", "fatal"])
+def test_invalid_log_levels_are_rejected(log_level):
     with pytest.raises(ValidationError):
-        AppConfig(LOG_LEVEL="INVALID")
+        AppConfig(LOG_LEVEL=log_level, _env_file=None)
 
 
-def test_config_partial_override(monkeypatch):
-    """
-    Test that partial environment variables override defaults while others remain.
-    """
-    monkeypatch.setenv("LOG_LEVEL", "ERROR")
-
-    overridden_config = AppConfig()  # Explicitly instantiate a new config instance
-
-    assert overridden_config.LOG_LEVEL == "ERROR"
-    assert overridden_config.APP_ENV == "development"  # Default
-    assert overridden_config.DEBUG is False  # Default
-    assert overridden_config.API_TIMEOUT == 30  # Default
+def test_warning_threshold_cannot_be_lower_than_required_threshold():
+    with pytest.raises(ValidationError, match="WARN_FREE_DISK_BYTES"):
+        AppConfig(
+            MIN_FREE_DISK_BYTES=20,
+            WARN_FREE_DISK_BYTES=19,
+            _env_file=None,
+        )
 
 
-def test_env_file_loading(tmp_path, monkeypatch):
-    """
-    Test that values from a .env file are correctly loaded.
-    """
-    # Create a temporary .env file
-    env_file = tmp_path / ".env"
-    env_file.write_text(
-        "APP_ENV=testing\nDEBUG=true\nLOG_LEVEL=CRITICAL\nAPI_TIMEOUT=120"
-    )
-
-    # Instantiate a new config instance, explicitly specifying the env_file
-    env_config = AppConfig(_env_file=str(env_file))
-
-    # Assert the values from the .env file
-    assert env_config.APP_ENV == "testing"
-    assert env_config.DEBUG is True
-    assert env_config.LOG_LEVEL == "CRITICAL"
-    assert env_config.API_TIMEOUT == 120
+def test_workspace_expands_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    config = AppConfig(WORKSPACE_DIR="~/audio", _env_file=None)
+    assert tmp_path / "audio" == config.WORKSPACE_DIR

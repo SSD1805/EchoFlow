@@ -14,7 +14,8 @@ dependencies = [
     "pydantic-settings>=2.6,<3",
     "pyyaml>=6,<7",
     "structlog>=25,<26",
-    "tqdm>=4.65,<5",
+    "typer>=0.16,<1",
+    "rich>=14,<15",
 ]
 
 [dependency-groups]
@@ -29,7 +30,7 @@ dev = [
 ]
 
 [project.scripts]
-echoflow = "src.main:main"
+echoflow = "src.cli:app"
 
 [build-system]
 requires = ["hatchling>=1.27"]
@@ -61,9 +62,13 @@ ignore = ["E501"]
 [tool.poodle]
 source_folders = ["."]
 only_files = [
+    "src/cli.py",
     "src/core/config.py",
+    "src/core/file_manager_facade.py",
+    "src/core/health_check.py",
+    "src/core/health_probes.py",
+    "src/core/performance_tracker.py",
     "src/interfaces/local_file_manager.py",
-    "src/utils/file_utils.py",
 ]
 file_filters = [
     ".git/**",

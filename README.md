@@ -31,13 +31,12 @@ EchoFlow is still under development. The repository currently contains its confi
    - A pipeline manager will orchestrate their interaction and execution.
 
 4. **Enhanced Observability**
-   - Singleton-based **Logger** using `structlog` for efficient, extensible logging.
+   - Container-managed **Logger** using `structlog` for structured diagnostics.
    - **Performance Tracker** to log system metrics and identify bottlenecks.
    - Health checks to monitor the operational status of critical components.
 
 5. **Future-Proof Design**
-   - Prepared for integration with task queues (`Celery`), databases, and REST APIs.
-   - Configurable using `.env` and environment variables for flexible deployments.
+   - Configurable using `.env` and environment variables for local deployments.
 
 ---
 
@@ -51,7 +50,7 @@ EchoFlow is still under development. The repository currently contains its confi
   - **YAMLUtility**: Simplifies YAML parsing, validation, and writing with extensible features.
 
 ### **2. Core Modules**
-- **Logger**: Singleton-based logging system for structured, configurable logs.
+- **Logger**: Container-managed structured logging with one configuration boundary.
 - **Performance Tracker**: Tracks execution times for key operations, aiding in performance optimization.
 - **HealthCheck Module**: Monitors the health of application components and reports issues early.
 
@@ -109,6 +108,17 @@ EchoFlow is still under development. The repository currently contains its confi
    ```bash
    uv run poodle
    ```
+
+6. Inspect local requirements and optional tools:
+   ```bash
+   uv run echoflow doctor
+   uv run echoflow doctor --json
+   ```
+
+`doctor` reports the workspace, disk space, FFmpeg, and system-resource state. A
+required failure exits with status 1. Optional warnings exit successfully unless
+`--strict` is supplied. Running `echoflow` without a subcommand only displays help;
+it does not create files or run diagnostics.
 
 ---
 

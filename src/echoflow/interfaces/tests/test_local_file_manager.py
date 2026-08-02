@@ -5,7 +5,11 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from echoflow.core.errors import StorageError, StorageNotFoundError
+from echoflow.core.errors import (
+    StorageAlreadyExistsError,
+    StorageError,
+    StorageNotFoundError,
+)
 from echoflow.interfaces.base_file_manager import FileManager
 from echoflow.interfaces.local_file_manager import LocalFileManager
 
@@ -46,9 +50,31 @@ def test_ensure_directory_is_recursive_and_idempotent(manager, tmp_path):
     assert nested.is_dir()
 
 
+def test_directory_and_file_reservations_are_exclusive(manager, tmp_path):
+    directory = tmp_path / "job"
+    artifact = tmp_path / "transcript.json"
+    manager.reserve_directory(directory)
+    manager.reserve_file(artifact)
+    assert directory.is_dir()
+    assert artifact.read_bytes() == b""
+    with pytest.raises(StorageAlreadyExistsError):
+        manager.reserve_directory(directory)
+    with pytest.raises(StorageAlreadyExistsError):
+        manager.reserve_file(artifact)
+
+
 @pytest.mark.parametrize(("name", "expected"), [("", "_"), (".", "_"), ("..", "__")])
 def test_reserved_empty_and_traversal_names_are_not_preserved(manager, name, expected):
     assert manager.sanitize_filename(name) == expected
+
+
+@pytest.mark.parametrize("name", ["CON", "con.txt", "LPT1.wav", "COM9.json"])
+def test_windows_device_names_are_safe_on_every_platform(manager, name):
+    assert manager.sanitize_filename(name).startswith("_")
+
+
+def test_trailing_windows_dots_and_spaces_are_removed(manager):
+    assert manager.sanitize_filename("recording. ") == "recording"
 
 
 @given(st.binary(max_size=4096))

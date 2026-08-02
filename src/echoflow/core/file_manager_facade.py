@@ -89,6 +89,20 @@ class FileManagerFacade:
             path=str(directory_path),
         )
 
+    def reserve_directory(self, directory_path: str | Path) -> None:
+        self._execute(
+            "reserve_directory",
+            lambda: self.file_manager.reserve_directory(directory_path),
+            path=str(directory_path),
+        )
+
+    def reserve_file(self, file_path: str | Path) -> None:
+        self._execute(
+            "reserve_file",
+            lambda: self.file_manager.reserve_file(file_path),
+            path=str(file_path),
+        )
+
     def list_files(
         self,
         directory_path: str | Path,

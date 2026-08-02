@@ -4,11 +4,21 @@ import tempfile
 from pathlib import Path
 
 from echoflow.core.errors import (
+    StorageAlreadyExistsError,
     StorageError,
     StorageNotFoundError,
     StoragePermissionError,
 )
 from echoflow.interfaces.base_file_manager import FileMetadata
+
+_WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+}
 
 
 class LocalFileManager:
@@ -69,6 +79,24 @@ class LocalFileManager:
         except Exception as exc:
             raise self._error("create directory", path, exc) from exc
 
+    def reserve_directory(self, directory_path: str | Path) -> None:
+        path = Path(directory_path)
+        try:
+            path.mkdir()
+        except Exception as exc:
+            raise self._error("reserve directory", path, exc) from exc
+
+    def reserve_file(self, file_path: str | Path) -> None:
+        path = Path(file_path)
+        descriptor: int | None = None
+        try:
+            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except Exception as exc:
+            raise self._error("reserve file", path, exc) from exc
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
     def list_files(
         self,
         directory_path: str | Path,
@@ -92,10 +120,15 @@ class LocalFileManager:
         )
         if sanitized in {"", ".", ".."}:
             return "_" * max(1, len(sanitized))
+        sanitized = sanitized.rstrip(" .") or "_"
+        if Path(sanitized).stem.upper() in _WINDOWS_RESERVED_NAMES:
+            return f"_{sanitized}"
         return sanitized
 
     @staticmethod
     def _error(operation: str, path: Path, exc: Exception) -> StorageError:
+        if isinstance(exc, FileExistsError):
+            return StorageAlreadyExistsError(operation, path, cause=exc)
         if isinstance(exc, FileNotFoundError):
             return StorageNotFoundError(operation, path, cause=exc)
         if isinstance(exc, PermissionError):

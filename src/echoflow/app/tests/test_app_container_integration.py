@@ -10,7 +10,10 @@ def _test_config(tmp_path, **overrides) -> AppConfig:
         "APP_ENV": "test",
         "DEBUG": False,
         "LOG_LEVEL": "INFO",
-        "WORKSPACE_DIR": tmp_path,
+        "STATE_DIR": tmp_path / "state",
+        "CACHE_DIR": tmp_path / "cache",
+        "MODEL_DIR": tmp_path / "cache" / "models",
+        "OUTPUT_DIR": tmp_path / "Downloads" / "EchoFlow",
         "MIN_FREE_DISK_BYTES": 0,
         "WARN_FREE_DISK_BYTES": 0,
         "FFMPEG_TIMEOUT_SECONDS": 0.1,
@@ -39,6 +42,19 @@ def test_container_resolves_complete_local_file_graph(tmp_path):
 def test_container_health_check_uses_real_workspace_probe(tmp_path):
     container = AppContainer()
     container.config.override(_test_config(tmp_path))
+    container.workspace_service().initialize()
     report = container.health_check().run()
     workspace = next(check for check in report.checks if check.check_id == "workspace")
     assert workspace.status.value == "pass"
+
+
+def test_container_initializes_private_and_public_paths_without_mixing_them(tmp_path):
+    container = AppContainer()
+    container.config.override(_test_config(tmp_path))
+
+    paths = container.workspace_service().initialize()
+
+    assert paths.jobs_dir.is_dir()
+    assert paths.model_dir.is_dir()
+    assert paths.output_dir.is_dir()
+    assert not paths.output_dir.is_relative_to(paths.state_dir)

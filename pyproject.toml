@@ -12,6 +12,7 @@ dependencies = [
     "psutil>=7,<8",
     "pydantic>=2.10,<3",
     "pydantic-settings>=2.6,<3",
+    "platformdirs>=4.10.1,<5",
     "structlog>=25,<26",
     "typer>=0.16,<1",
     "rich>=14,<15",
@@ -101,6 +102,8 @@ only_files = [
     "src/echoflow/core/health_probes.py",
     "src/echoflow/core/performance_tracker.py",
     "src/echoflow/interfaces/local_file_manager.py",
+    "src/echoflow/workspace/models.py",
+    "src/echoflow/workspace/service.py",
 ]
 file_filters = [
     ".git/**",

@@ -69,7 +69,7 @@ def configure_logging(
 
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
-    handler = logging.StreamHandler(stream or sys.stdout)
+    handler = logging.StreamHandler(stream or sys.stderr)
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
     root_logger.setLevel(level_name)

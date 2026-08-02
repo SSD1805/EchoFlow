@@ -6,6 +6,11 @@ class ErrorCode(StrEnum):
     STORAGE = "storage_error"
     NOT_FOUND = "storage_not_found"
     PERMISSION = "storage_permission_denied"
+    ALREADY_EXISTS = "storage_already_exists"
+    INVALID_INPUT = "invalid_input"
+    UNSAFE_PATH = "unsafe_path"
+    JOB_COLLISION = "job_collision"
+    ARTIFACT_COLLISION = "artifact_collision"
 
 
 class EchoFlowError(Exception):
@@ -35,3 +40,7 @@ class StorageNotFoundError(StorageError):
 
 class StoragePermissionError(StorageError):
     code = ErrorCode.PERMISSION
+
+
+class StorageAlreadyExistsError(StorageError):
+    code = ErrorCode.ALREADY_EXISTS

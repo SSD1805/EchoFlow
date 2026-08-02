@@ -57,6 +57,15 @@ def test_copy_preserves_source_destination_argument_order(logger):
     storage.copy_file.assert_called_once_with("source.wav", "destination.wav")
 
 
+def test_reservations_reach_storage_once(logger):
+    storage = Mock()
+    facade = FileManagerFacade(storage, logger, PerformanceTracker())
+    facade.reserve_directory("jobs/job-1")
+    facade.reserve_file("output/transcript.json")
+    storage.reserve_directory.assert_called_once_with("jobs/job-1")
+    storage.reserve_file.assert_called_once_with("output/transcript.json")
+
+
 def test_tracker_context_sees_exception():
     class RecordingTracker:
         def __init__(self):

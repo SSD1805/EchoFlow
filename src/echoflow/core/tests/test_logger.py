@@ -74,3 +74,11 @@ def test_invalid_log_level_fails_before_logger_is_returned():
 def test_configured_logger_satisfies_application_protocol():
     logger = configure_logging("INFO", "production", io.StringIO())
     assert isinstance(logger, ILogger)
+
+
+def test_default_log_stream_does_not_contaminate_standard_output(capsys):
+    logger = configure_logging("INFO", "development")
+    logger.info("workspace.initialized")
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "workspace.initialized" in captured.err

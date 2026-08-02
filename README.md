@@ -10,6 +10,10 @@ EchoFlow currently provides a tested application foundation:
 
 - A Typer command boundary with side-effect-free help.
 - `echoflow doctor` diagnostics for workspace, disk, FFmpeg, CPU, and memory.
+- Platform-aware private state and model-cache directories.
+- An idempotent `echoflow init` first-run command.
+- A consumer output directory defaulting to `Downloads/EchoFlow`.
+- Typed local jobs and exclusive, collision-safe artifact-path reservations.
 - Human-readable Rich tables and stable JSON diagnostic output.
 - Atomic local file operations with typed errors.
 - Structured logging and monotonic operation timing.
@@ -34,13 +38,17 @@ Run the CLI and diagnostics:
 
 ```bash
 uv run echoflow
+uv run echoflow init
+uv run echoflow init --json
+uv run echoflow init --output-dir /path/to/output
 uv run echoflow doctor
 uv run echoflow doctor --json
 uv run echoflow doctor --workspace /path/to/workspace
 ```
 
 Configuration can be supplied through environment variables or an optional
-`.env` file. EchoFlow does not require a `.env` file for its defaults.
+`.env` file. `STATE_DIR`, `CACHE_DIR`, `MODEL_DIR`, and `OUTPUT_DIR` override
+the platform-aware defaults. EchoFlow does not require a `.env` file.
 
 ## Development
 
@@ -84,10 +92,11 @@ The full feedback ladder and Git bisect procedure are documented in
 
 ## Architecture direction
 
-EchoFlow will keep user artifacts as normal files in a user-selected output
-directory. Private workspace data, model caches, and future SQLite job state
-are separate internal concerns. Audio and transcript documents will not be
-stored as database blobs.
+EchoFlow keeps user artifacts as normal files in a user-selected output
+directory. Private state and model caches are separate internal concerns.
+Artifact names are reserved atomically and collisions are renamed rather than
+overwritten by default. Future SQLite job state will contain paths and metadata;
+audio and transcript documents will not be stored as database blobs.
 
 The proposed processing boundaries, resumability model, and bounded audio
 bisection policy are documented in

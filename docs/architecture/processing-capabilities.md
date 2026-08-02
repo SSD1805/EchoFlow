@@ -37,8 +37,8 @@ inherit from a common pipeline base class.
 7. **Render artifacts**
    - Write canonical transcript JSON atomically.
    - Derive TXT, SRT, and VTT from that canonical result.
-   - Put user-facing artifacts in an explicit output directory, defaulting to
-     `Downloads/EchoFlow` only at the CLI boundary.
+   - Put user-facing artifacts in an explicit output directory, with
+     `Downloads/EchoFlow` resolved at the application-configuration boundary.
 8. **Record progress**
    - Persist job, stage, segment, attempt, and artifact metadata in SQLite.
    - Store paths and metadata in SQLite, not audio blobs or transcript files.
@@ -83,8 +83,8 @@ guarantees.
 
 ## Sequence of implementation
 
-1. Define input, output, job-plan, segment, transcript, and artifact value
-   objects with colocated contract tests.
+1. Extend the implemented job/artifact path objects with input metadata,
+   job-plan, segment, and transcript value objects as each capability arrives.
 2. Implement media probing and a `transcribe --dry-run` planning command.
 3. Implement one CPU transcription engine for one supported input path.
 4. Add deterministic segmentation and assembly.

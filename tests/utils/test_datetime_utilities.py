@@ -85,7 +85,7 @@ def test_calculate_elapsed_time():
     duration = DateTimeUtility.calculate_elapsed_time(start_time, end_time)
     assert duration.in_seconds() == 3600
 
-    now = DateTimeUtility.get_current_timestamp()
+    DateTimeUtility.get_current_timestamp()
     duration_from_now = DateTimeUtility.calculate_elapsed_time(start_time)
     assert duration_from_now.in_seconds() > 0
 

@@ -2,16 +2,18 @@
 
 # tests/core/test_logger.py
 
-import pytest
-import threading
 import logging
+import threading
+
+import pytest
+
+from src.core.config import config
 from src.core.logger import (
     ApplicationLogger,
+    log_error,
     log_info,
     log_warning,
-    log_error,
 )
-from src.core.config import config
 
 
 @pytest.fixture(autouse=True)
@@ -28,7 +30,9 @@ def reset_logger():
     """
     Ensures the ApplicationLogger is reset between tests.
     """
-    ApplicationLogger._logger = None
+    ApplicationLogger.reset()
+    yield
+    ApplicationLogger.reset()
 
 
 def test_logger_configuration():
@@ -38,32 +42,28 @@ def test_logger_configuration():
     assert ApplicationLogger._logger is logger
 
 
-def test_log_info(caplog):
+def test_log_info(capsys):
     ApplicationLogger.configure()
-    with caplog.at_level(logging.INFO):
-        log_info("Test info message")
-    assert "Test info message" in caplog.text
+    log_info("Test info message")
+    assert "Test info message" in capsys.readouterr().out
 
 
-def test_log_warning(caplog):
+def test_log_warning(capsys):
     ApplicationLogger.configure()
-    with caplog.at_level(logging.WARNING):
-        log_warning("Test warning message")
-    assert "Test warning message" in caplog.text
+    log_warning("Test warning message")
+    assert "Test warning message" in capsys.readouterr().out
 
 
-def test_log_error(caplog):
+def test_log_error(capsys):
     ApplicationLogger.configure()
-    with caplog.at_level(logging.ERROR):
-        log_error("Test error message")
-    assert "Test error message" in caplog.text
+    log_error("Test error message")
+    assert "Test error message" in capsys.readouterr().out
 
 
 def test_context_binding():
     ApplicationLogger.configure()
     logger = ApplicationLogger.bind_context(user_id="123", action="test_action")
-    assert "user_id" in logger._context
-    assert "action" in logger._context
+    assert logger.context == {"user_id": "123", "action": "test_action"}
 
 
 def test_logger_singleton():
@@ -87,7 +87,9 @@ def test_thread_safety():
     for thread in threads:
         thread.join()
 
-    assert not errors, f"Errors occurred during threaded logger initialization: {errors}"
+    assert not errors, (
+        f"Errors occurred during threaded logger initialization: {errors}"
+    )
 
 
 def test_add_custom_handler(tmp_path):
@@ -111,7 +113,9 @@ def test_add_custom_handler(tmp_path):
     assert log_file.exists(), "Log file should exist"
     with open(log_file) as f:
         file_content = f.read()
-        assert "Logging to file handler" in file_content, f"Expected log not found in file. Content: {file_content}"
+        assert "Logging to file handler" in file_content, (
+            f"Expected log not found in file. Content: {file_content}"
+        )
 
 
 def test_invalid_log_level(monkeypatch):

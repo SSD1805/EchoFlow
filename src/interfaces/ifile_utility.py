@@ -1,6 +1,5 @@
 # src/interfaces/ifile_utility.py
 from abc import ABC, abstractmethod
-from typing import Optional, List
 
 
 class IFileUtility(ABC):
@@ -35,8 +34,8 @@ class IFileUtility(ABC):
 
     @abstractmethod
     def list_files_in_directory(
-        self, directory_path: str, extensions: Optional[tuple] = None
-    ) -> List[str]:
+        self, directory_path: str, extensions: tuple | None = None
+    ) -> list[str]:
         """List files in a directory with optional filtering by extensions."""
         raise NotImplementedError
 
@@ -57,7 +56,7 @@ class IFileUtility(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list_cloud_files(self, cloud_path: str) -> List[str]:
+    def list_cloud_files(self, cloud_path: str) -> list[str]:
         """List files in a cloud storage path."""
         raise NotImplementedError
 

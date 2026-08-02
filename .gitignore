@@ -9,6 +9,12 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.hypothesis/
+.poodle-temp/
+.pytest_cache/
+.ruff_cache/
+dist/
+mutants-not-found.txt
 
 # Editor/IDE files
 .vscode/

@@ -1,107 +1,91 @@
-[tool.poetry]
+[project]
 name = "echoflow"
 version = "0.1.0"
-description = "EchoFlow is a modular Python-based application designed to automate the process of downloading, transcribing, and analyzing audio content, with a focus on scalability, extensibility, and efficiency."
-authors = ["SSD"]
-license = "Apache-2.0"
+description = "A local-first audio processing, transcription, and analysis application."
 readme = "README.md"
-packages = [
-    { include = "src" }
+requires-python = ">=3.12,<3.13"
+license = { text = "Apache-2.0" }
+authors = [{ name = "SSD" }]
+dependencies = [
+    "dependency-injector>=4.48,<5",
+    "pendulum>=3,<4",
+    "psutil>=7,<8",
+    "pydantic>=2.10,<3",
+    "pydantic-settings>=2.6,<3",
+    "pyyaml>=6,<7",
+    "structlog>=25,<26",
+    "tqdm>=4.65,<5",
 ]
 
-[tool.poetry.dependencies]
-python = ">=3.12,<3.13"
-pydantic = ">=2.10,<3.0"
-pydantic-settings = ">=2.6,<3.0"
-python-dotenv = ">=1.0,<2.0"  # Optional for .env support
-
-# Django Framework and Utilities
-django = ">=4.0,<6.0"
-dependency-injector = ">=4.40,<4.50"
-django-environ = ">=0.4,<0.12"
-cookiecutter = ">=2.4.0,<3.0"
-
-# REST API and Real-Time Communication
-djangorestframework = ">=3.13,<4.0"
-channels = ">=3.0,<5.0"
-
-# Task Queue and Distributed Processing
-celery = ">=5.2,<6.0"
-dask = ">=2022.5.0,<2025.0.0"
-
-# Audio Processing and Transcription
-openai-whisper = { git = "https://github.com/openai/whisper.git" }
-whisperx = { git = "https://github.com/m-bain/whisperx.git" }
-speechbrain = ">=0.5.13,<1.1.0"
-torch = ">=2.0,<3.0"
-
-# NLP Libraries
-nltk = ">=3.8,<4.0"
-spacy = ">=3.5,<4.0"
-spacy-transformers = ">=1.2,<2.0"
-
-# Data Processing
-numpy = ">=1.23,<3.0"
-pandas = ">=2.0,<3.0"
-scipy = ">=1.10,<2.0"
-
-# Audio Utilities
-pydub = ">=0.25,<0.30"
-soundfile = ">=0.12,<1.0"
-
-# HTTP, CLI, and Utilities
-requests = ">=2.31,<3.0"
-tqdm = ">=4.65,<5.0"
-tenacity = ">=8.2,<9.0"
-pyyaml = ">=6.0,<7.0"
-click = ">=8.1,<9.0"
-pybreaker = ">=0.7,<1.5"
-
-# Logging
-structlog = ">=23.0,<25.0"
-
-# Profiling and Memory Management
-memory-profiler = ">=0.61,<1.0"
-
-# Date and Time Utilities
-pendulum = ">=3.0,<4.0"
-
-[tool.poetry.dev-dependencies]
-pytest = ">=7.0,<9.0"
-pytest-cov = ">=4.0,<7.0"
-black = ">=23.0,<25.0"  # Code formatting
-ruff = ">=0.7.4,<1.0"  # Lightning-fast linting
-pre-commit = ">=3.3,<5.0"  # Pre-commit hooks
-isort = ">=5.0,<6.0"  # Import sorting
-
-[tool.poetry.group.dev.dependencies]
-pre-commit = "^4.0.1"
-pytest-mock = "^3.14.0"
-
-[tool.ruff]
-line-length = 88  # Matches Black's default formatting
-select = [
-    "E",    # pycodestyle (PEP 8)
-    "F",    # Pyflakes (unused variables, etc.)
-    "UP",   # pyupgrade (modernize Python code)
-    "B",    # flake8-bugbear (common Python bugs)
-    "SIM",  # flake8-simplify (simplify redundant code)
-    "I",    # isort (import sorting)
-    "C90",  # Enforce Python 3.10+ conventions
-]
-ignore = [
-    "E203",  # Black-compatible line break before binary operator
-]
-exclude = [
-    "__pycache__/",
-    ".venv/",
-    "migrations/",  # Ignore Django migrations
-    "*.test.py",    # Optional: Skip test files
+[dependency-groups]
+dev = [
+    "factory-boy>=3.3,<4",
+    "hypothesis>=6.135,<7",
+    "poodle>=1.2,<2",
+    "pytest>=8,<9",
+    "pytest-cov>=6,<8",
+    "pytest-mock>=3.14,<4",
+    "ruff>=0.12,<1",
 ]
 
-[tool.poetry.scripts]
-echoflow = "src.cli:main"
+[project.scripts]
+echoflow = "src.main:main"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers --strict-config"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "C90", "E", "F", "I", "SIM", "UP"]
+ignore = ["E501"]
+
+[tool.poodle]
+source_folders = ["."]
+only_files = [
+    "src/core/config.py",
+    "src/interfaces/local_file_manager.py",
+    "src/utils/file_utils.py",
+]
+file_filters = [
+    ".git/**",
+    ".hypothesis/**",
+    ".poodle-temp/**",
+    ".venv/**",
+    "tests/**",
+]
+file_copy_filters = [
+    ".git/**",
+    ".hypothesis/**",
+    ".poodle-temp/**",
+    ".venv/**",
+    "**/__pycache__/**",
+]
+max_workers = 1
+min_timeout = 10
+timeout_multiplier = 3
+reporters = ["summary", "not_found"]
+
+[tool.poodle.runner_opts]
+command_line = "pytest -x --assert=plain -o pythonpath="
+
+[tool.poodle.runner_opts.command_line_env]
+RUN_MODE = "MUTATION"

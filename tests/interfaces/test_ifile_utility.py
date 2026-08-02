@@ -1,7 +1,8 @@
 # tests/interfaces/test_ifile_utility.py
 
+
 import pytest
-from typing import List, Optional
+
 from src.interfaces.ifile_utility import IFileUtility
 
 
@@ -28,8 +29,8 @@ class MockFileUtility(IFileUtility):
         pass
 
     def list_files_in_directory(
-        self, directory_path: str, extensions: Optional[tuple] = None
-    ) -> List[str]:
+        self, directory_path: str, extensions: tuple | None = None
+    ) -> list[str]:
         return ["file1.txt", "file2.log"]
 
     def sanitize_filename_safe(self, filename: str) -> str:
@@ -41,7 +42,7 @@ class MockFileUtility(IFileUtility):
     def download_file(self, cloud_path: str, local_path: str) -> None:
         pass
 
-    def list_cloud_files(self, cloud_path: str) -> List[str]:
+    def list_cloud_files(self, cloud_path: str) -> list[str]:
         return ["cloud_file1.txt", "cloud_file2.txt"]
 
     def delete_cloud_file(self, cloud_path: str) -> None:
@@ -111,6 +112,7 @@ def test_list_cloud_files(utility):
 def test_delete_cloud_file(utility):
     """Test the delete_cloud_file method."""
     utility.delete_cloud_file("cloud_path.txt")
+
 
 def test_ensure_directory_exists(utility):
     """Test the ensure_directory_exists method."""

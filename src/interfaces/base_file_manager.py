@@ -5,7 +5,6 @@ Abstract base class for file management operations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, List
 
 
 class BaseFileManager(ABC):
@@ -20,11 +19,6 @@ class BaseFileManager(ABC):
         Save binary content to a specified file path.
         """
         pass
-
-    @abstractmethod
-    def ensure_directory_exists(self, directory_path: str):
-        """Ensure a directory exists, creating it if necessary."""
-        raise NotImplementedError
 
     @abstractmethod
     def file_exists(self, file_path: str) -> bool:
@@ -63,8 +57,8 @@ class BaseFileManager(ABC):
 
     @abstractmethod
     def list_files(
-        self, directory_path: str, extensions: Optional[tuple] = None
-    ) -> List[str]:
+        self, directory_path: str, extensions: tuple | None = None
+    ) -> list[str]:
         """
         List files in a directory with optional filtering by extensions.
         """
@@ -78,7 +72,7 @@ class BaseFileManager(ABC):
         pass
 
     @abstractmethod
-    def log_operation(self, operation: str, details: Optional[dict] = None) -> None:
+    def log_operation(self, operation: str, details: dict | None = None) -> None:
         """
         Log file operations for monitoring and debugging purposes.
 
@@ -103,7 +97,7 @@ class BaseFileManager(ABC):
         pass
 
     @abstractmethod
-    def list_cloud_files(self, cloud_path: str) -> List[str]:
+    def list_cloud_files(self, cloud_path: str) -> list[str]:
         """
         List files in a cloud directory (placeholder for cloud integration).
         """
@@ -115,4 +109,3 @@ class BaseFileManager(ABC):
         Delete a file from a cloud storage system (placeholder for cloud integration).
         """
         pass
-

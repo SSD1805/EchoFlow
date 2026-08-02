@@ -30,7 +30,9 @@ def test_app_container_performance_tracker_exists():
     """
     container = AppContainer()
     performance_tracker = container.performance_tracker()
-    assert performance_tracker is not None, "Performance tracker instance should not be None"
+    assert performance_tracker is not None, (
+        "Performance tracker instance should not be None"
+    )
 
 
 def test_app_container_file_manager_exists():
@@ -51,8 +53,12 @@ def test_app_container_file_manager_integration():
     logger = container.logger()
     tracker = container.performance_tracker()
 
-    assert file_manager.logger is logger, "FileManagerFacade should use the AppContainer's logger"
-    assert file_manager.tracker is tracker, "FileManagerFacade should use the AppContainer's performance tracker"
+    assert file_manager.logger is logger, (
+        "FileManagerFacade should use the AppContainer's logger"
+    )
+    assert file_manager.tracker is tracker, (
+        "FileManagerFacade should use the AppContainer's performance tracker"
+    )
 
 
 def test_app_container_logger_integration():
@@ -63,18 +69,18 @@ def test_app_container_logger_integration():
     logger = container.logger()
     assert logger is not None, "Logger instance should not be None"
 
-    try:
-        logger.info("Testing logger integration with AppContainer")
-    except Exception as e:
-        assert False, f"Logger raised an exception during integration test: {e}"
+    logger.info("Testing logger integration with AppContainer")
 
 
-@pytest.mark.parametrize("log_message", [
-    "Test log 1",
-    "Another test log",
-    "Edge case: special characters !@#$%^&*()",
-    "Unicode test: こんにちは世界"
-])
+@pytest.mark.parametrize(
+    "log_message",
+    [
+        "Test log 1",
+        "Another test log",
+        "Edge case: special characters !@#$%^&*()",
+        "Unicode test: こんにちは世界",
+    ],
+)
 def test_app_container_logger_with_various_messages(log_message):
     """
     Test logging with various messages.
@@ -82,10 +88,7 @@ def test_app_container_logger_with_various_messages(log_message):
     container = AppContainer()
     logger = container.logger()
 
-    try:
-        logger.info(log_message)
-    except Exception as e:
-        assert False, f"Logger raised an exception for message '{log_message}': {e}"
+    logger.info(log_message)
 
 
 def test_app_container_thread_safety():
@@ -93,6 +96,7 @@ def test_app_container_thread_safety():
     Test the AppContainer's thread safety when accessed from multiple threads.
     """
     from threading import Thread
+
     errors = []
 
     def access_container(thread_id):
@@ -125,7 +129,4 @@ def test_app_container_file_manager_functionality():
     mock_tracker = Mock()
     file_manager.tracker = mock_tracker
 
-    try:
-        file_manager.sanitize_filename("unsafe/file*name?.txt")
-    except Exception as e:
-        assert False, f"FileManagerFacade raised an exception: {e}"
+    file_manager.sanitize_filename("unsafe/file*name?.txt")

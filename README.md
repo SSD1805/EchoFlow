@@ -4,11 +4,9 @@
 
 ## **What is EchoFlow?**
 
-**EchoFlow** is a Python-based application designed to explore modern software practices while providing a flexible and modular platform for audio processing. Built as a personal learning project, EchoFlow aims to handle tasks like **downloading**, **transcribing**, and **analyzing** audio content while following best practices in software engineering.
+**EchoFlow** is a local-first Python application foundation for audio processing. It is intended to handle tasks like **transcribing** and **analyzing** audio without requiring users to upload private, potentially large recordings to a hosted service.
 
-This application isn't just about solving a problem; it's about learning how to design scalable, extensible systems and creating something that can grow with user needs. EchoFlow’s modular pipelines and thoughtful architecture mean it can handle both small and moderate workloads today, with the potential for larger-scale integrations and features in the future.
-
-Still under development, EchoFlow is an evolving project that reflects ongoing learning and a commitment to building robust, maintainable, and flexible software. Whether you're an individual looking for a tool to process audio content or a developer interested in clean, scalable codebases, EchoFlow has something to offer.
+EchoFlow is still under development. The repository currently contains its configuration, structured logging, local file-management, health-check, and performance-tracking foundation. Audio ingestion and transcription are roadmap work, not implemented features.
 
 ---
 
@@ -24,13 +22,13 @@ Still under development, EchoFlow is an evolving project that reflects ongoing l
    - YAML utilities for configuration parsing and validation.
    - Security-focused utilities (in progress) for credential management and encryption.
 
-3. **Pipeline Management**
-   - **Four Core Pipelines**:
+3. **Planned Pipeline Management**
+   - **Four planned pipelines**:
      - **Download Pipeline**: Handles downloads of video and audio files.
      - **Audio Pipeline**: Preprocesses and enhances audio files.
      - **Text Pipeline**: Refines and analyzes transcriptions.
      - **Transcription Pipeline**: Converts audio to text using tools like `OpenAI Whisper`.
-   - **Pipeline Manager**: Orchestrates the interaction and execution of these pipelines.
+   - A pipeline manager will orchestrate their interaction and execution.
 
 4. **Enhanced Observability**
    - Singleton-based **Logger** using `structlog` for efficient, extensible logging.
@@ -64,7 +62,8 @@ Still under development, EchoFlow is an evolving project that reflects ongoing l
 
 ### **4. Testing Framework**
 - Organized, nested test directories aligned with the application structure.
-- Comprehensive tests for all utilities and core modules using `pytest` with mock-based testing for isolated units.
+- Unit and integration tests using `pytest`, Factory Boy, and Hypothesis.
+- Poodle mutation testing for the local foundation's observable behavior.
 
 ---
 
@@ -73,13 +72,12 @@ Still under development, EchoFlow is an evolving project that reflects ongoing l
 | **Category**               | **Tools/Frameworks**                           |
 |----------------------------|-----------------------------------------------|
 | **Language**               | Python 3.12                                   |
-| **Frameworks**             | Django (planned), Dask, Celery (planned)      |
-| **Dependency Management**  | Poetry                                        |
+| **Interface**              | Local CLI; desktop interface planned          |
+| **Dependency Management**  | uv                                            |
 | **Configuration**          | Pydantic, .env                                |
 | **Logging**                | structlog                                     |
-| **Testing**                | pytest, pytest-mock                          |
-| **Audio Processing**       | OpenAI Whisper, WhisperX                      |
-| **Task Queue**             | Celery (planned), Dask                       |
+| **Testing**                | pytest, Factory Boy, Hypothesis, Poodle      |
+| **Audio Processing**       | Whisper-family transcription (planned)       |
 
 ---
 
@@ -93,7 +91,7 @@ Still under development, EchoFlow is an evolving project that reflects ongoing l
 
 2. Set up the virtual environment:
    ```bash
-   poetry install
+   uv sync
    ```
 
 3. Create a `.env` file for configurations:
@@ -104,7 +102,12 @@ Still under development, EchoFlow is an evolving project that reflects ongoing l
 
 4. Run the tests to ensure everything is set up correctly:
    ```bash
-   pytest
+   uv run pytest
+   ```
+
+5. Run mutation tests for the foundation:
+   ```bash
+   uv run poodle
    ```
 
 ---
@@ -115,21 +118,21 @@ Still under development, EchoFlow is an evolving project that reflects ongoing l
   - Enhance YAML utilities with schema validation and security hooks.
   - Build security utilities for credential encryption, masking, and safe storage.
 
-- **Phase 2: Pipeline Development**
-  - Start with the **Download Pipeline** for managing video/audio downloads.
-  - Implement subsequent pipelines (**Audio**, **Text**, **Transcription**) to ensure modular functionality.
+- **Phase 2: Local CLI and Transcription**
+  - Establish the `echoflow` CLI as the canonical interface.
+  - Implement one local Whisper-family transcription path end to end.
+  - Add the **Audio**, **Text**, and optional **Download** pipelines after that vertical slice works.
   - Finalize the **Pipeline Manager** for orchestrating pipeline workflows.
 
 - **Phase 3: Observability and Security**
   - Add advanced performance monitoring and resource throttling utilities.
   - Integrate security measures like robust encryption and credential handling.
 
-- **Phase 4: Web Interface**
-  - Build a Django-based web interface for uploading, managing, and analyzing audio files.
+- **Phase 4: Desktop Interface**
+  - Build a thin desktop interface over the same application layer used by the CLI.
 
-- **Phase 5: Task Queue and Scalability**
-  - Introduce Celery for distributed task management.
-  - Add Redis or RabbitMQ as a message broker.
+- **Phase 5: Optional Scale-Out Execution**
+  - Add background or distributed execution only when local workload evidence requires it.
 
 - **Phase 6: Analytics and Visualization**
   - Add sentiment analysis and text analytics pipelines.

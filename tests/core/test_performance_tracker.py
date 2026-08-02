@@ -33,7 +33,9 @@ def test_track_execution(performance_tracker, mock_logger):
         pass
 
     # Verify logger calls
-    mock_logger.info.assert_any_call("Performance tracking started", operation=operation_name)
+    mock_logger.info.assert_any_call(
+        "Performance tracking started", operation=operation_name
+    )
     assert any(
         call[1].get("operation") == operation_name and "duration" in call[1]
         for call in mock_logger.info.call_args_list
@@ -41,7 +43,9 @@ def test_track_execution(performance_tracker, mock_logger):
 
     # Verify metric recorded
     assert performance_tracker.get_metric(operation_name) is not None
-    assert performance_tracker.get_metric(operation_name) > 0, "Elapsed time should be greater than 0."
+    assert performance_tracker.get_metric(operation_name) > 0, (
+        "Elapsed time should be greater than 0."
+    )
 
 
 @patch("psutil.cpu_percent", return_value=25.0)
@@ -75,7 +79,9 @@ def test_track(performance_tracker, mock_logger):
     performance_tracker.track(operation_name)
 
     # Verify logger calls
-    mock_logger.info.assert_any_call("Performance tracking started", operation=operation_name)
+    mock_logger.info.assert_any_call(
+        "Performance tracking started", operation=operation_name
+    )
     assert any(
         call[1].get("operation") == operation_name and "duration" in call[1]
         for call in mock_logger.info.call_args_list

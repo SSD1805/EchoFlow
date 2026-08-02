@@ -2,7 +2,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from contextlib import contextmanager
-from typing import Dict, Optional
 
 import pendulum
 import psutil  # For system performance metrics
@@ -28,7 +27,7 @@ class PerformanceTracker(TrackerStrategy):
     @inject
     def __init__(self, logger=Provide["AppContainer.logger"]):  # Lazy string reference
         self.logger = logger if not isinstance(logger, Provide) else logger()
-        self.metrics: Dict[str, float] = {}
+        self.metrics: dict[str, float] = {}
 
     @contextmanager
     def track_execution(self, operation_name: str):
@@ -61,7 +60,7 @@ class PerformanceTracker(TrackerStrategy):
             memory_usage=memory_info.percent,
         )
 
-    def get_metric(self, operation_name: str) -> Optional[float]:
+    def get_metric(self, operation_name: str) -> float | None:
         """
         Retrieve a tracked metric by its name.
         """

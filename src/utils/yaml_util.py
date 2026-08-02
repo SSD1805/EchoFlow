@@ -1,10 +1,10 @@
 # src/utils/yaml_util.py
 
+
 import yaml
+from pydantic import BaseModel, ValidationError
 from yaml.parser import ParserError
 from yaml.scanner import ScannerError
-from typing import Any, Optional, Type
-from pydantic import BaseModel, ValidationError
 
 
 class YAMLUtility:
@@ -13,7 +13,7 @@ class YAMLUtility:
     """
 
     @staticmethod
-    def read_yaml(file_path: str) -> Optional[dict]:
+    def read_yaml(file_path: str) -> dict | None:
         """
         Reads a YAML file and returns its contents as a dictionary.
 
@@ -28,13 +28,15 @@ class YAMLUtility:
             ValueError: If the file content is invalid YAML.
         """
         try:
-            with open(file_path, "r", encoding="utf-8") as file:
+            with open(file_path, encoding="utf-8") as file:
                 data = yaml.safe_load(file)
                 if not isinstance(data, dict):
-                    raise ValueError(f"Expected a dictionary in {file_path}, but got {type(data).__name__}.")
+                    raise ValueError(
+                        f"Expected a dictionary in {file_path}, but got {type(data).__name__}."
+                    )
                 return data
         except (FileNotFoundError, ParserError, ScannerError) as e:
-            raise ValueError(f"Error reading YAML file '{file_path}': {e}")
+            raise ValueError(f"Error reading YAML file '{file_path}': {e}") from e
 
     @staticmethod
     def write_yaml(data: dict, file_path: str):
@@ -54,11 +56,11 @@ class YAMLUtility:
         try:
             with open(file_path, "w", encoding="utf-8") as file:
                 yaml.safe_dump(data, file, default_flow_style=False, sort_keys=False)
-        except IOError as e:
-            raise IOError(f"Error writing YAML file '{file_path}': {e}")
+        except OSError as e:
+            raise OSError(f"Error writing YAML file '{file_path}': {e}") from e
 
     @staticmethod
-    def validate_with_pydantic(data: dict, schema: Type[BaseModel]) -> bool:
+    def validate_with_pydantic(data: dict, schema: type[BaseModel]) -> bool:
         """
         Validates a YAML dictionary against a Pydantic model.
 
@@ -76,7 +78,7 @@ class YAMLUtility:
             schema(**data)
             return True
         except ValidationError as e:
-            raise ValueError(f"Validation error: {e}")
+            raise ValueError(f"Validation error: {e}") from e
 
     # Placeholder for JSON Schema validation
     @staticmethod

@@ -20,3 +20,17 @@ def test_container_resolves_complete_local_file_graph(tmp_path):
     assert facade.file_manager is container.local_file_manager()
     assert facade.file_exists(str(path))
     assert path.read_bytes() == b"audio-bytes"
+
+
+def test_container_health_check_uses_real_workspace_probe(tmp_path):
+    container = AppContainer()
+    container.config.override(
+        AppConfigFactory(
+            WORKSPACE_DIR=tmp_path,
+            MIN_FREE_DISK_BYTES=0,
+            WARN_FREE_DISK_BYTES=0,
+        )
+    )
+    report = container.health_check().run()
+    workspace = next(check for check in report.checks if check.check_id == "workspace")
+    assert workspace.status.value == "pass"

@@ -1,80 +1,103 @@
-# src/interfaces/local_file_manager.py
+import os
+import shutil
+import tempfile
+from pathlib import Path
+
+from src.core.errors import (
+    StorageError,
+    StorageNotFoundError,
+    StoragePermissionError,
+)
+from src.interfaces.base_file_manager import FileMetadata
 
 
-from src.core.ilogger import ILogger
-from src.interfaces.base_file_manager import BaseFileManager
-from src.utils.file_utils import LocalFileUtility
+class LocalFileManager:
+    """Logger-free adapter for local filesystem behavior."""
 
+    def save_file(self, content: bytes, file_path: str | Path) -> None:
+        destination = Path(file_path).absolute()
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb", delete=False, dir=destination.parent
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(content)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+            os.replace(temporary_path, destination)
+        except Exception as exc:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+            raise self._error("write", destination, exc) from exc
 
-class LocalFileManager(BaseFileManager):
-    """Implementation of BaseFileManager for local file operations."""
+    def file_exists(self, file_path: str | Path) -> bool:
+        return Path(file_path).is_file()
 
-    def __init__(self, file_utility: LocalFileUtility, logger: ILogger):
-        self.file_utility = file_utility
-        self.logger = logger
+    def get_file_metadata(self, file_path: str | Path) -> FileMetadata:
+        path = Path(file_path)
+        try:
+            stats = path.stat()
+        except Exception as exc:
+            raise self._error("read metadata for", path, exc) from exc
+        return {
+            "size": stats.st_size,
+            "last_modified": stats.st_mtime,
+            "last_accessed": stats.st_atime,
+        }
 
-    def save_file(self, content: bytes, file_path: str):
-        self.logger.info(f"Saving file: {file_path}")
-        self.file_utility.safe_write(content, file_path)
-        self.logger.info(f"File saved successfully: {file_path}")
+    def delete_file(self, file_path: str | Path) -> None:
+        path = Path(file_path)
+        try:
+            path.unlink(missing_ok=True)
+        except Exception as exc:
+            raise self._error("delete", path, exc) from exc
 
-    def file_exists(self, file_path: str) -> bool:
-        exists = self.file_utility.file_exists(file_path)
-        self.logger.info(f"File exists check for {file_path}: {exists}")
-        return exists
+    def copy_file(self, source: str | Path, destination: str | Path) -> None:
+        source_path = Path(source)
+        destination_path = Path(destination)
+        try:
+            shutil.copy2(source_path, destination_path)
+        except Exception as exc:
+            error_path = source_path if not source_path.exists() else destination_path
+            raise self._error("copy", error_path, exc) from exc
 
-    def get_file_metadata(self, file_path: str) -> dict:
-        metadata = self.file_utility.get_file_metadata(file_path)
-        self.logger.info(f"Metadata for {file_path}: {metadata}")
-        return metadata
+    def ensure_directory_exists(self, directory_path: str | Path) -> None:
+        path = Path(directory_path)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            raise self._error("create directory", path, exc) from exc
 
-    def delete_file(self, file_path: str):
-        self.logger.info(f"Deleting file: {file_path}")
-        self.file_utility.delete_file_safe(file_path)
-        self.logger.info(f"File deleted successfully: {file_path}")
-
-    def copy_file(self, source: str, destination: str):
-        self.logger.info(f"Copying file from {source} to {destination}")
-        self.file_utility.copy_file_safe(source, destination)
-        self.logger.info(f"File copied successfully: {source} -> {destination}")
-
-    def ensure_directory_exists(self, directory_path: str):
-        self.logger.info(f"Ensuring directory exists: {directory_path}")
-        self.file_utility.ensure_directory_exists(directory_path)
-        self.logger.info(f"Directory ensured: {directory_path}")
-
-    def list_files(self, directory_path: str, extensions: tuple | None = None) -> list:
-        if not extensions:
-            self.logger.info(f"Listing all files in {directory_path}")
-        else:
-            self.logger.info(
-                f"Listing files in {directory_path} with extensions: {extensions}"
+    def list_files(
+        self,
+        directory_path: str | Path,
+        extensions: tuple[str, ...] | None = None,
+    ) -> list[Path]:
+        path = Path(directory_path)
+        try:
+            return sorted(
+                candidate
+                for candidate in path.iterdir()
+                if candidate.is_file()
+                and (not extensions or candidate.name.endswith(extensions))
             )
-        return self.file_utility.list_files_in_directory(directory_path, extensions)
+        except Exception as exc:
+            raise self._error("list", path, exc) from exc
 
     def sanitize_filename(self, filename: str) -> str:
-        sanitized = self.file_utility.sanitize_filename_safe(filename)
-        self.logger.info(f"Sanitized filename: {filename} -> {sanitized}")
+        sanitized = "".join(
+            character if character.isalnum() or character in " ._-()" else "_"
+            for character in filename
+        )
+        if sanitized in {"", ".", ".."}:
+            return "_" * max(1, len(sanitized))
         return sanitized
 
-    # Implement placeholders for cloud operations
-    def upload_file(self, local_path: str, cloud_path: str):
-        self.logger.info(f"Attempting to upload file from {local_path} to {cloud_path}")
-        raise NotImplementedError("Cloud upload is not implemented.")
-
-    def download_file(self, cloud_path: str, local_path: str):
-        self.logger.info(
-            f"Attempting to download file from {cloud_path} to {local_path}"
-        )
-        raise NotImplementedError("Cloud download is not implemented.")
-
-    def list_cloud_files(self, cloud_path: str):
-        self.logger.info(f"Attempting to list files in cloud path: {cloud_path}")
-        raise NotImplementedError("Cloud file listing is not implemented.")
-
-    def delete_cloud_file(self, cloud_path: str):
-        self.logger.info(f"Attempting to delete file in cloud path: {cloud_path}")
-        raise NotImplementedError("Cloud file deletion is not implemented.")
-
-    def log_operation(self, operation: str, details: dict | None = None):
-        self.logger.info("File operation", operation=operation, **(details or {}))
+    @staticmethod
+    def _error(operation: str, path: Path, exc: Exception) -> StorageError:
+        if isinstance(exc, FileNotFoundError):
+            return StorageNotFoundError(operation, path, cause=exc)
+        if isinstance(exc, PermissionError):
+            return StoragePermissionError(operation, path, cause=exc)
+        return StorageError(operation, path, cause=exc)

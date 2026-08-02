@@ -1,5 +1,7 @@
 # src/core/config.py
-from pydantic import Field, field_validator
+from pathlib import Path
+
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,19 +17,22 @@ class AppConfig(BaseSettings):
     APP_ENV: str = Field(default="development", description="Application environment")
     DEBUG: bool = Field(default=False, description="Enable debug mode")
 
-    # Database configuration
-    DATABASE_URL: str | None = Field(
-        default=None, description="Database connection URL"
-    )
-
-    # Task queue configuration
-    CELERY_BROKER_URL: str | None = Field(default=None, description="Celery broker URL")
-
-    # Django settings
-    DJANGO_SECRET_KEY: str | None = Field(default=None, description="Django secret key")
-
     # Logging settings
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
+
+    # Local application settings
+    WORKSPACE_DIR: Path = Field(
+        default=Path("~/.echoflow"), description="Local EchoFlow workspace"
+    )
+    MIN_FREE_DISK_BYTES: int = Field(
+        default=512 * 1024 * 1024, ge=0, description="Required free disk space"
+    )
+    WARN_FREE_DISK_BYTES: int = Field(
+        default=2 * 1024 * 1024 * 1024,
+        ge=0,
+        description="Recommended free disk space",
+    )
+    FFMPEG_TIMEOUT_SECONDS: float = Field(default=2.0, gt=0)
 
     @field_validator("LOG_LEVEL")
     def validate_log_level(cls, value: str) -> str:
@@ -39,11 +44,16 @@ class AppConfig(BaseSettings):
             )
         return value.upper()
 
-    # Extra configuration (if needed)
-    API_TIMEOUT: int = Field(
-        default=30, description="Default timeout for API requests in seconds"
-    )
+    @field_validator("WORKSPACE_DIR", mode="before")
+    @classmethod
+    def expand_workspace(cls, value: str | Path) -> Path:
+        return Path(value).expanduser()
 
-
-# Instantiate and expose the configuration object
-config = AppConfig()
+    @model_validator(mode="after")
+    def validate_disk_thresholds(self) -> "AppConfig":
+        if self.WARN_FREE_DISK_BYTES < self.MIN_FREE_DISK_BYTES:
+            raise ValueError(
+                "WARN_FREE_DISK_BYTES must be greater than or equal to "
+                "MIN_FREE_DISK_BYTES"
+            )
+        return self

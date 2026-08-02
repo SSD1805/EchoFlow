@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "A local-first audio processing, transcription, and analysis application."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [{ name = "SSD" }]
 dependencies = [
     "dependency-injector>=4.48,<5",
@@ -19,24 +20,27 @@ dependencies = [
 [dependency-groups]
 dev = [
     "hypothesis>=6.135,<7",
+    "mypy>=1.17,<2",
     "poodle>=1.2,<2",
+    "pre-commit>=4,<5",
     "pytest>=8,<9",
     "pytest-cov>=6,<8",
     "pytest-mock>=3.14,<4",
     "radon>=6,<7",
     "ruff>=0.12,<1",
+    "types-psutil>=7,<8",
     "vulture>=2.16,<3",
 ]
 
 [project.scripts]
-echoflow = "src.cli:app"
+echoflow = "echoflow.cli:app"
 
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src/echoflow"]
 
 [tool.hatch.build]
 exclude = [
@@ -46,13 +50,13 @@ exclude = [
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers --strict-config"
-testpaths = ["src"]
+testpaths = ["src/echoflow"]
 python_files = ["test_*.py"]
 
 [tool.coverage.run]
 branch = true
-source = ["src"]
-omit = ["src/**/tests/*"]
+source = ["echoflow"]
+omit = ["src/echoflow/**/tests/*"]
 
 [tool.coverage.report]
 fail_under = 90
@@ -62,6 +66,7 @@ skip_covered = true
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+src = ["src"]
 
 [tool.ruff.lint]
 select = ["B", "C90", "E", "F", "I", "SIM", "UP"]
@@ -80,7 +85,7 @@ average = true
 exclude = "**/tests/*"
 
 [tool.vulture]
-paths = ["src"]
+paths = ["src/echoflow"]
 exclude = ["**/tests/**"]
 ignore_names = ["cls"]
 min_confidence = 100
@@ -89,13 +94,13 @@ sort_by_size = true
 [tool.poodle]
 source_folders = ["."]
 only_files = [
-    "src/cli.py",
-    "src/core/config.py",
-    "src/core/file_manager_facade.py",
-    "src/core/health_check.py",
-    "src/core/health_probes.py",
-    "src/core/performance_tracker.py",
-    "src/interfaces/local_file_manager.py",
+    "src/echoflow/cli.py",
+    "src/echoflow/core/config.py",
+    "src/echoflow/core/file_manager_facade.py",
+    "src/echoflow/core/health_check.py",
+    "src/echoflow/core/health_probes.py",
+    "src/echoflow/core/performance_tracker.py",
+    "src/echoflow/interfaces/local_file_manager.py",
 ]
 file_filters = [
     ".git/**",
@@ -121,3 +126,11 @@ command_line = "pytest -x --assert=plain -o pythonpath="
 
 [tool.poodle.runner_opts.command_line_env]
 RUN_MODE = "MUTATION"
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src/echoflow"]
+exclude = ["src/echoflow/.*/tests/", "src/echoflow/tests/"]
+strict = true
+warn_unreachable = true
+pretty = true

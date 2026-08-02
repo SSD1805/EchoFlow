@@ -1,183 +1,98 @@
 # EchoFlow
 
----
+EchoFlow is a local-first Python application for audio processing,
+transcription, and analysis. It is intended to keep private, potentially large
+recordings on the user's machine.
 
-## **What is EchoFlow?**
+## Project status
 
-**EchoFlow** is a local-first Python application foundation for audio processing. It is intended to handle tasks like **transcribing** and **analyzing** audio without requiring users to upload private, potentially large recordings to a hosted service.
+EchoFlow currently provides a tested application foundation:
 
-EchoFlow is still under development. The repository currently contains its configuration, structured logging, local file-management, health-check, and performance-tracking foundation. Audio ingestion and transcription are roadmap work, not implemented features.
+- A Typer command boundary with side-effect-free help.
+- `echoflow doctor` diagnostics for workspace, disk, FFmpeg, CPU, and memory.
+- Human-readable Rich tables and stable JSON diagnostic output.
+- Atomic local file operations with typed errors.
+- Structured logging and monotonic operation timing.
+- Dependency Injector composition for the implemented services.
 
----
+Audio ingestion and transcription are not implemented yet. The first planned
+product slice is a local `transcribe --dry-run` command, followed by one working
+CPU transcription path.
 
-## 🌟 **Key Features**
+## Requirements and installation
 
-1. **Scalable and Modular Architecture**
-   - Adheres to **SOLID** and **DRY** principles for clean, maintainable design.
-   - Centralized dependency management using `Dependency Injector`.
-   - Capability-based processing is planned around one local transcription path before a generic pipeline manager is introduced.
+- Python 3.12
+- [uv](https://docs.astral.sh/uv/)
 
-2. **Local Application Foundation**
-   - Atomic local file operations and structured application errors.
-   - Typed diagnostics for workspace, disk, FFmpeg, CPU, and memory readiness.
-   - Side-effect-free CLI startup with explicit `doctor` diagnostics.
+```bash
+git clone https://github.com/SSD1805/EchoFlow.git
+cd EchoFlow
+uv sync --locked
+```
 
-3. **Planned Pipeline Management**
-   - **Four planned pipelines**:
-     - **Download Pipeline**: Handles downloads of video and audio files.
-     - **Audio Pipeline**: Preprocesses and enhances audio files.
-     - **Text Pipeline**: Refines and analyzes transcriptions.
-     - **Transcription Pipeline**: Converts audio to text using tools like `OpenAI Whisper`.
-   - A pipeline manager will orchestrate their interaction and execution.
+Run the CLI and diagnostics:
 
-4. **Enhanced Observability**
-   - Container-managed **Logger** using `structlog` for structured diagnostics.
-   - **Performance Tracker** to log system metrics and identify bottlenecks.
-   - Health checks to monitor the operational status of critical components.
+```bash
+uv run echoflow
+uv run echoflow doctor
+uv run echoflow doctor --json
+uv run echoflow doctor --workspace /path/to/workspace
+```
 
-5. **Future-Proof Design**
-   - Configurable using `.env` and environment variables for local deployments.
+Configuration can be supplied through environment variables or an optional
+`.env` file. EchoFlow does not require a `.env` file for its defaults.
 
----
+## Development
 
-## 🛠️ **What's Been Built So Far**
+Production code uses a standard src layout under `src/echoflow`. Tests are
+colocated in a `tests/` directory beneath the package whose contract they
+protect, and those test packages are excluded from built distributions.
 
-### **1. Foundational Components**
-- Pydantic settings and Dependency Injector composition.
-- **FileManagerFacade** for timed, structured local file operations.
-- Typed application and storage errors.
-- Typer/Click command boundary with machine-readable diagnostics.
+Install the Git hooks once:
 
-### **2. Core Modules**
-- **Logger**: Container-managed structured logging with one configuration boundary.
-- **Performance Tracker**: Tracks execution times for key operations, aiding in performance optimization.
-- **HealthCheck Module**: Monitors the health of application components and reports issues early.
+```bash
+uv run pre-commit install
+```
 
-### **3. Local Storage**
-- Atomic writes, metadata, copying, deletion, directory creation, and safe filename handling.
-- User-visible outputs and private application state will remain separate contracts.
+Run the repository gates:
 
-### **4. Testing Framework**
-- Tests colocated in each capability package under its own `tests/` directory.
-- Unit, integration, property, CLI, and real-filesystem tests using `pytest` and Hypothesis.
-- Poodle mutation testing for the local foundation's observable behavior.
-- Ruff complexity limits, Radon metrics, and conservative Vulture dead-code checks.
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv run vulture
+uv run radon cc src/echoflow --total-average
+uv run radon mi src/echoflow
+uv run pytest --cov=echoflow --cov-branch --cov-report=term-missing
+uv lock --check
+uv build
+```
 
----
+The enforced budgets are:
 
-## 🛠️ **Technology Stack**
+- Ruff cyclomatic complexity of at most 10.
+- Branch-aware test coverage of at least 90%.
+- Vulture findings reported only at 100% confidence.
+- Strict mypy checks over production code.
 
-| **Category**               | **Tools/Frameworks**                           |
-|----------------------------|-----------------------------------------------|
-| **Language**               | Python 3.12                                   |
-| **Interface**              | Local CLI; desktop interface planned          |
-| **Dependency Management**  | uv                                            |
-| **Configuration**          | Pydantic, .env                                |
-| **Logging**                | structlog                                     |
-| **Testing**                | pytest, Hypothesis, Poodle                   |
-| **Code quality**           | Ruff, Radon, Vulture                         |
-| **Audio Processing**       | Whisper-family transcription (planned)       |
+Radon reports complexity and maintainability trends; Ruff provides the hard
+complexity gate. Targeted Poodle mutation runs are used for changed decision
+logic because its broad runner currently has a process-timeout cleanup defect.
 
----
-
-## 🛠️ **Installation**
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/SSD1805/EchoFlow.git
-   cd EchoFlow
-   ```
-
-2. Set up the virtual environment:
-   ```bash
-   uv sync
-   ```
-
-3. Create a `.env` file for configurations:
-   ```bash
-   echo "APP_ENV=development" >> .env
-   echo "DEBUG=True" >> .env
-   ```
-
-4. Run the tests to ensure everything is set up correctly:
-   ```bash
-   uv run pytest
-   ```
-
-   Run the branch-coverage gate:
-   ```bash
-   uv run pytest --cov=src --cov-branch --cov-report=term-missing
-   ```
-
-5. Run mutation tests for the foundation:
-   ```bash
-   uv run poodle
-   ```
-
-6. Inspect local requirements and optional tools:
-   ```bash
-   uv run echoflow doctor
-   uv run echoflow doctor --json
-   ```
-
-7. Run the static quality checks:
-   ```bash
-   uv run ruff check .
-   uv run vulture
-   uv run radon cc src --total-average
-   uv run radon mi src
-   ```
-
-`doctor` reports the workspace, disk space, FFmpeg, and system-resource state. A
-required failure exits with status 1. Optional warnings exit successfully unless
-`--strict` is supplied. Running `echoflow` without a subcommand only displays help;
-it does not create files or run diagnostics.
-
-The proposed processing boundaries and recovery policy are documented in
-[`docs/architecture/processing-capabilities.md`](docs/architecture/processing-capabilities.md).
-The colocated test and regression workflow is documented in
+The full feedback ladder and Git bisect procedure are documented in
 [`docs/development/testing-and-bisect.md`](docs/development/testing-and-bisect.md).
 
----
+## Architecture direction
 
-## 🎯 **Roadmap**
+EchoFlow will keep user artifacts as normal files in a user-selected output
+directory. Private workspace data, model caches, and future SQLite job state
+are separate internal concerns. Audio and transcript documents will not be
+stored as database blobs.
 
-- **Phase 1: Workspace and Processing Contracts** (In Progress)
-  - Separate user output, private workspace, job state, and model-cache paths.
-  - Define input, plan, segment, transcript, and artifact contracts.
+The proposed processing boundaries, resumability model, and bounded audio
+bisection policy are documented in
+[`docs/architecture/processing-capabilities.md`](docs/architecture/processing-capabilities.md).
 
-- **Phase 2: Local CLI and Transcription**
-  - Establish the `echoflow` CLI as the canonical interface.
-  - Implement one local Whisper-family transcription path end to end.
-  - Add deterministic segmentation, assembly, and bounded failure bisection.
-  - Add alternative pipelines only after that vertical slice works.
+## License
 
-- **Phase 3: Observability and Security**
-  - Add advanced performance monitoring and resource throttling utilities.
-  - Integrate security measures like robust encryption and credential handling.
-
-- **Phase 4: Desktop Interface**
-  - Build a thin desktop interface over the same application layer used by the CLI.
-
-- **Phase 5: Optional Scale-Out Execution**
-  - Add background or distributed execution only when local workload evidence requires it.
-
-- **Phase 6: Analytics and Visualization**
-  - Add sentiment analysis and text analytics pipelines.
-  - Create a dashboard for visualization of insights.
-
----
-
-## 🙌 **Contributing**
-
-We welcome contributions! If you'd like to collaborate:
-1. Fork the repository.
-2. Create a feature branch.
-3. Submit a pull request with clear documentation.
-
----
-
-## 📜 **License**
-
-This project is licensed under the **Apache-2.0 License**. See the `LICENSE` file for more details.
-
+EchoFlow is licensed under the [Apache License 2.0](LICENSE).

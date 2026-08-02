@@ -1,11 +1,12 @@
 # src/core/logger_factory.py
-import structlog
 from src.core.ilogger import ILogger
+from src.core.logger import ApplicationLogger
+
 
 class LoggerFactory:
     @staticmethod
-    def create_logger(context: dict = None) -> ILogger:
-        logger = structlog.get_logger()
+    def create_logger(context: dict | None = None) -> ILogger:
+        logger = ApplicationLogger.get_logger()
         if context:
             logger = logger.bind(**context)
         return logger

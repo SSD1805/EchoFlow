@@ -1,7 +1,7 @@
 # src/interfaces/local_file_manager.py
 
-from typing import Optional
-from structlog.stdlib import BoundLogger
+
+from src.core.ilogger import ILogger
 from src.interfaces.base_file_manager import BaseFileManager
 from src.utils.file_utils import LocalFileUtility
 
@@ -9,7 +9,7 @@ from src.utils.file_utils import LocalFileUtility
 class LocalFileManager(BaseFileManager):
     """Implementation of BaseFileManager for local file operations."""
 
-    def __init__(self, file_utility: LocalFileUtility, logger: BoundLogger):
+    def __init__(self, file_utility: LocalFileUtility, logger: ILogger):
         self.file_utility = file_utility
         self.logger = logger
 
@@ -43,11 +43,13 @@ class LocalFileManager(BaseFileManager):
         self.file_utility.ensure_directory_exists(directory_path)
         self.logger.info(f"Directory ensured: {directory_path}")
 
-    def list_files(self, directory_path: str, extensions: Optional[tuple] = None) -> list:
+    def list_files(self, directory_path: str, extensions: tuple | None = None) -> list:
         if not extensions:
             self.logger.info(f"Listing all files in {directory_path}")
         else:
-            self.logger.info(f"Listing files in {directory_path} with extensions: {extensions}")
+            self.logger.info(
+                f"Listing files in {directory_path} with extensions: {extensions}"
+            )
         return self.file_utility.list_files_in_directory(directory_path, extensions)
 
     def sanitize_filename(self, filename: str) -> str:
@@ -61,7 +63,9 @@ class LocalFileManager(BaseFileManager):
         raise NotImplementedError("Cloud upload is not implemented.")
 
     def download_file(self, cloud_path: str, local_path: str):
-        self.logger.info(f"Attempting to download file from {cloud_path} to {local_path}")
+        self.logger.info(
+            f"Attempting to download file from {cloud_path} to {local_path}"
+        )
         raise NotImplementedError("Cloud download is not implemented.")
 
     def list_cloud_files(self, cloud_path: str):
@@ -72,5 +76,5 @@ class LocalFileManager(BaseFileManager):
         self.logger.info(f"Attempting to delete file in cloud path: {cloud_path}")
         raise NotImplementedError("Cloud file deletion is not implemented.")
 
-    def log_operation(self, operation: str, details: dict):
-        self.logger.info(f"Operation: {operation}", **details)
+    def log_operation(self, operation: str, details: dict | None = None):
+        self.logger.info("File operation", operation=operation, **(details or {}))

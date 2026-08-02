@@ -29,7 +29,9 @@ class DateTimeUtility:
             pendulum.DateTime: The current timestamp.
         """
         if not DateTimeUtility._cached_now or refresh:
-            DateTimeUtility._cached_now = pendulum.now(tz=DateTimeUtility.default_timezone)
+            DateTimeUtility._cached_now = pendulum.now(
+                tz=DateTimeUtility.default_timezone
+            )
         return DateTimeUtility._cached_now
 
     @staticmethod
@@ -50,7 +52,9 @@ class DateTimeUtility:
             formatted = timestamp.format(fmt)
             return formatted
         except Exception as e:
-            raise ValueError(f"Failed to format timestamp with format '{fmt}': {e}")
+            raise ValueError(
+                f"Failed to format timestamp with format '{fmt}': {e}"
+            ) from e
 
     @staticmethod
     def parse_timestamp(timestamp_str, fmt="YYYY-MM-DD HH:mm:ss"):
@@ -65,9 +69,13 @@ class DateTimeUtility:
             pendulum.DateTime: The parsed timestamp.
         """
         try:
-            return pendulum.from_format(timestamp_str, fmt, tz=DateTimeUtility.default_timezone)
+            return pendulum.from_format(
+                timestamp_str, fmt, tz=DateTimeUtility.default_timezone
+            )
         except Exception as e:
-            raise ValueError(f"Invalid timestamp '{timestamp_str}' with format '{fmt}': {e}")
+            raise ValueError(
+                f"Invalid timestamp '{timestamp_str}' with format '{fmt}': {e}"
+            ) from e
 
     @staticmethod
     def to_iso8601(timestamp=None):
@@ -82,7 +90,7 @@ class DateTimeUtility:
         """
         if timestamp is None:
             timestamp = DateTimeUtility.get_current_timestamp()
-        return timestamp.to_iso8601_string()
+        return timestamp.isoformat()
 
     @staticmethod
     def format_localized(timestamp=None, locale="en"):

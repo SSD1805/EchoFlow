@@ -1,30 +1,37 @@
 import os
+from tempfile import TemporaryDirectory
+
 import pytest
 from structlog import get_logger
-from tempfile import TemporaryDirectory
+
 from src.interfaces.local_file_manager import LocalFileManager
 from src.utils.file_utils import LocalFileUtility
+
 
 @pytest.fixture
 def logger():
     """Fixture for a mock logger."""
     return get_logger()
 
+
 @pytest.fixture
 def file_utility():
     """Fixture for LocalFileUtility."""
     return LocalFileUtility()
+
 
 @pytest.fixture
 def file_manager(file_utility, logger):
     """Fixture for LocalFileManager."""
     return LocalFileManager(file_utility, logger)
 
+
 @pytest.fixture
 def temp_directory():
     """Fixture for creating a temporary directory."""
     with TemporaryDirectory() as temp_dir:
         yield temp_dir
+
 
 def test_save_file(file_manager, temp_directory):
     """Test save_file functionality."""
@@ -37,6 +44,7 @@ def test_save_file(file_manager, temp_directory):
     with open(file_path, "rb") as file:
         assert file.read() == content, "File content should match the written content"
 
+
 def test_file_exists(file_manager, temp_directory):
     """Test file_exists functionality."""
     file_path = os.path.join(temp_directory, "test_file.txt")
@@ -44,7 +52,10 @@ def test_file_exists(file_manager, temp_directory):
         file.write("test")
 
     assert file_manager.file_exists(file_path), "File should exist"
-    assert not file_manager.file_exists("non_existent.txt"), "Non-existent file should return False"
+    assert not file_manager.file_exists("non_existent.txt"), (
+        "Non-existent file should return False"
+    )
+
 
 def test_get_file_metadata(file_manager, temp_directory):
     """Test get_file_metadata functionality."""
@@ -56,6 +67,7 @@ def test_get_file_metadata(file_manager, temp_directory):
     assert "size" in metadata, "Metadata should include file size"
     assert metadata["size"] == len(content), "Size should match file content length"
 
+
 def test_delete_file(file_manager, temp_directory):
     """Test delete_file functionality."""
     file_path = os.path.join(temp_directory, "test_file.txt")
@@ -64,6 +76,7 @@ def test_delete_file(file_manager, temp_directory):
 
     file_manager.delete_file(file_path)
     assert not os.path.exists(file_path), "File should not exist after deletion"
+
 
 def test_copy_file(file_manager, temp_directory):
     """Test copy_file functionality."""
@@ -76,13 +89,19 @@ def test_copy_file(file_manager, temp_directory):
 
     assert os.path.exists(destination_path), "Destination file should exist"
     with open(destination_path, "rb") as file:
-        assert file.read() == content, "Destination file content should match source file content"
+        assert file.read() == content, (
+            "Destination file content should match source file content"
+        )
+
 
 def test_ensure_directory_exists(file_manager, temp_directory):
     """Test ensure_directory_exists functionality."""
     new_directory = os.path.join(temp_directory, "new_directory")
     file_manager.ensure_directory_exists(new_directory)
-    assert os.path.exists(new_directory) and os.path.isdir(new_directory), "Directory should exist"
+    assert os.path.exists(new_directory) and os.path.isdir(new_directory), (
+        "Directory should exist"
+    )
+
 
 def test_list_files(file_manager, temp_directory):
     """Test list_files functionality."""
@@ -96,19 +115,28 @@ def test_list_files(file_manager, temp_directory):
 
     files = file_manager.list_files(temp_directory, extensions)
     assert len(files) == 2, "Only files with specified extensions should be listed"
-    assert file1 in files and file2 in files, "Files with matching extensions should be included"
-    assert file3 not in files, "Files with non-matching extensions should not be included"
+    assert file1 in files and file2 in files, (
+        "Files with matching extensions should be included"
+    )
+    assert file3 not in files, (
+        "Files with non-matching extensions should not be included"
+    )
+
 
 def test_sanitize_filename(file_manager):
     """Test sanitize_filename functionality."""
     unsafe_name = "unsafe/file*name?.txt"
     sanitized = file_manager.sanitize_filename(unsafe_name)
-    assert sanitized == "unsafe_file_name_.txt", "Filename should be sanitized correctly"
+    assert sanitized == "unsafe_file_name_.txt", (
+        "Filename should be sanitized correctly"
+    )
+
 
 def test_upload_file_placeholder(file_manager):
     """Test that upload_file raises NotImplementedError."""
     with pytest.raises(NotImplementedError):
         file_manager.upload_file("local_path.txt", "cloud_path.txt")
+
 
 def test_download_file_placeholder(file_manager):
     """Test that download_file raises NotImplementedError."""

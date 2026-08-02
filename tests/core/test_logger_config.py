@@ -1,6 +1,9 @@
 # tests/core/test_logger_config.py
 import pytest
 import structlog
+
+from src.core.ilogger import ILogger
+from src.core.logger import ApplicationLogger
 from src.core.logger_config import configure_logger
 
 
@@ -9,7 +12,9 @@ def reset_structlog():
     """
     Fixture to reset Structlog configuration before each test.
     """
-    structlog.reset_defaults()
+    ApplicationLogger.reset()
+    yield
+    ApplicationLogger.reset()
 
 
 def test_configure_logger_valid_config(reset_structlog):
@@ -18,7 +23,7 @@ def test_configure_logger_valid_config(reset_structlog):
     """
     logger = configure_logger("INFO", "development")
     assert logger is not None
-    assert isinstance(logger, structlog.BoundLogger), "Logger should be a BoundLogger instance"
+    assert isinstance(logger, ILogger)
 
 
 def test_configure_logger_invalid_log_level(reset_structlog):
@@ -36,7 +41,9 @@ def test_configure_logger_development_env(reset_structlog, capsys):
     logger = configure_logger("INFO", "development")
     logger.info("Test development log")
     captured = capsys.readouterr()
-    assert "Test development log" in captured.out, "Log output should be visible in console"
+    assert "Test development log" in captured.out, (
+        "Log output should be visible in console"
+    )
 
 
 def test_configure_logger_production_env(reset_structlog, capsys):
@@ -56,7 +63,9 @@ def test_configure_logger_debug_level(reset_structlog, capsys):
     logger = configure_logger("DEBUG", "development")
     logger.debug("Test debug log")
     captured = capsys.readouterr()
-    assert "Test debug log" in captured.out, "Debug log should be visible at DEBUG level"
+    assert "Test debug log" in captured.out, (
+        "Debug log should be visible at DEBUG level"
+    )
 
 
 def test_configure_logger_runtime_update(reset_structlog, capsys):
@@ -69,4 +78,6 @@ def test_configure_logger_runtime_update(reset_structlog, capsys):
     configure_logger("DEBUG", "development")  # Reconfigure to DEBUG
     logger.debug("Debug log after reconfiguration")
     captured = capsys.readouterr()
-    assert "Debug log after reconfiguration" in captured.out, "Logger should support runtime reconfiguration"
+    assert "Debug log after reconfiguration" in captured.out, (
+        "Logger should support runtime reconfiguration"
+    )

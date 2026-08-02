@@ -24,7 +24,9 @@ def test_main_runs_without_errors(mock_health_check, mock_dependencies):
     """
     Ensure the main function executes without errors.
     """
-    mock_config, mock_logger, mock_performance_tracker, mock_file_manager = mock_dependencies
+    mock_config, mock_logger, mock_performance_tracker, mock_file_manager = (
+        mock_dependencies
+    )
 
     mock_config.APP_ENV = "development"
     mock_config.DEBUG = True
@@ -49,7 +51,9 @@ def test_main_health_check_usage(mock_health_check, mock_dependencies):
     """
     Ensure that HealthCheck is initialized and used in main.
     """
-    mock_config, mock_logger, mock_performance_tracker, mock_file_manager = mock_dependencies
+    mock_config, mock_logger, mock_performance_tracker, mock_file_manager = (
+        mock_dependencies
+    )
 
     mock_health_check_instance = MagicMock()
     mock_health_check.return_value = mock_health_check_instance
@@ -118,7 +122,9 @@ def test_main_logger_initialization(mock_health_check, mock_dependencies):
 
     mock_logger.info.assert_any_call("Dependency Injector and Logger are working!")
     mock_logger.info.assert_any_call("Main function initialized correctly.")
-    mock_logger.info.assert_any_call("Starting EchoFlow in development mode with debug=True")
+    mock_logger.info.assert_any_call(
+        "Starting EchoFlow in development mode with debug=True"
+    )
 
 
 @patch("src.main.HealthCheck")
@@ -152,8 +158,12 @@ def test_main_performance_tracker(mock_health_check, mock_dependencies):
     )
 
     # Ensure specific operations were tracked
-    assert "HealthCheck Operation" in tracked_operations, "HealthCheck Operation was not tracked"
-    assert "Example Operation" in tracked_operations, "Example Operation was not tracked"
+    assert "HealthCheck Operation" in tracked_operations, (
+        "HealthCheck Operation was not tracked"
+    )
+    assert "Example Operation" in tracked_operations, (
+        "Example Operation was not tracked"
+    )
     mock_performance_tracker.log_system_metrics.assert_called_once()
 
 

@@ -7,7 +7,6 @@ Local file utilities for managing file operations independently of interfaces.
 import os
 import shutil
 import tempfile
-from typing import List, Optional
 
 
 class LocalFileUtility:
@@ -16,24 +15,28 @@ class LocalFileUtility:
     """
 
     def __init__(self):
-        """
-        Initialize the LocalFileUtility instance.
-        Future attributes like logging or configuration can be added here.
-        """
-        self.default_directory = os.getcwd()  # Example instance-level attribute
+        """Initialize a stateless local filesystem utility."""
 
     def safe_write(self, content: bytes, file_path: str) -> None:
         """
         Save binary content to a file atomically by writing to a temporary file first.
         """
+        temporary_path: str | None = None
         try:
-            dir_name = os.path.dirname(file_path) or self.default_directory
-            tmp_file = tempfile.NamedTemporaryFile(delete=False, dir=dir_name)
-            with open(tmp_file.name, "wb") as temp_file:
+            destination = os.path.abspath(file_path)
+            dir_name = os.path.dirname(destination)
+            with tempfile.NamedTemporaryFile(
+                mode="wb", delete=False, dir=dir_name
+            ) as temp_file:
+                temporary_path = temp_file.name
                 temp_file.write(content)
-            shutil.move(tmp_file.name, file_path)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.replace(temporary_path, destination)
         except Exception as e:
-            raise OSError(f"Failed to safely write file {file_path}: {e}")
+            if temporary_path and os.path.exists(temporary_path):
+                os.unlink(temporary_path)
+            raise OSError(f"Failed to safely write file {file_path}: {e}") from e
 
     def file_exists(self, file_path: str) -> bool:
         """Check if a file exists."""
@@ -49,7 +52,7 @@ class LocalFileUtility:
                 "last_accessed": stats.st_atime,
             }
         except Exception as e:
-            raise OSError(f"Failed to fetch metadata for {file_path}: {e}")
+            raise OSError(f"Failed to fetch metadata for {file_path}: {e}") from e
 
     def delete_file_safe(self, file_path: str) -> None:
         """Delete a file safely."""
@@ -58,18 +61,20 @@ class LocalFileUtility:
         except FileNotFoundError:
             pass
         except Exception as e:
-            raise OSError(f"Failed to delete file {file_path}: {e}")
+            raise OSError(f"Failed to delete file {file_path}: {e}") from e
 
     def copy_file_safe(self, source: str, destination: str) -> None:
         """Copy a file safely."""
         try:
             shutil.copy2(source, destination)
         except Exception as e:
-            raise OSError(f"Failed to copy file from {source} to {destination}: {e}")
+            raise OSError(
+                f"Failed to copy file from {source} to {destination}: {e}"
+            ) from e
 
     def list_files_in_directory(
-        self, directory_path: str, extensions: Optional[tuple] = None
-    ) -> List[str]:
+        self, directory_path: str, extensions: tuple | None = None
+    ) -> list[str]:
         """
         List files in a directory with optional filtering by extensions.
         """
@@ -81,7 +86,9 @@ class LocalFileUtility:
                 and (not extensions or f.endswith(extensions))
             ]
         except Exception as e:
-            raise OSError(f"Failed to list files in directory {directory_path}: {e}")
+            raise OSError(
+                f"Failed to list files in directory {directory_path}: {e}"
+            ) from e
 
     def sanitize_filename_safe(self, filename: str) -> str:
         """
@@ -96,4 +103,6 @@ class LocalFileUtility:
         try:
             os.makedirs(directory_path, exist_ok=True)
         except Exception as e:
-            raise OSError(f"Failed to ensure directory exists at {directory_path}: {e}")
+            raise OSError(
+                f"Failed to ensure directory exists at {directory_path}: {e}"
+            ) from e

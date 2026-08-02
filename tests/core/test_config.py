@@ -2,6 +2,7 @@
 
 import pytest
 from pydantic import ValidationError
+
 from src.core.config import AppConfig, config
 
 
@@ -75,4 +76,3 @@ def test_env_file_loading(tmp_path, monkeypatch):
     assert env_config.DEBUG is True
     assert env_config.LOG_LEVEL == "CRITICAL"
     assert env_config.API_TIMEOUT == 120
-

@@ -1,10 +1,10 @@
 # src/core/health_check.py
-from typing import Any, Dict
+from typing import Any
 
 from dependency_injector.wiring import Provide, inject
 
 from src.core.config import AppConfig
-from src.core.logger import ApplicationLogger
+from src.core.ilogger import ILogger
 from src.core.performance_tracker import PerformanceTracker
 
 
@@ -16,15 +16,17 @@ class HealthCheck:
     @inject
     def __init__(
         self,
-        logger: ApplicationLogger = Provide["AppContainer.logger"],
+        logger: ILogger = Provide["AppContainer.logger"],
         config: AppConfig = Provide["AppContainer.config"],
-        performance_tracker: PerformanceTracker = Provide["AppContainer.performance_tracker"],
+        performance_tracker: PerformanceTracker = Provide[
+            "AppContainer.performance_tracker"
+        ],
     ):
         self.logger = logger
         self.config = config
         self.performance_tracker = performance_tracker
 
-    def run(self) -> Dict[str, Any]:
+    def run(self) -> dict[str, Any]:
         """
         Runs health checks and returns the results.
 
@@ -40,7 +42,7 @@ class HealthCheck:
 
     def _check_logger(self) -> str:
         try:
-            self.logger.log_info("HealthCheck: Logger is operational.")
+            self.logger.info("HealthCheck: Logger is operational.")
             return "Healthy"
         except Exception as e:
             return f"Unhealthy: {str(e)}"

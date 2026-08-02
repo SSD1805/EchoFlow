@@ -6,7 +6,7 @@ import pytest
 
 from src.core.config import AppConfig
 from src.core.health_check import HealthCheck
-from src.core.logger import ApplicationLogger
+from src.core.ilogger import ILogger
 from src.core.performance_tracker import PerformanceTracker
 
 
@@ -15,8 +15,7 @@ def mock_logger():
     """
     Fixture for mocking the ApplicationLogger.
     """
-    logger = Mock(spec=ApplicationLogger)
-    logger.log_info = Mock()  # Mock the `log_info` method
+    logger = Mock(spec=ILogger)
     return logger
 
 
@@ -50,7 +49,7 @@ def health_check(mock_logger, mock_config, mock_performance_tracker):
     return HealthCheck(
         logger=mock_logger,
         config=mock_config,
-        performance_tracker=mock_performance_tracker
+        performance_tracker=mock_performance_tracker,
     )
 
 
@@ -66,7 +65,7 @@ def test_logger_raises_exception(health_check, mock_logger):
     """
     Test that the HealthCheck handles logger exceptions correctly.
     """
-    mock_logger.log_info.side_effect = Exception("Logger error")
+    mock_logger.info.side_effect = Exception("Logger error")
     result = health_check.run()
     assert result["logger"] == "Unhealthy: Logger error"
 

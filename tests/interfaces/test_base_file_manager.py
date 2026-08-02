@@ -1,7 +1,8 @@
 # tests/interfaces/test_base_file_manager.py
 
+
 import pytest
-from typing import Optional, List
+
 from src.interfaces.base_file_manager import BaseFileManager
 
 
@@ -27,14 +28,14 @@ class MockFileManager(BaseFileManager):
         pass
 
     def list_files(
-        self, directory_path: str, extensions: Optional[tuple] = None
-    ) -> List[str]:
+        self, directory_path: str, extensions: tuple | None = None
+    ) -> list[str]:
         return ["file1.txt", "file2.log"]
 
     def sanitize_filename(self, filename: str) -> str:
         return "safe_filename.txt"
 
-    def log_operation(self, operation: str, details: Optional[dict] = None) -> None:
+    def log_operation(self, operation: str, details: dict | None = None) -> None:
         pass
 
     def upload_file(self, local_path: str, cloud_path: str) -> None:
@@ -43,7 +44,7 @@ class MockFileManager(BaseFileManager):
     def download_file(self, cloud_path: str, local_path: str) -> None:
         pass
 
-    def list_cloud_files(self, cloud_path: str) -> List[str]:
+    def list_cloud_files(self, cloud_path: str) -> list[str]:
         return ["cloud_file1.txt", "cloud_file2.txt"]
 
     def delete_cloud_file(self, cloud_path: str) -> None:

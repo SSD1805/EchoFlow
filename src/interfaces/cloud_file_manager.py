@@ -1,7 +1,7 @@
 # src/interface/cloud_file_manager.py
 
+
 from src.interfaces.base_file_manager import BaseFileManager
-from typing import Optional
 
 
 class CloudFileManager(BaseFileManager):
@@ -29,9 +29,11 @@ class CloudFileManager(BaseFileManager):
 
     def ensure_directory_exists(self, directory_path: str):
         # TODO: Simulate or enforce cloud directory-like structure (if needed)
-        raise NotImplementedError("Cloud ensure_directory_exists is not implemented yet.")
+        raise NotImplementedError(
+            "Cloud ensure_directory_exists is not implemented yet."
+        )
 
-    def list_files(self, directory_path: str, extensions: Optional[tuple] = None) -> list:
+    def list_files(self, directory_path: str, extensions: tuple | None = None) -> list:
         # TODO: List files in a cloud directory or bucket
         raise NotImplementedError("Cloud list_files is not implemented yet.")
 

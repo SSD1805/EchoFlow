@@ -15,12 +15,12 @@ EchoFlow is still under development. The repository currently contains its confi
 1. **Scalable and Modular Architecture**
    - Adheres to **SOLID** and **DRY** principles for clean, maintainable design.
    - Centralized dependency management using `Dependency Injector`.
-   - Core **Pipeline Manager** coordinates modular pipelines with clear separation of concerns.
+   - Capability-based processing is planned around one local transcription path before a generic pipeline manager is introduced.
 
-2. **Utility-Driven Foundation**
-   - Extensible **utilities** for file operations, datetime handling, and configuration management.
-   - YAML utilities for configuration parsing and validation.
-   - Security-focused utilities (in progress) for credential management and encryption.
+2. **Local Application Foundation**
+   - Atomic local file operations and structured application errors.
+   - Typed diagnostics for workspace, disk, FFmpeg, CPU, and memory readiness.
+   - Side-effect-free CLI startup with explicit `doctor` diagnostics.
 
 3. **Planned Pipeline Management**
    - **Four planned pipelines**:
@@ -43,26 +43,25 @@ EchoFlow is still under development. The repository currently contains its confi
 ## 🛠️ **What's Been Built So Far**
 
 ### **1. Foundational Components**
-- Modular structure ensures flexibility and easy integration of future features.
-- Core utilities implemented, including:
-  - **FileManagerFacade**: Handles file operations like saving, deleting, copying, and listing files.
-  - **DateTimeUtility**: Offers robust timestamp handling, formatting, parsing, and elapsed time calculations.
-  - **YAMLUtility**: Simplifies YAML parsing, validation, and writing with extensible features.
+- Pydantic settings and Dependency Injector composition.
+- **FileManagerFacade** for timed, structured local file operations.
+- Typed application and storage errors.
+- Typer/Click command boundary with machine-readable diagnostics.
 
 ### **2. Core Modules**
 - **Logger**: Container-managed structured logging with one configuration boundary.
 - **Performance Tracker**: Tracks execution times for key operations, aiding in performance optimization.
 - **HealthCheck Module**: Monitors the health of application components and reports issues early.
 
-### **3. Utilities**
-- **File Utilities**: Provide safe file operations, metadata retrieval, and sanitization.
-- **Datetime Utilities**: Facilitate robust time and date operations with features like ISO 8601 formatting and elapsed time calculations.
-- **YAML Utilities**: Streamline YAML operations with Pydantic-based validation and hooks for future features.
+### **3. Local Storage**
+- Atomic writes, metadata, copying, deletion, directory creation, and safe filename handling.
+- User-visible outputs and private application state will remain separate contracts.
 
 ### **4. Testing Framework**
-- Organized, nested test directories aligned with the application structure.
-- Unit and integration tests using `pytest`, Factory Boy, and Hypothesis.
+- Tests colocated in each capability package under its own `tests/` directory.
+- Unit, integration, property, CLI, and real-filesystem tests using `pytest` and Hypothesis.
 - Poodle mutation testing for the local foundation's observable behavior.
+- Ruff complexity limits, Radon metrics, and conservative Vulture dead-code checks.
 
 ---
 
@@ -75,7 +74,8 @@ EchoFlow is still under development. The repository currently contains its confi
 | **Dependency Management**  | uv                                            |
 | **Configuration**          | Pydantic, .env                                |
 | **Logging**                | structlog                                     |
-| **Testing**                | pytest, Factory Boy, Hypothesis, Poodle      |
+| **Testing**                | pytest, Hypothesis, Poodle                   |
+| **Code quality**           | Ruff, Radon, Vulture                         |
 | **Audio Processing**       | Whisper-family transcription (planned)       |
 
 ---
@@ -104,6 +104,11 @@ EchoFlow is still under development. The repository currently contains its confi
    uv run pytest
    ```
 
+   Run the branch-coverage gate:
+   ```bash
+   uv run pytest --cov=src --cov-branch --cov-report=term-missing
+   ```
+
 5. Run mutation tests for the foundation:
    ```bash
    uv run poodle
@@ -115,24 +120,37 @@ EchoFlow is still under development. The repository currently contains its confi
    uv run echoflow doctor --json
    ```
 
+7. Run the static quality checks:
+   ```bash
+   uv run ruff check .
+   uv run vulture
+   uv run radon cc src --total-average
+   uv run radon mi src
+   ```
+
 `doctor` reports the workspace, disk space, FFmpeg, and system-resource state. A
 required failure exits with status 1. Optional warnings exit successfully unless
 `--strict` is supplied. Running `echoflow` without a subcommand only displays help;
 it does not create files or run diagnostics.
 
+The proposed processing boundaries and recovery policy are documented in
+[`docs/architecture/processing-capabilities.md`](docs/architecture/processing-capabilities.md).
+The colocated test and regression workflow is documented in
+[`docs/development/testing-and-bisect.md`](docs/development/testing-and-bisect.md).
+
 ---
 
 ## 🎯 **Roadmap**
 
-- **Phase 1: Utility and Core Enhancements** (In Progress)
-  - Enhance YAML utilities with schema validation and security hooks.
-  - Build security utilities for credential encryption, masking, and safe storage.
+- **Phase 1: Workspace and Processing Contracts** (In Progress)
+  - Separate user output, private workspace, job state, and model-cache paths.
+  - Define input, plan, segment, transcript, and artifact contracts.
 
 - **Phase 2: Local CLI and Transcription**
   - Establish the `echoflow` CLI as the canonical interface.
   - Implement one local Whisper-family transcription path end to end.
-  - Add the **Audio**, **Text**, and optional **Download** pipelines after that vertical slice works.
-  - Finalize the **Pipeline Manager** for orchestrating pipeline workflows.
+  - Add deterministic segmentation, assembly, and bounded failure bisection.
+  - Add alternative pipelines only after that vertical slice works.
 
 - **Phase 3: Observability and Security**
   - Add advanced performance monitoring and resource throttling utilities.
@@ -162,5 +180,4 @@ We welcome contributions! If you'd like to collaborate:
 ## 📜 **License**
 
 This project is licensed under the **Apache-2.0 License**. See the `LICENSE` file for more details.
-```
 

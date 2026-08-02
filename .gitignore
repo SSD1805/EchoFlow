@@ -13,6 +13,8 @@ __pycache__/
 .poodle-temp/
 .pytest_cache/
 .ruff_cache/
+.coverage
+coverage.xml
 dist/
 mutants-not-found.txt
 

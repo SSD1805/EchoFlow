@@ -1,13 +1,27 @@
 from src.app.app_container import AppContainer
+from src.core.config import AppConfig
 from src.core.file_manager_facade import FileManagerFacade
 from src.core.ilogger import ILogger
 from src.interfaces.local_file_manager import LocalFileManager
-from tests.factories import AppConfigFactory
+
+
+def _test_config(tmp_path, **overrides) -> AppConfig:
+    values = {
+        "APP_ENV": "test",
+        "DEBUG": False,
+        "LOG_LEVEL": "INFO",
+        "WORKSPACE_DIR": tmp_path,
+        "MIN_FREE_DISK_BYTES": 0,
+        "WARN_FREE_DISK_BYTES": 0,
+        "FFMPEG_TIMEOUT_SECONDS": 0.1,
+    }
+    values.update(overrides)
+    return AppConfig(**values)
 
 
 def test_container_resolves_complete_local_file_graph(tmp_path):
     container = AppContainer()
-    container.config.override(AppConfigFactory(LOG_LEVEL="DEBUG"))
+    container.config.override(_test_config(tmp_path, LOG_LEVEL="DEBUG"))
 
     facade = container.file_manager()
     path = tmp_path / "nested" / "recording.bin"
@@ -24,13 +38,7 @@ def test_container_resolves_complete_local_file_graph(tmp_path):
 
 def test_container_health_check_uses_real_workspace_probe(tmp_path):
     container = AppContainer()
-    container.config.override(
-        AppConfigFactory(
-            WORKSPACE_DIR=tmp_path,
-            MIN_FREE_DISK_BYTES=0,
-            WARN_FREE_DISK_BYTES=0,
-        )
-    )
+    container.config.override(_test_config(tmp_path))
     report = container.health_check().run()
     workspace = next(check for check in report.checks if check.check_id == "workspace")
     assert workspace.status.value == "pass"

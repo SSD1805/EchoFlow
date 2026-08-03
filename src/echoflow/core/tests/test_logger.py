@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 
 import pytest
 
@@ -82,3 +83,21 @@ def test_default_log_stream_does_not_contaminate_standard_output(capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "workspace.initialized" in captured.err
+
+
+def test_bound_context_is_publicly_available_without_structlog_private_state():
+    logger = configure_logging("INFO", "production", io.StringIO())
+    bound = logger.bind(job_id="abc", profile="screening")
+    assert bound.context == {"job_id": "abc", "profile": "screening"}
+    assert logger.context == {}
+
+
+def test_configuring_echoflow_does_not_replace_host_root_handlers():
+    root = logging.getLogger()
+    host_handler = logging.StreamHandler(io.StringIO())
+    root.addHandler(host_handler)
+    try:
+        configure_logging("INFO", "production", io.StringIO())
+        assert host_handler in root.handlers
+    finally:
+        root.removeHandler(host_handler)

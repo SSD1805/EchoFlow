@@ -5,6 +5,25 @@ pipeline framework. The first implementation should expose small capability
 contracts that can be composed into a job without requiring every engine to
 inherit from a common pipeline base class.
 
+## Product target
+
+EchoFlow aims to be a privacy-by-default, resource-aware, reproducible and
+resumable system for sensitive recordings. Its core should remain small enough
+for ordinary local installation while optional engines and model weights carry
+the unavoidable machine-learning payload. The same planner must behave
+coherently on a constrained laptop, a larger workstation, and a container whose
+effective limits are smaller than its host.
+
+This target does not imply distributed execution across several machines. It
+means one plan respects the resources exposed to the process and records the
+decisions required to reproduce that work elsewhere.
+
+The implemented checkpoint now covers input validation, SHA-256 fingerprinting,
+FFprobe metadata, side-effect-free path resolution, CPU engine/model selection,
+decode strategy, resource estimates, and immutable JSON/Rich dry-run output.
+It does not yet decode audio, download a model, execute transcription, or write
+a transcript artifact.
+
 ## First vertical slice
 
 1. **Probe input**
@@ -42,6 +61,30 @@ inherit from a common pipeline base class.
 8. **Record progress**
    - Persist job, stage, segment, attempt, and artifact metadata in SQLite.
    - Store paths and metadata in SQLite, not audio blobs or transcript files.
+
+## Screening and resource policy
+
+Fast screening is a separate, provisional product contract rather than a
+synonym for a low-quality final transcript.
+
+- `screening` prioritizes time to first useful text and recommends a compact
+  model tier.
+- Screening results must carry `provisional=true` in their eventual job plan
+  and canonical metadata.
+- Screening processes the complete source by default. Interval sampling or
+  early termination requires a separate explicit user choice so relevant
+  material is not silently omitted.
+- A screening artifact cannot silently replace a balanced or accuracy-oriented
+  canonical transcript.
+- Every job plan records the selected profile, runner limits, CPU thread budget,
+  memory budget, engine, concrete model, and engine-specific parameters.
+
+Runner inspection uses resources visible to the process, not merely host totals.
+On supported systems this includes CPU affinity and cgroup v2 CPU/memory limits.
+The first job planner maps compact, standard, and large tiers to faster-whisper
+`tiny`, `small`, and `medium` CPU/int8 configurations. That mapping is a
+versioned planning decision, not proof that the engine is installed. Resource
+figures are conservative heuristics pending measurements from the real engine.
 
 ## Capability boundaries
 
@@ -86,6 +129,7 @@ guarantees.
 1. Extend the implemented job/artifact path objects with input metadata,
    job-plan, segment, and transcript value objects as each capability arrives.
 2. Implement media probing and a `transcribe --dry-run` planning command.
+   **Implemented.**
 3. Implement one CPU transcription engine for one supported input path.
 4. Add deterministic segmentation and assembly.
 5. Add JSON and TXT output, then SRT and VTT.

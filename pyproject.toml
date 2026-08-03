@@ -70,11 +70,14 @@ target-version = "py312"
 src = ["src"]
 
 [tool.ruff.lint]
-select = ["B", "C90", "E", "F", "I", "SIM", "UP"]
+select = ["B", "C90", "E", "F", "I", "S", "SIM", "UP"]
 ignore = ["E501"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "S603"]
 
 [tool.radon]
 # Report B-or-worse complexity; Ruff enforces the hard score-above-10 gate.
@@ -101,7 +104,15 @@ only_files = [
     "src/echoflow/core/health_check.py",
     "src/echoflow/core/health_probes.py",
     "src/echoflow/core/performance_tracker.py",
+    "src/echoflow/core/privacy.py",
     "src/echoflow/interfaces/local_file_manager.py",
+    "src/echoflow/media/models.py",
+    "src/echoflow/media/probe.py",
+    "src/echoflow/runner/inspector.py",
+    "src/echoflow/runner/models.py",
+    "src/echoflow/runner/policy.py",
+    "src/echoflow/transcription/models.py",
+    "src/echoflow/transcription/planner.py",
     "src/echoflow/workspace/models.py",
     "src/echoflow/workspace/service.py",
 ]

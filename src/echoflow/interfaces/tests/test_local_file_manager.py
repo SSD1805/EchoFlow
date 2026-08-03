@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -48,6 +49,18 @@ def test_ensure_directory_is_recursive_and_idempotent(manager, tmp_path):
     manager.ensure_directory_exists(nested)
     manager.ensure_directory_exists(nested)
     assert nested.is_dir()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX mode contract")
+def test_private_directories_are_created_and_tightened_to_owner_only(manager, tmp_path):
+    private = tmp_path / "private"
+    private.mkdir(mode=0o755)
+    manager.ensure_directory_exists(private, private=True)
+    assert private.stat().st_mode & 0o777 == 0o700
+
+    reserved = private / "job"
+    manager.reserve_directory(reserved, private=True)
+    assert reserved.stat().st_mode & 0o777 == 0o700
 
 
 def test_directory_and_file_reservations_are_exclusive(manager, tmp_path):

@@ -6,7 +6,7 @@ from typing import Protocol
 
 
 class CheckStatus(StrEnum):
-    PASS = "pass"
+    PASS = "pass"  # noqa: S105 - health status, not a credential
     WARN = "warn"
     FAIL = "fail"
 

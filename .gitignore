@@ -25,6 +25,9 @@ mutants-not-found.txt
 # Logs and temporary files
 *.log
 *.tmp
+.env
+.env.*
+!.env.example
 .DS_Store
 
 # OS-specific

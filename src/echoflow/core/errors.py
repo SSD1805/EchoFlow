@@ -3,6 +3,7 @@ from pathlib import Path
 
 
 class ErrorCode(StrEnum):
+    CONFIGURATION = "configuration_error"
     STORAGE = "storage_error"
     NOT_FOUND = "storage_not_found"
     PERMISSION = "storage_permission_denied"
@@ -11,6 +12,10 @@ class ErrorCode(StrEnum):
     UNSAFE_PATH = "unsafe_path"
     JOB_COLLISION = "job_collision"
     ARTIFACT_COLLISION = "artifact_collision"
+    MEDIA_TOOL_UNAVAILABLE = "media_tool_unavailable"
+    MEDIA_PROBE = "media_probe_failed"
+    UNSUPPORTED_MEDIA = "unsupported_media"
+    INPUT_CHANGED = "input_changed"
 
 
 class EchoFlowError(Exception):
@@ -25,13 +30,18 @@ class EchoFlowError(Exception):
         self.cause = cause
 
 
+class ConfigurationError(EchoFlowError):
+    code = ErrorCode.CONFIGURATION
+    exit_code = 2
+
+
 class StorageError(EchoFlowError):
     def __init__(
         self, operation: str, path: str | Path, *, cause: Exception | None = None
     ):
         self.operation = operation
         self.path = Path(path)
-        super().__init__(f"Could not {operation} local path: {self.path}", cause=cause)
+        super().__init__(f"Could not {operation} local path", cause=cause)
 
 
 class StorageNotFoundError(StorageError):

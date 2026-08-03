@@ -1,0 +1,53 @@
+from dataclasses import asdict, dataclass
+from enum import StrEnum
+
+
+class ProcessingProfile(StrEnum):
+    """User intent for an eventual transcription plan."""
+
+    SCREENING = "screening"
+    BALANCED = "balanced"
+    ACCURACY = "accuracy"
+
+
+class ModelTier(StrEnum):
+    """Engine-neutral model-size recommendation."""
+
+    COMPACT = "compact"
+    STANDARD = "standard"
+    LARGE = "large"
+
+
+@dataclass(frozen=True, slots=True)
+class RunnerResources:
+    platform: str
+    machine: str
+    logical_cpus: int
+    physical_cpus: int | None
+    affinity_cpus: int | None
+    cpu_quota_cores: float | None
+    effective_cpus: int
+    memory_total_bytes: int
+    memory_available_bytes: int
+    memory_limit_bytes: int | None
+    effective_memory_available_bytes: int
+    constraints: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionPolicy:
+    profile: ProcessingProfile
+    provisional: bool
+    cpu_threads: int
+    memory_budget_bytes: int
+    recommended_model_tier: ModelTier
+    constraints: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, object]:
+        result = asdict(self)
+        result["profile"] = self.profile.value
+        result["recommended_model_tier"] = self.recommended_model_tier.value
+        return result

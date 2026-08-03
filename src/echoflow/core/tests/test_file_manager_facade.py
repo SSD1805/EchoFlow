@@ -6,6 +6,7 @@ import pytest
 from echoflow.core.errors import StorageNotFoundError
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.core.performance_tracker import PerformanceTracker
+from echoflow.core.privacy import PathDisclosure
 from echoflow.interfaces.local_file_manager import LocalFileManager
 
 
@@ -45,7 +46,7 @@ def test_failure_is_timed_logged_once_and_re_raised_without_success(
     assert facade.tracker.get_metric("get_file_metadata") is not None
     logger.error.assert_called_once()
     assert logger.error.call_args.kwargs["error_code"] == "storage_not_found"
-    assert logger.error.call_args.kwargs["exc_info"] is True
+    assert logger.error.call_args.kwargs["exception_type"] == "StorageNotFoundError"
     assert not logger.info.called
 
 
@@ -62,7 +63,7 @@ def test_reservations_reach_storage_once(logger):
     facade = FileManagerFacade(storage, logger, PerformanceTracker())
     facade.reserve_directory("jobs/job-1")
     facade.reserve_file("output/transcript.json")
-    storage.reserve_directory.assert_called_once_with("jobs/job-1")
+    storage.reserve_directory.assert_called_once_with("jobs/job-1", private=False)
     storage.reserve_file.assert_called_once_with("output/transcript.json")
 
 
@@ -89,3 +90,24 @@ def test_tracker_context_sees_exception():
     with pytest.raises(StorageNotFoundError):
         facade.delete_file("missing")
     assert tracker.exception_type is StorageNotFoundError
+
+
+def test_paths_are_absent_from_routine_logs_by_default(logger, tmp_path):
+    facade = FileManagerFacade(LocalFileManager(), logger, PerformanceTracker())
+    sensitive = tmp_path / "participant-004-interview.wav"
+    facade.save_file(b"audio", sensitive)
+    logged = logger.info.call_args.kwargs
+    assert "path" not in logged
+    assert "participant-004" not in str(logger.mock_calls)
+
+
+def test_full_path_logging_requires_explicit_policy(logger, tmp_path):
+    facade = FileManagerFacade(
+        LocalFileManager(),
+        logger,
+        PerformanceTracker(),
+        path_disclosure=PathDisclosure.FULL,
+    )
+    sensitive = tmp_path / "participant-004-interview.wav"
+    facade.save_file(b"audio", sensitive)
+    assert logger.info.call_args.kwargs["path"] == str(sensitive)

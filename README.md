@@ -4,6 +4,12 @@ EchoFlow is a local-first Python application for audio processing,
 transcription, and analysis. It is intended to keep private, potentially large
 recordings on the user's machine.
 
+The product target is a privacy-by-default, resource-aware, reproducible and
+resumable workflow for sensitive recordings rather than a model-specific
+transcription GUI. EchoFlow keeps the orchestration core small, treats engines
+and model payloads as optional capabilities, and derives plans from the CPU and
+memory actually available to a laptop, workstation, container, or CI runner.
+
 ## Project status
 
 EchoFlow currently provides a tested application foundation:
@@ -17,11 +23,17 @@ EchoFlow currently provides a tested application foundation:
 - Human-readable Rich tables and stable JSON diagnostic output.
 - Atomic local file operations with typed errors.
 - Structured logging and monotonic operation timing.
+- Path-redacted routine logs and owner-only private directories on POSIX.
+- Namespaced, explicit configuration that does not consume ambient `.env` files.
+- CPU-, affinity-, cgroup-, and memory-aware runner policy inspection.
+- Local FFprobe inspection with protocol restriction, bounded output, timeout,
+  full input fingerprinting, and typed media metadata.
+- An immutable `transcribe INPUT --dry-run` plan covering paths, streams, codec,
+  duration, CPU engine/model selection, decoding strategy, and resource estimates.
 - Dependency Injector composition for the implemented services.
 
-Audio ingestion and transcription are not implemented yet. The first planned
-product slice is a local `transcribe --dry-run` command, followed by one working
-CPU transcription path.
+Audio decoding and transcription execution are not implemented yet. The next
+product slice is one working CPU transcription path consuming the dry-run plan.
 
 ## Requirements and installation
 
@@ -44,11 +56,24 @@ uv run echoflow init --output-dir /path/to/output
 uv run echoflow doctor
 uv run echoflow doctor --json
 uv run echoflow doctor --workspace /path/to/workspace
+uv run echoflow runner
+uv run echoflow runner --profile screening --json
+uv run echoflow transcribe /path/to/recording.wav --dry-run
+uv run echoflow transcribe /path/to/recording.wav --dry-run --profile screening --json
 ```
 
-Configuration can be supplied through environment variables or an optional
-`.env` file. `STATE_DIR`, `CACHE_DIR`, `MODEL_DIR`, and `OUTPUT_DIR` override
-the platform-aware defaults. EchoFlow does not require a `.env` file.
+Configuration uses `ECHOFLOW_*` environment variables, including
+`ECHOFLOW_STATE_DIR`, `ECHOFLOW_CACHE_DIR`, `ECHOFLOW_MODEL_DIR`, and
+`ECHOFLOW_OUTPUT_DIR`. EchoFlow ignores generic variables such as `OUTPUT_DIR`
+and never reads an ambient `.env` from the current directory. An explicit
+dotenv file can be selected before the command:
+
+```bash
+uv run echoflow --config /private/path/echoflow.env runner --json
+```
+
+See [`.env.example`](.env.example) for the supported resource and privacy
+settings.
 
 ## Development
 
@@ -82,6 +107,8 @@ The enforced budgets are:
 - Branch-aware test coverage of at least 90%.
 - Vulture findings reported only at 100% confidence.
 - Strict mypy checks over production code.
+- Ruff security rules over production code.
+- A locked runtime dependency audit in CI.
 
 Radon reports complexity and maintainability trends; Ruff provides the hard
 complexity gate. Targeted Poodle mutation runs are used for changed decision
@@ -98,9 +125,26 @@ Artifact names are reserved atomically and collisions are renamed rather than
 overwritten by default. Future SQLite job state will contain paths and metadata;
 audio and transcript documents will not be stored as database blobs.
 
+`echoflow runner` and transcription planning use the CPU and memory actually visible to the process,
+including common container limits, and derives an engine-neutral policy. A
+`screening` policy is explicitly provisional and recommends a compact model;
+it is not interchangeable with a final research transcript. `balanced` and
+`accuracy` select larger generic tiers only when the detected memory budget can
+support them. The first CPU plan maps those tiers to faster-whisper `tiny`,
+`small`, and `medium` models using int8 execution. The engine package and model
+weights are not installed or downloaded by a dry run.
+
+Resource estimates are deliberately conservative heuristics until real engine
+benchmarks are added. Dry-run workspace and artifact paths are candidates, not
+reservations; execution must claim them atomically before writing.
+
 The proposed processing boundaries, resumability model, and bounded audio
 bisection policy are documented in
 [`docs/architecture/processing-capabilities.md`](docs/architecture/processing-capabilities.md).
+
+Security boundaries, residual risks, and disclosure instructions are in
+[`SECURITY.md`](SECURITY.md). The current review record is
+[`docs/security/audit-2026-08-02.md`](docs/security/audit-2026-08-02.md).
 
 ## License
 

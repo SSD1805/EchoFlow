@@ -13,6 +13,10 @@ from echoflow.core.ilogger import ILogger
 from echoflow.core.logger import configure_logging
 from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
+from echoflow.media.probe import FfprobeMediaProbe
+from echoflow.runner.inspector import RunnerInspector
+from echoflow.runner.policy import RunnerPolicyPlanner
+from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.workspace.models import WorkspacePaths
 from echoflow.workspace.service import WorkspaceService
 
@@ -22,7 +26,9 @@ def _create_logger(config: AppConfig) -> ILogger:
     return configure_logging(config.LOG_LEVEL, config.APP_ENV)
 
 
-def _create_health_check(config: AppConfig) -> HealthCheck:
+def _create_health_check(
+    config: AppConfig, runner_inspector: RunnerInspector
+) -> HealthCheck:
     return HealthCheck(
         (
             WorkspaceProbe(config.STATE_DIR),
@@ -32,7 +38,7 @@ def _create_health_check(config: AppConfig) -> HealthCheck:
                 config.WARN_FREE_DISK_BYTES,
             ),
             FfmpegProbe(config.FFMPEG_TIMEOUT_SECONDS),
-            SystemResourcesProbe(),
+            SystemResourcesProbe(runner_inspector),
         )
     )
 
@@ -44,6 +50,18 @@ def _create_workspace_paths(config: AppConfig) -> WorkspacePaths:
         model_dir=config.MODEL_DIR,
         output_dir=config.OUTPUT_DIR,
     )
+
+
+def _create_runner_policy_planner(config: AppConfig) -> RunnerPolicyPlanner:
+    return RunnerPolicyPlanner(
+        memory_budget_fraction=config.MEMORY_BUDGET_FRACTION,
+        max_cpu_threads=config.MAX_CPU_THREADS,
+        max_memory_bytes=config.MAX_MEMORY_BYTES,
+    )
+
+
+def _create_media_probe(config: AppConfig) -> FfprobeMediaProbe:
+    return FfprobeMediaProbe(timeout_seconds=config.FFPROBE_TIMEOUT_SECONDS)
 
 
 class AppContainer(containers.DeclarativeContainer):
@@ -60,11 +78,26 @@ class AppContainer(containers.DeclarativeContainer):
         file_manager=local_file_manager,
         logger=logger,
         tracker=performance_tracker,
+        path_disclosure=config.provided.LOG_PATHS,
     )
+    runner_inspector = providers.Singleton(RunnerInspector)
+    runner_policy_planner = providers.Singleton(
+        _create_runner_policy_planner, config=config
+    )
+    media_probe = providers.Singleton(_create_media_probe, config=config)
     workspace_paths = providers.Singleton(_create_workspace_paths, config=config)
     workspace_service = providers.Singleton(
         WorkspaceService,
         paths=workspace_paths,
         file_manager=file_manager,
     )
-    health_check = providers.Factory(_create_health_check, config=config)
+    transcription_planner = providers.Singleton(
+        TranscriptionJobPlanner,
+        media_probe=media_probe,
+        workspace_service=workspace_service,
+        runner_inspector=runner_inspector,
+        policy_planner=runner_policy_planner,
+    )
+    health_check = providers.Factory(
+        _create_health_check, config=config, runner_inspector=runner_inspector
+    )

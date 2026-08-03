@@ -4,7 +4,12 @@ from platformdirs import PlatformDirs
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from echoflow.core.errors import ConfigurationError
+from echoflow.core.privacy import PathDisclosure
+from echoflow.runner.models import ProcessingProfile
+
 APP_NAME = "EchoFlow"
+_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
 
 def _platform_dirs() -> PlatformDirs:
@@ -30,10 +35,16 @@ def _default_output_dir() -> Path:
 class AppConfig(BaseSettings):
     """
     Centralized configuration class for the EchoFlow application.
-    Reads environment variables or falls back to defaults.
+    Reads explicitly namespaced environment variables or falls back to defaults.
     """
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_prefix="ECHOFLOW_",
+        env_file=None,
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        extra="ignore",
+    )
 
     # General application settings
     APP_ENV: str = Field(default="development", description="Application environment")
@@ -41,6 +52,32 @@ class AppConfig(BaseSettings):
 
     # Logging settings
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
+    LOG_PATHS: PathDisclosure = Field(
+        default=PathDisclosure.REDACT,
+        description="Whether routine logs may disclose local filesystem paths",
+    )
+
+    # Resource-policy settings
+    PROCESSING_PROFILE: ProcessingProfile = Field(
+        default=ProcessingProfile.BALANCED,
+        description="Default processing intent used for resource planning",
+    )
+    MAX_CPU_THREADS: int | None = Field(
+        default=None,
+        ge=1,
+        description="Optional ceiling on CPU threads used by one processing job",
+    )
+    MAX_MEMORY_BYTES: int | None = Field(
+        default=None,
+        ge=1,
+        description="Optional ceiling on memory budgeted to one processing job",
+    )
+    MEMORY_BUDGET_FRACTION: float = Field(
+        default=0.75,
+        gt=0,
+        le=1,
+        description="Fraction of currently available memory a job may budget",
+    )
 
     # Local application settings
     STATE_DIR: Path = Field(
@@ -64,18 +101,21 @@ class AppConfig(BaseSettings):
     )
     WARN_FREE_DISK_BYTES: int = Field(
         default=2 * 1024 * 1024 * 1024,
-        ge=0,
         description="Recommended free disk space",
     )
     FFMPEG_TIMEOUT_SECONDS: float = Field(default=2.0, gt=0)
+    FFPROBE_TIMEOUT_SECONDS: float = Field(
+        default=30.0,
+        gt=0,
+        description="Maximum time allowed for dry-run media inspection",
+    )
 
     @field_validator("LOG_LEVEL")
     def validate_log_level(cls, value: str) -> str:
         """Validate that the log level is one of the allowed options."""
-        allowed_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-        if value.upper() not in allowed_levels:
+        if value.upper() not in _LOG_LEVELS:
             raise ValueError(
-                f"Invalid LOG_LEVEL: {value}. Must be one of {allowed_levels}."
+                f"Invalid LOG_LEVEL: {value}. Must be one of: {', '.join(_LOG_LEVELS)}"
             )
         return value.upper()
 
@@ -86,7 +126,10 @@ class AppConfig(BaseSettings):
 
     @model_validator(mode="after")
     def validate_disk_thresholds(self) -> "AppConfig":
-        if "MODEL_DIR" not in self.model_fields_set:
+        if (
+            "CACHE_DIR" in self.model_fields_set
+            and "MODEL_DIR" not in self.model_fields_set
+        ):
             self.MODEL_DIR = (self.CACHE_DIR / "models").resolve(strict=False)
         if self.WARN_FREE_DISK_BYTES < self.MIN_FREE_DISK_BYTES:
             raise ValueError(
@@ -94,3 +137,15 @@ class AppConfig(BaseSettings):
                 "MIN_FREE_DISK_BYTES"
             )
         return self
+
+    @classmethod
+    def load(cls, config_file: str | Path | None = None) -> "AppConfig":
+        """Load defaults and environment, plus one explicitly selected dotenv file."""
+        if config_file is None:
+            return cls()
+        path = Path(config_file).expanduser().resolve(strict=False)
+        if not path.is_file():
+            raise ConfigurationError(
+                f"EchoFlow configuration file is unavailable: {path.name}"
+            )
+        return cls(_env_file=path)  # type: ignore[call-arg]

@@ -13,8 +13,13 @@ class StructlogAdapter(ILogger):
     Adapter to ensure Structlog logger conforms to ILogger protocol.
     """
 
-    def __init__(self, logger: structlog.stdlib.BoundLogger):
+    def __init__(
+        self,
+        logger: structlog.stdlib.BoundLogger,
+        context: dict[str, object] | None = None,
+    ):
         self._logger = logger
+        self._bound_context = dict(context or {})
 
     def debug(self, message: str, **kwargs: object) -> None:
         self._logger.debug(message, **kwargs)
@@ -29,12 +34,14 @@ class StructlogAdapter(ILogger):
         self._logger.error(message, **kwargs)
 
     def bind(self, **kwargs: object) -> "StructlogAdapter":
-        return StructlogAdapter(self._logger.bind(**kwargs))
+        return StructlogAdapter(
+            self._logger.bind(**kwargs), {**self._bound_context, **kwargs}
+        )
 
     @property
     def context(self) -> dict[str, object]:
         """Return a copy of the immutable bound context."""
-        return dict(self._logger._context)
+        return dict(self._bound_context)
 
 
 def configure_logging(
@@ -67,26 +74,27 @@ def configure_logging(
         ],
     )
 
-    root_logger = logging.getLogger()
-    root_logger.handlers.clear()
+    app_logger = logging.getLogger("echoflow")
+    app_logger.handlers.clear()
     handler = logging.StreamHandler(stream or sys.stderr)
     handler.setFormatter(formatter)
-    root_logger.addHandler(handler)
-    root_logger.setLevel(level_name)
+    app_logger.addHandler(handler)
+    app_logger.setLevel(level_name)
+    app_logger.propagate = False
 
-    structlog.configure(
+    logger = structlog.wrap_logger(
+        app_logger,
         processors=[
             *shared_processors,
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
-        logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
-        cache_logger_on_first_use=False,
     )
-    return StructlogAdapter(structlog.get_logger("echoflow"))
+    return StructlogAdapter(logger)
 
 
 def reset_logging() -> None:
-    """Reset process-wide logging state for an isolated application/test lifecycle."""
-    logging.getLogger().handlers.clear()
-    structlog.reset_defaults()
+    """Reset EchoFlow logging state for an isolated application/test lifecycle."""
+    app_logger = logging.getLogger("echoflow")
+    app_logger.handlers.clear()
+    app_logger.propagate = True

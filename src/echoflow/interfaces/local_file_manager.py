@@ -72,17 +72,23 @@ class LocalFileManager:
             error_path = source_path if not source_path.exists() else destination_path
             raise self._error("copy", error_path, exc) from exc
 
-    def ensure_directory_exists(self, directory_path: str | Path) -> None:
+    def ensure_directory_exists(
+        self, directory_path: str | Path, *, private: bool = False
+    ) -> None:
         path = Path(directory_path)
         try:
-            path.mkdir(parents=True, exist_ok=True)
+            path.mkdir(mode=0o700 if private else 0o777, parents=True, exist_ok=True)
+            if private and os.name != "nt":
+                path.chmod(0o700)
         except Exception as exc:
             raise self._error("create directory", path, exc) from exc
 
-    def reserve_directory(self, directory_path: str | Path) -> None:
+    def reserve_directory(
+        self, directory_path: str | Path, *, private: bool = False
+    ) -> None:
         path = Path(directory_path)
         try:
-            path.mkdir()
+            path.mkdir(mode=0o700 if private else 0o777)
         except Exception as exc:
             raise self._error("reserve directory", path, exc) from exc
 

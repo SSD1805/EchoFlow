@@ -133,6 +133,17 @@ def test_job_and_artifact_value_objects_normalize_paths(tmp_path):
     )
     assert job.input_path == (tmp_path / "input.wav").resolve()
     assert artifact.path == (tmp_path / "output" / "input.txt").resolve()
+    assert job.to_dict() == {
+        "job_id": "job-1",
+        "input_path": str((tmp_path / "input.wav").resolve()),
+        "workspace_dir": str((tmp_path / "state/jobs/job-1").resolve()),
+        "output_dir": str((tmp_path / "output").resolve()),
+    }
+    assert artifact.to_dict() == {
+        "job_id": "job-1",
+        "kind": "txt",
+        "path": str((tmp_path / "output/input.txt").resolve()),
+    }
 
     paths = WorkspacePaths(
         state_dir=tmp_path / "state",

@@ -11,6 +11,7 @@ from echoflow.core.health_probes import (
     SystemResourcesProbe,
     WorkspaceProbe,
 )
+from echoflow.runner.models import RunnerResources
 
 
 def test_workspace_probe_performs_real_write_and_leaves_no_residue(tmp_path):
@@ -115,23 +116,44 @@ def test_ffmpeg_nonzero_exit_is_warning():
 
 
 def test_system_resources_are_read_nonblockingly():
-    memory = SimpleNamespace(available=1024, total=2048)
-    with (
-        patch("echoflow.core.health_probes.psutil.cpu_count", return_value=4) as cpu,
-        patch("echoflow.core.health_probes.psutil.virtual_memory", return_value=memory),
-    ):
-        result = SystemResourcesProbe().check()
+    inspector = SimpleNamespace(
+        inspect=lambda: RunnerResources(
+            platform="TestOS",
+            machine="test-machine",
+            logical_cpus=4,
+            physical_cpus=2,
+            affinity_cpus=2,
+            cpu_quota_cores=2.0,
+            effective_cpus=2,
+            memory_available_bytes=1024,
+            memory_total_bytes=2048,
+            memory_limit_bytes=1536,
+            effective_memory_available_bytes=768,
+            constraints=("cpu_affinity", "memory_limit"),
+        )
+    )
+    result = SystemResourcesProbe(inspector).check()
     assert result.status is CheckStatus.PASS
-    cpu.assert_called_once_with(logical=True)
     assert result.details["memory_available_bytes"] == 1024
+    assert result.details["effective_memory_available_bytes"] == 768
+    assert result.details["effective_cpus"] == 2
+    assert result.details["constraints"] == "cpu_affinity,memory_limit"
 
 
-@pytest.mark.parametrize(("cpus", "available"), [(None, 100), (0, 100), (2, 0)])
+@pytest.mark.parametrize(("cpus", "available"), [(0, 100), (2, 0)])
 def test_unknown_or_zero_resources_fail(cpus, available):
-    memory = SimpleNamespace(available=available, total=100)
-    with (
-        patch("echoflow.core.health_probes.psutil.cpu_count", return_value=cpus),
-        patch("echoflow.core.health_probes.psutil.virtual_memory", return_value=memory),
-    ):
-        result = SystemResourcesProbe().check()
+    resources = RunnerResources(
+        platform="TestOS",
+        machine="test-machine",
+        logical_cpus=max(1, cpus),
+        physical_cpus=None,
+        affinity_cpus=None,
+        cpu_quota_cores=None,
+        effective_cpus=cpus,
+        memory_available_bytes=available,
+        memory_total_bytes=100,
+        memory_limit_bytes=None,
+        effective_memory_available_bytes=available,
+    )
+    result = SystemResourcesProbe(SimpleNamespace(inspect=lambda: resources)).check()
     assert result.status is CheckStatus.FAIL

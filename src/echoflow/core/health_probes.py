@@ -4,9 +4,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import psutil
-
 from echoflow.core.health_check import CheckResult, CheckStatus, DetailValue
+from echoflow.runner.inspector import RunnerInspector
 
 
 class WorkspaceProbe:
@@ -137,7 +136,8 @@ class FfmpegProbe:
                 error_code="ffmpeg_missing",
             )
         try:
-            completed = subprocess.run(
+            # The executable is an absolute path resolved by shutil.which; no shell.
+            completed = subprocess.run(  # noqa: S603
                 [executable, "-version"],
                 capture_output=True,
                 check=False,
@@ -174,12 +174,17 @@ class SystemResourcesProbe:
     check_id = "system_resources"
     required = True
 
+    def __init__(self, inspector: RunnerInspector | None = None):
+        self.inspector = inspector or RunnerInspector()
+
     def check(self) -> CheckResult:
-        memory = psutil.virtual_memory()
-        cpu_count = psutil.cpu_count(logical=True)
-        status = (
-            CheckStatus.PASS if cpu_count and memory.available > 0 else CheckStatus.FAIL
-        )
+        resources = self.inspector.inspect()
+        status = CheckStatus.PASS
+        if (
+            resources.effective_cpus < 1
+            or resources.effective_memory_available_bytes < 1
+        ):
+            status = CheckStatus.FAIL
         return CheckResult(
             self.check_id,
             status,
@@ -189,8 +194,13 @@ class SystemResourcesProbe:
             self.required,
             error_code=None if status is CheckStatus.PASS else "resources_unavailable",
             details={
-                "logical_cpus": cpu_count,
-                "memory_available_bytes": memory.available,
-                "memory_total_bytes": memory.total,
+                "logical_cpus": resources.logical_cpus,
+                "effective_cpus": resources.effective_cpus,
+                "memory_available_bytes": resources.memory_available_bytes,
+                "effective_memory_available_bytes": (
+                    resources.effective_memory_available_bytes
+                ),
+                "memory_total_bytes": resources.memory_total_bytes,
+                "constraints": ",".join(resources.constraints),
             },
         )

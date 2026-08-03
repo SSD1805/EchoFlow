@@ -9,7 +9,7 @@ class InvalidInputError(EchoFlowError):
 
     def __init__(self, path: Path):
         self.path = path
-        super().__init__(f"Input is not a local file: {path}")
+        super().__init__("Input is not a readable local file")
 
 
 class UnsafePathError(EchoFlowError):
@@ -30,4 +30,4 @@ class ArtifactCollisionError(EchoFlowError):
 
     def __init__(self, path: Path, *, cause: Exception | None = None):
         self.path = path
-        super().__init__(f"Artifact already exists: {path.name}", cause=cause)
+        super().__init__("Artifact path is already occupied", cause=cause)

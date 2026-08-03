@@ -1,0 +1,1 @@
+"""Media capability tests."""

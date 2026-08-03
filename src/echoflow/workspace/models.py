@@ -101,6 +101,14 @@ class Job:
         for field_name in ("input_path", "workspace_dir", "output_dir"):
             object.__setattr__(self, field_name, _normalized(getattr(self, field_name)))
 
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "job_id": self.job_id.value,
+            "input_path": str(self.input_path),
+            "workspace_dir": str(self.workspace_dir),
+            "output_dir": str(self.output_dir),
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class Artifact:
@@ -110,3 +118,10 @@ class Artifact:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "path", _normalized(self.path))
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "job_id": self.job_id.value,
+            "kind": self.kind.value,
+            "path": str(self.path),
+        }

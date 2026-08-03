@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -67,9 +67,156 @@ def test_create_job_preserves_input_and_keeps_private_work_empty(
     assert source.read_bytes() == b"original-audio"
 
 
+def test_plan_job_resolves_paths_without_initializing_or_reserving(
+    service, paths, tmp_path
+):
+    source = tmp_path / "incoming" / "interview.wav"
+    source.parent.mkdir()
+    source.write_bytes(b"original-audio")
+
+    job = service.plan_job(source)
+
+    assert job.job_id == JobId("job-1")
+    assert job.workspace_dir == paths.jobs_dir / "job-1"
+    assert job.output_dir == paths.output_dir
+    assert not paths.state_dir.exists()
+    assert not paths.cache_dir.exists()
+    assert not paths.output_dir.exists()
+    assert source.read_bytes() == b"original-audio"
+
+
+def test_planned_artifact_uses_next_collision_candidate_without_reserving_it(
+    service, paths, tmp_path
+):
+    source = tmp_path / "field recording.wav"
+    source.write_bytes(b"audio")
+    paths.output_dir.mkdir(parents=True)
+    (paths.output_dir / "field recording.json").write_text("existing")
+    job = service.plan_job(source)
+
+    artifact = service.plan_artifact(job, ArtifactKind.CANONICAL_JSON)
+
+    assert artifact.path.name == "field recording-2.json"
+    assert not artifact.path.exists()
+    assert not job.workspace_dir.exists()
+
+
+def test_planned_artifact_error_policy_reports_existing_candidate(
+    service, paths, tmp_path
+):
+    source = tmp_path / "recording.wav"
+    source.write_bytes(b"audio")
+    paths.output_dir.mkdir(parents=True)
+    (paths.output_dir / "recording.txt").write_text("existing")
+    job = service.plan_job(source)
+
+    with pytest.raises(ArtifactCollisionError) as error:
+        service.plan_artifact(job, ArtifactKind.TEXT, collision=CollisionPolicy.ERROR)
+
+    assert error.value.path.name == "recording.txt"
+    assert str(error.value) == "Artifact path is already occupied"
+
+
+def test_planned_artifact_collision_search_is_bounded(service, paths, tmp_path):
+    source = tmp_path / "bounded.wav"
+    source.write_bytes(b"audio")
+    paths.output_dir.mkdir(parents=True)
+    (paths.output_dir / "bounded.txt").write_text("first")
+    (paths.output_dir / "bounded-2.txt").write_text("second")
+    bounded = WorkspaceService(
+        paths,
+        service.file_manager,
+        id_factory=lambda: "bounded",
+        max_collision_attempts=2,
+    )
+    job = bounded.plan_job(source)
+
+    with pytest.raises(ArtifactCollisionError) as error:
+        bounded.plan_artifact(job, ArtifactKind.TEXT)
+
+    assert error.value.path.name == "bounded-2.txt"
+    assert str(error.value) == "Artifact path is already occupied"
+
+
+def test_planned_artifact_uses_configured_final_collision_candidate(
+    service, paths, tmp_path
+):
+    source = tmp_path / "final-plan.wav"
+    source.write_bytes(b"audio")
+    paths.output_dir.mkdir(parents=True)
+    (paths.output_dir / "final-plan.txt").write_text("first")
+    bounded = WorkspaceService(
+        paths,
+        service.file_manager,
+        id_factory=lambda: "final-plan",
+        max_collision_attempts=2,
+    )
+    job = bounded.plan_job(source)
+
+    artifact = bounded.plan_artifact(job, ArtifactKind.TEXT)
+
+    assert artifact.path.name == "final-plan-2.txt"
+    assert not artifact.path.exists()
+
+
+def test_plan_artifact_rejects_forged_unreserved_job_paths(service, paths, tmp_path):
+    forged = Job(
+        JobId("forged-plan"),
+        tmp_path / "input.wav",
+        tmp_path / "outside/forged-plan",
+        paths.output_dir,
+    )
+    with pytest.raises(
+        UnsafePathError,
+        match="^Job workspace is outside the private jobs directory$",
+    ):
+        service.plan_artifact(forged, ArtifactKind.CANONICAL_JSON)
+
+
+def test_reservation_requires_previously_claimed_workspace(service, tmp_path):
+    source = tmp_path / "unreserved.wav"
+    source.write_bytes(b"audio")
+    planned = service.plan_job(source)
+    with pytest.raises(
+        UnsafePathError,
+        match="^Job workspace is outside the private jobs directory$",
+    ):
+        service.reserve_artifact(planned, ArtifactKind.CANONICAL_JSON)
+
+
+def test_initialization_and_job_reservation_pass_private_intent_exactly(
+    paths, tmp_path
+):
+    source = tmp_path / "private.wav"
+    source.write_bytes(b"audio")
+    file_manager = Mock()
+    service = WorkspaceService(
+        paths,
+        file_manager,
+        id_factory=lambda: "private-job",
+    )
+
+    job = service.create_job(source)
+
+    assert file_manager.ensure_directory_exists.call_args_list == [
+        call(paths.state_dir, private=True),
+        call(paths.jobs_dir, private=True),
+        call(paths.cache_dir, private=True),
+        call(paths.model_dir, private=True),
+        call(paths.output_dir),
+    ]
+    file_manager.reserve_directory.assert_called_once_with(
+        job.workspace_dir, private=True
+    )
+
+
 def test_missing_or_directory_input_is_rejected_without_initializing(service, paths):
-    with pytest.raises(InvalidInputError):
-        service.create_job(paths.state_dir / "missing.wav")
+    missing = paths.state_dir / "sensitive-participant-001.wav"
+    with pytest.raises(InvalidInputError) as error:
+        service.create_job(missing)
+    assert error.value.path == missing.resolve()
+    assert str(error.value) == "Input is not a readable local file"
+    assert "sensitive-participant-001" not in str(error.value)
     with pytest.raises(InvalidInputError):
         service.create_job(paths.state_dir.parent)
     assert not paths.state_dir.exists()

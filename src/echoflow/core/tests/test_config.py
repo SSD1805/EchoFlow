@@ -104,6 +104,7 @@ def test_warning_threshold_cannot_be_lower_than_required_threshold():
 
 def test_local_paths_expand_home(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     config = AppConfig(
         STATE_DIR="~/state",
         CACHE_DIR="~/cache",

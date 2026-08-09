@@ -19,3 +19,8 @@ class UnsupportedMediaError(EchoFlowError):
 class InputChangedError(EchoFlowError):
     code = ErrorCode.INPUT_CHANGED
     exit_code = 2
+
+
+class AudioDecodeError(EchoFlowError):
+    code = ErrorCode.AUDIO_DECODE
+    exit_code = 2

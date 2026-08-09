@@ -51,11 +51,13 @@ class TranscriptionJobPlanner:
         workspace_service: WorkspaceService,
         runner_inspector: RunnerInspector,
         policy_planner: RunnerPolicyPlanner,
+        model_revision: str | None = None,
     ):
         self.media_probe = media_probe
         self.workspace_service = workspace_service
         self.runner_inspector = runner_inspector
         self.policy_planner = policy_planner
+        self.model_revision = model_revision
 
     def plan(
         self,
@@ -102,8 +104,9 @@ class TranscriptionJobPlanner:
             beam_size=1 if policy.provisional else 5,
             language=None,
             model_cache_path=(
-                self.workspace_service.paths.model_dir / "faster-whisper" / model
+                self.workspace_service.paths.model_dir / "faster-whisper"
             ),
+            model_revision=self.model_revision,
         )
 
     @staticmethod

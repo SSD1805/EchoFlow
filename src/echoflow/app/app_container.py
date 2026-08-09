@@ -16,6 +16,9 @@ from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.policy import RunnerPolicyPlanner
+from echoflow.transcription.audio import FfmpegAudioDecoder
+from echoflow.transcription.backend import FasterWhisperTranscriber
+from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.workspace.models import WorkspacePaths
 from echoflow.workspace.service import WorkspaceService
@@ -64,6 +67,10 @@ def _create_media_probe(config: AppConfig) -> FfprobeMediaProbe:
     return FfprobeMediaProbe(timeout_seconds=config.FFPROBE_TIMEOUT_SECONDS)
 
 
+def _create_audio_decoder(config: AppConfig) -> FfmpegAudioDecoder:
+    return FfmpegAudioDecoder(timeout_seconds=config.FFMPEG_PROCESS_TIMEOUT_SECONDS)
+
+
 class AppContainer(containers.DeclarativeContainer):
     """
     Dependency Injection container for managing application services.
@@ -97,6 +104,19 @@ class AppContainer(containers.DeclarativeContainer):
         workspace_service=workspace_service,
         runner_inspector=runner_inspector,
         policy_planner=runner_policy_planner,
+        model_revision=config.provided.FASTER_WHISPER_MODEL_REVISION,
+    )
+    audio_decoder = providers.Factory(_create_audio_decoder, config=config)
+    transcriber = providers.Factory(FasterWhisperTranscriber)
+    transcription_executor = providers.Factory(
+        TranscriptionExecutor,
+        media_probe=media_probe,
+        workspace_service=workspace_service,
+        file_manager=file_manager,
+        runner_inspector=runner_inspector,
+        policy_planner=runner_policy_planner,
+        audio_decoder=audio_decoder,
+        transcriber=transcriber,
     )
     health_check = providers.Factory(
         _create_health_check, config=config, runner_inspector=runner_inspector

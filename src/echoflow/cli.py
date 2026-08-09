@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, cast
 
 import typer
 from pydantic import ValidationError
@@ -13,7 +13,10 @@ from echoflow.core.config import AppConfig
 from echoflow.core.errors import EchoFlowError
 from echoflow.core.health_check import HealthReport
 from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
-from echoflow.transcription.models import TranscriptionJobPlan
+from echoflow.transcription.models import (
+    TranscriptionExecutionResult,
+    TranscriptionJobPlan,
+)
 from echoflow.workspace.models import WorkspacePaths
 
 app = typer.Typer(
@@ -139,6 +142,29 @@ def _render_transcription_plan(plan: TranscriptionJobPlan, console: Console) -> 
         ),
         ("Fits memory budget", str(plan.resources.fits_memory_budget).lower()),
         ("Warnings", ", ".join(plan.warnings) or "none"),
+    )
+    for setting, value in rows:
+        table.add_row(setting, value)
+    console.print(table)
+
+
+def _render_transcription_result(
+    result: TranscriptionExecutionResult, console: Console
+) -> None:
+    transcript = result.transcript
+    table = Table(title="EchoFlow transcription complete")
+    table.add_column("Setting")
+    table.add_column("Value")
+    rows = (
+        ("Job ID", result.job.job_id.value),
+        ("Canonical output", str(result.artifact.path)),
+        ("Profile", transcript.profile.value),
+        ("Provisional", str(transcript.provisional).lower()),
+        ("Engine", f"{transcript.engine.name} {transcript.engine.package_version}"),
+        ("Model", transcript.engine.model),
+        ("Decode", transcript.decode_strategy.value),
+        ("Detected language", transcript.detected_language or "unknown"),
+        ("Segments", str(len(transcript.segments))),
     )
     for setting, value in rows:
         table.add_row(setting, value)
@@ -283,17 +309,24 @@ def transcribe(
         Path,
         typer.Argument(
             metavar="INPUT",
-            help="Local recording to inspect and plan.",
+            help="Local audio-bearing recording to transcribe.",
         ),
     ],
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run", help="Plan without creating files or transcribing."),
     ] = False,
+    allow_model_download: Annotated[
+        bool,
+        typer.Option(
+            "--allow-model-download",
+            help="Authorize network access to obtain the selected model if absent.",
+        ),
+    ] = False,
     output_dir: Annotated[
         Path | None,
         typer.Option(
-            help="Consumer directory for eventual transcript artifacts.",
+            help="Consumer directory for transcript artifacts.",
             file_okay=False,
             resolve_path=True,
         ),
@@ -303,16 +336,11 @@ def transcribe(
         typer.Option(help="Override the configured processing profile."),
     ] = None,
     json_output: Annotated[
-        bool, typer.Option("--json", help="Emit the immutable plan as JSON.")
+        bool,
+        typer.Option("--json", help="Emit the plan or execution result as JSON."),
     ] = False,
 ) -> None:
-    """Inspect a recording and produce a resource-aware transcription plan."""
-    if not dry_run:
-        typer.echo(
-            "Transcription execution is not implemented; use --dry-run",
-            err=True,
-        )
-        raise typer.Exit(code=2)
+    """Transcribe the audio stream from a local recording or inspect its plan."""
     try:
         container = _container(context)
         selected_profile = profile or container.config().PROCESSING_PROFILE
@@ -321,6 +349,11 @@ def transcribe(
             output_dir=output_dir,
             profile=selected_profile,
         )
+        result = None
+        if not dry_run:
+            result = container.transcription_executor().execute(
+                plan, allow_model_download=allow_model_download
+            )
     except EchoFlowError as exc:
         typer.echo(exc.public_message, err=True)
         raise typer.Exit(code=exc.exit_code) from None
@@ -329,15 +362,22 @@ def transcribe(
         raise typer.Exit(code=1) from None
     except Exception as exc:
         typer.echo(
-            f"EchoFlow transcription planning failed internally ({type(exc).__name__})",
+            f"EchoFlow transcription failed internally ({type(exc).__name__})",
             err=True,
         )
         raise typer.Exit(code=3) from None
 
-    if json_output:
+    if dry_run and json_output:
         typer.echo(json.dumps(plan.to_dict(), sort_keys=True))
-    else:
+    elif dry_run:
         _render_transcription_plan(plan, Console())
+    elif json_output:
+        execution_result = cast("TranscriptionExecutionResult", result)
+        typer.echo(json.dumps(execution_result.to_dict(), sort_keys=True))
+    else:
+        _render_transcription_result(
+            cast("TranscriptionExecutionResult", result), Console()
+        )
 
 
 def main() -> None:

@@ -22,11 +22,16 @@ from echoflow.runner.models import (
 )
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.models import (
+    CanonicalTranscript,
     CpuEngineConfiguration,
     DecodeConfiguration,
     DecodeStrategy,
+    EngineProvenance,
+    RecognizedSegment,
     ResourceEstimate,
+    TranscriptionExecutionResult,
     TranscriptionJobPlan,
+    TranscriptSource,
 )
 from echoflow.workspace.errors import InvalidInputError, UnsafePathError
 from echoflow.workspace.models import (
@@ -117,6 +122,11 @@ class FakeContainer:
         transcription_planner = Mock()
         transcription_planner.plan.return_value = transcription_plan()
         self.transcription_planner = Provider(transcription_planner)
+        transcription_executor = Mock()
+        transcription_executor.execute.return_value = transcription_result(
+            transcription_planner.plan.return_value
+        )
+        self.transcription_executor = Provider(transcription_executor)
 
 
 def transcription_plan() -> TranscriptionJobPlan:
@@ -174,6 +184,21 @@ def transcription_plan() -> TranscriptionJobPlan:
         ResourceEstimate(1, 2, 3, 4, 5, True),
         ("paths_are_unreserved",),
     )
+
+
+def transcription_result(plan: TranscriptionJobPlan) -> TranscriptionExecutionResult:
+    transcript = CanonicalTranscript(
+        job_id=plan.job.job_id.value,
+        source=TranscriptSource.from_media(plan.media),
+        profile=plan.policy.profile,
+        provisional=plan.policy.provisional,
+        decode_strategy=plan.decoder.strategy,
+        engine=EngineProvenance.from_engine(plan.engine, "1.2.1"),
+        detected_language="en",
+        language_probability=0.99,
+        segments=(RecognizedSegment(0, 0, 1.25, "Test transcript."),),
+    )
+    return TranscriptionExecutionResult(plan.job, plan.artifact, transcript)
 
 
 def invoke_doctor(status: OverallStatus, *arguments: str):
@@ -316,12 +341,39 @@ def test_explicit_configuration_file_is_loaded_only_when_selected(tmp_path):
     assert json.loads(result.stdout)["policy"]["profile"] == "screening"
 
 
-def test_transcribe_requires_explicit_dry_run_without_constructing_application():
-    with patch("echoflow.cli.AppContainer") as container:
+def test_transcribe_executes_planned_job_without_download_authorization():
+    container = FakeContainer(report(OverallStatus.HEALTHY))
+    with patch("echoflow.cli.AppContainer", return_value=container):
         result = runner.invoke(app, ["transcribe", "recording.wav"])
-    assert result.exit_code == 2
-    assert "use --dry-run" in result.stderr
-    container.assert_not_called()
+    assert result.exit_code == 0
+    assert "transcription complete" in result.output
+    container.transcription_executor().execute.assert_called_once_with(
+        container.transcription_planner().plan.return_value,
+        allow_model_download=False,
+    )
+
+
+def test_transcribe_json_emits_execution_result_and_authorizes_download():
+    container = FakeContainer(report(OverallStatus.HEALTHY))
+    with patch("echoflow.cli.AppContainer", return_value=container):
+        result = runner.invoke(
+            app,
+            [
+                "transcribe",
+                "recording.mp4",
+                "--allow-model-download",
+                "--json",
+            ],
+        )
+    document = json.loads(result.stdout)
+    assert result.exit_code == 0
+    assert document["dry_run"] is False
+    assert document["paths_reserved"] is True
+    assert document["transcript"]["text"] == "Test transcript."
+    container.transcription_executor().execute.assert_called_once_with(
+        container.transcription_planner().plan.return_value,
+        allow_model_download=True,
+    )
 
 
 def test_transcribe_dry_run_json_emits_complete_machine_readable_plan():

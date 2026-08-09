@@ -16,6 +16,11 @@ class ErrorCode(StrEnum):
     MEDIA_PROBE = "media_probe_failed"
     UNSUPPORTED_MEDIA = "unsupported_media"
     INPUT_CHANGED = "input_changed"
+    AUDIO_DECODE = "audio_decode_failed"
+    RESOURCE_ADMISSION = "resource_admission_failed"
+    TRANSCRIPTION_DEPENDENCY = "transcription_dependency_unavailable"
+    MODEL_UNAVAILABLE = "transcription_model_unavailable"
+    TRANSCRIPTION = "transcription_failed"
 
 
 class EchoFlowError(Exception):

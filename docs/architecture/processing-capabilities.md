@@ -20,9 +20,15 @@ decisions required to reproduce that work elsewhere.
 
 The implemented checkpoint now covers input validation, SHA-256 fingerprinting,
 FFprobe metadata, side-effect-free path resolution, CPU engine/model selection,
-decode strategy, resource estimates, and immutable JSON/Rich dry-run output.
-It does not yet decode audio, download a model, execute transcription, or write
-a transcript artifact.
+decode strategy, resource estimates, immutable JSON/Rich dry-run output, local
+FFmpeg audio normalization, one CPU/int8 faster-whisper backend, resource
+readmission, and canonical transcript JSON. Model download is disabled unless the
+invocation explicitly authorizes it.
+
+Video is not a downstream capability. An audio-bearing video container is accepted
+at the media boundary, its selected audio stream is extracted, and all video,
+subtitle, attachment, and data streams are discarded. Everything after decode sees
+the same canonical audio input used for other noncanonical recordings.
 
 ## First vertical slice
 
@@ -131,6 +137,7 @@ guarantees.
 2. Implement media probing and a `transcribe --dry-run` planning command.
    **Implemented.**
 3. Implement one CPU transcription engine for one supported input path.
+   **Implemented for direct canonical audio and FFmpeg-normalized audio-bearing media.**
 4. Add deterministic segmentation and assembly.
 5. Add JSON and TXT output, then SRT and VTT.
 6. Add SQLite checkpoints and resume.

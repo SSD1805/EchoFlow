@@ -101,7 +101,8 @@ def test_balanced_plan_composes_real_paths_media_cpu_engine_and_estimates(tmp_pa
     assert plan.engine.compute_type == "int8"
     assert plan.engine.beam_size == 5
     assert plan.engine.language is None
-    assert plan.engine.model_cache_path == paths.model_dir / "faster-whisper/small"
+    assert plan.engine.model_cache_path == paths.model_dir / "faster-whisper"
+    assert plan.engine.model_revision is None
     assert plan.decoder.strategy is DecodeStrategy.FFMPEG_NORMALIZE
     assert plan.decoder.output_codec == "pcm_s16le"
     assert plan.resources.private_workspace_bytes == 16 * MIB + 320_000

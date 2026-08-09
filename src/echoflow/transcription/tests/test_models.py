@@ -11,11 +11,16 @@ from echoflow.runner.models import (
     RunnerResources,
 )
 from echoflow.transcription.models import (
+    CanonicalTranscript,
     CpuEngineConfiguration,
     DecodeConfiguration,
     DecodeStrategy,
+    EngineProvenance,
+    EngineTranscript,
+    RecognizedSegment,
     ResourceEstimate,
     TranscriptionJobPlan,
+    TranscriptSource,
 )
 from echoflow.workspace.models import Artifact, ArtifactKind, Job, JobId
 
@@ -124,6 +129,7 @@ def test_decode_and_engine_configuration_serialize_stable_wire_values(tmp_path):
         "model_cache_path": str(
             (tmp_path / "cache/models/faster-whisper/small").resolve()
         ),
+        "model_revision": None,
     }
     assert [strategy.value for strategy in DecodeStrategy] == [
         "direct",
@@ -146,6 +152,7 @@ def test_execution_configuration_positive_lower_boundaries_are_valid(tmp_path):
     assert decoder.channels == 1
     assert engine.cpu_threads == 1
     assert engine.beam_size == 1
+    assert engine.model_revision is None
 
 
 @pytest.mark.parametrize(
@@ -294,4 +301,243 @@ def test_job_plan_rejects_reserved_wrong_version_or_inconsistent_values(tmp_path
             decoder,
             resources,
             (),
+        )
+
+
+def test_recognized_segment_is_stable_slotted_and_json_safe():
+    segment = RecognizedSegment(7, 1.25, 2.5, "spoken words", -0.4, 0.15)
+    assert segment.segment_id == "segment-000007"
+    assert segment.to_dict() == {
+        "segment_id": "segment-000007",
+        "index": 7,
+        "start_seconds": 1.25,
+        "end_seconds": 2.5,
+        "text": "spoken words",
+        "average_log_probability": -0.4,
+        "no_speech_probability": 0.15,
+    }
+    assert not hasattr(segment, "__dict__")
+    with pytest.raises(FrozenInstanceError):
+        segment.text = "changed"
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        ((-1, 0, 1, "text"), "segment index cannot be negative"),
+        ((0, -1, 1, "text"), "segment timestamps must be finite and ordered"),
+        ((0, 2, 1, "text"), "segment timestamps must be finite and ordered"),
+        ((0, float("inf"), 1, "text"), "segment timestamps must be finite and ordered"),
+        ((0, 0, 1, " "), "segment text cannot be empty"),
+        (
+            (0, 0, 1, "text", float("nan")),
+            "average_log_probability must be finite",
+        ),
+        (
+            (0, 0, 1, "text", None, -0.1),
+            "no_speech_probability must be between 0 and 1",
+        ),
+        (
+            (0, 0, 1, "text", None, 1.1),
+            "no_speech_probability must be between 0 and 1",
+        ),
+    ],
+)
+def test_recognized_segment_rejects_invalid_values(args, message):
+    with pytest.raises(ValueError, match=f"^{message}$"):
+        RecognizedSegment(*args)
+
+
+def test_engine_transcript_validates_language_probability_and_version():
+    segment = RecognizedSegment(0, 0, 1, "text")
+    result = EngineTranscript((segment,), "en", 0.0, "1.2.1")
+    assert result.segments == (segment,)
+    assert not hasattr(result, "__dict__")
+    assert EngineTranscript((), None, 1.0, "1.2.1").segments == ()
+    for arguments, message in (
+        (((), " ", None, "1"), "language cannot be empty"),
+        (((), "en", -0.1, "1"), "language_probability must be between 0 and 1"),
+        (((), "en", 1.1, "1"), "language_probability must be between 0 and 1"),
+        (((), "en", float("nan"), "1"), "language_probability must be between 0 and 1"),
+        (((), "en", 1.0, ""), "engine_version cannot be empty"),
+    ):
+        with pytest.raises(ValueError, match=f"^{message}$"):
+            EngineTranscript(*arguments)
+
+
+def test_transcript_source_derives_media_identity_without_disclosing_path(tmp_path):
+    *_, media, _, _, _, _, _ = values(tmp_path)
+    source = TranscriptSource.from_media(media)
+    document = source.to_dict()
+    assert document == {
+        "sha256": "0" * 64,
+        "size_bytes": 100,
+        "modified_ns": 200,
+        "container_format": "wav",
+        "duration_seconds": 2.0,
+        "audio_stream_index": 0,
+    }
+    assert "path" not in document
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"sha256": "A" * 64}, "source sha256 must be a lowercase 64-character digest"),
+        ({"size_bytes": 0}, "source size_bytes must be positive"),
+        ({"modified_ns": -1}, "source modified_ns cannot be negative"),
+        ({"container_format": ""}, "source container_format cannot be empty"),
+        (
+            {"duration_seconds": 0},
+            "source duration_seconds must be finite and positive",
+        ),
+        (
+            {"duration_seconds": float("inf")},
+            "source duration_seconds must be finite and positive",
+        ),
+        ({"audio_stream_index": -1}, "source audio_stream_index cannot be negative"),
+    ],
+)
+def test_transcript_source_rejects_invalid_values(overrides, message):
+    fields = {
+        "sha256": "0" * 64,
+        "size_bytes": 1,
+        "modified_ns": 0,
+        "container_format": "wav",
+        "duration_seconds": 1.0,
+        "audio_stream_index": 0,
+    }
+    fields.update(overrides)
+    with pytest.raises(ValueError, match=f"^{message}$"):
+        TranscriptSource(**fields)
+
+
+def test_engine_provenance_records_plan_without_cache_path(tmp_path):
+    *_, engine, _, _ = values(tmp_path)
+    provenance = EngineProvenance.from_engine(engine, "1.2.1")
+    assert provenance.to_dict() == {
+        "name": "faster-whisper",
+        "package_version": "1.2.1",
+        "model": "small",
+        "model_revision": None,
+        "device": "cpu",
+        "compute_type": "int8",
+        "cpu_threads": 4,
+        "beam_size": 5,
+        "requested_language": None,
+    }
+    assert "cache" not in provenance.to_dict()
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"name": ""}, "name cannot be empty"),
+        ({"package_version": ""}, "package_version cannot be empty"),
+        ({"model": ""}, "model cannot be empty"),
+        ({"model_revision": " "}, "model_revision cannot be empty"),
+        ({"device": ""}, "device cannot be empty"),
+        ({"compute_type": ""}, "compute_type cannot be empty"),
+        ({"cpu_threads": 0}, "cpu_threads must be positive"),
+        ({"beam_size": 0}, "beam_size must be positive"),
+    ],
+)
+def test_engine_provenance_rejects_invalid_values(overrides, message):
+    fields = {
+        "name": "engine",
+        "package_version": "1",
+        "model": "tiny",
+        "model_revision": None,
+        "device": "cpu",
+        "compute_type": "int8",
+        "cpu_threads": 1,
+        "beam_size": 1,
+        "requested_language": None,
+    }
+    fields.update(overrides)
+    with pytest.raises(ValueError, match=f"^{message}$"):
+        EngineProvenance(**fields)
+
+
+def canonical(tmp_path, **overrides):
+    *_, media, _, policy, engine, decoder, _ = values(tmp_path)
+    fields = {
+        "job_id": "job-1",
+        "source": TranscriptSource.from_media(media),
+        "profile": policy.profile,
+        "provisional": policy.provisional,
+        "decode_strategy": decoder.strategy,
+        "engine": EngineProvenance.from_engine(engine, "1.2.1"),
+        "detected_language": "en",
+        "language_probability": 0.9,
+        "segments": (
+            RecognizedSegment(0, 0, 1, "Hello"),
+            RecognizedSegment(1, 1, 2, "world."),
+        ),
+    }
+    fields.update(overrides)
+    return CanonicalTranscript(**fields)
+
+
+def test_canonical_transcript_is_complete_and_does_not_embed_private_paths(tmp_path):
+    transcript = canonical(tmp_path)
+    document = transcript.to_dict()
+    assert document["schema_version"] == 1
+    assert document["job_id"] == "job-1"
+    assert document["profile"] == "balanced"
+    assert document["provisional"] is False
+    assert document["decode_strategy"] == "direct"
+    assert document["detected_language"] == "en"
+    assert document["language_probability"] == 0.9
+    assert document["text"] == "Hello world."
+    assert len(document["segments"]) == 2
+    assert "path" not in str(document)
+    assert not hasattr(transcript, "__dict__")
+
+
+def test_screening_canonical_transcript_must_remain_provisional(tmp_path):
+    transcript = canonical(
+        tmp_path, profile=ProcessingProfile.SCREENING, provisional=True
+    )
+    assert transcript.provisional is True
+    with pytest.raises(
+        ValueError, match="^provisional flag must match the processing profile$"
+    ):
+        canonical(tmp_path, profile=ProcessingProfile.SCREENING, provisional=False)
+    with pytest.raises(
+        ValueError, match="^provisional flag must match the processing profile$"
+    ):
+        canonical(tmp_path, profile=ProcessingProfile.BALANCED, provisional=True)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"job_id": ""}, "job_id cannot be empty"),
+        ({"schema_version": 2}, "unsupported transcript schema version"),
+        ({"detected_language": " "}, "detected_language cannot be empty"),
+        (
+            {"language_probability": -0.1},
+            "language_probability must be between 0 and 1",
+        ),
+        ({"language_probability": 1.1}, "language_probability must be between 0 and 1"),
+        (
+            {"language_probability": float("nan")},
+            "language_probability must be between 0 and 1",
+        ),
+        (
+            {"segments": (RecognizedSegment(1, 0, 1, "wrong index"),)},
+            "segment indices must be contiguous and zero-based",
+        ),
+    ],
+)
+def test_canonical_transcript_rejects_invalid_values(tmp_path, overrides, message):
+    with pytest.raises(ValueError, match=f"^{message}$"):
+        canonical(tmp_path, **overrides)
+
+
+def test_engine_configuration_rejects_empty_model_revision(tmp_path):
+    with pytest.raises(ValueError, match="^model_revision cannot be empty$"):
+        CpuEngineConfiguration(
+            "engine", "model", "cpu", "int8", 1, 1, None, tmp_path, " "
         )

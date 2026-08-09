@@ -33,16 +33,20 @@ jobs:
           enable-cache: true
 
       - name: Install locked dependencies
-        run: uv sync --locked --all-groups
+        run: uv sync --locked --all-groups --extra transcription
+
+      - name: Import optional CPU engine
+        run: uv run python -c "import faster_whisper; print(faster_whisper.__version__)"
 
       - name: Check lockfile
         run: uv lock --check
 
-      - name: Export locked runtime dependencies
+      - name: Export locked runtime and transcription dependencies
         run: >-
           uv export
           --locked
           --no-dev
+          --extra transcription
           --no-emit-project
           --no-hashes
           --format requirements-txt
@@ -106,7 +110,10 @@ jobs:
           enable-cache: true
 
       - name: Install locked dependencies
-        run: uv sync --locked --all-groups
+        run: uv sync --locked --all-groups --extra transcription
+
+      - name: Import optional CPU engine
+        run: uv run python -c "import faster_whisper; print(faster_whisper.__version__)"
 
       - name: Run tests
         run: uv run pytest

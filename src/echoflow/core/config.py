@@ -109,6 +109,16 @@ class AppConfig(BaseSettings):
         gt=0,
         description="Maximum time allowed for dry-run media inspection",
     )
+    FFMPEG_PROCESS_TIMEOUT_SECONDS: float = Field(
+        default=3_600.0,
+        gt=0,
+        description="Maximum time allowed for one audio normalization process",
+    )
+    FASTER_WHISPER_MODEL_REVISION: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Optional immutable model revision requested from the model hub",
+    )
 
     @field_validator("LOG_LEVEL")
     def validate_log_level(cls, value: str) -> str:

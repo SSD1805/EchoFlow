@@ -30,10 +30,15 @@ EchoFlow currently provides a tested application foundation:
   full input fingerprinting, and typed media metadata.
 - An immutable `transcribe INPUT --dry-run` plan covering paths, streams, codec,
   duration, CPU engine/model selection, decoding strategy, and resource estimates.
+- One executable CPU/int8 faster-whisper path that rechecks resource admission,
+  claims its workspace and output atomically, and writes canonical transcript JSON.
+- Audio extraction from audio-bearing containers, including video files, by mapping
+  only the selected audio stream into a private canonical WAV.
+- Explicit model-download authorization; execution is local-only by default.
 - Dependency Injector composition for the implemented services.
 
-Audio decoding and transcription execution are not implemented yet. The next
-product slice is one working CPU transcription path consuming the dry-run plan.
+Deterministic application-owned segmentation, checkpointing, resume, and derived
+TXT/SRT/VTT artifacts are not implemented yet.
 
 ## Requirements and installation
 
@@ -44,6 +49,13 @@ product slice is one working CPU transcription path consuming the dry-run plan.
 git clone https://github.com/SSD1805/EchoFlow.git
 cd EchoFlow
 uv sync --locked
+```
+
+The small default installation can inspect and plan recordings. Install the
+optional CPU engine for transcription execution:
+
+```bash
+uv sync --locked --extra transcription
 ```
 
 Run the CLI and diagnostics:
@@ -60,7 +72,14 @@ uv run echoflow runner
 uv run echoflow runner --profile screening --json
 uv run echoflow transcribe /path/to/recording.wav --dry-run
 uv run echoflow transcribe /path/to/recording.wav --dry-run --profile screening --json
+uv run echoflow transcribe /path/to/interview.mp4
+uv run echoflow transcribe /path/to/interview.mp4 --allow-model-download
 ```
+
+Without `--allow-model-download`, EchoFlow asks faster-whisper to use only model
+files already present in EchoFlow's private model cache. The flag authorizes the
+selected model retrieval for that invocation; it does not authorize uploading the
+recording.
 
 Configuration uses `ECHOFLOW_*` environment variables, including
 `ECHOFLOW_STATE_DIR`, `ECHOFLOW_CACHE_DIR`, `ECHOFLOW_MODEL_DIR`, and
@@ -133,6 +152,13 @@ it is not interchangeable with a final research transcript. `balanced` and
 support them. The first CPU plan maps those tiers to faster-whisper `tiny`,
 `small`, and `medium` models using int8 execution. The engine package and model
 weights are not installed or downloaded by a dry run.
+
+Execution consumes that plan rather than detecting a second, unrelated machine
+configuration inside the engine. It checks process-visible memory and CPU capacity
+before claiming paths and again after any FFmpeg normalization, immediately before
+model initialization. A video is not treated as visual input: FFmpeg discards video,
+subtitle, and data streams and emits only the selected audio stream to the private
+job workspace.
 
 Resource estimates are deliberately conservative heuristics until real engine
 benchmarks are added. Dry-run workspace and artifact paths are candidates, not

@@ -5,6 +5,9 @@ from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.policy import RunnerPolicyPlanner
+from echoflow.transcription.audio import FfmpegAudioDecoder
+from echoflow.transcription.backend import FasterWhisperTranscriber
+from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.workspace.service import WorkspaceService
 
@@ -56,3 +59,16 @@ def test_container_composes_media_probe_and_transcription_planner():
     assert planner.workspace_service is container.workspace_service()
     assert planner.runner_inspector is container.runner_inspector()
     assert planner.policy_planner is container.runner_policy_planner()
+
+
+def test_container_composes_per_execution_audio_and_engine_services():
+    container = AppContainer()
+    first = container.transcription_executor()
+    second = container.transcription_executor()
+    assert isinstance(first, TranscriptionExecutor)
+    assert isinstance(first.audio_decoder, FfmpegAudioDecoder)
+    assert isinstance(first.transcriber, FasterWhisperTranscriber)
+    assert first is not second
+    assert first.transcriber is not second.transcriber
+    assert first.workspace_service is container.workspace_service()
+    assert first.file_manager is container.file_manager()

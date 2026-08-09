@@ -22,6 +22,8 @@ def test_local_defaults_are_valid():
     assert config.WARN_FREE_DISK_BYTES == 2 * 1024 * 1024 * 1024
     assert config.FFMPEG_TIMEOUT_SECONDS == 2.0
     assert config.FFPROBE_TIMEOUT_SECONDS == 30.0
+    assert config.FFMPEG_PROCESS_TIMEOUT_SECONDS == 3_600.0
+    assert config.FASTER_WHISPER_MODEL_REVISION is None
     platform_paths = PlatformDirs("EchoFlow", appauthor=False)
     assert platform_paths.user_state_path == config.STATE_DIR
     assert platform_paths.user_cache_path == config.CACHE_DIR
@@ -43,6 +45,8 @@ def test_environment_overrides_local_settings(monkeypatch, tmp_path):
     monkeypatch.setenv("ECHOFLOW_MAX_MEMORY_BYTES", "4096")
     monkeypatch.setenv("ECHOFLOW_MEMORY_BUDGET_FRACTION", "0.5")
     monkeypatch.setenv("ECHOFLOW_FFPROBE_TIMEOUT_SECONDS", "45")
+    monkeypatch.setenv("ECHOFLOW_FFMPEG_PROCESS_TIMEOUT_SECONDS", "900")
+    monkeypatch.setenv("ECHOFLOW_FASTER_WHISPER_MODEL_REVISION", "abc123")
     monkeypatch.setenv("ECHOFLOW_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("ECHOFLOW_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("ECHOFLOW_MODEL_DIR", str(tmp_path / "cache" / "models"))
@@ -57,6 +61,8 @@ def test_environment_overrides_local_settings(monkeypatch, tmp_path):
     assert config.MAX_MEMORY_BYTES == 4096
     assert config.MEMORY_BUDGET_FRACTION == 0.5
     assert config.FFPROBE_TIMEOUT_SECONDS == 45.0
+    assert config.FFMPEG_PROCESS_TIMEOUT_SECONDS == 900.0
+    assert config.FASTER_WHISPER_MODEL_REVISION == "abc123"
     assert tmp_path / "state" == config.STATE_DIR
     assert tmp_path / "cache" == config.CACHE_DIR
     assert tmp_path / "cache" / "models" == config.MODEL_DIR
@@ -184,6 +190,7 @@ def test_resource_and_diagnostic_lower_boundaries_are_exact():
         WARN_FREE_DISK_BYTES=0,
         FFMPEG_TIMEOUT_SECONDS=0.001,
         FFPROBE_TIMEOUT_SECONDS=0.001,
+        FFMPEG_PROCESS_TIMEOUT_SECONDS=0.001,
         _env_file=None,
     )
     assert config.MAX_CPU_THREADS == 1
@@ -192,12 +199,15 @@ def test_resource_and_diagnostic_lower_boundaries_are_exact():
     assert config.WARN_FREE_DISK_BYTES == 0
     assert config.FFMPEG_TIMEOUT_SECONDS == 0.001
     assert config.FFPROBE_TIMEOUT_SECONDS == 0.001
+    assert config.FFMPEG_PROCESS_TIMEOUT_SECONDS == 0.001
 
     for invalid in (
         {"MIN_FREE_DISK_BYTES": -1},
         {"WARN_FREE_DISK_BYTES": -1, "MIN_FREE_DISK_BYTES": 0},
         {"FFMPEG_TIMEOUT_SECONDS": -0.5},
         {"FFPROBE_TIMEOUT_SECONDS": 0},
+        {"FFMPEG_PROCESS_TIMEOUT_SECONDS": 0},
+        {"FASTER_WHISPER_MODEL_REVISION": ""},
     ):
         with pytest.raises(ValidationError):
             AppConfig(**invalid, _env_file=None)
@@ -242,5 +252,11 @@ def test_configuration_field_descriptions_are_stable_public_schema():
         "FFMPEG_TIMEOUT_SECONDS": None,
         "FFPROBE_TIMEOUT_SECONDS": (
             "Maximum time allowed for dry-run media inspection"
+        ),
+        "FFMPEG_PROCESS_TIMEOUT_SECONDS": (
+            "Maximum time allowed for one audio normalization process"
+        ),
+        "FASTER_WHISPER_MODEL_REVISION": (
+            "Optional immutable model revision requested from the model hub"
         ),
     }

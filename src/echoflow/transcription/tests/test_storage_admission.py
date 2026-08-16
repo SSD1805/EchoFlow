@@ -1,10 +1,10 @@
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 import pytest
 
 from echoflow.transcription.errors import ResourceAdmissionError
+from echoflow.transcription.storage import StorageAdmissionPolicy, StorageAllocation
 from echoflow.transcription.tests.test_executor import executor, plan
-from echoflow.workspace.capacity import StorageAdmissionPolicy, StorageAllocation
 
 
 def test_executor_admits_known_job_storage_before_workspace_claim(tmp_path) -> None:
@@ -48,7 +48,7 @@ def test_storage_rejection_happens_before_workspace_or_decode(tmp_path) -> None:
     ):
         service.execute(planned)
 
-    probe.probe.assert_has_calls([call(planned.job.input_path)])
+    probe.probe.assert_called_once_with(planned.job.input_path)
     assert not paths.state_dir.exists()
     assert not paths.output_dir.exists()
     decoder.decode.assert_not_called()

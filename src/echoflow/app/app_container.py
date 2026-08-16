@@ -1,5 +1,6 @@
 from dependency_injector import containers, providers
 
+from echoflow.benchmarking.runner import BenchmarkRunner
 from echoflow.core.config import AppConfig
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.core.health_check import HealthCheck
@@ -130,6 +131,11 @@ class AppContainer(containers.DeclarativeContainer):
         transcript_assembler=transcript_assembler,
         checkpoint_store=checkpoint_store,
         logger=logger,
+    )
+    benchmark_runner = providers.Factory(
+        BenchmarkRunner,
+        file_manager=file_manager,
+        workspace_service=workspace_service,
     )
     health_check = providers.Factory(
         _create_health_check, config=config, runner_inspector=runner_inspector

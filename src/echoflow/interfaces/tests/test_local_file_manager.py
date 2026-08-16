@@ -1,4 +1,6 @@
 import os
+from concurrent.futures import ProcessPoolExecutor
+from itertools import repeat
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -14,6 +16,14 @@ from echoflow.core.errors import (
 )
 from echoflow.interfaces.base_file_manager import FileManager
 from echoflow.interfaces.local_file_manager import LocalFileManager
+
+
+def _reserve_from_process(path: str) -> bool:
+    try:
+        LocalFileManager().reserve_file(path)
+    except StorageAlreadyExistsError:
+        return False
+    return True
 
 
 @pytest.fixture
@@ -107,6 +117,18 @@ def test_directory_and_file_reservations_are_exclusive(manager, tmp_path):
         manager.reserve_directory(directory)
     with pytest.raises(StorageAlreadyExistsError):
         manager.reserve_file(artifact)
+
+
+def test_file_reservation_is_exclusive_across_processes(tmp_path):
+    artifact = tmp_path / "contended-transcript.json"
+    with ProcessPoolExecutor(max_workers=4) as executor:
+        outcomes = tuple(
+            executor.map(_reserve_from_process, repeat(str(artifact), 4))
+        )
+
+    assert outcomes.count(True) == 1
+    assert outcomes.count(False) == 3
+    assert artifact.is_file()
 
 
 @pytest.mark.parametrize(("name", "expected"), [("", "_"), (".", "_"), ("..", "__")])

@@ -101,7 +101,9 @@ class AppContainer(containers.DeclarativeContainer):
         paths=workspace_paths,
         file_manager=file_manager,
     )
-    checkpoint_store = providers.Factory(LocalCheckpointStore, file_manager=file_manager)
+    checkpoint_store = providers.Factory(
+        LocalCheckpointStore, file_manager=file_manager
+    )
     transcription_planner = providers.Singleton(
         TranscriptionJobPlanner,
         media_probe=media_probe,

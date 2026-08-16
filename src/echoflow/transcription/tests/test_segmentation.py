@@ -1,5 +1,7 @@
 import struct
+import tempfile
 import wave
+from pathlib import Path
 
 import pytest
 from hypothesis import given
@@ -136,26 +138,29 @@ def test_materialize_rejects_window_past_source_and_removes_partial_file(tmp_pat
     duration_seconds=st.integers(min_value=1, max_value=20),
 )
 def test_segment_plan_is_deterministic_gapless_and_bounded(
-    tmp_path, frame_count, sample_rate, duration_seconds
+    frame_count, sample_rate, duration_seconds
 ):
-    source = write_wave(
-        tmp_path / "property.wav", frame_count, sample_rate=sample_rate
-    )
-    decode = decoder(sample_rate=sample_rate)
-    configuration = SegmentationConfiguration(
-        segment_duration_seconds=duration_seconds
-    )
-    segmenter = WaveAudioSegmenter()
+    with tempfile.TemporaryDirectory() as directory:
+        source = write_wave(
+            Path(directory) / "property.wav",
+            frame_count,
+            sample_rate=sample_rate,
+        )
+        decode = decoder(sample_rate=sample_rate)
+        configuration = SegmentationConfiguration(
+            segment_duration_seconds=duration_seconds
+        )
+        segmenter = WaveAudioSegmenter()
 
-    first = segmenter.plan(source, decode, configuration)
-    second = segmenter.plan(source, decode, configuration)
+        first = segmenter.plan(source, decode, configuration)
+        second = segmenter.plan(source, decode, configuration)
 
-    assert first == second
-    assert first[0].start_frame == 0
-    assert first[-1].end_frame == frame_count
-    frames_per_segment = sample_rate * duration_seconds
-    for index, window in enumerate(first):
-        assert window.index == index
-        assert 0 < window.end_frame - window.start_frame <= frames_per_segment
-        if index:
-            assert first[index - 1].end_frame == window.start_frame
+        assert first == second
+        assert first[0].start_frame == 0
+        assert first[-1].end_frame == frame_count
+        frames_per_segment = sample_rate * duration_seconds
+        for index, window in enumerate(first):
+            assert window.index == index
+            assert 0 < window.end_frame - window.start_frame <= frames_per_segment
+            if index:
+                assert first[index - 1].end_frame == window.start_frame

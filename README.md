@@ -39,12 +39,18 @@ EchoFlow currently provides a tested application foundation:
   only the selected audio stream into a private canonical WAV.
 - Explicit model-download authorization; execution is local-only by default.
 - Dependency Injector composition for the implemented services.
+- A distribution contract that builds the wheel and verifies a clean install of
+  the packaged CLI and transcription extra outside the source checkout on Linux,
+  macOS, and Windows CI.
 
 Deterministic application-owned segmentation, checkpointing, resume, calibrated
-performance estimates, GPU strategies, and derived TXT/SRT/VTT artifacts are not
-implemented yet.
+performance estimates, GPU strategies, derived TXT/SRT/VTT artifacts, and
+standalone end-user installers are not implemented yet.
 
 ## Requirements and installation
+
+EchoFlow does not publish end-user installers or GitHub Releases yet. The current
+supported path is a source/developer installation using:
 
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/)
@@ -125,7 +131,14 @@ uv run radon mi src/echoflow
 uv run pytest --cov=echoflow --cov-branch --cov-report=term-missing
 uv lock --check
 uv build
+uv run python scripts/verify_distribution.py dist
 ```
+
+The distribution verifier inspects the built wheel for its console entry point,
+transcription extra, and accidental test leakage. It then creates a temporary
+virtual environment outside the repository, disables user-site and source-path
+imports, installs `echoflow[transcription]` from that wheel, and exercises the
+installed CLI. CI runs that contract on Linux, macOS, and Windows.
 
 The enforced budgets are:
 

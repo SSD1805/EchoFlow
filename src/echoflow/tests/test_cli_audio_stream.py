@@ -12,7 +12,14 @@ def test_dry_run_passes_explicit_audio_stream_to_fresh_planner() -> None:
     with patch("echoflow.cli.AppContainer", return_value=container):
         result = runner.invoke(
             app,
-            ["transcribe", "recording.mkv", "--dry-run", "--audio-stream", "5", "--json"],
+            [
+                "transcribe",
+                "recording.mkv",
+                "--dry-run",
+                "--audio-stream",
+                "5",
+                "--json",
+            ],
         )
 
     assert result.exit_code == 0

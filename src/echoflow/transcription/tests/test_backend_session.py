@@ -23,9 +23,7 @@ def test_session_detects_language_once_then_reuses_it_for_later_segments(tmp_pat
     class Model:
         def transcribe(self, path, **kwargs):
             calls.append((path, kwargs["language"]))
-            return iter(()), SimpleNamespace(
-                language="en", language_probability=0.99
-            )
+            return iter(()), SimpleNamespace(language="en", language_probability=0.99)
 
     session = FasterWhisperSession(
         model=Model(),
@@ -49,9 +47,7 @@ def test_explicit_language_is_never_replaced_by_detected_metadata(tmp_path):
     class Model:
         def transcribe(self, _path, **kwargs):
             calls.append(kwargs["language"])
-            return iter(()), SimpleNamespace(
-                language="fr", language_probability=0.99
-            )
+            return iter(()), SimpleNamespace(language="fr", language_probability=0.99)
 
     session = FasterWhisperSession(
         model=Model(),

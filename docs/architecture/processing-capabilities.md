@@ -22,9 +22,11 @@ The implemented path now covers input validation, SHA-256 fingerprinting,
 FFprobe metadata, side-effect-free path resolution, adaptive local CPU strategy
 selection, decode strategy, resource estimates, immutable JSON/Rich dry-run
 output, local FFmpeg audio normalization, deterministic application-owned PCM
-segmentation, one job-scoped CPU/int8 faster-whisper model session, source-relative
-transcript assembly, resource readmission, and canonical transcript JSON. Model
-download is disabled unless the invocation explicitly authorizes it.
+segmentation, one job-scoped CPU/int8 faster-whisper model session, private
+per-segment checkpoints, validated resume, source-relative transcript assembly,
+resource readmission, and canonical transcript JSON. Model download is disabled
+unless the invocation explicitly authorizes it; after completed checkpoints exist,
+resume does not authorize a fresh model retrieval.
 
 Video is not a downstream capability. An audio-bearing video container is accepted
 at the media boundary, its selected audio stream is extracted, and all video,
@@ -63,27 +65,35 @@ the same canonical audio input used for other noncanonical recordings.
    - Load the faster-whisper model once per job and reuse it across every app-level
      segment.
    - Return timestamped segment results rather than writing final files.
-6. **Assemble**
+6. **Checkpoint**
+   - Atomically persist each completed segment result under the private local job
+     directory before considering that segment complete.
+   - Bind resumable state to the source fingerprint, engine/model/revision,
+     decoder, segmentation schema, exact frame windows, and engine package version.
+   - Never treat unknown, reordered, corrupt, or incompatible state as completed
+     work.
+7. **Assemble**
    - Rebase engine-local timestamps onto the source-relative timeline and
      reindex them deterministically.
    - Reject gaps, inconsistent segment order, mixed engine versions, or timestamps
      outside the segment contract.
    - Preserve confidence and engine metadata in the canonical result.
-7. **Render artifacts**
+8. **Render artifacts**
    - Write canonical transcript JSON atomically.
    - Derive TXT, SRT, and VTT from that canonical result in future work.
    - Put user-facing artifacts in an explicit output directory, with
      `Downloads/EchoFlow` resolved at the application-configuration boundary.
-8. **Record progress**
-   - Persist job, stage, segment, attempt, and artifact metadata in a future
-     checkpoint repository.
-   - Store paths and metadata in state, not audio blobs or transcript documents.
+9. **Retire recovery payloads**
+   - Retain checkpoints after interruption so a later process can resume.
+   - Remove checkpoint payloads after successful canonical publication on a
+     best-effort basis.
+   - Treat ordinary deletion as cleanup, not secure erasure.
 
 ## Segmentation contract
 
 EchoFlow owns segmentation rather than delegating segment boundaries to the speech
-engine. That ownership is what makes a future resumed job capable of proving that
-it is completing the same work rather than merely retrying an approximate chunk.
+engine. That ownership lets a resumed job prove that it is completing the same work
+rather than merely retrying an approximate chunk.
 
 The current contract is intentionally narrow:
 
@@ -139,10 +149,10 @@ the real engine.
 | `AudioDecoder` | Decode and normalization | Segmentation policy |
 | `Segmenter` | Stable segment boundaries and materialization | Speech recognition |
 | `TranscriptionSession` | One loaded engine/model and segment recognition | Final file formats |
+| `CheckpointStore` | Private resumable segment state and contract validation | Public artifacts |
 | `TranscriptAssembler` | Source-relative assembly and result invariants | Filesystem policy |
 | `ArtifactRenderer` | JSON/TXT/SRT/VTT rendering | Job state |
-| `JobRepository` | Future durable state and resumability | Artifact contents |
-| `WorkspaceService` | Private temp paths and atomic artifact paths | Audio semantics |
+| `WorkspaceService` | Private job paths and atomic artifact paths | Audio semantics |
 
 Protocols should be introduced with the first real implementation that needs
 them. Empty interfaces, cloud variants, and speculative managers are not part
@@ -150,19 +160,36 @@ of the first slice.
 
 ## Checkpoint and resume boundary
 
-Deterministic segmentation is necessary for resume but is not itself resume. The
-current executor still keeps successfully recognized segment results only in
-process memory. If the process dies, those completed results are lost and the job
-must restart.
+A checkpoint is a durable assertion that one deterministic segment completed under
+a particular transcription contract. EchoFlow stores a versioned manifest and one
+JSON envelope per completed segment beneath the private local job directory. It does
+not use the operating-system temporary directory for durable resume state because
+that state must survive process restarts and reboots.
 
-A truthful checkpoint layer can now be built around the stable segment unit. It
-must persist enough private metadata to validate at least the source fingerprint,
-segmentation schema and windows, engine/model/revision contract, and completed
-segment result before a later process skips any work. A resumed job must never mix
-source identities, model revisions, or incompatible segment plans.
+The manifest contains no source path, source filename, or model-cache path. It binds
+the job to source content/media identity, processing profile, engine/model/revision,
+decoder settings, segmentation settings, and exact PCM frame windows. Each segment
+envelope repeats its window identity and carries a SHA-256 digest of the canonical
+result document so accidental corruption is detected before work is skipped.
+Unkeyed hashes are integrity checks, not authentication against a malicious process
+running as the same user.
 
-Until that durable state exists, EchoFlow must not describe an interrupted job as
-resumable.
+Only a contiguous prefix of completed segment checkpoints is resumable. Unknown
+segment files, gaps, reordered windows, malformed JSON, oversized state, contract
+mismatches, payload-digest failures, or a different installed engine package version
+fail closed. The previously detected language is restored into the job-scoped model
+session so recognition semantics do not change after restart.
+
+`echoflow transcribe INPUT --resume JOB_ID` still requires the original input path.
+The input is freshly probed and fingerprinted rather than trusting a stored path.
+If the current plan does not match the persisted contract, resume is refused. This
+keeps explicit profile/model choices from being silently changed across a restart.
+
+Checkpoint transcript fragments are sensitive plaintext local state. They are not
+masked because exact resume requires exact output. They are never public artifacts
+or routine log fields. Successful final publication triggers best-effort checkpoint
+cleanup; interruption retains them for recovery. Application-level encryption,
+secure erasure, and OS-specific ACL hardening remain separate security work.
 
 ## Bounded audio bisection
 
@@ -194,6 +221,7 @@ be validated against real audio before becoming compatibility guarantees.
 4. Add deterministic segmentation, one job-scoped model session, and assembly.
    **Implemented sequentially with segmentation schema version 1.**
 5. Add durable per-segment checkpoints and resume validation.
+   **Implemented with private local checkpoint schema version 1.**
 6. Add JSON-derived TXT output, then SRT and VTT.
 7. Add bounded audio bisection using recorded stage/segment attempts.
 8. Add calibrated local performance measurements and only then evaluate bounded

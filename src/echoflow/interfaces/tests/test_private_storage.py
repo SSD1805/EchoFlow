@@ -1,6 +1,5 @@
 import os
 import subprocess
-from pathlib import Path
 
 import pytest
 
@@ -31,7 +30,7 @@ def _fake_windows_system_root(tmp_path, monkeypatch):
     system32.mkdir(parents=True)
     (system32 / "whoami.exe").write_bytes(b"")
     (system32 / "icacls.exe").write_bytes(b"")
-    monkeypatch.setenv("SystemRoot", str(system32.parent))
+    monkeypatch.setenv("SYSTEMROOT", str(system32.parent))
     return system32
 
 
@@ -113,7 +112,7 @@ def test_windows_policy_refuses_missing_acl_utility(tmp_path, monkeypatch):
     system32 = tmp_path / "Windows" / "System32"
     system32.mkdir(parents=True)
     (system32 / "whoami.exe").write_bytes(b"")
-    monkeypatch.setenv("SystemRoot", str(system32.parent))
+    monkeypatch.setenv("SYSTEMROOT", str(system32.parent))
 
     def run(command, **_kwargs):
         return subprocess.CompletedProcess(

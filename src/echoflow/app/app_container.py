@@ -19,6 +19,7 @@ from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.audio import FfmpegAudioDecoder
 from echoflow.transcription.backend import FasterWhisperTranscriber
+from echoflow.transcription.checkpoint import LocalCheckpointStore
 from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.segmentation import WaveAudioSegmenter
@@ -112,6 +113,7 @@ class AppContainer(containers.DeclarativeContainer):
     audio_segmenter = providers.Factory(WaveAudioSegmenter)
     transcriber = providers.Factory(FasterWhisperTranscriber)
     transcript_assembler = providers.Factory(TranscriptAssembler)
+    checkpoint_store = providers.Factory(LocalCheckpointStore, file_manager=file_manager)
     transcription_executor = providers.Factory(
         TranscriptionExecutor,
         media_probe=media_probe,
@@ -123,6 +125,7 @@ class AppContainer(containers.DeclarativeContainer):
         audio_segmenter=audio_segmenter,
         transcriber=transcriber,
         transcript_assembler=transcript_assembler,
+        checkpoint_store=checkpoint_store,
         logger=logger,
     )
     health_check = providers.Factory(

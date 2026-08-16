@@ -241,7 +241,9 @@ def _validate_timestamps(document: dict[str, Any]) -> None:
         start = float(segment.get("start_seconds", -1.0))
         end = float(segment.get("end_seconds", -1.0))
         if start < 0 or end < start or start < previous_start:
-            raise RuntimeError("canonical segment timestamps are not finite and ordered")
+            raise RuntimeError(
+                "canonical segment timestamps are not finite and ordered"
+            )
         if end > duration_seconds + _TIMESTAMP_TOLERANCE_SECONDS:
             raise RuntimeError("canonical segment timestamp exceeds source duration")
         previous_start = start
@@ -250,7 +252,9 @@ def _validate_timestamps(document: dict[str, Any]) -> None:
 def _validate_privacy(raw_document: str, *, input_path: Path, model_dir: Path) -> None:
     sensitive_values = (str(input_path), input_path.name, str(model_dir))
     if any(value and value in raw_document for value in sensitive_values):
-        raise RuntimeError("canonical transcript leaked a local path or source filename")
+        raise RuntimeError(
+            "canonical transcript leaked a local path or source filename"
+        )
 
 
 def _validate_exports(output_dir: Path) -> None:
@@ -262,7 +266,9 @@ def _validate_exports(output_dir: Path) -> None:
     if "-->" not in srt or "-->" not in vtt or not vtt.startswith("WEBVTT"):
         raise RuntimeError("subtitle exports do not contain timestamp cues")
     if len(_words(txt) & _EXPECTED_WORDS) < _MIN_EXPECTED_WORDS:
-        raise RuntimeError("plain-text export does not contain recognizable known speech")
+        raise RuntimeError(
+            "plain-text export does not contain recognizable known speech"
+        )
 
 
 def _validate_transcript(
@@ -285,7 +291,9 @@ def _validate_private_cleanup(root: Path) -> None:
     state_dir = root / "state"
     leftovers = tuple(state_dir.rglob("*.wav")) if state_dir.exists() else ()
     if leftovers:
-        raise RuntimeError("successful execution left temporary decoded/segment WAV data")
+        raise RuntimeError(
+            "successful execution left temporary decoded/segment WAV data"
+        )
 
 
 def verify_engine() -> None:

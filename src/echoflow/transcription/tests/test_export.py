@@ -1,12 +1,11 @@
-from pathlib import Path
 from unittest.mock import Mock, call
 
 import pytest
 
 from echoflow.runner.models import ProcessingProfile
 from echoflow.transcription.export import (
-    TranscriptExportError,
     TranscriptExporter,
+    TranscriptExportError,
     TranscriptExportFormat,
     render_subrip,
     render_text,

@@ -71,6 +71,34 @@ def test_interrupted_job_resumes_from_completed_prefix_and_clears_checkpoints(tm
     assert "world" not in log_text
 
 
+def test_fully_checkpointed_job_publishes_without_loading_model_again(tmp_path):
+    planned, paths = plan(tmp_path)
+    service, _, _, _, segmenter, transcriber, session, logger, _ = executor(
+        tmp_path, planned, paths
+    )
+    store = LocalCheckpointStore(service.file_manager)
+    service.checkpoint_store = store
+    job = service.workspace_service.create_job(
+        planned.job.input_path,
+        output_dir=planned.job.output_dir,
+        job_id=planned.job.job_id,
+    )
+    windows = segmenter.plan.return_value
+    store.initialize(job, planned, windows)
+    store.save_segment(job, planned, windows, windows[0], local_result("Hello"))
+    store.save_segment(job, planned, windows, windows[1], local_result("world."))
+
+    result = service.execute(planned, resume=True, allow_model_download=True)
+
+    assert result.transcript.text == "Hello world."
+    transcriber.open_session.assert_not_called()
+    session.transcribe.assert_not_called()
+    segmenter.materialize.assert_not_called()
+    assert list((job.workspace_dir / "checkpoints").iterdir()) == []
+    log_text = " ".join(str(item) for item in logger.info.call_args_list)
+    assert "transcription_resume_recognition_complete" in log_text
+
+
 def test_resume_refuses_engine_version_change_before_new_segment_work(tmp_path):
     planned, paths = plan(tmp_path)
     service, _, _, _, segmenter, transcriber, session, _, materialized = executor(

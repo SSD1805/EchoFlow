@@ -101,6 +101,7 @@ class AppContainer(containers.DeclarativeContainer):
         paths=workspace_paths,
         file_manager=file_manager,
     )
+    checkpoint_store = providers.Factory(LocalCheckpointStore, file_manager=file_manager)
     transcription_planner = providers.Singleton(
         TranscriptionJobPlanner,
         media_probe=media_probe,
@@ -108,12 +109,12 @@ class AppContainer(containers.DeclarativeContainer):
         runner_inspector=runner_inspector,
         policy_planner=runner_policy_planner,
         model_revision=config.provided.FASTER_WHISPER_MODEL_REVISION,
+        checkpoint_store=checkpoint_store,
     )
     audio_decoder = providers.Factory(_create_audio_decoder, config=config)
     audio_segmenter = providers.Factory(WaveAudioSegmenter)
     transcriber = providers.Factory(FasterWhisperTranscriber)
     transcript_assembler = providers.Factory(TranscriptAssembler)
-    checkpoint_store = providers.Factory(LocalCheckpointStore, file_manager=file_manager)
     transcription_executor = providers.Factory(
         TranscriptionExecutor,
         media_probe=media_probe,

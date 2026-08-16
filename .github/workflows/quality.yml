@@ -86,6 +86,9 @@ jobs:
       - name: Build distributions
         run: uv build
 
+      - name: Verify clean wheel install
+        run: uv run python scripts/verify_distribution.py dist
+
   platform-smoke:
     strategy:
       fail-fast: false
@@ -123,3 +126,6 @@ jobs:
 
       - name: Build distributions
         run: uv build
+
+      - name: Verify clean wheel install
+        run: uv run python scripts/verify_distribution.py dist

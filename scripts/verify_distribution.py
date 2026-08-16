@@ -12,6 +12,9 @@ from email.parser import BytesParser
 from pathlib import Path
 
 
+_EXPECTED_LICENSE_EXPRESSION = "AGPL-3.0-only"
+
+
 def _wheel_from(dist_dir: Path) -> Path:
     wheels = tuple(sorted(dist_dir.glob("echoflow-*.whl")))
     if len(wheels) != 1:
@@ -40,12 +43,22 @@ def _inspect_wheel(wheel: Path) -> None:
         entry_point_names = tuple(
             name for name in names if name.endswith(".dist-info/entry_points.txt")
         )
+        license_names = tuple(
+            name for name in names if name.endswith(".dist-info/licenses/LICENSE")
+        )
         if len(metadata_names) != 1 or len(entry_point_names) != 1:
             raise RuntimeError("built wheel is missing canonical distribution metadata")
+        if len(license_names) != 1:
+            raise RuntimeError("built wheel does not contain the EchoFlow license file")
 
         metadata = BytesParser(policy=policy.default).parsebytes(
             archive.read(metadata_names[0])
         )
+        if metadata.get("License-Expression") != _EXPECTED_LICENSE_EXPRESSION:
+            raise RuntimeError(
+                "built wheel has unexpected license expression: "
+                f"{metadata.get('License-Expression')!r}"
+            )
         extras = set(metadata.get_all("Provides-Extra", []))
         requirements = tuple(metadata.get_all("Requires-Dist", []))
         if "transcription" not in extras:

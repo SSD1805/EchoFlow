@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A local-first audio processing, transcription, and analysis application."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-license = "Apache-2.0"
+license = "AGPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [{ name = "SSD" }]
 dependencies = [

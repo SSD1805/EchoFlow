@@ -18,8 +18,10 @@ runner = CliRunner()
 class Provider:
     def __init__(self, value):
         self.value = value
+        self.calls = []
 
-    def __call__(self, **_kwargs):
+    def __call__(self, **kwargs):
+        self.calls.append(kwargs)
         return self.value
 
     def override(self, value):
@@ -87,9 +89,9 @@ def test_fresh_benchmark_plans_executes_with_observer_and_emits_json():
         output_dir=None,
         profile=ProcessingProfile.BALANCED,
     )
-    kwargs = container.transcription_executor.value.call_args.kwargs
-    assert isinstance(kwargs["observer"], NoOpExecutionObserver)
-    container.transcription_executor.value.return_value.execute.assert_called_once_with(
+    observer = container.transcription_executor.calls[-1]["observer"]
+    assert isinstance(observer, NoOpExecutionObserver)
+    container.transcription_executor.value.execute.assert_called_once_with(
         container.transcription_planner().plan.return_value,
         allow_model_download=False,
     )
@@ -107,7 +109,7 @@ def test_resume_uses_authoritative_resume_plan_and_explicit_resume_execution():
     assert result.exit_code == 0
     assert "EchoFlow job ID" not in result.stderr
     container.transcription_planner().plan_resume.assert_called_once()
-    container.transcription_executor.value.return_value.execute.assert_called_once_with(
+    container.transcription_executor.value.execute.assert_called_once_with(
         container.transcription_planner().plan_resume.return_value,
         allow_model_download=False,
         resume=True,

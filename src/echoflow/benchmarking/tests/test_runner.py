@@ -153,7 +153,9 @@ def _plan(tmp_path: Path) -> tuple[TranscriptionJobPlan, WorkspacePaths]:
     )
 
 
-def _result(plan: TranscriptionJobPlan, artifact: Artifact) -> TranscriptionExecutionResult:
+def _result(
+    plan: TranscriptionJobPlan, artifact: Artifact
+) -> TranscriptionExecutionResult:
     transcript = CanonicalTranscript(
         job_id=plan.job.job_id.value,
         source=TranscriptSource.from_media(plan.media),

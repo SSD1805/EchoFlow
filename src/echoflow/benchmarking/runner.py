@@ -118,7 +118,9 @@ class BenchmarkRunner:
         if error is not None:
             raise BenchmarkRunError(report_path, status, error) from error
         if result is None:
-            raise RuntimeError("completed benchmark did not produce a transcription result")
+            raise RuntimeError(
+                "completed benchmark did not produce a transcription result"
+            )
         return BenchmarkRunResult(report_path, report, result)
 
     def _reserve_report(self, plan: TranscriptionJobPlan, benchmark_id: str) -> Path:
@@ -129,9 +131,7 @@ class BenchmarkRunner:
         self.file_manager.reserve_file(report_path)
         return report_path
 
-    def _artifact_size(
-        self, result: TranscriptionExecutionResult | None
-    ) -> int | None:
+    def _artifact_size(self, result: TranscriptionExecutionResult | None) -> int | None:
         if result is None or not self.file_manager.file_exists(result.artifact.path):
             return None
         return int(self.file_manager.get_file_metadata(result.artifact.path)["size"])

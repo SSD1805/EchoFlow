@@ -48,7 +48,10 @@ class BenchmarkReport:
             raise ValueError("benchmark and job IDs cannot be empty")
         if self.planning_wall_seconds < 0 or self.execution_wall_seconds < 0:
             raise ValueError("benchmark wall-clock durations cannot be negative")
-        if self.canonical_artifact_bytes is not None and self.canonical_artifact_bytes < 0:
+        if (
+            self.canonical_artifact_bytes is not None
+            and self.canonical_artifact_bytes < 0
+        ):
             raise ValueError("canonical_artifact_bytes cannot be negative")
         if self.status is BenchmarkStatus.COMPLETED and self.error_type is not None:
             raise ValueError("completed benchmark cannot carry an error type")

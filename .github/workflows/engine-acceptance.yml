@@ -1,0 +1,39 @@
+name: Engine Acceptance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-acceptance
+  cancel-in-progress: false
+
+jobs:
+  faster-whisper-cpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: true
+
+      - name: Install locked transcription dependencies
+        run: uv sync --locked --extra transcription
+
+      - name: Execute real faster-whisper acceptance
+        run: uv run python scripts/verify_engine_acceptance.py

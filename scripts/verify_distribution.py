@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import venv
+import wave
 import zipfile
 from email import policy
 from email.parser import BytesParser
@@ -93,6 +94,14 @@ def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> None:
     subprocess.run(command, cwd=cwd, env=env, check=True)  # noqa: S603
 
 
+def _write_acceptance_wave(path: Path) -> None:
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16_000)
+        audio.writeframes(b"\x00\x00" * 16_000)
+
+
 def _verify_clean_install(wheel: Path) -> None:
     with tempfile.TemporaryDirectory(prefix="echoflow-dist-") as temporary:
         root = Path(temporary).resolve()
@@ -104,6 +113,8 @@ def _verify_clean_install(wheel: Path) -> None:
         python = _venv_python(venv_dir)
         console = _console_script(venv_dir)
         requirement = f"echoflow[transcription] @ {wheel.as_uri()}"
+        sample_audio = work_dir / "acceptance.wav"
+        _write_acceptance_wave(sample_audio)
 
         env = os.environ.copy()
         env.pop("PYTHONPATH", None)
@@ -113,6 +124,8 @@ def _verify_clean_install(wheel: Path) -> None:
         env["ECHOFLOW_CACHE_DIR"] = str(root / "cache")
         env["ECHOFLOW_MODEL_DIR"] = str(root / "cache" / "models")
         env["ECHOFLOW_OUTPUT_DIR"] = str(root / "output")
+        env["ECHOFLOW_MIN_FREE_DISK_BYTES"] = "0"
+        env["ECHOFLOW_WARN_FREE_DISK_BYTES"] = "0"
 
         _run(
             [
@@ -142,8 +155,28 @@ def _verify_clean_install(wheel: Path) -> None:
         )
         _run([str(console), "--help"], cwd=work_dir, env=env)
         _run([str(python), "-m", "echoflow", "--help"], cwd=work_dir, env=env)
+        _run(
+            [str(python), "-m", "echoflow.benchmarking", "--help"],
+            cwd=work_dir,
+            env=env,
+        )
+        _run([str(console), "init", "--json"], cwd=work_dir, env=env)
+        _run([str(console), "doctor", "--json"], cwd=work_dir, env=env)
         _run([str(console), "runner", "--json"], cwd=work_dir, env=env)
         _run([str(console), "strategies", "--json"], cwd=work_dir, env=env)
+        _run(
+            [
+                str(console),
+                "transcribe",
+                str(sample_audio),
+                "--dry-run",
+                "--profile",
+                "screening",
+                "--json",
+            ],
+            cwd=work_dir,
+            env=env,
+        )
 
 
 def main() -> int:

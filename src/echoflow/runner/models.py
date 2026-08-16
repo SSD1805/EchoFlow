@@ -10,6 +10,14 @@ class ProcessingProfile(StrEnum):
     ACCURACY = "accuracy"
 
 
+class ModelTier(StrEnum):
+    """Deprecated compatibility value; transcription strategy owns model selection."""
+
+    COMPACT = "compact"
+    STANDARD = "standard"
+    LARGE = "large"
+
+
 @dataclass(frozen=True, slots=True)
 class RunnerResources:
     platform: str
@@ -37,9 +45,15 @@ class ExecutionPolicy:
     provisional: bool
     cpu_threads: int
     memory_budget_bytes: int
+    recommended_model_tier: ModelTier | None = None
     constraints: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         result = asdict(self)
         result["profile"] = self.profile.value
+        result["recommended_model_tier"] = (
+            self.recommended_model_tier.value
+            if self.recommended_model_tier is not None
+            else None
+        )
         return result

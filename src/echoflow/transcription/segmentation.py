@@ -134,20 +134,22 @@ class WaveAudioSegmenter:
     ) -> None:
         remaining_frames = window.end_frame - window.start_frame
         frame_width = decoder.channels * _SUPPORTED_SAMPLE_WIDTH_BYTES
-        with destination.open("xb") as raw_destination:
-            with wave.open(raw_destination, "wb") as output:
-                output.setnchannels(decoder.channels)
-                output.setsampwidth(_SUPPORTED_SAMPLE_WIDTH_BYTES)
-                output.setframerate(decoder.sample_rate_hz)
-                while remaining_frames:
-                    payload = source.readframes(min(_FRAMES_PER_READ, remaining_frames))
-                    if not payload or len(payload) % frame_width:
-                        raise TranscriptionError(
-                            "Decoded audio ended before the planned segment boundary"
-                        )
-                    frames_read = len(payload) // frame_width
-                    if frames_read > remaining_frames:
-                        payload = payload[: remaining_frames * frame_width]
-                        frames_read = remaining_frames
-                    output.writeframesraw(payload)
-                    remaining_frames -= frames_read
+        with (
+            destination.open("xb") as raw_destination,
+            wave.open(raw_destination, "wb") as output,
+        ):
+            output.setnchannels(decoder.channels)
+            output.setsampwidth(_SUPPORTED_SAMPLE_WIDTH_BYTES)
+            output.setframerate(decoder.sample_rate_hz)
+            while remaining_frames:
+                payload = source.readframes(min(_FRAMES_PER_READ, remaining_frames))
+                if not payload or len(payload) % frame_width:
+                    raise TranscriptionError(
+                        "Decoded audio ended before the planned segment boundary"
+                    )
+                frames_read = len(payload) // frame_width
+                if frames_read > remaining_frames:
+                    payload = payload[: remaining_frames * frame_width]
+                    frames_read = remaining_frames
+                output.writeframesraw(payload)
+                remaining_frames -= frames_read

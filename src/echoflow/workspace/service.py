@@ -99,13 +99,14 @@ class WorkspaceService:
 
         layout = self._layout(output_dir)
         selected_id = job_id or JobId(self.id_factory())
-        job_workspace = layout.jobs_dir / selected_id.value
-        return Job(
+        job = Job(
             job_id=selected_id,
             input_path=source,
-            workspace_dir=job_workspace,
+            workspace_dir=layout.jobs_dir / selected_id.value,
             output_dir=layout.output_dir,
         )
+        self._validate_job(job, require_workspace=False)
+        return job
 
     def plan_artifact(
         self,
@@ -157,8 +158,7 @@ class WorkspaceService:
         return self.paths.with_output(Path(output_dir))
 
     def _validate_job(self, job: Job, *, require_workspace: bool) -> None:
-        expected_parent = self.paths.jobs_dir.resolve(strict=False)
-        expected_workspace = expected_parent / job.job_id.value
+        expected_workspace = self.paths.jobs_dir / job.job_id.value
         if job.workspace_dir != expected_workspace or (
             require_workspace and not job.workspace_dir.is_dir()
         ):

@@ -5,6 +5,7 @@ from typing import Protocol
 
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.core.ilogger import ILogger
+from echoflow.core.measurements import ExecutionObserver, NoOpExecutionObserver
 from echoflow.media.errors import InputChangedError
 from echoflow.media.models import MediaInfo
 from echoflow.runner.inspector import RunnerInspector
@@ -162,6 +163,7 @@ class TranscriptionExecutor:
         transcript_assembler: SegmentTranscriptAssembler,
         logger: ILogger,
         checkpoint_store: SegmentCheckpointStore | None = None,
+        observer: ExecutionObserver | None = None,
     ):
         self.media_probe = media_probe
         self.workspace_service = workspace_service
@@ -174,6 +176,7 @@ class TranscriptionExecutor:
         self.transcript_assembler = transcript_assembler
         self.logger = logger
         self.checkpoint_store = checkpoint_store or _NoCheckpointStore()
+        self.observer = observer or NoOpExecutionObserver()
 
     def execute(
         self,
@@ -182,38 +185,38 @@ class TranscriptionExecutor:
         allow_model_download: bool = False,
         resume: bool = False,
     ) -> TranscriptionExecutionResult:
-        self._admit(plan)
-        verified_media = self.media_probe.probe(plan.job.input_path)
+        with self.observer.span("admission.initial"):
+            self._admit(plan)
+        with self.observer.span("media.verify"):
+            verified_media = self.media_probe.probe(plan.job.input_path)
         if verified_media.input != plan.media.input:
             raise InputChangedError(
                 "Input changed between transcription planning and execution"
             )
 
-        if resume:
-            job = self.workspace_service.resume_job(
-                plan.job.input_path,
-                output_dir=plan.job.output_dir,
-                job_id=plan.job.job_id,
+        with self.observer.span("workspace.claim"):
+            job = self._claim_job(plan, resume=resume)
+            artifact = self.workspace_service.reserve_artifact(
+                job, ArtifactKind.CANONICAL_JSON
             )
-        else:
-            job = self.workspace_service.create_job(
-                plan.job.input_path,
-                output_dir=plan.job.output_dir,
-                job_id=plan.job.job_id,
-            )
-        artifact = self.workspace_service.reserve_artifact(
-            job, ArtifactKind.CANONICAL_JSON
-        )
+
         decoded: DecodedAudio | None = None
         try:
-            decoded = self.audio_decoder.decode(
-                plan.media, plan.decoder, job.workspace_dir
-            )
-            windows = self.audio_segmenter.plan(
-                decoded.path, plan.decoder, plan.segmentation
-            )
-            restored = self._checkpoint_state(job, plan, windows, resume=resume)
-            self._admit(plan)
+            with self.observer.span("decode"):
+                decoded = self.audio_decoder.decode(
+                    plan.media, plan.decoder, job.workspace_dir
+                )
+            with self.observer.span("segmentation.plan"):
+                windows = self.audio_segmenter.plan(
+                    decoded.path, plan.decoder, plan.segmentation
+                )
+            self.observer.record_value("segments.total", len(windows))
+            with self.observer.span("checkpoint.prepare"):
+                restored = self._checkpoint_state(job, plan, windows, resume=resume)
+            self.observer.record_value("segments.restored", len(restored.completed))
+            self.observer.record_value("segments.completed", len(restored.completed))
+            with self.observer.span("admission.pre_model"):
+                self._admit(plan)
             engine_result = self._transcribe_segments(
                 plan,
                 decoded,
@@ -222,22 +225,39 @@ class TranscriptionExecutor:
                 restored,
                 allow_model_download=allow_model_download,
             )
-            transcript = self._transcript(plan, engine_result)
-            document = json.dumps(
-                transcript.to_dict(),
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            )
-            self.file_manager.save_file(f"{document}\n".encode(), artifact.path)
-            self._clear_completed_checkpoints(job)
+            with self.observer.span("transcript.canonicalize"):
+                transcript = self._transcript(plan, engine_result)
+                document = json.dumps(
+                    transcript.to_dict(),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            with self.observer.span("artifact.write"):
+                self.file_manager.save_file(f"{document}\n".encode(), artifact.path)
+            with self.observer.span("checkpoint.cleanup"):
+                self._clear_completed_checkpoints(job)
         except BaseException:
             self._release_failed_artifact(artifact)
             raise
         finally:
             if decoded is not None:
-                self.audio_decoder.cleanup(decoded)
+                with self.observer.span("decode.cleanup"):
+                    self.audio_decoder.cleanup(decoded)
         return TranscriptionExecutionResult(job, artifact, transcript)
+
+    def _claim_job(self, plan: TranscriptionJobPlan, *, resume: bool) -> Job:
+        if resume:
+            return self.workspace_service.resume_job(
+                plan.job.input_path,
+                output_dir=plan.job.output_dir,
+                job_id=plan.job.job_id,
+            )
+        return self.workspace_service.create_job(
+            plan.job.input_path,
+            output_dir=plan.job.output_dir,
+            job_id=plan.job.job_id,
+        )
 
     def _checkpoint_state(
         self,
@@ -275,19 +295,15 @@ class TranscriptionExecutor:
                 "transcription_resume_recognition_complete",
                 segment_count=len(windows),
             )
-            return self.transcript_assembler.assemble(results)
+            with self.observer.span("transcript.assemble"):
+                return self.transcript_assembler.assemble(results)
 
         allowed_download = allow_model_download and completed_count == 0
-        if restored.detected_language is None:
-            session = self.transcriber.open_session(
-                plan.engine,
+        with self.observer.span("engine.open"):
+            session = self._open_session(
+                plan,
+                restored,
                 allow_model_download=allowed_download,
-            )
-        else:
-            session = self.transcriber.open_session(
-                plan.engine,
-                allow_model_download=allowed_download,
-                detected_language=restored.detected_language,
             )
         if (
             restored.engine_version is not None
@@ -305,18 +321,23 @@ class TranscriptionExecutor:
                 segment_index=window.index,
                 segment_count=len(windows),
             )
-            materialized = self.audio_segmenter.materialize(
-                decoded.path,
-                window,
-                plan.decoder,
-                job.workspace_dir,
-            )
+            with self.observer.span("segment.materialize"):
+                materialized = self.audio_segmenter.materialize(
+                    decoded.path,
+                    window,
+                    plan.decoder,
+                    job.workspace_dir,
+                )
             try:
-                result = session.transcribe(materialized.path)
+                with self.observer.span("segment.transcribe"):
+                    result = session.transcribe(materialized.path)
             finally:
-                self.audio_segmenter.cleanup(materialized)
-            self.checkpoint_store.save_segment(job, plan, windows, window, result)
+                with self.observer.span("segment.cleanup"):
+                    self.audio_segmenter.cleanup(materialized)
+            with self.observer.span("checkpoint.write"):
+                self.checkpoint_store.save_segment(job, plan, windows, window, result)
             results.append((window, result))
+            self.observer.record_value("segments.completed", len(results))
             job_logger.info(
                 "transcription_segment_completed",
                 segment_id=window.segment_id,
@@ -324,7 +345,26 @@ class TranscriptionExecutor:
                 segment_count=len(windows),
                 checkpointed=True,
             )
-        return self.transcript_assembler.assemble(results)
+        with self.observer.span("transcript.assemble"):
+            return self.transcript_assembler.assemble(results)
+
+    def _open_session(
+        self,
+        plan: TranscriptionJobPlan,
+        restored: RestoredCheckpoint,
+        *,
+        allow_model_download: bool,
+    ) -> TranscriptionSession:
+        if restored.detected_language is None:
+            return self.transcriber.open_session(
+                plan.engine,
+                allow_model_download=allow_model_download,
+            )
+        return self.transcriber.open_session(
+            plan.engine,
+            allow_model_download=allow_model_download,
+            detected_language=restored.detected_language,
+        )
 
     def _clear_completed_checkpoints(self, job: Job) -> None:
         try:

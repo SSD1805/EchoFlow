@@ -108,9 +108,7 @@ class WaveAudioSegmenter:
             segment.path.unlink(missing_ok=True)
 
     @staticmethod
-    def _validate_source(
-        source: wave.Wave_read, decoder: DecodeConfiguration
-    ) -> None:
+    def _validate_source(source: wave.Wave_read, decoder: DecodeConfiguration) -> None:
         if decoder.output_codec != _SUPPORTED_CODEC:
             raise TranscriptionError(
                 "Segmentation requires the planned canonical PCM codec"

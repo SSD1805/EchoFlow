@@ -20,7 +20,7 @@ from echoflow.transcription.strategy import (
     StrategyEvaluator,
     faster_whisper_cpu_catalog,
 )
-from echoflow.workspace.models import ArtifactKind
+from echoflow.workspace.models import ArtifactKind, JobId
 from echoflow.workspace.service import WorkspaceService
 
 _MIB = 1024**2
@@ -62,8 +62,11 @@ class TranscriptionJobPlanner:
         output_dir: str | Path | None = None,
         profile: ProcessingProfile = ProcessingProfile.BALANCED,
         strategy_id: str | None = None,
+        job_id: JobId | None = None,
     ) -> TranscriptionJobPlan:
-        job = self.workspace_service.plan_job(input_path, output_dir=output_dir)
+        job = self.workspace_service.plan_job(
+            input_path, output_dir=output_dir, job_id=job_id
+        )
         media = self.media_probe.probe(job.input_path)
         runner = self.runner_inspector.inspect()
         policy = self.policy_planner.plan(runner, profile)

@@ -26,6 +26,7 @@ from echoflow.transcription.models import (
     TranscriptSource,
 )
 from echoflow.transcription.segmentation import MaterializedAudioSegment
+from echoflow.workspace.capacity import StorageAdmissionPolicy, StorageAllocation
 from echoflow.workspace.models import Artifact, ArtifactKind, Job
 from echoflow.workspace.service import WorkspaceService
 
@@ -163,6 +164,7 @@ class TranscriptionExecutor:
         transcript_assembler: SegmentTranscriptAssembler,
         logger: ILogger,
         checkpoint_store: SegmentCheckpointStore | None = None,
+        storage_admission: StorageAdmissionPolicy | None = None,
         observer: ExecutionObserver | None = None,
     ):
         self.media_probe = media_probe
@@ -176,6 +178,7 @@ class TranscriptionExecutor:
         self.transcript_assembler = transcript_assembler
         self.logger = logger
         self.checkpoint_store = checkpoint_store or _NoCheckpointStore()
+        self.storage_admission = storage_admission
         self.observer = observer or NoOpExecutionObserver()
 
     def execute(
@@ -193,6 +196,8 @@ class TranscriptionExecutor:
             raise InputChangedError(
                 "Input changed between transcription planning and execution"
             )
+        with self.observer.span("admission.storage"):
+            self._admit_storage(plan)
 
         with self.observer.span("workspace.claim"):
             job = self._claim_job(plan, resume=resume)
@@ -393,6 +398,22 @@ class TranscriptionExecutor:
             raise ResourceAdmissionError(
                 "Available CPU capacity changed; create a new transcription plan"
             )
+
+    def _admit_storage(self, plan: TranscriptionJobPlan) -> None:
+        if self.storage_admission is None:
+            return
+        self.storage_admission.admit(
+            (
+                StorageAllocation(
+                    plan.job.workspace_dir,
+                    plan.resources.private_workspace_bytes,
+                ),
+                StorageAllocation(
+                    plan.job.output_dir,
+                    plan.resources.public_output_bytes,
+                ),
+            )
+        )
 
     def _release_failed_artifact(self, artifact: Artifact) -> None:
         with suppress(Exception):

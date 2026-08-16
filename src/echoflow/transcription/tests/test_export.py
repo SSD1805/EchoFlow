@@ -94,7 +94,8 @@ def test_webvtt_keeps_stable_canonical_segment_ids():
 def test_subtitle_export_rejects_nul_instead_of_writing_invalid_cue():
     value = transcript(RecognizedSegment(0, 0, 1, "unsafe\x00text"))
     with pytest.raises(
-        TranscriptExportError, match="^Transcript contains text that cannot be exported$"
+        TranscriptExportError,
+        match="^Transcript contains text that cannot be exported$",
     ):
         render_webvtt(value)
 
@@ -115,10 +116,16 @@ def test_exporter_renders_before_reserving_and_deduplicates_formats(tmp_path):
         tmp_path / "state/jobs/job-1",
         tmp_path / "output",
     )
-    text_artifact = Artifact(job.job_id, ArtifactKind.TEXT, tmp_path / "output/input.txt")
-    srt_artifact = Artifact(job.job_id, ArtifactKind.SUBRIP, tmp_path / "output/input.srt")
+    text_artifact = Artifact(
+        job.job_id, ArtifactKind.TEXT, tmp_path / "output/input.txt"
+    )
+    srt_artifact = Artifact(
+        job.job_id, ArtifactKind.SUBRIP, tmp_path / "output/input.srt"
+    )
     workspace.reserve_artifact.side_effect = [text_artifact, srt_artifact]
-    exporter = TranscriptExporter(workspace_service=workspace, file_manager=file_manager)
+    exporter = TranscriptExporter(
+        workspace_service=workspace, file_manager=file_manager
+    )
 
     result = exporter.publish(
         job,
@@ -145,11 +152,17 @@ def test_exporter_rolls_back_entire_derived_set_without_touching_canonical(tmp_p
         tmp_path / "state/jobs/job-1",
         tmp_path / "output",
     )
-    text_artifact = Artifact(job.job_id, ArtifactKind.TEXT, tmp_path / "output/input.txt")
-    vtt_artifact = Artifact(job.job_id, ArtifactKind.WEBVTT, tmp_path / "output/input.vtt")
+    text_artifact = Artifact(
+        job.job_id, ArtifactKind.TEXT, tmp_path / "output/input.txt"
+    )
+    vtt_artifact = Artifact(
+        job.job_id, ArtifactKind.WEBVTT, tmp_path / "output/input.vtt"
+    )
     workspace.reserve_artifact.side_effect = [text_artifact, vtt_artifact]
     file_manager.save_file.side_effect = [None, OSError("disk full")]
-    exporter = TranscriptExporter(workspace_service=workspace, file_manager=file_manager)
+    exporter = TranscriptExporter(
+        workspace_service=workspace, file_manager=file_manager
+    )
 
     with pytest.raises(OSError, match="disk full"):
         exporter.publish(

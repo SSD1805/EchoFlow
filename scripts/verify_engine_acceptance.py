@@ -25,13 +25,20 @@ def _run(
     env: dict[str, str] | None = None,
     capture_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # noqa: S603
+    completed = subprocess.run(  # noqa: S603
         command,
-        check=True,
+        check=False,
         env=env,
         text=True,
         capture_output=capture_output,
     )
+    if completed.returncode != 0:
+        detail = (completed.stderr or "").strip() if capture_output else ""
+        message = "acceptance subprocess failed"
+        if detail:
+            message = f"{message}: {detail}"
+        raise RuntimeError(message)
+    return completed
 
 
 def _generate_media(root: Path) -> tuple[Path, Path]:
@@ -105,9 +112,11 @@ def _environment(root: Path, output_dir: Path) -> dict[str, str]:
         {
             "ECHOFLOW_STATE_DIR": str(root / "state"),
             "ECHOFLOW_CACHE_DIR": str(root / "cache"),
-            "ECHOFLOW_MODEL_DIR": str(root / "models"),
+            "ECHOFLOW_MODEL_DIR": str(root / "cache" / "models"),
             "ECHOFLOW_OUTPUT_DIR": str(output_dir),
             "ECHOFLOW_MAX_CPU_THREADS": "2",
+            "ECHOFLOW_MIN_FREE_DISK_BYTES": "0",
+            "ECHOFLOW_WARN_FREE_DISK_BYTES": "0",
         }
     )
     return env
@@ -259,7 +268,7 @@ def verify_engine() -> None:
     with tempfile.TemporaryDirectory(prefix="echoflow-engine-") as temporary:
         root = Path(temporary).resolve()
         direct_audio, media_container = _generate_media(root)
-        model_dir = root / "models"
+        model_dir = root / "cache" / "models"
 
         direct_output = root / "output-direct"
         direct_env = _environment(root, direct_output)

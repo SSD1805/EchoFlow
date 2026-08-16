@@ -1,16 +1,24 @@
+import json
 import shutil
 import subprocess
 import wave
 from pathlib import Path
 
 import pytest
+from dependency_injector import providers
 
+from echoflow.app.app_container import AppContainer
+from echoflow.core.config import AppConfig
 from echoflow.media.models import StreamKind
 from echoflow.media.probe import FfprobeMediaProbe
+from echoflow.runner.models import ProcessingProfile
 from echoflow.transcription.audio import FfmpegAudioDecoder
+from echoflow.transcription.export import TranscriptExportFormat
 from echoflow.transcription.models import (
     DecodeConfiguration,
     DecodeStrategy,
+    EngineTranscript,
+    RecognizedSegment,
     SegmentationConfiguration,
 )
 from echoflow.transcription.segmentation import WaveAudioSegmenter
@@ -52,6 +60,58 @@ def _make_video(path: Path) -> None:
         str(path),
     ]
     subprocess.run(command, check=True, capture_output=True)  # noqa: S603
+
+
+class _AcceptanceSession:
+    engine_version = "acceptance-fake-asr-1"
+
+    def transcribe(self, audio_path: Path) -> EngineTranscript:
+        with wave.open(str(audio_path), "rb") as audio:
+            duration = audio.getnframes() / audio.getframerate()
+        return EngineTranscript(
+            segments=(
+                RecognizedSegment(
+                    index=0,
+                    start_seconds=0.0,
+                    end_seconds=duration,
+                    text="Synthetic segment.",
+                ),
+            ),
+            language="en",
+            language_probability=1.0,
+            engine_version=self.engine_version,
+        )
+
+
+class _AcceptanceTranscriber:
+    def open_session(
+        self,
+        _configuration,
+        *,
+        allow_model_download: bool,
+        detected_language: str | None = None,
+    ) -> _AcceptanceSession:
+        assert allow_model_download is False
+        assert detected_language is None
+        return _AcceptanceSession()
+
+
+def _acceptance_config(tmp_path: Path) -> AppConfig:
+    return AppConfig(
+        APP_ENV="test",
+        DEBUG=False,
+        LOG_LEVEL="INFO",
+        STATE_DIR=tmp_path / "state",
+        CACHE_DIR=tmp_path / "cache",
+        MODEL_DIR=tmp_path / "cache" / "models",
+        OUTPUT_DIR=tmp_path / "output",
+        MIN_FREE_DISK_BYTES=0,
+        WARN_FREE_DISK_BYTES=0,
+        FFMPEG_TIMEOUT_SECONDS=2.0,
+        FFPROBE_TIMEOUT_SECONDS=10.0,
+        FFMPEG_PROCESS_TIMEOUT_SECONDS=30.0,
+        _env_file=None,
+    )
 
 
 def test_real_ffmpeg_video_probe_decode_and_segment_pipeline(tmp_path):
@@ -112,3 +172,46 @@ def test_real_ffmpeg_video_probe_decode_and_segment_pipeline(tmp_path):
     decoder.cleanup(decoded)
     assert not decoded.path.exists()
     assert source.exists()
+
+
+def test_real_local_pipeline_publishes_and_cleans_up_with_only_asr_faked(tmp_path):
+    _native_tool("ffprobe")
+    source = tmp_path / "synthetic-research-interview.mp4"
+    _make_video(source)
+
+    container = AppContainer()
+    container.config.override(_acceptance_config(tmp_path))
+    container.transcriber.override(providers.Factory(_AcceptanceTranscriber))
+
+    plan = container.transcription_planner().plan(
+        source,
+        profile=ProcessingProfile.SCREENING,
+    )
+    result = container.transcription_executor().execute(plan)
+
+    assert source.exists()
+    assert result.artifact.path.is_file()
+    canonical = json.loads(result.artifact.path.read_text(encoding="utf-8"))
+    assert canonical["job_id"] == result.job.job_id.value
+    assert canonical["transcript"]["text"] == "Synthetic segment."
+    assert canonical["engine"]["package_version"] == "acceptance-fake-asr-1"
+
+    assert not (result.job.workspace_dir / "normalized.wav").exists()
+    assert not tuple(result.job.workspace_dir.glob("audio-*.wav"))
+    checkpoint_dir = result.job.workspace_dir / "checkpoints"
+    assert checkpoint_dir.is_dir()
+    assert list(checkpoint_dir.iterdir()) == []
+
+    exports = container.transcript_exporter().publish(
+        result.job,
+        result.transcript,
+        (
+            TranscriptExportFormat.TEXT,
+            TranscriptExportFormat.SUBRIP,
+            TranscriptExportFormat.WEBVTT,
+        ),
+    )
+    by_kind = {artifact.kind.value: artifact.path for artifact in exports.artifacts}
+    assert by_kind["txt"].read_text(encoding="utf-8") == "Synthetic segment.\n"
+    assert "00:00:00,000 -->" in by_kind["srt"].read_text(encoding="utf-8")
+    assert by_kind["vtt"].read_text(encoding="utf-8").startswith("WEBVTT\n\n")

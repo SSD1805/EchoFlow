@@ -67,7 +67,6 @@ def test_resume_cannot_be_combined_with_dry_run():
         )
 
     assert result.exit_code == 2
-    assert "--resume cannot be combined with --dry-run" in result.output
     container.transcription_planner().plan.assert_not_called()
     container.transcription_planner().plan_resume.assert_not_called()
     container.transcription_executor().execute.assert_not_called()

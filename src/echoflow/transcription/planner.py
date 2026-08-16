@@ -11,6 +11,7 @@ from echoflow.transcription.models import (
     DecodeConfiguration,
     DecodeStrategy,
     ResourceEstimate,
+    SegmentationConfiguration,
     TranscriptionJobPlan,
 )
 from echoflow.transcription.strategy import (
@@ -76,10 +77,13 @@ class TranscriptionJobPlanner:
         )
         engine = self._engine(policy, selected.strategy)
         decoder = self._decoder(media)
+        segmentation = SegmentationConfiguration()
         artifact = self.workspace_service.plan_artifact(
             job, ArtifactKind.CANONICAL_JSON
         )
-        resources = self._resources(media, decoder, selected.strategy, policy)
+        resources = self._resources(
+            media, decoder, segmentation, selected.strategy, policy
+        )
         warnings = ["paths_are_unreserved"]
         if policy.provisional:
             warnings.append("screening_output_is_provisional")
@@ -93,6 +97,7 @@ class TranscriptionJobPlanner:
             decoder=decoder,
             resources=resources,
             warnings=tuple(warnings),
+            segmentation=segmentation,
         )
 
     def assess_strategies(
@@ -143,8 +148,10 @@ class TranscriptionJobPlanner:
     @staticmethod
     def _decoder(media: MediaInfo) -> DecodeConfiguration:
         audio = media.primary_audio_stream
+        containers = {part.strip() for part in media.container_format.split(",")}
         direct = (
-            audio.codec == "pcm_s16le"
+            "wav" in containers
+            and audio.codec == "pcm_s16le"
             and audio.sample_rate_hz == _TARGET_SAMPLE_RATE_HZ
             and audio.channels == _TARGET_CHANNELS
         )
@@ -161,6 +168,7 @@ class TranscriptionJobPlanner:
     def _resources(
         media: MediaInfo,
         decoder: DecodeConfiguration,
+        segmentation: SegmentationConfiguration,
         strategy: StrategyDefinition,
         policy: ExecutionPolicy,
     ) -> ResourceEstimate:
@@ -172,7 +180,16 @@ class TranscriptionJobPlanner:
                 * decoder.channels
                 * _TARGET_BYTES_PER_SAMPLE
             )
-        private_workspace = normalized_audio + 16 * _MIB
+        largest_segment_seconds = min(
+            media.duration_seconds, float(segmentation.segment_duration_seconds)
+        )
+        largest_segment_audio = math.ceil(
+            largest_segment_seconds
+            * decoder.sample_rate_hz
+            * decoder.channels
+            * _TARGET_BYTES_PER_SAMPLE
+        )
+        private_workspace = normalized_audio + largest_segment_audio + 16 * _MIB
         public_output = max(64 * 1024, math.ceil(media.duration_seconds * 512))
         return ResourceEstimate(
             private_workspace_bytes=private_workspace,

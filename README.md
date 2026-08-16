@@ -32,17 +32,22 @@ EchoFlow currently provides a tested application foundation:
 - Local FFprobe inspection with protocol restriction, bounded output, timeout,
   full input fingerprinting, and typed media metadata.
 - An immutable `transcribe INPUT --dry-run` plan covering paths, streams, codec,
-  duration, selected local strategy, decoding strategy, and resource estimates.
+  duration, selected local strategy, decoding strategy, deterministic segmentation,
+  and resource estimates.
 - One executable CPU/int8 faster-whisper path that rechecks resource admission,
   claims its workspace and output atomically, and writes canonical transcript JSON.
 - Audio extraction from audio-bearing containers, including video files, by mapping
   only the selected audio stream into a private canonical WAV.
+- Deterministic source-relative PCM frame segmentation with bounded temporary
+  materialization and one job-scoped faster-whisper model session reused across
+  every segment.
+- Deterministic source-relative transcript assembly with contiguous segment and
+  engine-version validation.
 - Explicit model-download authorization; execution is local-only by default.
 - Dependency Injector composition for the implemented services.
 
-Deterministic application-owned segmentation, checkpointing, resume, calibrated
-performance estimates, GPU strategies, and derived TXT/SRT/VTT artifacts are not
-implemented yet.
+Durable checkpointing and resume, calibrated performance estimates, GPU strategies,
+and derived TXT/SRT/VTT artifacts are not implemented yet.
 
 ## Requirements and installation
 
@@ -139,6 +144,8 @@ The enforced budgets are:
 Radon reports complexity and maintainability trends; Ruff provides the hard
 complexity gate. Targeted Poodle mutation runs are used for changed decision
 logic because its broad runner currently has a process-timeout cleanup defect.
+The segmentation and assembly modules are included in that targeted mutation
+scope.
 
 The full feedback ladder and Git bisect procedure are documented in
 [`docs/development/testing-and-bisect.md`](docs/development/testing-and-bisect.md).
@@ -148,7 +155,7 @@ The full feedback ladder and Git bisect procedure are documented in
 EchoFlow keeps user artifacts as normal files in a user-selected output
 directory. Private state and model caches are separate internal concerns.
 Artifact names are reserved atomically and collisions are renamed rather than
-overwritten by default. Future SQLite job state will contain paths and metadata;
+overwritten by default. Future durable job state will contain paths and metadata;
 audio and transcript documents will not be stored as database blobs.
 
 `echoflow runner` derives an engine-neutral CPU and memory budget from resources
@@ -163,24 +170,37 @@ it is never silently replaced. Screening remains explicitly provisional.
 
 Execution consumes the selected plan rather than detecting a second, unrelated
 machine configuration inside the engine. It checks process-visible memory and CPU
-capacity before claiming paths and again after any FFmpeg normalization,
+capacity before claiming paths and again after decode/segmentation planning,
 immediately before model initialization. A video is not treated as visual input:
 FFmpeg discards video, subtitle, and data streams and emits only the selected audio
 stream to the private job workspace.
+
+After decode, EchoFlow owns segmentation. Segmentation schema version 1 uses exact
+PCM frame offsets, 600-second maximum windows, zero overlap, and concurrency one.
+Only one segment is materialized at a time with bounded reads. A faster-whisper
+model is initialized once for the job and reused across each segment. Engine-local
+timestamps are then rebased onto one source-relative timeline and validated before
+the canonical transcript is written.
+
+This sequential contract is intentionally conservative. It creates a stable,
+reproducible unit of completed work without assuming that parallelism improves
+throughput or that overlap can be reconciled safely. Those optimizations require
+measurement and explicit deterministic semantics first.
 
 Resource estimates are deliberately conservative heuristics until real engine
 benchmarks and privacy-safe local calibration are added. Dry-run workspace and
 artifact paths are candidates, not reservations; execution must claim them
 atomically before writing.
 
-Checkpoint resume is intentionally not represented as implemented yet. The current
-backend transcribes a complete decoded recording in one call. Truthful resume first
-requires deterministic, source-relative segment boundaries and a job-scoped model
-session; persisted per-segment state can then retain completed work across a crash
-without changing the model contract.
+Checkpoint resume is intentionally not represented as implemented yet.
+Deterministic segment boundaries and a job-scoped model session now exist, but
+successfully transcribed segment results are still held only in process memory.
+A crash therefore still restarts the job. The next resumability step is durable,
+private per-segment state that validates the source fingerprint, segmentation
+contract, and engine/model/revision before completed work may be skipped.
 
-The proposed processing boundaries, resumability model, and bounded audio
-bisection policy are documented in
+The processing boundaries, resumability model, and bounded audio bisection policy
+are documented in
 [`docs/architecture/processing-capabilities.md`](docs/architecture/processing-capabilities.md).
 
 Security boundaries, residual risks, and disclosure instructions are in

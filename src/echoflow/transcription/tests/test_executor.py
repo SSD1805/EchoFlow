@@ -1,5 +1,5 @@
 import json
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -15,18 +15,22 @@ from echoflow.runner.models import (
     RunnerResources,
 )
 from echoflow.runner.policy import RunnerPolicyPlanner
+from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.audio import DecodedAudio
 from echoflow.transcription.errors import ResourceAdmissionError, TranscriptionError
 from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.models import (
+    AudioSegmentWindow,
     CpuEngineConfiguration,
     DecodeConfiguration,
     DecodeStrategy,
     EngineTranscript,
     RecognizedSegment,
     ResourceEstimate,
+    SegmentationConfiguration,
     TranscriptionJobPlan,
 )
+from echoflow.transcription.segmentation import MaterializedAudioSegment
 from echoflow.workspace.models import Artifact, ArtifactKind, Job, JobId, WorkspacePaths
 from echoflow.workspace.service import WorkspaceService
 
@@ -119,8 +123,18 @@ def plan(tmp_path, *, decode=DecodeStrategy.DIRECT, fits=True):
             decoder,
             estimate,
             ("paths_are_unreserved",),
+            segmentation=SegmentationConfiguration(segment_duration_seconds=1),
         ),
         paths,
+    )
+
+
+def local_result(text, *, language="en", probability=0.98):
+    return EngineTranscript(
+        (RecognizedSegment(0, 0.0, 1.0, text, -0.2, 0.1),),
+        language,
+        probability,
+        "1.2.1",
     )
 
 
@@ -133,16 +147,29 @@ def executor(tmp_path, planned, paths, *, available=None):
     inspector.inspect.return_value = available or resources()
     decoder = Mock()
     decoder.decode.return_value = DecodedAudio(planned.job.input_path, False)
-    transcriber = Mock()
-    transcriber.transcribe.return_value = EngineTranscript(
-        (
-            RecognizedSegment(0, 0.0, 1.0, "Hello", -0.2, 0.1),
-            RecognizedSegment(1, 1.0, 2.0, "world.", -0.3, 0.2),
-        ),
-        "en",
-        0.98,
-        "1.2.1",
+
+    windows = (
+        AudioSegmentWindow(0, 0, 16_000, 16_000),
+        AudioSegmentWindow(1, 16_000, 32_000, 16_000),
     )
+    segmenter = Mock()
+    segmenter.plan.return_value = windows
+    materialized = tuple(
+        MaterializedAudioSegment(
+            window,
+            planned.job.workspace_dir / "segments" / f"{window.segment_id}.wav",
+        )
+        for window in windows
+    )
+    segmenter.materialize.side_effect = materialized
+
+    session = Mock()
+    session.transcribe.side_effect = (local_result("Hello"), local_result("world."))
+    transcriber = Mock()
+    transcriber.open_session.return_value = session
+    logger = Mock()
+    logger.bind.return_value = logger
+
     service = TranscriptionExecutor(
         media_probe=probe,
         workspace_service=workspace,
@@ -150,16 +177,37 @@ def executor(tmp_path, planned, paths, *, available=None):
         runner_inspector=inspector,
         policy_planner=RunnerPolicyPlanner(memory_budget_fraction=1),
         audio_decoder=decoder,
+        audio_segmenter=segmenter,
         transcriber=transcriber,
+        transcript_assembler=TranscriptAssembler(),
+        logger=logger,
     )
-    return service, probe, inspector, decoder, transcriber
+    return (
+        service,
+        probe,
+        inspector,
+        decoder,
+        segmenter,
+        transcriber,
+        session,
+        logger,
+        materialized,
+    )
 
 
-def test_execution_claims_paths_transcribes_audio_and_writes_private_safe_json(
-    tmp_path,
-):
+def test_execution_segments_audio_once_loaded_and_writes_private_safe_json(tmp_path):
     planned, paths = plan(tmp_path, decode=DecodeStrategy.FFMPEG_NORMALIZE)
-    service, probe, inspector, decoder, transcriber = executor(tmp_path, planned, paths)
+    (
+        service,
+        probe,
+        inspector,
+        decoder,
+        segmenter,
+        transcriber,
+        session,
+        logger,
+        materialized,
+    ) = executor(tmp_path, planned, paths)
     normalized = planned.job.workspace_dir / "normalized.wav"
     decoder.decode.return_value = DecodedAudio(normalized, True)
 
@@ -187,23 +235,39 @@ def test_execution_claims_paths_transcribes_audio_and_writes_private_safe_json(
     assert document["detected_language"] == "en"
     assert document["language_probability"] == 0.98
     assert document["text"] == "Hello world."
+    assert [item["start_seconds"] for item in document["segments"]] == [0.0, 1.0]
     assert [item["segment_id"] for item in document["segments"]] == [
         "segment-000000",
         "segment-000001",
     ]
     assert str(planned.job.input_path) not in result.artifact.path.read_text()
     assert str(planned.engine.model_cache_path) not in result.artifact.path.read_text()
+
     probe.probe.assert_called_once_with(planned.job.input_path)
     assert inspector.inspect.call_count == 2
     decoder.decode.assert_called_once_with(
         planned.media, planned.decoder, result.job.workspace_dir
     )
     decoder.cleanup.assert_called_once_with(DecodedAudio(normalized, True))
-    transcriber.transcribe.assert_called_once_with(
-        normalized,
-        planned.engine,
-        allow_model_download=True,
+    segmenter.plan.assert_called_once_with(
+        normalized, planned.decoder, planned.segmentation
     )
+    transcriber.open_session.assert_called_once_with(
+        planned.engine, allow_model_download=True
+    )
+    assert session.transcribe.call_args_list == [
+        call(materialized[0].path),
+        call(materialized[1].path),
+    ]
+    assert segmenter.cleanup.call_args_list == [
+        call(materialized[0]),
+        call(materialized[1]),
+    ]
+    logger.bind.assert_called_once_with(job_id="job-1")
+    event_payload = " ".join(str(item) for item in logger.info.call_args_list)
+    assert "transcription_segment_started" in event_payload
+    assert "transcription_segment_completed" in event_payload
+    assert str(planned.job.input_path) not in event_payload
     assert result.to_dict()["paths_reserved"] is True
     assert result.to_dict()["dry_run"] is False
 
@@ -254,7 +318,7 @@ def test_insufficient_memory_is_rejected_before_input_is_reprobed(
     tmp_path, planned_fits, available_memory
 ):
     planned, paths = plan(tmp_path, fits=planned_fits)
-    service, probe, inspector, decoder, transcriber = executor(
+    service, probe, inspector, decoder, segmenter, transcriber, *_ = executor(
         tmp_path,
         planned,
         paths,
@@ -268,12 +332,13 @@ def test_insufficient_memory_is_rejected_before_input_is_reprobed(
     inspector.inspect.assert_called_once_with()
     probe.probe.assert_not_called()
     decoder.decode.assert_not_called()
-    transcriber.transcribe.assert_not_called()
+    segmenter.plan.assert_not_called()
+    transcriber.open_session.assert_not_called()
 
 
 def test_reduced_cpu_capacity_requires_a_fresh_plan(tmp_path):
     planned, paths = plan(tmp_path)
-    service, probe, _, _, _ = executor(
+    service, probe, _, _, _, _, *_ = executor(
         tmp_path, planned, paths, available=resources(cpus=3)
     )
     with pytest.raises(
@@ -284,35 +349,53 @@ def test_reduced_cpu_capacity_requires_a_fresh_plan(tmp_path):
     probe.probe.assert_not_called()
 
 
-def test_resources_are_rechecked_after_normalization_before_model_load(tmp_path):
+def test_resources_are_rechecked_after_segmentation_plan_before_model_load(tmp_path):
     planned, paths = plan(tmp_path, decode=DecodeStrategy.FFMPEG_NORMALIZE)
-    service, _, inspector, decoder, transcriber = executor(tmp_path, planned, paths)
+    service, _, inspector, decoder, segmenter, transcriber, *_ = executor(
+        tmp_path, planned, paths
+    )
     inspector.inspect.side_effect = [resources(), resources(memory=2_303 * MIB)]
 
     with pytest.raises(ResourceAdmissionError):
         service.execute(planned)
 
     assert inspector.inspect.call_count == 2
+    segmenter.plan.assert_called_once()
     decoder.cleanup.assert_called_once_with(decoder.decode.return_value)
-    transcriber.transcribe.assert_not_called()
+    transcriber.open_session.assert_not_called()
     assert not planned.artifact.path.exists()
 
 
-def test_transcription_failure_releases_placeholder_and_cleans_audio(tmp_path):
+def test_model_session_failure_occurs_before_segment_materialization(tmp_path):
     planned, paths = plan(tmp_path)
-    service, _, _, decoder, transcriber = executor(tmp_path, planned, paths)
-    transcriber.transcribe.side_effect = TranscriptionError("engine failed")
+    service, _, _, _, segmenter, transcriber, *_ = executor(tmp_path, planned, paths)
+    transcriber.open_session.side_effect = TranscriptionError("model failed")
+
+    with pytest.raises(TranscriptionError, match="^model failed$"):
+        service.execute(planned)
+
+    segmenter.materialize.assert_not_called()
+    assert not planned.artifact.path.exists()
+
+
+def test_segment_transcription_failure_releases_placeholder_and_cleans_audio(tmp_path):
+    planned, paths = plan(tmp_path)
+    service, _, _, decoder, segmenter, _, session, _, materialized = executor(
+        tmp_path, planned, paths
+    )
+    session.transcribe.side_effect = TranscriptionError("engine failed")
 
     with pytest.raises(TranscriptionError, match="^engine failed$"):
         service.execute(planned)
 
     assert not planned.artifact.path.exists()
     decoder.cleanup.assert_called_once_with(decoder.decode.return_value)
+    segmenter.cleanup.assert_called_once_with(materialized[0])
 
 
 def test_cleanup_failure_does_not_replace_successful_transcript(tmp_path):
     planned, paths = plan(tmp_path)
-    service, _, _, decoder, _ = executor(tmp_path, planned, paths)
+    service, _, _, decoder, *_ = executor(tmp_path, planned, paths)
     decoder.cleanup.side_effect = OSError("cleanup failure")
 
     with pytest.raises(OSError, match="cleanup failure"):
@@ -323,8 +406,8 @@ def test_cleanup_failure_does_not_replace_successful_transcript(tmp_path):
 
 def test_failed_artifact_cleanup_error_does_not_mask_engine_failure(tmp_path):
     planned, paths = plan(tmp_path)
-    service, _, _, _, transcriber = executor(tmp_path, planned, paths)
-    transcriber.transcribe.side_effect = TranscriptionError("engine failed")
+    service, _, _, _, _, _, session, *_ = executor(tmp_path, planned, paths)
+    session.transcribe.side_effect = TranscriptionError("engine failed")
     service.file_manager.delete_file = Mock(side_effect=OSError("cleanup failed"))
 
     with pytest.raises(TranscriptionError, match="^engine failed$"):

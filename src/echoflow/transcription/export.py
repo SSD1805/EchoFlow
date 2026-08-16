@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import suppress
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from enum import StrEnum
 
 from echoflow.core.file_manager_facade import FileManagerFacade
@@ -66,7 +66,7 @@ def _cue_text(segment: RecognizedSegment) -> str:
 
 
 def render_text(transcript: CanonicalTranscript) -> bytes:
-    return f"{transcript.text}\n".encode("utf-8")
+    return f"{transcript.text}\n".encode()
 
 
 def render_subrip(transcript: CanonicalTranscript) -> bytes:
@@ -76,7 +76,7 @@ def render_subrip(transcript: CanonicalTranscript) -> bytes:
         end = _timestamp(segment.end_seconds, separator=",", end=True)
         blocks.append(f"{cue_number}\n{start} --> {end}\n{_cue_text(segment)}")
     document = "\n\n".join(blocks)
-    return (f"{document}\n\n" if document else "").encode("utf-8")
+    return (f"{document}\n\n" if document else "").encode()
 
 
 def render_webvtt(transcript: CanonicalTranscript) -> bytes:
@@ -88,7 +88,7 @@ def render_webvtt(transcript: CanonicalTranscript) -> bytes:
             f"{segment.segment_id}\n{start} --> {end}\n{_cue_text(segment)}"
         )
     body = "\n\n".join(blocks)
-    return ("WEBVTT\n\n" + (f"{body}\n\n" if body else "")).encode("utf-8")
+    return ("WEBVTT\n\n" + (f"{body}\n\n" if body else "")).encode()
 
 
 def render_transcript(

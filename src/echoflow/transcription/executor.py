@@ -270,11 +270,18 @@ class TranscriptionExecutor:
         allow_model_download: bool,
     ) -> EngineTranscript:
         completed_count = len(restored.completed)
-        session = self.transcriber.open_session(
-            plan.engine,
-            allow_model_download=(allow_model_download and completed_count == 0),
-            detected_language=restored.detected_language,
-        )
+        allowed_download = allow_model_download and completed_count == 0
+        if restored.detected_language is None:
+            session = self.transcriber.open_session(
+                plan.engine,
+                allow_model_download=allowed_download,
+            )
+        else:
+            session = self.transcriber.open_session(
+                plan.engine,
+                allow_model_download=allowed_download,
+                detected_language=restored.detected_language,
+            )
         if (
             restored.engine_version is not None
             and session.engine_version != restored.engine_version

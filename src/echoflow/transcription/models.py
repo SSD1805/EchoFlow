@@ -139,7 +139,7 @@ class CpuEngineConfiguration:
     language: str | None
     model_cache_path: Path
     model_revision: str | None = None
-    auto_language_mode: AutoLanguageMode = AutoLanguageMode.PER_SEGMENT
+    auto_language_mode: AutoLanguageMode = AutoLanguageMode.JOB_LATCHED
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -160,7 +160,7 @@ class CpuEngineConfiguration:
             raise ValueError("model_revision cannot be empty")
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        document: dict[str, object] = {
             "engine": self.engine,
             "model": self.model,
             "device": self.device,
@@ -170,8 +170,10 @@ class CpuEngineConfiguration:
             "language": self.language,
             "model_cache_path": str(self.model_cache_path),
             "model_revision": self.model_revision,
-            "auto_language_mode": self.auto_language_mode.value,
         }
+        if self.auto_language_mode is AutoLanguageMode.PER_SEGMENT:
+            document["auto_language_mode"] = self.auto_language_mode.value
+        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,11 +232,11 @@ class TranscriptionJobPlan:
     segmentation: SegmentationConfiguration = field(
         default_factory=SegmentationConfiguration
     )
-    schema_version: int = 1
+    schema_version: int = 2
     paths_reserved: bool = False
 
     def __post_init__(self) -> None:
-        if self.schema_version != 1:
+        if self.schema_version not in (1, 2):
             raise ValueError("unsupported job-plan schema version")
         if self.paths_reserved:
             raise ValueError("a dry-run plan cannot claim reserved paths")
@@ -244,6 +246,16 @@ class TranscriptionJobPlan:
             raise ValueError("job and media input paths must match")
         if self.segmentation.concurrency != 1:
             raise ValueError("job plan requires sequential segmentation")
+        if (
+            self.schema_version == 1
+            and self.engine.auto_language_mode is not AutoLanguageMode.JOB_LATCHED
+        ):
+            raise ValueError("job-plan schema version 1 requires legacy language latching")
+        if (
+            self.schema_version == 2
+            and self.engine.auto_language_mode is not AutoLanguageMode.PER_SEGMENT
+        ):
+            raise ValueError("job-plan schema version 2 requires per-segment language detection")
 
     def to_dict(self) -> dict[str, object]:
         return {

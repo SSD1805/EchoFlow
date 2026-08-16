@@ -179,19 +179,15 @@ def _words(text: str) -> set[str]:
     return set(re.findall(r"[a-z]+", text.lower()))
 
 
-def _validate_transcript(
-    output_dir: Path,
-    *,
-    input_path: Path,
-    model_dir: Path,
-    expected_decode_strategy: str,
-) -> set[str]:
-    canonical_path = _one_artifact(output_dir, ".json")
-    raw_document = canonical_path.read_text(encoding="utf-8")
+def _load_canonical(output_dir: Path) -> tuple[dict[str, Any], str]:
+    raw_document = _one_artifact(output_dir, ".json").read_text(encoding="utf-8")
     document = json.loads(raw_document)
     if not isinstance(document, dict):
         raise RuntimeError("canonical transcript is not a JSON object")
+    return document, raw_document
 
+
+def _validate_known_speech(document: dict[str, Any]) -> set[str]:
     text = str(document.get("text", "")).strip()
     recognized_expected = _words(text) & _EXPECTED_WORDS
     if len(recognized_expected) < _MIN_EXPECTED_WORDS:
@@ -199,7 +195,12 @@ def _validate_transcript(
             "known speech was not recognized reliably enough: "
             f"matched {sorted(recognized_expected)}"
         )
+    return recognized_expected
 
+
+def _validate_provenance(
+    document: dict[str, Any], *, expected_decode_strategy: str
+) -> None:
     if document.get("schema_version") != 1:
         raise RuntimeError("unexpected canonical transcript schema version")
     if document.get("decode_strategy") != expected_decode_strategy:
@@ -209,23 +210,28 @@ def _validate_transcript(
 
     source = document.get("source")
     engine = document.get("engine")
-    segments = document.get("segments")
     if not isinstance(source, dict) or not isinstance(engine, dict):
         raise RuntimeError("canonical provenance is incomplete")
-    if not isinstance(segments, list) or not segments:
-        raise RuntimeError("known speech produced no canonical recognition segments")
-    if engine.get("name") != "faster-whisper":
-        raise RuntimeError("canonical transcript recorded the wrong engine")
-    if engine.get("model") != "tiny":
-        raise RuntimeError("canonical transcript recorded the wrong model")
+    if engine.get("name") != "faster-whisper" or engine.get("model") != "tiny":
+        raise RuntimeError("canonical transcript recorded the wrong engine or model")
     if engine.get("device") != "cpu" or engine.get("compute_type") != "int8":
         raise RuntimeError("canonical transcript recorded the wrong CPU configuration")
     if not str(engine.get("package_version", "")).strip():
         raise RuntimeError("canonical transcript omitted the engine package version")
 
+
+def _validate_timestamps(document: dict[str, Any]) -> None:
+    source = document.get("source")
+    segments = document.get("segments")
+    if not isinstance(source, dict):
+        raise RuntimeError("canonical transcript source provenance is malformed")
+    if not isinstance(segments, list) or not segments:
+        raise RuntimeError("known speech produced no canonical recognition segments")
+
     duration_seconds = float(source.get("duration_seconds", 0.0))
     if duration_seconds <= 0:
         raise RuntimeError("canonical transcript recorded an invalid source duration")
+
     previous_start = 0.0
     for index, segment in enumerate(segments):
         if not isinstance(segment, dict):
@@ -240,10 +246,14 @@ def _validate_transcript(
             raise RuntimeError("canonical segment timestamp exceeds source duration")
         previous_start = start
 
+
+def _validate_privacy(raw_document: str, *, input_path: Path, model_dir: Path) -> None:
     sensitive_values = (str(input_path), input_path.name, str(model_dir))
     if any(value and value in raw_document for value in sensitive_values):
         raise RuntimeError("canonical transcript leaked a local path or source filename")
 
+
+def _validate_exports(output_dir: Path) -> None:
     txt = _one_artifact(output_dir, ".txt").read_text(encoding="utf-8")
     srt = _one_artifact(output_dir, ".srt").read_text(encoding="utf-8")
     vtt = _one_artifact(output_dir, ".vtt").read_text(encoding="utf-8")
@@ -254,6 +264,20 @@ def _validate_transcript(
     if len(_words(txt) & _EXPECTED_WORDS) < _MIN_EXPECTED_WORDS:
         raise RuntimeError("plain-text export does not contain recognizable known speech")
 
+
+def _validate_transcript(
+    output_dir: Path,
+    *,
+    input_path: Path,
+    model_dir: Path,
+    expected_decode_strategy: str,
+) -> set[str]:
+    document, raw_document = _load_canonical(output_dir)
+    recognized_expected = _validate_known_speech(document)
+    _validate_provenance(document, expected_decode_strategy=expected_decode_strategy)
+    _validate_timestamps(document)
+    _validate_privacy(raw_document, input_path=input_path, model_dir=model_dir)
+    _validate_exports(output_dir)
     return recognized_expected
 
 

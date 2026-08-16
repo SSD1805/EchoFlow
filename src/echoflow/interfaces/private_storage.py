@@ -56,9 +56,7 @@ class WindowsPrivateStoragePolicy:
         self._run([icacls, str(path), "/reset", "/Q"])
         self._run([icacls, str(path), "/inheritance:r", "/Q"])
         inheritance = "(OI)(CI)" if inherit_to_children else ""
-        self._run(
-            [icacls, str(path), "/grant:r", f"*{sid}:{inheritance}F", "/Q"]
-        )
+        self._run([icacls, str(path), "/grant:r", f"*{sid}:{inheritance}F", "/Q"])
         self._run([icacls, str(path), "/verify", "/Q"])
 
     def _current_user_sid(self) -> str:

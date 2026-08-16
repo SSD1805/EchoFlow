@@ -13,6 +13,7 @@ from echoflow.core.config import AppConfig
 from echoflow.core.errors import EchoFlowError
 from echoflow.core.health_check import HealthReport
 from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
+from echoflow.transcription.export import TranscriptExportFormat, TranscriptExportResult
 from echoflow.transcription.models import (
     TranscriptionExecutionResult,
     TranscriptionJobPlan,
@@ -176,13 +177,15 @@ def _render_transcription_plan(plan: TranscriptionJobPlan, console: Console) -> 
 
 
 def _render_transcription_result(
-    result: TranscriptionExecutionResult, console: Console
+    result: TranscriptionExecutionResult,
+    exports: TranscriptExportResult,
+    console: Console,
 ) -> None:
     transcript = result.transcript
     table = Table(title="EchoFlow transcription complete")
     table.add_column("Setting")
     table.add_column("Value")
-    rows = (
+    rows = [
         ("Job ID", result.job.job_id.value),
         ("Canonical output", str(result.artifact.path)),
         ("Profile", transcript.profile.value),
@@ -192,6 +195,10 @@ def _render_transcription_result(
         ("Decode", transcript.decode_strategy.value),
         ("Detected language", transcript.detected_language or "unknown"),
         ("Segments", str(len(transcript.segments))),
+    ]
+    rows.extend(
+        (f"{artifact.kind.value.upper()} export", str(artifact.path))
+        for artifact in exports.artifacts
     )
     for setting, value in rows:
         table.add_row(setting, value)
@@ -373,6 +380,7 @@ def _validate_resume_options(
     resume: str | None,
     profile: ProcessingProfile | None,
     strategy: str | None,
+    export_formats: list[TranscriptExportFormat] | None,
 ) -> None:
     if dry_run and resume is not None:
         raise typer.BadParameter("--resume cannot be combined with --dry-run")
@@ -380,6 +388,8 @@ def _validate_resume_options(
         raise typer.BadParameter(
             "--resume restores the original profile and strategy; do not override them"
         )
+    if dry_run and export_formats:
+        raise typer.BadParameter("--export cannot be combined with --dry-run")
 
 
 def _plan_transcription(
@@ -430,9 +440,24 @@ def _execute_transcription(
     return executor.execute(plan, allow_model_download=allow_model_download)
 
 
+def _publish_exports(
+    container: AppContainer,
+    result: TranscriptionExecutionResult,
+    formats: list[TranscriptExportFormat] | None,
+) -> TranscriptExportResult:
+    if not formats:
+        return TranscriptExportResult(())
+    return container.transcript_exporter().publish(
+        result.job,
+        result.transcript,
+        tuple(formats),
+    )
+
+
 def _render_transcription_command_output(
     plan: TranscriptionJobPlan,
     result: TranscriptionExecutionResult | None,
+    exports: TranscriptExportResult,
     *,
     dry_run: bool,
     json_output: bool,
@@ -445,9 +470,11 @@ def _render_transcription_command_output(
         return
     execution_result = cast("TranscriptionExecutionResult", result)
     if json_output:
-        typer.echo(json.dumps(execution_result.to_dict(), sort_keys=True))
+        document = execution_result.to_dict()
+        document["exports"] = exports.to_dict()
+        typer.echo(json.dumps(document, sort_keys=True))
     else:
-        _render_transcription_result(execution_result, Console())
+        _render_transcription_result(execution_result, exports, Console())
 
 
 @app.command("transcribe")
@@ -497,6 +524,13 @@ def transcribe(
             help="Resume a compatible interrupted job from private local checkpoints.",
         ),
     ] = None,
+    export_formats: Annotated[
+        list[TranscriptExportFormat] | None,
+        typer.Option(
+            "--export",
+            help="Derived transcript format to publish; repeat for TXT, SRT, or VTT.",
+        ),
+    ] = None,
     json_output: Annotated[
         bool,
         typer.Option("--json", help="Emit the plan or execution result as JSON."),
@@ -509,6 +543,7 @@ def transcribe(
             resume=resume,
             profile=profile,
             strategy=strategy,
+            export_formats=export_formats,
         )
         container = _container(context)
         plan = _plan_transcription(
@@ -520,6 +555,7 @@ def transcribe(
             resume=resume,
         )
         result = None
+        exports = TranscriptExportResult(())
         if not dry_run:
             if resume is None:
                 typer.echo(f"EchoFlow job ID: {plan.job.job_id.value}", err=True)
@@ -529,6 +565,7 @@ def transcribe(
                 allow_model_download=allow_model_download,
                 resume=resume is not None,
             )
+            exports = _publish_exports(container, result, export_formats)
     except typer.BadParameter:
         raise
     except EchoFlowError as exc:
@@ -547,6 +584,7 @@ def transcribe(
     _render_transcription_command_output(
         plan,
         result,
+        exports,
         dry_run=dry_run,
         json_output=json_output,
     )

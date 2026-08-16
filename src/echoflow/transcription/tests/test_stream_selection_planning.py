@@ -43,4 +43,7 @@ def test_resume_restores_checkpointed_audio_stream_instead_of_probe_default(tmp_
     plan = planner.plan_resume(source, job_id=JobId("plan-1"))
 
     assert plan.media.primary_audio_stream_index == 5
-    assert TranscriptSource.from_media(plan.media) == checkpoint_store.resume_settings.return_value.source
+    assert (
+        TranscriptSource.from_media(plan.media)
+        == checkpoint_store.resume_settings.return_value.source
+    )

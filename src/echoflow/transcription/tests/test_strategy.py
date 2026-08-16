@@ -30,7 +30,9 @@ def test_default_catalog_is_ordered_from_lightest_to_highest_quality():
         "medium-cpu-int8",
     )
     assert tuple(strategy.quality_rank for strategy in catalog.strategies) == (1, 2, 3)
-    assert tuple(strategy.estimated_peak_memory_bytes for strategy in catalog.strategies) == (
+    assert tuple(
+        strategy.estimated_peak_memory_bytes for strategy in catalog.strategies
+    ) == (
         1_280 * MIB,
         2_304 * MIB,
         4_352 * MIB,
@@ -41,15 +43,20 @@ def test_positive_profile_selection_uses_only_feasible_strategies():
     evaluator, catalog = evaluator_and_catalog()
     assessments = evaluator.assess(catalog, memory_budget_bytes=5 * GIB)
 
-    assert evaluator.select(
-        assessments, profile=ProcessingProfile.SCREENING
-    ).strategy.model == "tiny"
-    assert evaluator.select(
-        assessments, profile=ProcessingProfile.BALANCED
-    ).strategy.model == "small"
-    assert evaluator.select(
-        assessments, profile=ProcessingProfile.ACCURACY
-    ).strategy.model == "medium"
+    assert (
+        evaluator.select(
+            assessments, profile=ProcessingProfile.SCREENING
+        ).strategy.model
+        == "tiny"
+    )
+    assert (
+        evaluator.select(assessments, profile=ProcessingProfile.BALANCED).strategy.model
+        == "small"
+    )
+    assert (
+        evaluator.select(assessments, profile=ProcessingProfile.ACCURACY).strategy.model
+        == "medium"
+    )
 
 
 def test_balanced_falls_back_to_best_feasible_strategy_when_small_does_not_fit():
@@ -94,7 +101,9 @@ def test_unknown_explicit_strategy_is_rejected():
     evaluator, catalog = evaluator_and_catalog()
     assessments = evaluator.assess(catalog, memory_budget_bytes=5 * GIB)
 
-    with pytest.raises(ResourceAdmissionError, match="^Unknown transcription strategy$"):
+    with pytest.raises(
+        ResourceAdmissionError, match="^Unknown transcription strategy$"
+    ):
         evaluator.select(
             assessments,
             profile=ProcessingProfile.BALANCED,
@@ -170,9 +179,7 @@ def test_catalog_rejects_empty_duplicate_and_invalid_version_boundaries():
         StrategyCatalog(())
     with pytest.raises(ValueError, match="^strategy IDs must be unique$"):
         StrategyCatalog((strategy, strategy))
-    with pytest.raises(
-        ValueError, match="^strategy catalog version must be positive$"
-    ):
+    with pytest.raises(ValueError, match="^strategy catalog version must be positive$"):
         StrategyCatalog((strategy,), version=0)
 
 

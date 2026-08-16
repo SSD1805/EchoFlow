@@ -147,15 +147,15 @@ class LocalCheckpointStore:
             )
 
         checkpoint_dir = self._checkpoint_dir(job)
-        expected_by_name = {
-            f"{window.segment_id}.json": window for window in windows
-        }
+        expected_by_name = {f"{window.segment_id}.json": window for window in windows}
         segment_files = []
         for candidate in self.file_manager.list_files(checkpoint_dir, (".json",)):
             if candidate.name == _MANIFEST_NAME:
                 continue
             if candidate.name not in expected_by_name:
-                raise CheckpointError("Private checkpoint state contains an unknown segment")
+                raise CheckpointError(
+                    "Private checkpoint state contains an unknown segment"
+                )
             segment_files.append(candidate)
 
         restored: list[tuple[AudioSegmentWindow, EngineTranscript]] = []
@@ -186,11 +186,7 @@ class LocalCheckpointStore:
             )
         engine_version = next(iter(versions), None)
         detected_language = next(
-            (
-                result.language
-                for _, result in restored
-                if result.language is not None
-            ),
+            (result.language for _, result in restored if result.language is not None),
             None,
         )
         return RestoredCheckpoint(
@@ -279,9 +275,7 @@ class LocalCheckpointStore:
             "sample_rate_hz": window.sample_rate_hz,
         }
 
-    def _validated_stored_manifest(
-        self, job: Job
-    ) -> tuple[str, dict[str, object]]:
+    def _validated_stored_manifest(self, job: Job) -> tuple[str, dict[str, object]]:
         manifest_path = self._checkpoint_dir(job) / _MANIFEST_NAME
         if not self.file_manager.file_exists(manifest_path):
             raise CheckpointError("No private checkpoint state exists for this job")
@@ -317,9 +311,7 @@ class LocalCheckpointStore:
                     modified_ns=int(cast("int", source["modified_ns"])),
                     container_format=str(source["container_format"]),
                     duration_seconds=float(cast("float", source["duration_seconds"])),
-                    audio_stream_index=int(
-                        cast("int", source["audio_stream_index"])
-                    ),
+                    audio_stream_index=int(cast("int", source["audio_stream_index"])),
                 ),
                 profile=ProcessingProfile(str(contract["profile"])),
                 provisional=bool(contract["provisional"]),
@@ -351,9 +343,7 @@ class LocalCheckpointStore:
                     segment_duration_seconds=int(
                         cast("int", segmentation["segment_duration_seconds"])
                     ),
-                    overlap_seconds=int(
-                        cast("int", segmentation["overlap_seconds"])
-                    ),
+                    overlap_seconds=int(cast("int", segmentation["overlap_seconds"])),
                     concurrency=int(cast("int", segmentation["concurrency"])),
                     schema_version=int(cast("int", segmentation["schema_version"])),
                 ),
@@ -392,7 +382,9 @@ class LocalCheckpointStore:
             raise CheckpointError("Private segment checkpoint schema is unsupported")
         if stored_job_id != job_id or stored_contract_digest != contract_digest:
             raise CheckpointError("Private segment checkpoint contract does not match")
-        if segment_id != window.segment_id or stored_window != self._window_contract(window):
+        if segment_id != window.segment_id or stored_window != self._window_contract(
+            window
+        ):
             raise CheckpointError("Private segment checkpoint window does not match")
         if self._digest(result_document) != result_digest:
             raise CheckpointError("Private segment checkpoint integrity check failed")

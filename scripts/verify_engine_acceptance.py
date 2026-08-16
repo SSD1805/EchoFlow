@@ -25,7 +25,7 @@ def _run(
     env: dict[str, str] | None = None,
     capture_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    return subprocess.run(  # noqa: S603
         command,
         check=True,
         env=env,

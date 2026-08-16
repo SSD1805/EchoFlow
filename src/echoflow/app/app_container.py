@@ -26,6 +26,7 @@ from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.export import TranscriptExporter
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.segmentation import WaveAudioSegmenter
+from echoflow.workspace.capacity import StorageAdmissionPolicy
 from echoflow.workspace.models import WorkspacePaths
 from echoflow.workspace.service import WorkspaceService
 
@@ -105,6 +106,10 @@ class AppContainer(containers.DeclarativeContainer):
         paths=workspace_paths,
         file_manager=file_manager,
     )
+    storage_admission = providers.Singleton(
+        StorageAdmissionPolicy,
+        minimum_free_bytes=config.provided.MIN_FREE_DISK_BYTES,
+    )
     checkpoint_store = providers.Factory(
         LocalCheckpointStore, file_manager=file_manager
     )
@@ -134,6 +139,7 @@ class AppContainer(containers.DeclarativeContainer):
         transcriber=transcriber,
         transcript_assembler=transcript_assembler,
         checkpoint_store=checkpoint_store,
+        storage_admission=storage_admission,
         logger=logger,
     )
     transcript_exporter = providers.Factory(

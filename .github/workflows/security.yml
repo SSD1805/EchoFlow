@@ -1,0 +1,53 @@
+name: Security
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-audit
+  cancel-in-progress: true
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: true
+
+      - name: Check lockfile
+        run: uv lock --check
+
+      - name: Export locked runtime and transcription dependencies
+        run: >-
+          uv export
+          --locked
+          --no-dev
+          --extra transcription
+          --no-emit-project
+          --no-hashes
+          --format requirements-txt
+          --output-file ${{ runner.temp }}/echoflow-runtime-requirements.txt
+
+      - name: Audit runtime dependencies
+        run: >-
+          uvx --from pip-audit==2.10.1 pip-audit
+          --requirement ${{ runner.temp }}/echoflow-runtime-requirements.txt
+          --progress-spinner off

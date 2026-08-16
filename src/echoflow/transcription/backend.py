@@ -15,8 +15,55 @@ from echoflow.transcription.models import (
 )
 
 
+class FasterWhisperSession:
+    """One loaded faster-whisper model reused for a single EchoFlow job."""
+
+    def __init__(
+        self,
+        *,
+        model: Any,
+        configuration: CpuEngineConfiguration,
+        engine_version: str,
+    ):
+        self.model = model
+        self.configuration = configuration
+        self.engine_version = engine_version
+
+    def transcribe(self, audio_path: Path) -> EngineTranscript:
+        try:
+            raw_segments, info = self.model.transcribe(
+                str(audio_path),
+                beam_size=self.configuration.beam_size,
+                language=self.configuration.language,
+                word_timestamps=False,
+                vad_filter=False,
+                log_progress=False,
+            )
+            segments = FasterWhisperTranscriber._segments(raw_segments)
+            language = FasterWhisperTranscriber._optional_text(
+                getattr(info, "language", None)
+            )
+            language_probability = FasterWhisperTranscriber._optional_float(
+                getattr(info, "language_probability", None)
+            )
+            return EngineTranscript(
+                segments=segments,
+                language=language,
+                language_probability=language_probability,
+                engine_version=self.engine_version,
+            )
+        except TranscriptionError:
+            raise
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception as exc:
+            raise TranscriptionError(
+                "The transcription engine failed while processing audio", cause=exc
+            ) from exc
+
+
 class FasterWhisperTranscriber:
-    """Load one CPU model per job and return engine-neutral segment values."""
+    """Open job-scoped faster-whisper sessions from immutable engine plans."""
 
     def __init__(
         self,
@@ -27,43 +74,19 @@ class FasterWhisperTranscriber:
         self.module_loader = module_loader
         self.version_reader = version_reader
 
-    def transcribe(
+    def open_session(
         self,
-        audio_path: Path,
         configuration: CpuEngineConfiguration,
         *,
         allow_model_download: bool,
-    ) -> EngineTranscript:
+    ) -> FasterWhisperSession:
         module, version = self._dependency()
         model = self._model(module, configuration, allow_model_download)
-        try:
-            raw_segments, info = model.transcribe(
-                str(audio_path),
-                beam_size=configuration.beam_size,
-                language=configuration.language,
-                word_timestamps=False,
-                vad_filter=False,
-                log_progress=False,
-            )
-            segments = self._segments(raw_segments)
-            language = self._optional_text(getattr(info, "language", None))
-            language_probability = self._optional_float(
-                getattr(info, "language_probability", None)
-            )
-            return EngineTranscript(
-                segments=segments,
-                language=language,
-                language_probability=language_probability,
-                engine_version=version,
-            )
-        except TranscriptionError:
-            raise
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except Exception as exc:
-            raise TranscriptionError(
-                "The transcription engine failed while processing audio", cause=exc
-            ) from exc
+        return FasterWhisperSession(
+            model=model,
+            configuration=configuration,
+            engine_version=version,
+        )
 
     def _dependency(self) -> tuple[Any, str]:
         try:

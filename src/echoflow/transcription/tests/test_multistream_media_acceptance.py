@@ -1,13 +1,13 @@
 import shutil
 import subprocess
 import wave
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from echoflow.media.models import StreamKind
 from echoflow.media.probe import FfprobeMediaProbe
+from echoflow.media.selection import AudioStreamSelector
 from echoflow.transcription.audio import FfmpegAudioDecoder
 from echoflow.transcription.models import DecodeConfiguration, DecodeStrategy
 
@@ -76,7 +76,10 @@ def test_real_ffmpeg_honors_explicit_audio_stream_selection(tmp_path):
     assert len(audio_streams) == 2
     assert media.primary_audio_stream_index == audio_streams[0].index
 
-    selected = replace(media, primary_audio_stream_index=audio_streams[1].index)
+    selected = AudioStreamSelector().select(
+        media,
+        requested_index=audio_streams[1].index,
+    )
     configuration = DecodeConfiguration(
         DecodeStrategy.FFMPEG_NORMALIZE,
         "pcm_s16le",

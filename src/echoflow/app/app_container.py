@@ -15,6 +15,7 @@ from echoflow.core.logger import configure_logging
 from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.probe import FfprobeMediaProbe
+from echoflow.media.selection import AudioStreamSelector
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.assembly import TranscriptAssembler
@@ -25,6 +26,7 @@ from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.export import TranscriptExporter
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.segmentation import WaveAudioSegmenter
+from echoflow.transcription.storage import StorageAdmissionPolicy
 from echoflow.workspace.models import WorkspacePaths
 from echoflow.workspace.service import WorkspaceService
 
@@ -97,11 +99,16 @@ class AppContainer(containers.DeclarativeContainer):
         _create_runner_policy_planner, config=config
     )
     media_probe = providers.Singleton(_create_media_probe, config=config)
+    audio_stream_selector = providers.Singleton(AudioStreamSelector)
     workspace_paths = providers.Singleton(_create_workspace_paths, config=config)
     workspace_service = providers.Singleton(
         WorkspaceService,
         paths=workspace_paths,
         file_manager=file_manager,
+    )
+    storage_admission = providers.Singleton(
+        StorageAdmissionPolicy,
+        minimum_free_bytes=config.provided.MIN_FREE_DISK_BYTES,
     )
     checkpoint_store = providers.Factory(
         LocalCheckpointStore, file_manager=file_manager
@@ -112,6 +119,7 @@ class AppContainer(containers.DeclarativeContainer):
         workspace_service=workspace_service,
         runner_inspector=runner_inspector,
         policy_planner=runner_policy_planner,
+        audio_stream_selector=audio_stream_selector,
         model_revision=config.provided.FASTER_WHISPER_MODEL_REVISION,
         checkpoint_store=checkpoint_store,
     )
@@ -131,6 +139,7 @@ class AppContainer(containers.DeclarativeContainer):
         transcriber=transcriber,
         transcript_assembler=transcript_assembler,
         checkpoint_store=checkpoint_store,
+        storage_admission=storage_admission,
         logger=logger,
     )
     transcript_exporter = providers.Factory(

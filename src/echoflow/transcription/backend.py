@@ -28,13 +28,14 @@ class FasterWhisperSession:
         self.model = model
         self.configuration = configuration
         self.engine_version = engine_version
+        self._detected_language: str | None = None
 
     def transcribe(self, audio_path: Path) -> EngineTranscript:
         try:
             raw_segments, info = self.model.transcribe(
                 str(audio_path),
                 beam_size=self.configuration.beam_size,
-                language=self.configuration.language,
+                language=self.configuration.language or self._detected_language,
                 word_timestamps=False,
                 vad_filter=False,
                 log_progress=False,
@@ -46,6 +47,12 @@ class FasterWhisperSession:
             language_probability = FasterWhisperTranscriber._optional_float(
                 getattr(info, "language_probability", None)
             )
+            if (
+                self.configuration.language is None
+                and self._detected_language is None
+                and language is not None
+            ):
+                self._detected_language = language
             return EngineTranscript(
                 segments=segments,
                 language=language,

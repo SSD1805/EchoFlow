@@ -1,6 +1,7 @@
 import pytest
+from hypothesis import given, strategies as st
 
-from echoflow.runner.models import ModelTier, ProcessingProfile, RunnerResources
+from echoflow.runner.models import ProcessingProfile, RunnerResources
 from echoflow.runner.policy import RunnerPolicyPlanner
 
 GIB = 1024**3
@@ -23,50 +24,24 @@ def resources(*, cpus=8, memory=12 * GIB, constraints=()):
     )
 
 
-def test_screening_is_explicitly_provisional_and_always_recommends_compact_model():
+def test_screening_is_explicitly_provisional_without_engine_decisions():
     policy = RunnerPolicyPlanner(memory_budget_fraction=1).plan(
         resources(), ProcessingProfile.SCREENING
     )
     assert policy.provisional is True
-    assert policy.recommended_model_tier is ModelTier.COMPACT
     assert policy.cpu_threads == 8
     assert policy.memory_budget_bytes == 12 * GIB
+    assert not hasattr(policy, "recommended_model_tier")
 
 
-def test_balanced_and_accuracy_select_largest_generic_tier_that_fits():
+def test_non_screening_profiles_share_the_same_resource_budget_for_same_machine():
     planner = RunnerPolicyPlanner(memory_budget_fraction=1)
     balanced = planner.plan(resources(memory=6 * GIB), ProcessingProfile.BALANCED)
-    accurate = planner.plan(resources(memory=12 * GIB), ProcessingProfile.ACCURACY)
-    constrained_accuracy = planner.plan(
-        resources(memory=6 * GIB), ProcessingProfile.ACCURACY
-    )
-    assert balanced.recommended_model_tier is ModelTier.STANDARD
+    accurate = planner.plan(resources(memory=6 * GIB), ProcessingProfile.ACCURACY)
+    assert balanced.memory_budget_bytes == accurate.memory_budget_bytes == 6 * GIB
+    assert balanced.cpu_threads == accurate.cpu_threads == 8
     assert balanced.provisional is False
-    assert accurate.recommended_model_tier is ModelTier.LARGE
-    assert constrained_accuracy.recommended_model_tier is ModelTier.STANDARD
-
-
-def test_low_memory_falls_back_to_compact_for_non_screening_profiles():
-    policy = RunnerPolicyPlanner(memory_budget_fraction=1).plan(
-        resources(memory=3 * GIB), ProcessingProfile.ACCURACY
-    )
-    assert policy.recommended_model_tier is ModelTier.COMPACT
-
-
-def test_model_tier_memory_thresholds_are_exact_binary_gibibytes():
-    planner = RunnerPolicyPlanner(memory_budget_fraction=1)
-    just_below_standard = planner.plan(
-        resources(memory=4 * GIB - 1), ProcessingProfile.BALANCED
-    )
-    standard = planner.plan(resources(memory=4 * GIB), ProcessingProfile.BALANCED)
-    just_below_large = planner.plan(
-        resources(memory=8 * GIB - 1), ProcessingProfile.ACCURACY
-    )
-    large = planner.plan(resources(memory=8 * GIB), ProcessingProfile.ACCURACY)
-    assert just_below_standard.recommended_model_tier is ModelTier.COMPACT
-    assert standard.recommended_model_tier is ModelTier.STANDARD
-    assert just_below_large.recommended_model_tier is ModelTier.STANDARD
-    assert large.recommended_model_tier is ModelTier.LARGE
+    assert accurate.provisional is False
 
 
 def test_default_policy_values_and_fraction_are_stable():
@@ -112,6 +87,48 @@ def test_user_ceilings_clamp_detected_resources_and_record_why():
         "configured_cpu_limit",
         "configured_memory_limit",
     )
+
+
+def test_ceiling_boundaries_apply_only_when_stricter_than_detected_budget():
+    exact = RunnerPolicyPlanner(
+        memory_budget_fraction=1,
+        max_cpu_threads=8,
+        max_memory_bytes=4 * GIB,
+    ).plan(resources(cpus=8, memory=4 * GIB), ProcessingProfile.BALANCED)
+    below = RunnerPolicyPlanner(
+        memory_budget_fraction=1,
+        max_cpu_threads=7,
+        max_memory_bytes=4 * GIB - 1,
+    ).plan(resources(cpus=8, memory=4 * GIB), ProcessingProfile.BALANCED)
+
+    assert exact.cpu_threads == 8
+    assert exact.memory_budget_bytes == 4 * GIB
+    assert exact.constraints == ()
+    assert below.cpu_threads == 7
+    assert below.memory_budget_bytes == 4 * GIB - 1
+    assert below.constraints == ("configured_cpu_limit", "configured_memory_limit")
+
+
+@given(
+    detected=st.integers(min_value=0, max_value=64 * GIB),
+    ceiling=st.integers(min_value=1, max_value=64 * GIB),
+)
+def test_property_memory_ceiling_never_increases_detected_budget(detected, ceiling):
+    policy = RunnerPolicyPlanner(
+        memory_budget_fraction=1, max_memory_bytes=ceiling
+    ).plan(resources(memory=detected), ProcessingProfile.BALANCED)
+    assert policy.memory_budget_bytes == min(detected, ceiling)
+
+
+@given(
+    detected=st.integers(min_value=0, max_value=128),
+    ceiling=st.integers(min_value=1, max_value=128),
+)
+def test_property_cpu_ceiling_never_increases_effective_capacity(detected, ceiling):
+    policy = RunnerPolicyPlanner(max_cpu_threads=ceiling).plan(
+        resources(cpus=detected), ProcessingProfile.BALANCED
+    )
+    assert policy.cpu_threads == max(1, min(detected, ceiling))
 
 
 @pytest.mark.parametrize(

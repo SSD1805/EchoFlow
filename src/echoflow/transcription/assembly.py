@@ -20,7 +20,9 @@ class TranscriptAssembler:
         results: Sequence[tuple[AudioSegmentWindow, EngineTranscript]],
     ) -> EngineTranscript:
         if not results:
-            raise TranscriptionError("No audio segment results were available to assemble")
+            raise TranscriptionError(
+                "No audio segment results were available to assemble"
+            )
 
         self._validate_windows(results)
         engine_version = results[0][1].engine_version

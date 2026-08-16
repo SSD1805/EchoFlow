@@ -9,6 +9,7 @@ from echoflow.transcription.errors import (
     TranscriptionError,
 )
 from echoflow.transcription.models import (
+    AutoLanguageMode,
     CpuEngineConfiguration,
     EngineTranscript,
     RecognizedSegment,
@@ -28,6 +29,13 @@ class FasterWhisperSession:
     ):
         if detected_language is not None and not detected_language.strip():
             raise ValueError("detected_language cannot be empty")
+        if (
+            detected_language is not None
+            and configuration.auto_language_mode is AutoLanguageMode.PER_SEGMENT
+        ):
+            raise ValueError(
+                "detected_language cannot seed a per-segment language session"
+            )
         self.model = model
         self.configuration = configuration
         self.engine_version = engine_version
@@ -37,23 +45,34 @@ class FasterWhisperSession:
 
     def transcribe(self, audio_path: Path) -> EngineTranscript:
         try:
+            requested_language = self.configuration.language
+            if (
+                requested_language is None
+                and self.configuration.auto_language_mode is AutoLanguageMode.JOB_LATCHED
+            ):
+                requested_language = self._detected_language
             raw_segments, info = self.model.transcribe(
                 str(audio_path),
                 beam_size=self.configuration.beam_size,
-                language=self.configuration.language or self._detected_language,
+                language=requested_language,
                 word_timestamps=False,
                 vad_filter=False,
                 log_progress=False,
             )
-            segments = FasterWhisperTranscriber._segments(raw_segments)
             language = FasterWhisperTranscriber._optional_text(
                 getattr(info, "language", None)
             )
             language_probability = FasterWhisperTranscriber._optional_float(
                 getattr(info, "language_probability", None)
             )
+            segments = FasterWhisperTranscriber._segments(
+                raw_segments,
+                detected_language=language,
+                language_probability=language_probability,
+            )
             if (
                 self.configuration.language is None
+                and self.configuration.auto_language_mode is AutoLanguageMode.JOB_LATCHED
                 and self._detected_language is None
                 and language is not None
             ):
@@ -145,7 +164,13 @@ class FasterWhisperTranscriber:
             ) from exc
 
     @classmethod
-    def _segments(cls, raw_segments: Iterable[Any]) -> tuple[RecognizedSegment, ...]:
+    def _segments(
+        cls,
+        raw_segments: Iterable[Any],
+        *,
+        detected_language: str | None = None,
+        language_probability: float | None = None,
+    ) -> tuple[RecognizedSegment, ...]:
         recognized: list[RecognizedSegment] = []
         for raw in raw_segments:
             text = str(getattr(raw, "text", "")).strip()
@@ -164,6 +189,8 @@ class FasterWhisperTranscriber:
                         no_speech_probability=cls._optional_float(
                             getattr(raw, "no_speech_prob", None)
                         ),
+                        detected_language=detected_language,
+                        language_probability=language_probability,
                     )
                 )
             except (AttributeError, TypeError, ValueError) as exc:

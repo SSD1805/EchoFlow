@@ -75,7 +75,7 @@ class WindowsPrivateStoragePolicy:
 
     @staticmethod
     def _system_executable(name: str) -> str:
-        system_root = os.environ.get("SystemRoot", r"C:\Windows")
+        system_root = os.environ.get("SYSTEMROOT", r"C:\Windows")
         executable = Path(system_root) / "System32" / name
         if not executable.is_file():
             raise PermissionError("Required Windows ACL utility is unavailable")

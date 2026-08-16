@@ -45,7 +45,12 @@ def backend(model_class, *, version_reader=lambda _name: "1.2.1"):
     )
 
 
-def test_local_cpu_transcription_uses_exact_plan_and_consumes_generator(tmp_path):
+def transcribe_once(transcriber, path, config, *, allowed=False):
+    session = transcriber.open_session(config, allow_model_download=allowed)
+    return session.transcribe(path)
+
+
+def test_local_cpu_session_uses_exact_plan_and_consumes_generator(tmp_path):
     calls = []
 
     class Model:
@@ -66,9 +71,9 @@ def test_local_cpu_transcription_uses_exact_plan_and_consumes_generator(tmp_path
             )
 
     config = configuration(tmp_path, revision="immutable-revision")
-    result = backend(Model).transcribe(
-        tmp_path / "audio.wav", config, allow_model_download=False
-    )
+    transcriber = backend(Model)
+    session = transcriber.open_session(config, allow_model_download=False)
+    result = session.transcribe(tmp_path / "audio.wav")
 
     assert calls[0] == (
         "tiny",
@@ -83,7 +88,7 @@ def test_local_cpu_transcription_uses_exact_plan_and_consumes_generator(tmp_path
         },
     )
     assert calls[1] == (
-        (str(tmp_path / "audio.wav")),
+        str(tmp_path / "audio.wav"),
         {
             "beam_size": 1,
             "language": None,
@@ -102,6 +107,26 @@ def test_local_cpu_transcription_uses_exact_plan_and_consumes_generator(tmp_path
     assert result.engine_version == "1.2.1"
 
 
+def test_one_loaded_model_is_reused_for_multiple_audio_segments(tmp_path):
+    model = Mock()
+    model.transcribe.return_value = (
+        iter(()),
+        SimpleNamespace(language="en", language_probability=1.0),
+    )
+    factory = Mock(return_value=model)
+    transcriber = backend(factory)
+
+    session = transcriber.open_session(
+        configuration(tmp_path), allow_model_download=False
+    )
+    first = session.transcribe(tmp_path / "audio-000000.wav")
+    second = session.transcribe(tmp_path / "audio-000001.wav")
+
+    factory.assert_called_once()
+    assert model.transcribe.call_count == 2
+    assert first.engine_version == second.engine_version == "1.2.1"
+
+
 def test_explicit_download_authorization_disables_local_only_mode(tmp_path):
     model = Mock()
     model.transcribe.return_value = (
@@ -109,10 +134,11 @@ def test_explicit_download_authorization_disables_local_only_mode(tmp_path):
         SimpleNamespace(language=None, language_probability=None),
     )
     factory = Mock(return_value=model)
-    result = backend(factory).transcribe(
+    result = transcribe_once(
+        backend(factory),
         tmp_path / "audio.wav",
         configuration(tmp_path),
-        allow_model_download=True,
+        allowed=True,
     )
     assert factory.call_args.kwargs["local_files_only"] is False
     assert result.segments == ()
@@ -131,8 +157,7 @@ def test_missing_optional_engine_dependency_has_install_instruction(tmp_path, fa
         TranscriptionDependencyError,
         match="^CPU transcription support is not installed; install EchoFlow's transcription extra$",
     ):
-        transcriber.transcribe(
-            tmp_path / "audio.wav",
+        transcriber.open_session(
             configuration(tmp_path),
             allow_model_download=False,
         )
@@ -144,8 +169,7 @@ def test_missing_package_metadata_is_a_dependency_failure(tmp_path):
         version_reader=Mock(side_effect=metadata.PackageNotFoundError("missing")),
     )
     with pytest.raises(TranscriptionDependencyError):
-        transcriber.transcribe(
-            tmp_path / "audio.wav",
+        transcriber.open_session(
             configuration(tmp_path),
             allow_model_download=False,
         )
@@ -174,8 +198,7 @@ def test_model_initialization_failure_reflects_download_authorization(
             raise RuntimeError("private hub detail")
 
     with pytest.raises(error_type, match=f"^{message}") as error:
-        backend(Model).transcribe(
-            tmp_path / "audio.wav",
+        backend(Model).open_session(
             configuration(tmp_path),
             allow_model_download=allowed,
         )
@@ -194,15 +217,14 @@ def test_engine_iteration_failure_is_redacted(tmp_path):
 
             return generated(), SimpleNamespace(language="en", language_probability=1.0)
 
+    session = backend(Model).open_session(
+        configuration(tmp_path), allow_model_download=False
+    )
     with pytest.raises(
         TranscriptionError,
         match="^The transcription engine failed while processing audio$",
     ) as error:
-        backend(Model).transcribe(
-            tmp_path / "audio.wav",
-            configuration(tmp_path),
-            allow_model_download=False,
-        )
+        session.transcribe(tmp_path / "audio.wav")
     assert "sensitive decoder detail" not in str(error.value)
 
 
@@ -223,15 +245,14 @@ def test_invalid_engine_segment_values_are_typed(tmp_path, bad_segment):
                 language="en", language_probability=1.0
             )
 
+    session = backend(Model).open_session(
+        configuration(tmp_path), allow_model_download=False
+    )
     with pytest.raises(
         TranscriptionError,
         match="^The transcription engine returned invalid segment data$",
     ):
-        backend(Model).transcribe(
-            tmp_path / "audio.wav",
-            configuration(tmp_path),
-            allow_model_download=False,
-        )
+        session.transcribe(tmp_path / "audio.wav")
 
 
 def test_invalid_language_probability_is_typed_without_native_detail(tmp_path):
@@ -244,15 +265,14 @@ def test_invalid_language_probability_is_typed_without_native_detail(tmp_path):
                 language="en", language_probability="not-a-number"
             )
 
+    session = backend(Model).open_session(
+        configuration(tmp_path), allow_model_download=False
+    )
     with pytest.raises(
         TranscriptionError,
         match="^The transcription engine returned invalid probability data$",
     ):
-        backend(Model).transcribe(
-            tmp_path / "audio.wav",
-            configuration(tmp_path),
-            allow_model_download=False,
-        )
+        session.transcribe(tmp_path / "audio.wav")
 
 
 def test_keyboard_interrupt_is_not_wrapped_during_model_loading(tmp_path):
@@ -261,8 +281,7 @@ def test_keyboard_interrupt_is_not_wrapped_during_model_loading(tmp_path):
             raise KeyboardInterrupt
 
     with pytest.raises(KeyboardInterrupt):
-        backend(Model).transcribe(
-            tmp_path / "audio.wav",
+        backend(Model).open_session(
             configuration(tmp_path),
             allow_model_download=False,
         )

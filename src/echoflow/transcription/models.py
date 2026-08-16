@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
@@ -34,6 +34,86 @@ class DecodeConfiguration:
             "output_codec": self.output_codec,
             "sample_rate_hz": self.sample_rate_hz,
             "channels": self.channels,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SegmentationConfiguration:
+    """Versioned application-owned segmentation policy.
+
+    Version 1 is intentionally sequential and non-overlapping. Overlap requires
+    deterministic reconciliation semantics before it can become a supported
+    execution choice.
+    """
+
+    segment_duration_seconds: int = 600
+    overlap_seconds: int = 0
+    concurrency: int = 1
+    schema_version: int = 1
+
+    def __post_init__(self) -> None:
+        if self.schema_version != 1:
+            raise ValueError("unsupported segmentation schema version")
+        if self.segment_duration_seconds < 1:
+            raise ValueError("segment_duration_seconds must be positive")
+        if self.overlap_seconds != 0:
+            raise ValueError("segmentation overlap is not supported by schema version 1")
+        if self.concurrency != 1:
+            raise ValueError("segmentation concurrency must be one for schema version 1")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "segment_duration_seconds": self.segment_duration_seconds,
+            "overlap_seconds": self.overlap_seconds,
+            "concurrency": self.concurrency,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AudioSegmentWindow:
+    """One exact source-relative frame interval in canonical decoded audio."""
+
+    index: int
+    start_frame: int
+    end_frame: int
+    sample_rate_hz: int
+
+    def __post_init__(self) -> None:
+        if self.index < 0:
+            raise ValueError("audio segment index cannot be negative")
+        if self.start_frame < 0:
+            raise ValueError("audio segment start_frame cannot be negative")
+        if self.end_frame <= self.start_frame:
+            raise ValueError("audio segment end_frame must be greater than start_frame")
+        if self.sample_rate_hz < 1:
+            raise ValueError("audio segment sample_rate_hz must be positive")
+
+    @property
+    def segment_id(self) -> str:
+        return f"audio-{self.index:06d}"
+
+    @property
+    def start_seconds(self) -> float:
+        return self.start_frame / self.sample_rate_hz
+
+    @property
+    def end_seconds(self) -> float:
+        return self.end_frame / self.sample_rate_hz
+
+    @property
+    def duration_seconds(self) -> float:
+        return (self.end_frame - self.start_frame) / self.sample_rate_hz
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "segment_id": self.segment_id,
+            "index": self.index,
+            "start_frame": self.start_frame,
+            "end_frame": self.end_frame,
+            "sample_rate_hz": self.sample_rate_hz,
+            "start_seconds": self.start_seconds,
+            "end_seconds": self.end_seconds,
         }
 
 
@@ -132,11 +212,14 @@ class TranscriptionJobPlan:
     decoder: DecodeConfiguration
     resources: ResourceEstimate
     warnings: tuple[str, ...]
-    schema_version: int = 1
+    segmentation: SegmentationConfiguration = field(
+        default_factory=SegmentationConfiguration
+    )
+    schema_version: int = 2
     paths_reserved: bool = False
 
     def __post_init__(self) -> None:
-        if self.schema_version != 1:
+        if self.schema_version != 2:
             raise ValueError("unsupported job-plan schema version")
         if self.paths_reserved:
             raise ValueError("a dry-run plan cannot claim reserved paths")
@@ -144,6 +227,8 @@ class TranscriptionJobPlan:
             raise ValueError("job and artifact IDs must match")
         if self.job.input_path != self.media.input.path:
             raise ValueError("job and media input paths must match")
+        if self.segmentation.concurrency != 1:
+            raise ValueError("job plan requires sequential segmentation")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -157,6 +242,7 @@ class TranscriptionJobPlan:
             "policy": self.policy.to_dict(),
             "engine": self.engine.to_dict(),
             "decoder": self.decoder.to_dict(),
+            "segmentation": self.segmentation.to_dict(),
             "resources": self.resources.to_dict(),
             "warnings": list(self.warnings),
         }

@@ -24,14 +24,14 @@ def resources(*, cpus=8, memory=12 * GIB, constraints=()):
     )
 
 
-def test_screening_is_explicitly_provisional_without_engine_decisions():
+def test_screening_is_explicitly_provisional_without_engine_selection():
     policy = RunnerPolicyPlanner(memory_budget_fraction=1).plan(
         resources(), ProcessingProfile.SCREENING
     )
     assert policy.provisional is True
     assert policy.cpu_threads == 8
     assert policy.memory_budget_bytes == 12 * GIB
-    assert policy.recommended_model_tier is ModelTier.STRATEGY_SPECIFIC
+    assert policy.recommended_model_tier is ModelTier.COMPACT
 
 
 def test_non_screening_profiles_share_the_same_resource_budget_for_same_machine():
@@ -42,6 +42,8 @@ def test_non_screening_profiles_share_the_same_resource_budget_for_same_machine(
     assert balanced.cpu_threads == accurate.cpu_threads == 8
     assert balanced.provisional is False
     assert accurate.provisional is False
+    assert balanced.recommended_model_tier is ModelTier.STRATEGY_SPECIFIC
+    assert accurate.recommended_model_tier is ModelTier.STRATEGY_SPECIFIC
 
 
 def test_default_policy_values_and_fraction_are_stable():

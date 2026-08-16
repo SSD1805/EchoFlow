@@ -133,5 +133,4 @@ def test_transcribe_explicit_strategy_reaches_planner_without_silent_substitutio
         output_dir=None,
         profile=ProcessingProfile.BALANCED,
         strategy_id="tiny-cpu-int8",
-        audio_stream_index=None,
     )

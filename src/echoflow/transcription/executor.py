@@ -1,5 +1,6 @@
 import json
 from contextlib import suppress
+from dataclasses import replace
 from pathlib import Path
 from typing import Protocol
 
@@ -15,11 +16,15 @@ from echoflow.transcription.checkpoint import RestoredCheckpoint
 from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
 from echoflow.transcription.models import (
     AudioSegmentWindow,
+    AutoLanguageMode,
     CanonicalTranscript,
     CpuEngineConfiguration,
     DecodeConfiguration,
     EngineProvenance,
     EngineTranscript,
+    LanguageAttributionProvenance,
+    LanguageSpan,
+    RecognizedSegment,
     SegmentationConfiguration,
     TranscriptionExecutionResult,
     TranscriptionJobPlan,
@@ -115,6 +120,13 @@ class SegmentCheckpointStore(Protocol):
     def clear(self, job: Job) -> None: ...
 
 
+class TranscriptLanguageAttributor(Protocol):
+    @property
+    def provenance(self) -> LanguageAttributionProvenance: ...
+
+    def attribute(self, text: str) -> tuple[LanguageSpan, ...]: ...
+
+
 class _NoCheckpointStore:
     def initialize(
         self,
@@ -165,6 +177,7 @@ class TranscriptionExecutor:
         logger: ILogger,
         checkpoint_store: SegmentCheckpointStore | None = None,
         storage_admission: StorageAdmissionPolicy | None = None,
+        language_attributor: TranscriptLanguageAttributor | None = None,
         observer: ExecutionObserver | None = None,
     ):
         self.media_probe = media_probe
@@ -179,6 +192,7 @@ class TranscriptionExecutor:
         self.logger = logger
         self.checkpoint_store = checkpoint_store or _NoCheckpointStore()
         self.storage_admission = storage_admission
+        self.language_attributor = language_attributor
         self.observer = observer or NoOpExecutionObserver()
 
     def execute(
@@ -360,15 +374,18 @@ class TranscriptionExecutor:
         *,
         allow_model_download: bool,
     ) -> TranscriptionSession:
-        if restored.detected_language is None:
+        if (
+            plan.engine.auto_language_mode is AutoLanguageMode.JOB_LATCHED
+            and restored.detected_language is not None
+        ):
             return self.transcriber.open_session(
                 plan.engine,
                 allow_model_download=allow_model_download,
+                detected_language=restored.detected_language,
             )
         return self.transcriber.open_session(
             plan.engine,
             allow_model_download=allow_model_download,
-            detected_language=restored.detected_language,
         )
 
     def _clear_completed_checkpoints(self, job: Job) -> None:
@@ -419,10 +436,23 @@ class TranscriptionExecutor:
         with suppress(Exception):
             self.file_manager.delete_file(artifact.path)
 
-    @staticmethod
     def _transcript(
-        plan: TranscriptionJobPlan, result: EngineTranscript
+        self, plan: TranscriptionJobPlan, result: EngineTranscript
     ) -> CanonicalTranscript:
+        segments, attribution = self._attribute_languages(result.segments)
+        detected_languages: list[str] = []
+        for segment in segments:
+            if (
+                segment.detected_language is not None
+                and segment.detected_language not in detected_languages
+            ):
+                detected_languages.append(segment.detected_language)
+        detected_language = (
+            detected_languages[0] if len(detected_languages) == 1 else None
+        )
+        language_probability = (
+            result.language_probability if detected_language is not None else None
+        )
         return CanonicalTranscript(
             job_id=plan.job.job_id.value,
             source=TranscriptSource.from_media(plan.media),
@@ -430,7 +460,29 @@ class TranscriptionExecutor:
             provisional=plan.policy.provisional,
             decode_strategy=plan.decoder.strategy,
             engine=EngineProvenance.from_engine(plan.engine, result.engine_version),
-            detected_language=result.language,
-            language_probability=result.language_probability,
-            segments=result.segments,
+            detected_language=detected_language,
+            language_probability=language_probability,
+            detected_languages=tuple(detected_languages),
+            language_attribution=attribution,
+            segments=segments,
         )
+
+    def _attribute_languages(
+        self, segments: tuple[RecognizedSegment, ...]
+    ) -> tuple[tuple[RecognizedSegment, ...], LanguageAttributionProvenance | None]:
+        if self.language_attributor is None:
+            return segments, None
+
+        attributed: list[RecognizedSegment] = []
+        for segment in segments:
+            spans = self.language_attributor.attribute(segment.text)
+            languages = {span.language for span in spans}
+            language = next(iter(languages)) if len(languages) == 1 else None
+            attributed.append(
+                replace(
+                    segment,
+                    language=language,
+                    language_spans=spans,
+                )
+            )
+        return tuple(attributed), self.language_attributor.provenance

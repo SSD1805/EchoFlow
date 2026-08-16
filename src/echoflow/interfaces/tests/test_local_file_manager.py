@@ -122,9 +122,7 @@ def test_directory_and_file_reservations_are_exclusive(manager, tmp_path):
 def test_file_reservation_is_exclusive_across_processes(tmp_path):
     artifact = tmp_path / "contended-transcript.json"
     with ProcessPoolExecutor(max_workers=4) as executor:
-        outcomes = tuple(
-            executor.map(_reserve_from_process, repeat(str(artifact), 4))
-        )
+        outcomes = tuple(executor.map(_reserve_from_process, repeat(str(artifact), 4)))
 
     assert outcomes.count(True) == 1
     assert outcomes.count(False) == 3

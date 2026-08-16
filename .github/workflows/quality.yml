@@ -38,6 +38,11 @@ jobs:
       - name: Import optional CPU engine
         run: uv run python -c "import faster_whisper; print(faster_whisper.__version__)"
 
+      - name: Install native media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+
       - name: Verify native media tools
         run: >-
           uv run python -c "import shutil;
@@ -123,6 +128,14 @@ jobs:
 
       - name: Import optional CPU engine
         run: uv run python -c "import faster_whisper; print(faster_whisper.__version__)"
+
+      - name: Install native media tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
+      - name: Install native media tools (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg --yes --no-progress
 
       - name: Verify native media tools
         run: >-

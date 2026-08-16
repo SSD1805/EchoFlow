@@ -10,6 +10,12 @@ transcription GUI. EchoFlow keeps the orchestration core small, treats engines
 and model payloads as optional capabilities, and derives plans from the CPU and
 memory actually available to a laptop, workstation, container, or CI runner.
 
+EchoFlow is intended to remain useful without mandatory hosted transcription
+fees or a cloud account. Durability, reliability, performance on ordinary
+hardware, storage/resource awareness, and portable user-owned artifacts are
+first-class design constraints. The current direction and research candidates
+are documented in [`ROADMAP.md`](ROADMAP.md).
+
 ## Project status
 
 EchoFlow currently provides a tested application foundation:
@@ -23,7 +29,7 @@ EchoFlow currently provides a tested application foundation:
 - Human-readable Rich tables and stable JSON diagnostic output.
 - Atomic local file operations with typed errors.
 - Structured logging and monotonic operation timing.
-- Path-redacted routine logs and owner-only private directories on POSIX.
+- Path-redacted routine logs and platform-specific private-storage enforcement.
 - Namespaced, explicit configuration that does not consume ambient `.env` files.
 - CPU-, affinity-, cgroup-, and memory-aware runner policy inspection.
 - A deterministic local strategy evaluator that lists feasible faster-whisper
@@ -153,10 +159,11 @@ uv run python scripts/verify_distribution.py dist
 ```
 
 The distribution verifier inspects the built wheel for its console entry point,
-transcription extra, and accidental test leakage. It then creates a temporary
-virtual environment outside the repository, disables user-site and source-path
-imports, installs `echoflow[transcription]` from that wheel, and exercises the
-installed CLI. CI runs that contract on Linux, macOS, and Windows.
+transcription extra, license metadata, packaged license file, and accidental test
+leakage. It then creates a temporary virtual environment outside the repository,
+disables user-site and source-path imports, installs `echoflow[transcription]` from
+that wheel, and exercises the installed CLI. CI runs that contract on Linux,
+macOS, and Windows.
 
 The enforced budgets are:
 
@@ -182,7 +189,7 @@ EchoFlow keeps user artifacts as normal files in a user-selected output
 directory. Private state and model caches are separate internal concerns.
 Artifact names are reserved atomically and collisions are renamed rather than
 overwritten by default. Durable checkpoint state is stored as private per-job
-files; a future SQLite job index, if added, should contain metadata rather than
+files; a future local job index, if added, should contain metadata rather than
 audio or transcript blobs.
 
 `echoflow runner` derives an engine-neutral CPU and memory budget from resources
@@ -241,4 +248,6 @@ Security boundaries, residual risks, and disclosure instructions are in
 
 ## License
 
-EchoFlow is licensed under the [Apache License 2.0](LICENSE).
+EchoFlow is licensed under the [GNU Affero General Public License v3.0 only](LICENSE).
+See [`LICENSING.md`](LICENSING.md) for the transition from earlier Apache-2.0
+versions.

@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 
-from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
+from echoflow.runner.models import (
+    ExecutionPolicy,
+    ModelTier,
+    ProcessingProfile,
+    RunnerResources,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,10 +42,18 @@ class RunnerPolicyPlanner:
             memory_budget = self.max_memory_bytes
             constraints.append("configured_memory_limit")
 
+        # Keep the pre-strategy screening wire marker for compatibility. This does
+        # not select an engine model; concrete strategy ranking owns that decision.
+        compatibility_tier = (
+            ModelTier.COMPACT
+            if profile is ProcessingProfile.SCREENING
+            else ModelTier.STRATEGY_SPECIFIC
+        )
         return ExecutionPolicy(
             profile=profile,
             provisional=profile is ProcessingProfile.SCREENING,
             cpu_threads=max(1, cpu_threads),
             memory_budget_bytes=max(0, memory_budget),
+            recommended_model_tier=compatibility_tier,
             constraints=tuple(dict.fromkeys(constraints)),
         )

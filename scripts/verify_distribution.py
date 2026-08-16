@@ -11,7 +11,6 @@ from email import policy
 from email.parser import BytesParser
 from pathlib import Path
 
-
 _EXPECTED_LICENSE_EXPRESSION = "AGPL-3.0-only"
 
 

@@ -215,11 +215,11 @@ class TranscriptionJobPlan:
     segmentation: SegmentationConfiguration = field(
         default_factory=SegmentationConfiguration
     )
-    schema_version: int = 2
+    schema_version: int = 1
     paths_reserved: bool = False
 
     def __post_init__(self) -> None:
-        if self.schema_version != 2:
+        if self.schema_version != 1:
             raise ValueError("unsupported job-plan schema version")
         if self.paths_reserved:
             raise ValueError("a dry-run plan cannot claim reserved paths")

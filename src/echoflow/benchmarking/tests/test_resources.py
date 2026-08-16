@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import psutil
@@ -58,6 +60,31 @@ def test_sampler_collects_process_tree_rss_and_cpu_without_external_io():
     assert observation.peak_cpu_percent == 90.0
     assert observation.mean_cpu_percent == 82.5
     assert observation.to_dict()["cpu_percent_basis"] == "process_tree_sum"
+
+
+def test_sampler_observes_a_real_python_child_process():
+    sampler = ProcessTreeSampler(sample_interval_seconds=0.02)
+    sampler.start()
+    subprocess.run(  # noqa: S603
+        [
+            sys.executable,
+            "-c",
+            (
+                "import time; "
+                "payload = bytearray(16 * 1024 * 1024); "
+                "time.sleep(0.3); "
+                "assert payload[0] == 0"
+            ),
+        ],
+        check=True,
+    )
+    observation = sampler.stop()
+
+    assert observation.sample_count >= 2
+    assert observation.baseline_rss_bytes > 0
+    assert observation.peak_rss_bytes > observation.baseline_rss_bytes
+    assert observation.peak_incremental_rss_bytes > 0
+    assert observation.mean_rss_bytes > 0
 
 
 def test_sampler_ignores_disappearing_children_and_child_enumeration_failure():

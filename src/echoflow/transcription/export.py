@@ -49,10 +49,7 @@ def _timestamp(seconds: float, *, separator: str, end: bool) -> str:
     hours, remainder = divmod(total_ms, 3_600_000)
     minutes, remainder = divmod(remainder, 60_000)
     whole_seconds, milliseconds = divmod(remainder, 1000)
-    return (
-        f"{hours:02d}:{minutes:02d}:{whole_seconds:02d}"
-        f"{separator}{milliseconds:03d}"
-    )
+    return f"{hours:02d}:{minutes:02d}:{whole_seconds:02d}{separator}{milliseconds:03d}"
 
 
 def _cue_text(segment: RecognizedSegment) -> str:
@@ -84,9 +81,7 @@ def render_webvtt(transcript: CanonicalTranscript) -> bytes:
     for segment in transcript.segments:
         start = _timestamp(segment.start_seconds, separator=".", end=False)
         end = _timestamp(segment.end_seconds, separator=".", end=True)
-        blocks.append(
-            f"{segment.segment_id}\n{start} --> {end}\n{_cue_text(segment)}"
-        )
+        blocks.append(f"{segment.segment_id}\n{start} --> {end}\n{_cue_text(segment)}")
     body = "\n\n".join(blocks)
     return ("WEBVTT\n\n" + (f"{body}\n\n" if body else "")).encode()
 

@@ -155,6 +155,11 @@ def _verify_clean_install(wheel: Path) -> None:
         )
         _run([str(console), "--help"], cwd=work_dir, env=env)
         _run([str(python), "-m", "echoflow", "--help"], cwd=work_dir, env=env)
+        _run(
+            [str(python), "-m", "echoflow.benchmarking", "--help"],
+            cwd=work_dir,
+            env=env,
+        )
         _run([str(console), "init", "--json"], cwd=work_dir, env=env)
         _run([str(console), "doctor", "--json"], cwd=work_dir, env=env)
         _run([str(console), "runner", "--json"], cwd=work_dir, env=env)

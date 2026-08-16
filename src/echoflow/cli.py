@@ -423,9 +423,13 @@ def transcribe(
     try:
         if dry_run and resume is not None:
             raise typer.BadParameter("--resume cannot be combined with --dry-run")
+        if resume is not None and (profile is not None or strategy is not None):
+            raise typer.BadParameter(
+                "--resume restores the original profile and strategy; do not override them"
+            )
         container = _container(context)
-        selected_profile = profile or container.config().PROCESSING_PROFILE
         if resume is None:
+            selected_profile = profile or container.config().PROCESSING_PROFILE
             if strategy is None:
                 plan = container.transcription_planner().plan(
                     input_path,
@@ -440,22 +444,11 @@ def transcribe(
                     strategy_id=strategy,
                 )
         else:
-            resume_job_id = JobId(resume)
-            if strategy is None:
-                plan = container.transcription_planner().plan(
-                    input_path,
-                    output_dir=output_dir,
-                    profile=selected_profile,
-                    job_id=resume_job_id,
-                )
-            else:
-                plan = container.transcription_planner().plan(
-                    input_path,
-                    output_dir=output_dir,
-                    profile=selected_profile,
-                    strategy_id=strategy,
-                    job_id=resume_job_id,
-                )
+            plan = container.transcription_planner().plan_resume(
+                input_path,
+                output_dir=output_dir,
+                job_id=JobId(resume),
+            )
         result = None
         if not dry_run:
             if resume is None:

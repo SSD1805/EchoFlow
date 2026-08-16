@@ -112,7 +112,9 @@ class LocalCheckpointStore:
         self.file_manager.ensure_directory_exists(checkpoint_dir, private=True)
         manifest_path = checkpoint_dir / _MANIFEST_NAME
         if self.file_manager.file_exists(manifest_path):
-            raise CheckpointError("Private checkpoint state already exists for this job")
+            raise CheckpointError(
+                "Private checkpoint state already exists for this job"
+            )
 
         contract = self._contract(plan, windows)
         manifest = {
@@ -315,7 +317,9 @@ class LocalCheckpointStore:
                     modified_ns=int(cast("int", source["modified_ns"])),
                     container_format=str(source["container_format"]),
                     duration_seconds=float(cast("float", source["duration_seconds"])),
-                    audio_stream_index=int(cast("int", source["audio_stream_index"])),
+                    audio_stream_index=int(
+                        cast("int", source["audio_stream_index"])
+                    ),
                 ),
                 profile=ProcessingProfile(str(contract["profile"])),
                 provisional=bool(contract["provisional"]),
@@ -347,7 +351,9 @@ class LocalCheckpointStore:
                     segment_duration_seconds=int(
                         cast("int", segmentation["segment_duration_seconds"])
                     ),
-                    overlap_seconds=int(cast("int", segmentation["overlap_seconds"])),
+                    overlap_seconds=int(
+                        cast("int", segmentation["overlap_seconds"])
+                    ),
                     concurrency=int(cast("int", segmentation["concurrency"])),
                     schema_version=int(cast("int", segmentation["schema_version"])),
                 ),

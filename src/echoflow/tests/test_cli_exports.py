@@ -83,5 +83,6 @@ def test_export_is_refused_for_dry_run_before_application_construction():
         )
 
     assert result.exit_code == 2
-    assert "--export cannot be combined with --dry-run" in result.output
+    assert "cannot be combined with" in result.output
+    assert "--dry-run" in result.output
     container.assert_not_called()

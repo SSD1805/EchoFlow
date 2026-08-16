@@ -13,6 +13,13 @@ class DecodeStrategy(StrEnum):
     FFMPEG_NORMALIZE = "ffmpeg_normalize"
 
 
+class AutoLanguageMode(StrEnum):
+    """How an automatically detected ASR language is applied across work units."""
+
+    JOB_LATCHED = "job_latched_v1"
+    PER_SEGMENT = "per_segment_v1"
+
+
 @dataclass(frozen=True, slots=True)
 class DecodeConfiguration:
     strategy: DecodeStrategy
@@ -132,6 +139,7 @@ class CpuEngineConfiguration:
     language: str | None
     model_cache_path: Path
     model_revision: str | None = None
+    auto_language_mode: AutoLanguageMode = AutoLanguageMode.PER_SEGMENT
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -146,6 +154,8 @@ class CpuEngineConfiguration:
             raise ValueError("cpu_threads must be positive")
         if self.beam_size < 1:
             raise ValueError("beam_size must be positive")
+        if self.language is not None and not self.language.strip():
+            raise ValueError("language cannot be empty")
         if self.model_revision is not None and not self.model_revision.strip():
             raise ValueError("model_revision cannot be empty")
 
@@ -160,6 +170,7 @@ class CpuEngineConfiguration:
             "language": self.language,
             "model_cache_path": str(self.model_cache_path),
             "model_revision": self.model_revision,
+            "auto_language_mode": self.auto_language_mode.value,
         }
 
 
@@ -253,6 +264,53 @@ class TranscriptionJobPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class LanguageSpan:
+    """One text-relative language attribution inside a recognized segment."""
+
+    start_char: int
+    end_char: int
+    language: str
+    confidence: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.start_char < 0 or self.end_char <= self.start_char:
+            raise ValueError("language span character offsets must be ordered")
+        if not self.language.strip():
+            raise ValueError("language span language cannot be empty")
+        if self.confidence is not None and not (
+            math.isfinite(self.confidence) and 0 <= self.confidence <= 1
+        ):
+            raise ValueError("language span confidence must be between 0 and 1")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "start_char": self.start_char,
+            "end_char": self.end_char,
+            "language": self.language,
+            "confidence": self.confidence,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class LanguageAttributionProvenance:
+    provider: str
+    package_version: str
+    mode: str
+
+    def __post_init__(self) -> None:
+        for name in ("provider", "package_version", "mode"):
+            if not getattr(self, name).strip():
+                raise ValueError(f"{name} cannot be empty")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "provider": self.provider,
+            "package_version": self.package_version,
+            "mode": self.mode,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class RecognizedSegment:
     index: int
     start_seconds: float
@@ -260,6 +318,11 @@ class RecognizedSegment:
     text: str
     average_log_probability: float | None = None
     no_speech_probability: float | None = None
+    detected_language: str | None = None
+    language_probability: float | None = None
+    language: str | None = None
+    language_spans: tuple[LanguageSpan, ...] = ()
+    speaker_ref: str | None = None
 
     def __post_init__(self) -> None:
         if self.index < 0:
@@ -282,6 +345,30 @@ class RecognizedSegment:
             and 0 <= self.no_speech_probability <= 1
         ):
             raise ValueError("no_speech_probability must be between 0 and 1")
+        if self.detected_language is not None and not self.detected_language.strip():
+            raise ValueError("detected_language cannot be empty")
+        if self.language_probability is not None and not (
+            math.isfinite(self.language_probability)
+            and 0 <= self.language_probability <= 1
+        ):
+            raise ValueError("language_probability must be between 0 and 1")
+        if self.language is not None and not self.language.strip():
+            raise ValueError("language cannot be empty")
+        if self.speaker_ref is not None and not self.speaker_ref.strip():
+            raise ValueError("speaker_ref cannot be empty")
+
+        previous_end = 0
+        for span in self.language_spans:
+            if span.end_char > len(self.text):
+                raise ValueError("language span exceeds segment text")
+            if span.start_char < previous_end:
+                raise ValueError("language spans cannot overlap")
+            previous_end = span.end_char
+        languages = {span.language for span in self.language_spans}
+        if self.language is not None and languages and languages != {self.language}:
+            raise ValueError("segment language must match uniform language spans")
+        if len(languages) > 1 and self.language is not None:
+            raise ValueError("mixed-language segments cannot have one language label")
 
     @property
     def segment_id(self) -> str:
@@ -296,6 +383,11 @@ class RecognizedSegment:
             "text": self.text,
             "average_log_probability": self.average_log_probability,
             "no_speech_probability": self.no_speech_probability,
+            "detected_language": self.detected_language,
+            "language_probability": self.language_probability,
+            "language": self.language,
+            "language_spans": [span.to_dict() for span in self.language_spans],
+            "speaker_ref": self.speaker_ref,
         }
 
 
@@ -376,6 +468,7 @@ class EngineProvenance:
     cpu_threads: int
     beam_size: int
     requested_language: str | None
+    auto_language_mode: AutoLanguageMode
 
     def __post_init__(self) -> None:
         for name in ("name", "package_version", "model", "device", "compute_type"):
@@ -402,6 +495,7 @@ class EngineProvenance:
             cpu_threads=configuration.cpu_threads,
             beam_size=configuration.beam_size,
             requested_language=configuration.language,
+            auto_language_mode=configuration.auto_language_mode,
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -415,6 +509,7 @@ class EngineProvenance:
             "cpu_threads": self.cpu_threads,
             "beam_size": self.beam_size,
             "requested_language": self.requested_language,
+            "auto_language_mode": self.auto_language_mode.value,
         }
 
 
@@ -429,10 +524,12 @@ class CanonicalTranscript:
     detected_language: str | None
     language_probability: float | None
     segments: tuple[RecognizedSegment, ...]
-    schema_version: int = 1
+    schema_version: int = 2
+    detected_languages: tuple[str, ...] = ()
+    language_attribution: LanguageAttributionProvenance | None = None
 
     def __post_init__(self) -> None:
-        if self.schema_version != 1:
+        if self.schema_version != 2:
             raise ValueError("unsupported transcript schema version")
         if not self.job_id:
             raise ValueError("job_id cannot be empty")
@@ -450,6 +547,28 @@ class CanonicalTranscript:
         ):
             raise ValueError("segment indices must be contiguous and zero-based")
 
+        derived_languages: list[str] = []
+        for segment in self.segments:
+            if (
+                segment.detected_language is not None
+                and segment.detected_language not in derived_languages
+            ):
+                derived_languages.append(segment.detected_language)
+        if not self.detected_languages:
+            object.__setattr__(self, "detected_languages", tuple(derived_languages))
+        elif tuple(derived_languages) != self.detected_languages:
+            raise ValueError("detected_languages must match segment language evidence")
+        if len(self.detected_languages) > 1 and self.detected_language is not None:
+            raise ValueError("mixed-language transcripts cannot have one detected_language")
+        if (
+            self.detected_language is not None
+            and self.detected_languages
+            and self.detected_language != self.detected_languages[0]
+        ):
+            raise ValueError("detected_language must match segment language evidence")
+        if self.detected_language is None and self.language_probability is not None:
+            raise ValueError("language_probability requires detected_language")
+
     @property
     def text(self) -> str:
         return " ".join(segment.text.strip() for segment in self.segments)
@@ -464,7 +583,13 @@ class CanonicalTranscript:
             "decode_strategy": self.decode_strategy.value,
             "engine": self.engine.to_dict(),
             "detected_language": self.detected_language,
+            "detected_languages": list(self.detected_languages),
             "language_probability": self.language_probability,
+            "language_attribution": (
+                None
+                if self.language_attribution is None
+                else self.language_attribution.to_dict()
+            ),
             "text": self.text,
             "segments": [segment.to_dict() for segment in self.segments],
         }

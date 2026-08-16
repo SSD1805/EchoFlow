@@ -1,7 +1,8 @@
 from itertools import permutations
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from echoflow.runner.models import ProcessingProfile
 from echoflow.transcription.errors import ResourceAdmissionError

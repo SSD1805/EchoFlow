@@ -38,9 +38,8 @@ def test_recorder_aggregates_repeated_stages_and_latest_values():
 def test_recorder_marks_failed_span_without_swallowing_exception():
     recorder = MeasurementRecorder(clock=StepClock())
 
-    with pytest.raises(RuntimeError, match="boom"):
-        with recorder.span("engine.open"):
-            raise RuntimeError("boom")
+    with pytest.raises(RuntimeError, match="boom"), recorder.span("engine.open"):
+        raise RuntimeError("boom")
 
     stage = recorder.stages()[0]
     assert stage.count == 1

@@ -9,7 +9,10 @@ from rich.console import Console
 from rich.table import Table
 
 from echoflow.app.app_container import AppContainer
-from echoflow.benchmarking.models import BenchmarkRunError, BenchmarkRunResult
+from echoflow.benchmarking.models import (
+    BenchmarkRunError,
+    BenchmarkRunResult,
+)
 from echoflow.core.config import AppConfig
 from echoflow.core.errors import EchoFlowError
 from echoflow.core.measurements import ExecutionObserver
@@ -20,11 +23,9 @@ from echoflow.transcription.models import (
 )
 from echoflow.workspace.models import JobId
 
-
 app = typer.Typer(
     name="echoflow-benchmark",
     help="Run privacy-minimized empirical EchoFlow calibration.",
-    invoke_without_command=True,
 )
 
 
@@ -122,7 +123,7 @@ def _render(result: BenchmarkRunResult) -> None:
     Console().print(table)
 
 
-@app.callback()
+@app.command()
 def benchmark(
     input_path: Annotated[
         Path,

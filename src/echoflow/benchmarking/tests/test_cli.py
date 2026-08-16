@@ -28,7 +28,9 @@ class Provider:
 
 class FakeContainer:
     def __init__(self):
-        self.config = Provider(SimpleNamespace(PROCESSING_PROFILE=ProcessingProfile.BALANCED))
+        self.config = Provider(
+            SimpleNamespace(PROCESSING_PROFILE=ProcessingProfile.BALANCED)
+        )
         planner = Mock()
         planner.plan.return_value = transcription_plan()
         planner.plan_resume.return_value = planner.plan.return_value
@@ -41,7 +43,7 @@ class FakeContainer:
         benchmark_runner = Mock()
 
         def run(plan, *, execute, resume=False, planning_wall_seconds=0.0):
-            execution = execute(NoOpExecutionObserver())
+            execute(NoOpExecutionObserver())
             report = SimpleNamespace(
                 status=BenchmarkStatus.COMPLETED,
                 job_id=plan.job.job_id.value,

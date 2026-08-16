@@ -86,16 +86,6 @@ class StrategyCatalog:
         if len(set(identifiers)) != len(identifiers):
             raise ValueError("strategy IDs must be unique")
 
-    def find(self, strategy_id: str) -> StrategyDefinition | None:
-        return next(
-            (
-                strategy
-                for strategy in self.strategies
-                if strategy.strategy_id == strategy_id
-            ),
-            None,
-        )
-
 
 class StrategyEvaluator:
     """Evaluate and rank local CPU strategies without hardware-name heuristics."""

@@ -7,11 +7,16 @@ from pathlib import Path
 from typing import cast
 
 from echoflow.core.file_manager_facade import FileManagerFacade
+from echoflow.runner.models import ProcessingProfile
 from echoflow.transcription.errors import CheckpointError
 from echoflow.transcription.models import (
     AudioSegmentWindow,
+    CpuEngineConfiguration,
+    DecodeConfiguration,
+    DecodeStrategy,
     EngineTranscript,
     RecognizedSegment,
+    SegmentationConfiguration,
     TranscriptionJobPlan,
     TranscriptSource,
 )
@@ -29,6 +34,58 @@ class RestoredCheckpoint:
     completed: tuple[tuple[AudioSegmentWindow, EngineTranscript], ...]
     detected_language: str | None
     engine_version: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ResumeEngineSettings:
+    """Engine semantics persisted without a machine-local model-cache path."""
+
+    engine: str
+    model: str
+    device: str
+    compute_type: str
+    cpu_threads: int
+    beam_size: int
+    language: str | None
+    model_revision: str | None
+
+    def configuration(self, model_cache_path: Path) -> CpuEngineConfiguration:
+        return CpuEngineConfiguration(
+            engine=self.engine,
+            model=self.model,
+            device=self.device,
+            compute_type=self.compute_type,
+            cpu_threads=self.cpu_threads,
+            beam_size=self.beam_size,
+            language=self.language,
+            model_cache_path=model_cache_path,
+            model_revision=self.model_revision,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ResumeSettings:
+    """Typed immutable execution semantics recovered from a valid manifest."""
+
+    source: TranscriptSource
+    profile: ProcessingProfile
+    provisional: bool
+    engine: ResumeEngineSettings
+    decoder: DecodeConfiguration
+    segmentation: SegmentationConfiguration
+    model_cache_bytes: int
+    estimated_peak_memory_bytes: int
+    job_plan_schema_version: int
+
+    def __post_init__(self) -> None:
+        if self.provisional != (self.profile is ProcessingProfile.SCREENING):
+            raise ValueError("checkpoint provisional flag does not match profile")
+        if self.model_cache_bytes < 0:
+            raise ValueError("checkpoint model_cache_bytes cannot be negative")
+        if self.estimated_peak_memory_bytes < 1:
+            raise ValueError("checkpoint estimated_peak_memory_bytes must be positive")
+        if self.job_plan_schema_version != 1:
+            raise ValueError("checkpoint job-plan schema version is unsupported")
 
 
 class LocalCheckpointStore:
@@ -68,27 +125,26 @@ class LocalCheckpointStore:
             self._canonical_bytes(manifest), manifest_path, private=True
         )
 
+    def resume_settings(self, job: Job) -> ResumeSettings:
+        """Read the original immutable execution semantics for a restart."""
+        _, contract = self._validated_stored_manifest(job)
+        return self._settings_from_contract(contract)
+
     def restore(
         self,
         job: Job,
         plan: TranscriptionJobPlan,
         windows: tuple[AudioSegmentWindow, ...],
     ) -> RestoredCheckpoint:
-        checkpoint_dir = self._checkpoint_dir(job)
-        manifest_path = checkpoint_dir / _MANIFEST_NAME
-        if not self.file_manager.file_exists(manifest_path):
-            raise CheckpointError("No private checkpoint state exists for this job")
-
-        manifest = self._read_object(manifest_path)
         expected_contract = self._contract(plan, windows)
         expected_digest = self._digest(expected_contract)
-        self._validate_manifest(
-            manifest,
-            job_id=job.job_id.value,
-            expected_contract=expected_contract,
-            expected_digest=expected_digest,
-        )
+        stored_digest, stored_contract = self._validated_stored_manifest(job)
+        if stored_digest != expected_digest or stored_contract != expected_contract:
+            raise CheckpointError(
+                "Private checkpoint does not match the current transcription contract"
+            )
 
+        checkpoint_dir = self._checkpoint_dir(job)
         expected_by_name = {
             f"{window.segment_id}.json": window for window in windows
         }
@@ -202,6 +258,12 @@ class LocalCheckpointStore:
             "engine": engine,
             "decoder": plan.decoder.to_dict(),
             "segmentation": plan.segmentation.to_dict(),
+            "resources": {
+                "model_cache_bytes": plan.resources.model_cache_bytes,
+                "estimated_peak_memory_bytes": (
+                    plan.resources.estimated_peak_memory_bytes
+                ),
+            },
             "windows": [cls._window_contract(window) for window in windows],
         }
 
@@ -215,15 +277,13 @@ class LocalCheckpointStore:
             "sample_rate_hz": window.sample_rate_hz,
         }
 
-    @classmethod
-    def _validate_manifest(
-        cls,
-        manifest: dict[str, object],
-        *,
-        job_id: str,
-        expected_contract: dict[str, object],
-        expected_digest: str,
-    ) -> None:
+    def _validated_stored_manifest(
+        self, job: Job
+    ) -> tuple[str, dict[str, object]]:
+        manifest_path = self._checkpoint_dir(job) / _MANIFEST_NAME
+        if not self.file_manager.file_exists(manifest_path):
+            raise CheckpointError("No private checkpoint state exists for this job")
+        manifest = self._read_object(manifest_path)
         try:
             schema_version = int(cast("int", manifest["schema_version"]))
             stored_job_id = str(manifest["job_id"])
@@ -234,14 +294,73 @@ class LocalCheckpointStore:
 
         if schema_version != _CHECKPOINT_SCHEMA_VERSION:
             raise CheckpointError("Private checkpoint schema version is unsupported")
-        if stored_job_id != job_id:
+        if stored_job_id != job.job_id.value:
             raise CheckpointError("Private checkpoint belongs to a different job")
-        if cls._digest(stored_contract) != stored_digest:
+        if self._digest(stored_contract) != stored_digest:
             raise CheckpointError("Private checkpoint manifest integrity check failed")
-        if stored_digest != expected_digest or stored_contract != expected_contract:
-            raise CheckpointError(
-                "Private checkpoint does not match the current transcription contract"
+        return stored_digest, stored_contract
+
+    @staticmethod
+    def _settings_from_contract(contract: dict[str, object]) -> ResumeSettings:
+        try:
+            source = cast("dict[str, object]", contract["source"])
+            engine = cast("dict[str, object]", contract["engine"])
+            decoder = cast("dict[str, object]", contract["decoder"])
+            segmentation = cast("dict[str, object]", contract["segmentation"])
+            resources = cast("dict[str, object]", contract["resources"])
+            return ResumeSettings(
+                source=TranscriptSource(
+                    sha256=str(source["sha256"]),
+                    size_bytes=int(cast("int", source["size_bytes"])),
+                    modified_ns=int(cast("int", source["modified_ns"])),
+                    container_format=str(source["container_format"]),
+                    duration_seconds=float(cast("float", source["duration_seconds"])),
+                    audio_stream_index=int(cast("int", source["audio_stream_index"])),
+                ),
+                profile=ProcessingProfile(str(contract["profile"])),
+                provisional=bool(contract["provisional"]),
+                engine=ResumeEngineSettings(
+                    engine=str(engine["engine"]),
+                    model=str(engine["model"]),
+                    device=str(engine["device"]),
+                    compute_type=str(engine["compute_type"]),
+                    cpu_threads=int(cast("int", engine["cpu_threads"])),
+                    beam_size=int(cast("int", engine["beam_size"])),
+                    language=(
+                        None
+                        if engine.get("language") is None
+                        else str(engine["language"])
+                    ),
+                    model_revision=(
+                        None
+                        if engine.get("model_revision") is None
+                        else str(engine["model_revision"])
+                    ),
+                ),
+                decoder=DecodeConfiguration(
+                    strategy=DecodeStrategy(str(decoder["strategy"])),
+                    output_codec=str(decoder["output_codec"]),
+                    sample_rate_hz=int(cast("int", decoder["sample_rate_hz"])),
+                    channels=int(cast("int", decoder["channels"])),
+                ),
+                segmentation=SegmentationConfiguration(
+                    segment_duration_seconds=int(
+                        cast("int", segmentation["segment_duration_seconds"])
+                    ),
+                    overlap_seconds=int(cast("int", segmentation["overlap_seconds"])),
+                    concurrency=int(cast("int", segmentation["concurrency"])),
+                    schema_version=int(cast("int", segmentation["schema_version"])),
+                ),
+                model_cache_bytes=int(cast("int", resources["model_cache_bytes"])),
+                estimated_peak_memory_bytes=int(
+                    cast("int", resources["estimated_peak_memory_bytes"])
+                ),
+                job_plan_schema_version=int(
+                    cast("int", contract["job_plan_schema_version"])
+                ),
             )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise CheckpointError("Private checkpoint contract is malformed") from exc
 
     def _restore_segment(
         self,

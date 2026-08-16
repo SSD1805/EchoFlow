@@ -12,6 +12,7 @@ from echoflow.app.app_container import AppContainer
 from echoflow.core.config import AppConfig
 from echoflow.core.errors import EchoFlowError
 from echoflow.core.health_check import HealthReport
+from echoflow.media.models import StreamKind
 from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
 from echoflow.transcription.export import TranscriptExportFormat, TranscriptExportResult
 from echoflow.transcription.models import (
@@ -143,6 +144,11 @@ def _render_strategies(
 
 def _render_transcription_plan(plan: TranscriptionJobPlan, console: Console) -> None:
     audio = plan.media.primary_audio_stream
+    audio_streams = ", ".join(
+        str(stream.index)
+        for stream in plan.media.streams
+        if stream.kind is StreamKind.AUDIO
+    )
     table = Table(title="EchoFlow transcription dry run")
     table.add_column("Setting")
     table.add_column("Planned value")
@@ -153,6 +159,8 @@ def _render_transcription_plan(plan: TranscriptionJobPlan, console: Console) -> 
         ("Container", plan.media.container_format),
         ("Duration", f"{plan.media.duration_seconds:.3f} seconds"),
         ("Streams", str(len(plan.media.streams))),
+        ("Available audio streams", audio_streams),
+        ("Selected audio stream", str(audio.index)),
         ("Primary codec", audio.codec),
         ("Workspace", str(plan.job.workspace_dir)),
         ("Canonical output", str(plan.artifact.path)),
@@ -193,6 +201,7 @@ def _render_transcription_result(
         ("Engine", f"{transcript.engine.name} {transcript.engine.package_version}"),
         ("Model", transcript.engine.model),
         ("Decode", transcript.decode_strategy.value),
+        ("Audio stream", str(transcript.source.audio_stream_index)),
         ("Detected language", transcript.detected_language or "unknown"),
         ("Segments", str(len(transcript.segments))),
     ]
@@ -380,13 +389,17 @@ def _validate_resume_options(
     resume: str | None,
     profile: ProcessingProfile | None,
     strategy: str | None,
+    audio_stream: int | None,
     export_formats: list[TranscriptExportFormat] | None,
 ) -> None:
     if dry_run and resume is not None:
         raise typer.BadParameter("--resume cannot be combined with --dry-run")
-    if resume is not None and (profile is not None or strategy is not None):
+    if resume is not None and (
+        profile is not None or strategy is not None or audio_stream is not None
+    ):
         raise typer.BadParameter(
-            "--resume restores the original profile and strategy; do not override them"
+            "--resume restores the original profile, strategy, and audio stream; "
+            "do not override them"
         )
     if dry_run and export_formats:
         raise typer.BadParameter("--export cannot be combined with --dry-run")
@@ -399,6 +412,7 @@ def _plan_transcription(
     output_dir: Path | None,
     profile: ProcessingProfile | None,
     strategy: str | None,
+    audio_stream: int | None,
     resume: str | None,
 ) -> TranscriptionJobPlan:
     planner = container.transcription_planner()
@@ -414,12 +428,14 @@ def _plan_transcription(
             input_path,
             output_dir=output_dir,
             profile=selected_profile,
+            audio_stream_index=audio_stream,
         )
     return planner.plan(
         input_path,
         output_dir=output_dir,
         profile=selected_profile,
         strategy_id=strategy,
+        audio_stream_index=audio_stream,
     )
 
 
@@ -516,6 +532,14 @@ def transcribe(
             help="Explicit safe strategy ID from `echoflow strategies`; never silently downgraded."
         ),
     ] = None,
+    audio_stream: Annotated[
+        int | None,
+        typer.Option(
+            "--audio-stream",
+            metavar="INDEX",
+            help="FFmpeg stream index for the audio track to transcribe.",
+        ),
+    ] = None,
     resume: Annotated[
         str | None,
         typer.Option(
@@ -543,6 +567,7 @@ def transcribe(
             resume=resume,
             profile=profile,
             strategy=strategy,
+            audio_stream=audio_stream,
             export_formats=export_formats,
         )
         container = _container(context)
@@ -552,6 +577,7 @@ def transcribe(
             output_dir=output_dir,
             profile=profile,
             strategy=strategy,
+            audio_stream=audio_stream,
             resume=resume,
         )
         result = None

@@ -425,21 +425,49 @@ def transcribe(
             raise typer.BadParameter("--resume cannot be combined with --dry-run")
         container = _container(context)
         selected_profile = profile or container.config().PROCESSING_PROFILE
-        resume_job_id = None if resume is None else JobId(resume)
-        plan = container.transcription_planner().plan(
-            input_path,
-            output_dir=output_dir,
-            profile=selected_profile,
-            strategy_id=strategy,
-            job_id=resume_job_id,
-        )
+        if resume is None:
+            if strategy is None:
+                plan = container.transcription_planner().plan(
+                    input_path,
+                    output_dir=output_dir,
+                    profile=selected_profile,
+                )
+            else:
+                plan = container.transcription_planner().plan(
+                    input_path,
+                    output_dir=output_dir,
+                    profile=selected_profile,
+                    strategy_id=strategy,
+                )
+        else:
+            resume_job_id = JobId(resume)
+            if strategy is None:
+                plan = container.transcription_planner().plan(
+                    input_path,
+                    output_dir=output_dir,
+                    profile=selected_profile,
+                    job_id=resume_job_id,
+                )
+            else:
+                plan = container.transcription_planner().plan(
+                    input_path,
+                    output_dir=output_dir,
+                    profile=selected_profile,
+                    strategy_id=strategy,
+                    job_id=resume_job_id,
+                )
         result = None
         if not dry_run:
-            result = container.transcription_executor().execute(
-                plan,
-                allow_model_download=allow_model_download,
-                resume=resume_job_id is not None,
-            )
+            if resume is None:
+                result = container.transcription_executor().execute(
+                    plan, allow_model_download=allow_model_download
+                )
+            else:
+                result = container.transcription_executor().execute(
+                    plan,
+                    allow_model_download=allow_model_download,
+                    resume=True,
+                )
     except typer.BadParameter:
         raise
     except EchoFlowError as exc:
@@ -466,3 +494,7 @@ def transcribe(
         _render_transcription_result(
             cast("TranscriptionExecutionResult", result), Console()
         )
+
+
+def main() -> None:
+    app()

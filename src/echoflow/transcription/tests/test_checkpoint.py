@@ -23,6 +23,8 @@ from echoflow.transcription.models import (
 )
 from echoflow.workspace.models import Job, JobId, WorkspacePaths
 
+MIB = 1024**2
+
 
 def context(tmp_path, *, profile=ProcessingProfile.BALANCED):
     source = tmp_path / "participant-secret-name.wav"
@@ -65,6 +67,10 @@ def context(tmp_path, *, profile=ProcessingProfile.BALANCED):
     )
     plan.decoder = DecodeConfiguration(DecodeStrategy.DIRECT, "pcm_s16le", 16_000, 1)
     plan.segmentation = SegmentationConfiguration(segment_duration_seconds=1)
+    plan.resources = SimpleNamespace(
+        model_cache_bytes=750 * MIB,
+        estimated_peak_memory_bytes=2_304 * MIB,
+    )
     windows = (
         AudioSegmentWindow(0, 0, 16_000, 16_000),
         AudioSegmentWindow(1, 16_000, 32_000, 16_000),
@@ -98,6 +104,24 @@ def test_manifest_is_private_local_and_omits_source_and_model_paths(tmp_path):
     if os.name != "nt":
         assert manifest.stat().st_mode & 0o777 == 0o600
         assert manifest.parent.stat().st_mode & 0o777 == 0o700
+
+
+def test_manifest_restores_original_execution_settings_without_local_paths(tmp_path):
+    store, job, plan, windows, _ = context(tmp_path)
+    store.initialize(job, plan, windows)
+
+    settings = store.resume_settings(job)
+
+    assert settings.profile is ProcessingProfile.BALANCED
+    assert settings.engine.model == "small"
+    assert settings.engine.cpu_threads == 4
+    assert settings.engine.model_revision == "revision-1"
+    assert settings.decoder == plan.decoder
+    assert settings.segmentation == plan.segmentation
+    assert settings.model_cache_bytes == 750 * MIB
+    assert settings.estimated_peak_memory_bytes == 2_304 * MIB
+    restored_engine = settings.engine.configuration(tmp_path / "new-model-cache")
+    assert restored_engine.model_cache_path == (tmp_path / "new-model-cache").resolve()
 
 
 def test_completed_segment_round_trips_with_detected_language(tmp_path):

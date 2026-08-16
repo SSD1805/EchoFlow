@@ -24,6 +24,7 @@ from echoflow.transcription.backend import FasterWhisperTranscriber
 from echoflow.transcription.checkpoint import LocalCheckpointStore
 from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.export import TranscriptExporter
+from echoflow.transcription.language import LinguaLanguageAttributor
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.segmentation import WaveAudioSegmenter
 from echoflow.transcription.storage import StorageAdmissionPolicy
@@ -127,6 +128,7 @@ class AppContainer(containers.DeclarativeContainer):
     audio_segmenter = providers.Factory(WaveAudioSegmenter)
     transcriber = providers.Factory(FasterWhisperTranscriber)
     transcript_assembler = providers.Factory(TranscriptAssembler)
+    language_attributor = providers.Singleton(LinguaLanguageAttributor)
     transcription_executor = providers.Factory(
         TranscriptionExecutor,
         media_probe=media_probe,
@@ -140,6 +142,7 @@ class AppContainer(containers.DeclarativeContainer):
         transcript_assembler=transcript_assembler,
         checkpoint_store=checkpoint_store,
         storage_admission=storage_admission,
+        language_attributor=language_attributor,
         logger=logger,
     )
     transcript_exporter = providers.Factory(

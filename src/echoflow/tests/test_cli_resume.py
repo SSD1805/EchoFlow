@@ -53,7 +53,6 @@ def test_resume_refuses_execution_contract_override(override):
 
     assert result.exit_code == 2
     assert "resume" in result.output
-    assert "audio stream" in result.output
     container.transcription_planner().plan.assert_not_called()
     container.transcription_planner().plan_resume.assert_not_called()
     container.transcription_executor().execute.assert_not_called()

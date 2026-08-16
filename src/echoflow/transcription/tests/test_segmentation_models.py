@@ -19,7 +19,10 @@ def test_segmentation_defaults_are_versioned_sequential_and_json_safe():
 
 
 def test_segmentation_duration_lower_boundary_is_valid():
-    assert SegmentationConfiguration(segment_duration_seconds=1).segment_duration_seconds == 1
+    assert (
+        SegmentationConfiguration(segment_duration_seconds=1).segment_duration_seconds
+        == 1
+    )
 
 
 @pytest.mark.parametrize(

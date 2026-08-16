@@ -39,9 +39,10 @@ def test_resume_restores_plan_by_job_id_and_explicitly_resumes_execution():
     [
         ["--strategy", "small-cpu-int8"],
         ["--profile", "accuracy"],
+        ["--audio-stream", "2"],
     ],
 )
-def test_resume_refuses_profile_or_strategy_override(override):
+def test_resume_refuses_execution_contract_override(override):
     container = FakeContainer(report(OverallStatus.HEALTHY))
 
     with patch("echoflow.cli.AppContainer", return_value=container):
@@ -51,7 +52,7 @@ def test_resume_refuses_profile_or_strategy_override(override):
         )
 
     assert result.exit_code == 2
-    assert "restores the original profile and strategy" in result.output
+    assert "restores the original profile, strategy, and audio stream" in result.output
     container.transcription_planner().plan.assert_not_called()
     container.transcription_planner().plan_resume.assert_not_called()
     container.transcription_executor().execute.assert_not_called()

@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Protocol
 
 from echoflow.media.models import MediaInfo
+from echoflow.media.selection import AudioStreamSelector
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.models import ExecutionPolicy, ModelTier, ProcessingProfile
 from echoflow.runner.policy import RunnerPolicyPlanner
@@ -52,6 +53,7 @@ class TranscriptionJobPlanner:
         policy_planner: RunnerPolicyPlanner,
         strategy_catalog: StrategyCatalog | None = None,
         strategy_evaluator: StrategyEvaluator | None = None,
+        audio_stream_selector: AudioStreamSelector | None = None,
         model_revision: str | None = None,
         checkpoint_store: ResumeCheckpointStore | None = None,
     ):
@@ -61,6 +63,7 @@ class TranscriptionJobPlanner:
         self.policy_planner = policy_planner
         self.strategy_catalog = strategy_catalog or faster_whisper_cpu_catalog()
         self.strategy_evaluator = strategy_evaluator or StrategyEvaluator()
+        self.audio_stream_selector = audio_stream_selector or AudioStreamSelector()
         self.model_revision = model_revision
         self.checkpoint_store = checkpoint_store
 
@@ -71,12 +74,16 @@ class TranscriptionJobPlanner:
         output_dir: str | Path | None = None,
         profile: ProcessingProfile = ProcessingProfile.BALANCED,
         strategy_id: str | None = None,
+        audio_stream_index: int | None = None,
         job_id: JobId | None = None,
     ) -> TranscriptionJobPlan:
         job = self.workspace_service.plan_job(
             input_path, output_dir=output_dir, job_id=job_id
         )
-        media = self.media_probe.probe(job.input_path)
+        media = self.audio_stream_selector.select(
+            self.media_probe.probe(job.input_path),
+            requested_index=audio_stream_index,
+        )
         runner = self.runner_inspector.inspect()
         policy = self.policy_planner.plan(runner, profile)
         assessments = self.strategy_evaluator.assess(
@@ -131,8 +138,11 @@ class TranscriptionJobPlanner:
         job = self.workspace_service.plan_job(
             input_path, output_dir=output_dir, job_id=job_id
         )
-        media = self.media_probe.probe(job.input_path)
         settings = self.checkpoint_store.resume_settings(job)
+        media = self.audio_stream_selector.select(
+            self.media_probe.probe(job.input_path),
+            requested_index=settings.source.audio_stream_index,
+        )
         if TranscriptSource.from_media(media) != settings.source:
             raise CheckpointError("Input does not match the interrupted job checkpoint")
 

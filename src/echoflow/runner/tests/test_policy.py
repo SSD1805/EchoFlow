@@ -1,5 +1,6 @@
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from echoflow.runner.models import ModelTier, ProcessingProfile, RunnerResources
 from echoflow.runner.policy import RunnerPolicyPlanner

@@ -57,6 +57,14 @@ set, enforces a configurable timeout and parser-output limit, and suppresses FFp
 from public errors. EchoFlow records a full SHA-256 digest and rejects a file
 whose size, modification time, device, or inode changes during inspection.
 
+FFprobe reports the available streams. EchoFlow then applies a separate
+deterministic audio-stream selection policy. By default the first discovered audio
+stream is selected to preserve the existing behavior; `transcribe --audio-stream
+INDEX` can select another discovered audio stream explicitly. A non-audio or missing
+index is rejected. The selected stream index becomes part of the immutable source
+provenance and checkpoint/resume contract rather than remaining an incidental
+FFmpeg argument.
+
 The output limit is checked after the child process exits, so it bounds JSON
 parsing but not the memory already consumed by `subprocess.run`. FFprobe remains
 native media-parsing code operating on user-selected input.
@@ -65,11 +73,21 @@ native media-parsing code operating on user-selected input.
 
 For media that is not already canonical mono 16 kHz PCM audio, EchoFlow invokes
 FFmpeg without a shell or stdin, restricts input protocols to `file`, explicitly
-maps the audio stream selected by FFprobe, discards video/subtitle/data streams,
-suppresses native diagnostic output from public failures, and enforces a
+maps the audio stream selected by the job plan, discards video/subtitle/data
+streams, suppresses native diagnostic output from public failures, and enforces a
 configurable process timeout. Normalized audio exists only in the private job
 workspace and is removed after the attempt. Filesystem deletion is not secure
 erasure.
+
+Before claiming the job workspace or decoding media, execution rechecks CPU and
+memory admission and verifies source identity. It also compares the known per-job
+private-workspace and public-output allocations with free space on the filesystems
+that will contain those paths. Allocations on one filesystem are summed before the
+configured minimum-free-space floor is applied; distinct filesystems are checked
+independently. This is a preflight admission check, not a disk quota or reservation.
+Free space can change after admission. Model-cache bytes are not currently included
+in this runtime disk check because EchoFlow does not yet maintain authoritative
+model-cache inventory; model management remains separate work.
 
 The faster-whisper package and model weights remain optional. The backend uses CPU
 int8 execution with the thread count selected by the runner policy and one model
@@ -86,6 +104,26 @@ path. It retains the input SHA-256, size, modification timestamp, container, aud
 stream index, and media duration for provenance. Command result envelopes include
 job and artifact paths because those paths are an explicit result of the command.
 
+## Local file and workspace boundary
+
+Application writes use a temporary file in the destination directory, flush and
+`fsync` the file contents, and then replace the destination atomically. Private
+writes apply the platform private-storage policy before sensitive bytes are written
+to the temporary file and again to the final destination. Public artifact names are
+reserved with exclusive creation so concurrent processes do not silently overwrite
+one another.
+
+The job workspace is derived only from EchoFlow's private jobs directory and a
+validated job ID. Planning validates the normalized workspace path before creation
+or resume mutates the filesystem, so a pre-existing symlink that resolves a planned
+job path outside the configured private jobs directory is rejected.
+
+These semantics protect ordinary process-level publication and recovery invariants.
+EchoFlow does not currently perform a cross-platform `fsync` of the containing
+directory after every atomic replace, so it does not claim that a just-renamed file
+is guaranteed to survive sudden power loss or filesystem metadata loss. Process
+crash recovery and storage-power-loss durability are separate guarantees.
+
 ## Checkpoint and resume privacy boundary
 
 Interrupted transcription work is checkpointed only inside EchoFlow's private local
@@ -95,19 +133,22 @@ segment files remain temporary implementation data and are removed after each
 attempt.
 
 Checkpoint manifests omit the input path, source filename, and model-cache path.
-They bind the work to the input SHA-256 and media identity, engine/model/revision,
-decode configuration, segmentation schema, and exact PCM frame windows. Completed
-segment payloads contain the recognized transcript text required to resume exactly;
-that text is not masked because masking would change the recovered transcript.
-Checkpoint files are atomic private writes. Their private file/directory protection
-is enforced through the same POSIX-mode or Windows-DACL policy described above.
+They bind the work to the input SHA-256 and media identity, including the selected
+audio stream, engine/model/revision, decode configuration, segmentation schema, and
+exact PCM frame windows. Completed segment payloads contain the recognized transcript
+text required to resume exactly; that text is not masked because masking would
+change the recovered transcript. Checkpoint files are atomic private writes. Their
+private file/directory protection is enforced through the same POSIX-mode or
+Windows-DACL policy described above.
 
 Resume accepts only a contiguous prefix of completed segments whose manifest,
 window identity, and payload integrity checks match the current transcription
-contract. Corrupt, unknown, reordered, mismatched, or oversized checkpoint files
-fail closed. A resumed job with completed work will not authorize model retrieval
-from the network, and the installed engine package version must match the version
-recorded by the completed checkpoints.
+contract. The checkpointed audio stream is explicitly reselected from the freshly
+probed source; a missing stream or source mismatch is refused rather than silently
+falling back to another track. Corrupt, unknown, reordered, mismatched, or oversized
+checkpoint files fail closed. A resumed job with completed work will not authorize
+model retrieval from the network, and the installed engine package version must
+match the version recorded by the completed checkpoints.
 
 Routine checkpoint and resume logs contain only job/segment identifiers, counts,
 status fields, and exception types. They do not contain transcript text or source
@@ -123,7 +164,7 @@ FFmpeg and the transcription engine still execute in the EchoFlow process/user
 security context rather than an operating-system sandbox. Model signatures,
 process-wide network egress enforcement, hard CPU limits, adversarial-media test
 corpora, application-level encryption, and secure deletion are not implemented.
-Memory admission is a conservative preflight check, not a hard runtime memory cage.
-Private-storage ACLs and mode bits do not protect against a compromised user account,
-local administrators, or equivalent privileged processes. These properties must not
-be inferred from local-first.
+Memory and disk admission are conservative preflight checks, not hard runtime
+resource cages. Private-storage ACLs and mode bits do not protect against a
+compromised user account, local administrators, or equivalent privileged processes.
+These properties must not be inferred from local-first.

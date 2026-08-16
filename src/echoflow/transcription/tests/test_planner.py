@@ -48,8 +48,7 @@ def media_info(
         InputIdentity(
             source, source.stat().st_size, source.stat().st_mtime_ns, "0" * 64
         ),
-        container
-        or ("wav" if codec.startswith("pcm") else "mov,mp4,m4a,3gp,3g2,mj2"),
+        container or ("wav" if codec.startswith("pcm") else "mov,mp4,m4a,3gp,3g2,mj2"),
         duration,
         (
             MediaStream(

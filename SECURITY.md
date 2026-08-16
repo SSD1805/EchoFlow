@@ -75,11 +75,43 @@ path. It retains the input SHA-256, size, modification timestamp, container, aud
 stream index, and media duration for provenance. Command result envelopes include
 job and artifact paths because those paths are an explicit result of the command.
 
+## Checkpoint and resume privacy boundary
+
+Interrupted transcription work is checkpointed only inside EchoFlow's private local
+job directory. Durable checkpoints do not use the operating-system temporary
+directory because they must survive process restarts and reboots. Disposable audio
+segment files remain temporary implementation data and are removed after each
+attempt.
+
+Checkpoint manifests omit the input path, source filename, and model-cache path.
+They bind the work to the input SHA-256 and media identity, engine/model/revision,
+decode configuration, segmentation schema, and exact PCM frame windows. Completed
+segment payloads contain the recognized transcript text required to resume exactly;
+that text is not masked because masking would change the recovered transcript.
+Checkpoint files are atomic private writes and are owner-only (`0600`) on POSIX,
+with private checkpoint directories tightened to `0700`.
+
+Resume accepts only a contiguous prefix of completed segments whose manifest,
+window identity, and payload integrity checks match the current transcription
+contract. Corrupt, unknown, reordered, mismatched, or oversized checkpoint files
+fail closed. A resumed job with completed work will not authorize model retrieval
+from the network, and the installed engine package version must match the version
+recorded by the completed checkpoints.
+
+Routine checkpoint and resume logs contain only job/segment identifiers, counts,
+status fields, and exception types. They do not contain transcript text or source
+paths. After the final canonical transcript is published successfully, EchoFlow
+removes checkpoint payloads on a best-effort basis. Interrupted jobs retain them so
+that recovery remains possible. Deletion is ordinary filesystem deletion, not
+secure erasure; backups, snapshots, swap, SSD remapping, and same-user processes
+remain outside this guarantee.
+
 ## Processing risks still outside the implemented boundary
 
 FFmpeg and the transcription engine still execute in the EchoFlow process/user
 security context rather than an operating-system sandbox. Model signatures,
 process-wide network egress enforcement, hard CPU limits, adversarial-media test
 corpora, encryption, and secure deletion are not implemented. Memory admission is
-a conservative preflight check, not a hard runtime memory cage. These properties
-must not be inferred from local-first.
+a conservative preflight check, not a hard runtime memory cage. Windows ACL
+semantics are not equivalent to POSIX mode bits and require native hardening before
+a stable security claim. These properties must not be inferred from local-first.

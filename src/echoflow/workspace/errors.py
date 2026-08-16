@@ -25,6 +25,15 @@ class JobCollisionError(EchoFlowError):
         super().__init__(f"Job already exists: {job_id}", cause=cause)
 
 
+class JobNotFoundError(EchoFlowError):
+    code = ErrorCode.NOT_FOUND
+    exit_code = 2
+
+    def __init__(self, job_id: str):
+        self.job_id = job_id
+        super().__init__("Interrupted job was not found in private EchoFlow state")
+
+
 class ArtifactCollisionError(EchoFlowError):
     code = ErrorCode.ARTIFACT_COLLISION
 

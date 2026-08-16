@@ -17,7 +17,7 @@ from echoflow.transcription.models import (
     TranscriptionExecutionResult,
     TranscriptionJobPlan,
 )
-from echoflow.workspace.models import WorkspacePaths
+from echoflow.workspace.models import JobId, WorkspacePaths
 
 app = typer.Typer(
     name="echoflow",
@@ -367,6 +367,89 @@ def strategies(
         _render_strategies(assessments, Console())
 
 
+def _validate_resume_options(
+    *,
+    dry_run: bool,
+    resume: str | None,
+    profile: ProcessingProfile | None,
+    strategy: str | None,
+) -> None:
+    if dry_run and resume is not None:
+        raise typer.BadParameter("--resume cannot be combined with --dry-run")
+    if resume is not None and (profile is not None or strategy is not None):
+        raise typer.BadParameter(
+            "--resume restores the original profile and strategy; do not override them"
+        )
+
+
+def _plan_transcription(
+    container: AppContainer,
+    input_path: Path,
+    *,
+    output_dir: Path | None,
+    profile: ProcessingProfile | None,
+    strategy: str | None,
+    resume: str | None,
+) -> TranscriptionJobPlan:
+    planner = container.transcription_planner()
+    if resume is not None:
+        return planner.plan_resume(
+            input_path,
+            output_dir=output_dir,
+            job_id=JobId(resume),
+        )
+    selected_profile = profile or container.config().PROCESSING_PROFILE
+    if strategy is None:
+        return planner.plan(
+            input_path,
+            output_dir=output_dir,
+            profile=selected_profile,
+        )
+    return planner.plan(
+        input_path,
+        output_dir=output_dir,
+        profile=selected_profile,
+        strategy_id=strategy,
+    )
+
+
+def _execute_transcription(
+    container: AppContainer,
+    plan: TranscriptionJobPlan,
+    *,
+    allow_model_download: bool,
+    resume: bool,
+) -> TranscriptionExecutionResult:
+    executor = container.transcription_executor()
+    if resume:
+        return executor.execute(
+            plan,
+            allow_model_download=allow_model_download,
+            resume=True,
+        )
+    return executor.execute(plan, allow_model_download=allow_model_download)
+
+
+def _render_transcription_command_output(
+    plan: TranscriptionJobPlan,
+    result: TranscriptionExecutionResult | None,
+    *,
+    dry_run: bool,
+    json_output: bool,
+) -> None:
+    if dry_run:
+        if json_output:
+            typer.echo(json.dumps(plan.to_dict(), sort_keys=True))
+        else:
+            _render_transcription_plan(plan, Console())
+        return
+    execution_result = cast("TranscriptionExecutionResult", result)
+    if json_output:
+        typer.echo(json.dumps(execution_result.to_dict(), sort_keys=True))
+    else:
+        _render_transcription_result(execution_result, Console())
+
+
 @app.command("transcribe")
 def transcribe(
     context: typer.Context,
@@ -406,33 +489,48 @@ def transcribe(
             help="Explicit safe strategy ID from `echoflow strategies`; never silently downgraded."
         ),
     ] = None,
+    resume: Annotated[
+        str | None,
+        typer.Option(
+            "--resume",
+            metavar="JOB_ID",
+            help="Resume a compatible interrupted job from private local checkpoints.",
+        ),
+    ] = None,
     json_output: Annotated[
         bool,
         typer.Option("--json", help="Emit the plan or execution result as JSON."),
     ] = False,
 ) -> None:
-    """Transcribe the audio stream from a local recording or inspect its plan."""
+    """Transcribe a local recording, optionally resuming validated private state."""
     try:
+        _validate_resume_options(
+            dry_run=dry_run,
+            resume=resume,
+            profile=profile,
+            strategy=strategy,
+        )
         container = _container(context)
-        selected_profile = profile or container.config().PROCESSING_PROFILE
-        if strategy is None:
-            plan = container.transcription_planner().plan(
-                input_path,
-                output_dir=output_dir,
-                profile=selected_profile,
-            )
-        else:
-            plan = container.transcription_planner().plan(
-                input_path,
-                output_dir=output_dir,
-                profile=selected_profile,
-                strategy_id=strategy,
-            )
+        plan = _plan_transcription(
+            container,
+            input_path,
+            output_dir=output_dir,
+            profile=profile,
+            strategy=strategy,
+            resume=resume,
+        )
         result = None
         if not dry_run:
-            result = container.transcription_executor().execute(
-                plan, allow_model_download=allow_model_download
+            if resume is None:
+                typer.echo(f"EchoFlow job ID: {plan.job.job_id.value}", err=True)
+            result = _execute_transcription(
+                container,
+                plan,
+                allow_model_download=allow_model_download,
+                resume=resume is not None,
             )
+    except typer.BadParameter:
+        raise
     except EchoFlowError as exc:
         typer.echo(exc.public_message, err=True)
         raise typer.Exit(code=exc.exit_code) from None
@@ -446,17 +544,12 @@ def transcribe(
         )
         raise typer.Exit(code=3) from None
 
-    if dry_run and json_output:
-        typer.echo(json.dumps(plan.to_dict(), sort_keys=True))
-    elif dry_run:
-        _render_transcription_plan(plan, Console())
-    elif json_output:
-        execution_result = cast("TranscriptionExecutionResult", result)
-        typer.echo(json.dumps(execution_result.to_dict(), sort_keys=True))
-    else:
-        _render_transcription_result(
-            cast("TranscriptionExecutionResult", result), Console()
-        )
+    _render_transcription_command_output(
+        plan,
+        result,
+        dry_run=dry_run,
+        json_output=json_output,
+    )
 
 
 def main() -> None:

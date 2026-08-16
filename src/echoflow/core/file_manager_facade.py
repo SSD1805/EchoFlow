@@ -52,10 +52,26 @@ class FileManagerFacade:
         )
         return result
 
-    def save_file(self, content: bytes, file_path: str | Path) -> None:
+    def save_file(
+        self, content: bytes, file_path: str | Path, *, private: bool = False
+    ) -> None:
+        def action() -> None:
+            if private:
+                self.file_manager.save_file(content, file_path, private=True)
+            else:
+                self.file_manager.save_file(content, file_path)
+
         self._execute(
             "save_file",
-            lambda: self.file_manager.save_file(content, file_path),
+            action,
+            private=private,
+            **path_log_context(self.path_disclosure, path=file_path),
+        )
+
+    def read_file(self, file_path: str | Path) -> bytes:
+        return self._execute(
+            "read_file",
+            lambda: self.file_manager.read_file(file_path),
             **path_log_context(self.path_disclosure, path=file_path),
         )
 

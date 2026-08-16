@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from echoflow.transcription.backend import FasterWhisperSession
 from echoflow.transcription.models import CpuEngineConfiguration
 
@@ -41,6 +43,26 @@ def test_session_detects_language_once_then_reuses_it_for_later_segments(tmp_pat
     assert first.language == second.language == "en"
 
 
+def test_resumed_detected_language_is_used_for_first_remaining_segment(tmp_path):
+    calls = []
+
+    class Model:
+        def transcribe(self, _path, **kwargs):
+            calls.append(kwargs["language"])
+            return iter(()), SimpleNamespace(language="de", language_probability=0.98)
+
+    session = FasterWhisperSession(
+        model=Model(),
+        configuration=configuration(tmp_path),
+        engine_version="1.2.1",
+        detected_language="de",
+    )
+
+    session.transcribe(tmp_path / "audio-000004.wav")
+
+    assert calls == ["de"]
+
+
 def test_explicit_language_is_never_replaced_by_detected_metadata(tmp_path):
     calls = []
 
@@ -53,9 +75,20 @@ def test_explicit_language_is_never_replaced_by_detected_metadata(tmp_path):
         model=Model(),
         configuration=configuration(tmp_path, language="en"),
         engine_version="1.2.1",
+        detected_language="de",
     )
 
     session.transcribe(tmp_path / "audio-000000.wav")
     session.transcribe(tmp_path / "audio-000001.wav")
 
     assert calls == ["en", "en"]
+
+
+def test_empty_resumed_language_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match="^detected_language cannot be empty$"):
+        FasterWhisperSession(
+            model=object(),
+            configuration=configuration(tmp_path),
+            engine_version="1.2.1",
+            detected_language=" ",
+        )

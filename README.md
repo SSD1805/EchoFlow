@@ -43,15 +43,17 @@ EchoFlow currently provides a tested application foundation:
   every segment.
 - Deterministic source-relative transcript assembly with contiguous segment and
   engine-version validation.
+- Durable private per-segment checkpoints and `transcribe INPUT --resume JOB_ID`
+  recovery that restores the original execution contract and skips only validated
+  completed work.
 - Explicit model-download authorization; execution is local-only by default.
 - Dependency Injector composition for the implemented services.
 - A distribution contract that builds the wheel and verifies a clean install of
   the packaged CLI and transcription extra outside the source checkout on Linux,
   macOS, and Windows CI.
 
-Durable checkpointing and resume, calibrated performance estimates, GPU strategies,
-derived TXT/SRT/VTT artifacts, and standalone end-user installers are not
-implemented yet.
+Calibrated performance estimates, GPU strategies, derived TXT/SRT/VTT artifacts,
+and standalone end-user installers are not implemented yet.
 
 ## Requirements and installation
 
@@ -93,12 +95,22 @@ uv run echoflow transcribe /path/to/recording.wav --dry-run --profile screening 
 uv run echoflow transcribe /path/to/recording.wav --strategy small-cpu-int8 --dry-run
 uv run echoflow transcribe /path/to/interview.mp4
 uv run echoflow transcribe /path/to/interview.mp4 --allow-model-download
+uv run echoflow transcribe /path/to/interview.mp4 --resume JOB_ID
 ```
 
 Without `--allow-model-download`, EchoFlow asks faster-whisper to use only model
 files already present in EchoFlow's private model cache. The flag authorizes the
 selected model retrieval for that invocation; it does not authorize uploading the
 recording.
+
+An interrupted job retains completed transcript segments in EchoFlow's private
+local job state. Resume requires the original input plus the job ID shown when the
+job started. EchoFlow restores the original profile, model, revision, CPU thread
+count, decode settings, and segmentation contract automatically; `--profile` and
+`--strategy` cannot override them during resume. The input is fingerprinted again,
+and the restored contract must still fit current CPU and memory limits before work
+continues. Successfully published jobs remove checkpoint payloads on a best-effort
+basis. Checkpoint deletion is not secure erasure.
 
 Configuration uses `ECHOFLOW_*` environment variables, including
 `ECHOFLOW_STATE_DIR`, `ECHOFLOW_CACHE_DIR`, `ECHOFLOW_MODEL_DIR`, and
@@ -158,8 +170,8 @@ The enforced budgets are:
 Radon reports complexity and maintainability trends; Ruff provides the hard
 complexity gate. Targeted Poodle mutation runs are used for changed decision
 logic because its broad runner currently has a process-timeout cleanup defect.
-The segmentation and assembly modules are included in that targeted mutation
-scope.
+The segmentation, assembly, and checkpoint modules are included in that targeted
+mutation scope.
 
 The full feedback ladder and Git bisect procedure are documented in
 [`docs/development/testing-and-bisect.md`](docs/development/testing-and-bisect.md).
@@ -169,8 +181,9 @@ The full feedback ladder and Git bisect procedure are documented in
 EchoFlow keeps user artifacts as normal files in a user-selected output
 directory. Private state and model caches are separate internal concerns.
 Artifact names are reserved atomically and collisions are renamed rather than
-overwritten by default. Future durable job state will contain paths and metadata;
-audio and transcript documents will not be stored as database blobs.
+overwritten by default. Durable checkpoint state is stored as private per-job
+files; a future SQLite job index, if added, should contain metadata rather than
+audio or transcript blobs.
 
 `echoflow runner` derives an engine-neutral CPU and memory budget from resources
 actually visible to the process, including common container limits and explicit
@@ -206,12 +219,17 @@ benchmarks and privacy-safe local calibration are added. Dry-run workspace and
 artifact paths are candidates, not reservations; execution must claim them
 atomically before writing.
 
-Checkpoint resume is intentionally not represented as implemented yet.
-Deterministic segment boundaries and a job-scoped model session now exist, but
-successfully transcribed segment results are still held only in process memory.
-A crash therefore still restarts the job. The next resumability step is durable,
-private per-segment state that validates the source fingerprint, segmentation
-contract, and engine/model/revision before completed work may be skipped.
+Checkpoint schema version 1 persists a manifest plus one atomic JSON result for
+each completed segment under the private local job directory. The manifest omits
+the input path, source filename, and model-cache path while binding source content,
+media identity, engine/model/revision, resource requirements, decode settings,
+segmentation settings, and exact PCM frame windows. Resume accepts only a
+contiguous validated prefix, restores detected language and the original execution
+contract, and refuses corruption, identity mismatches, engine-version changes, or
+resource contraction that makes the interrupted strategy unsafe. Transcript
+fragments are intentionally not masked because exact recovery requires exact text;
+they are sensitive local plaintext state and are never routine log fields or public
+artifacts.
 
 The processing boundaries, resumability model, and bounded audio bisection policy
 are documented in

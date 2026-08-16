@@ -4,8 +4,10 @@ from typing import Protocol
 
 from echoflow.media.models import MediaInfo
 from echoflow.runner.inspector import RunnerInspector
-from echoflow.runner.models import ExecutionPolicy, ProcessingProfile
+from echoflow.runner.models import ExecutionPolicy, ModelTier, ProcessingProfile
 from echoflow.runner.policy import RunnerPolicyPlanner
+from echoflow.transcription.checkpoint import ResumeSettings
+from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
 from echoflow.transcription.models import (
     CpuEngineConfiguration,
     DecodeConfiguration,
@@ -13,6 +15,7 @@ from echoflow.transcription.models import (
     ResourceEstimate,
     SegmentationConfiguration,
     TranscriptionJobPlan,
+    TranscriptSource,
 )
 from echoflow.transcription.strategy import (
     StrategyCatalog,
@@ -20,7 +23,7 @@ from echoflow.transcription.strategy import (
     StrategyEvaluator,
     faster_whisper_cpu_catalog,
 )
-from echoflow.workspace.models import ArtifactKind
+from echoflow.workspace.models import ArtifactKind, Job, JobId
 from echoflow.workspace.service import WorkspaceService
 
 _MIB = 1024**2
@@ -31,6 +34,10 @@ _TARGET_BYTES_PER_SAMPLE = 2
 
 class MediaProbe(Protocol):
     def probe(self, input_path: str | Path) -> MediaInfo: ...
+
+
+class ResumeCheckpointStore(Protocol):
+    def resume_settings(self, job: Job) -> ResumeSettings: ...
 
 
 class TranscriptionJobPlanner:
@@ -46,6 +53,7 @@ class TranscriptionJobPlanner:
         strategy_catalog: StrategyCatalog | None = None,
         strategy_evaluator: StrategyEvaluator | None = None,
         model_revision: str | None = None,
+        checkpoint_store: ResumeCheckpointStore | None = None,
     ):
         self.media_probe = media_probe
         self.workspace_service = workspace_service
@@ -54,6 +62,7 @@ class TranscriptionJobPlanner:
         self.strategy_catalog = strategy_catalog or faster_whisper_cpu_catalog()
         self.strategy_evaluator = strategy_evaluator or StrategyEvaluator()
         self.model_revision = model_revision
+        self.checkpoint_store = checkpoint_store
 
     def plan(
         self,
@@ -62,8 +71,11 @@ class TranscriptionJobPlanner:
         output_dir: str | Path | None = None,
         profile: ProcessingProfile = ProcessingProfile.BALANCED,
         strategy_id: str | None = None,
+        job_id: JobId | None = None,
     ) -> TranscriptionJobPlan:
-        job = self.workspace_service.plan_job(input_path, output_dir=output_dir)
+        job = self.workspace_service.plan_job(
+            input_path, output_dir=output_dir, job_id=job_id
+        )
         media = self.media_probe.probe(job.input_path)
         runner = self.runner_inspector.inspect()
         policy = self.policy_planner.plan(runner, profile)
@@ -82,7 +94,12 @@ class TranscriptionJobPlanner:
             job, ArtifactKind.CANONICAL_JSON
         )
         resources = self._resources(
-            media, decoder, segmentation, selected.strategy, policy
+            media,
+            decoder,
+            segmentation,
+            selected.strategy.model_cache_bytes,
+            selected.strategy.estimated_peak_memory_bytes,
+            policy,
         )
         warnings = ["paths_are_unreserved"]
         if policy.provisional:
@@ -98,6 +115,79 @@ class TranscriptionJobPlanner:
             resources=resources,
             warnings=tuple(warnings),
             segmentation=segmentation,
+        )
+
+    def plan_resume(
+        self,
+        input_path: str | Path,
+        *,
+        job_id: JobId,
+        output_dir: str | Path | None = None,
+    ) -> TranscriptionJobPlan:
+        """Restore the original execution contract and re-admit it locally."""
+        if self.checkpoint_store is None:
+            raise CheckpointError("Checkpoint resume is not configured")
+
+        job = self.workspace_service.plan_job(
+            input_path, output_dir=output_dir, job_id=job_id
+        )
+        media = self.media_probe.probe(job.input_path)
+        settings = self.checkpoint_store.resume_settings(job)
+        if TranscriptSource.from_media(media) != settings.source:
+            raise CheckpointError("Input does not match the interrupted job checkpoint")
+
+        runner = self.runner_inspector.inspect()
+        current_policy = self.policy_planner.plan(runner, settings.profile)
+        if settings.engine.cpu_threads > current_policy.cpu_threads:
+            raise ResourceAdmissionError(
+                "Current CPU capacity is below the interrupted job requirement"
+            )
+        if settings.estimated_peak_memory_bytes > current_policy.memory_budget_bytes:
+            raise ResourceAdmissionError(
+                "Current memory budget is below the interrupted job requirement"
+            )
+
+        policy = ExecutionPolicy(
+            profile=settings.profile,
+            provisional=settings.provisional,
+            cpu_threads=settings.engine.cpu_threads,
+            memory_budget_bytes=current_policy.memory_budget_bytes,
+            recommended_model_tier=(
+                ModelTier.COMPACT
+                if settings.profile is ProcessingProfile.SCREENING
+                else ModelTier.STRATEGY_SPECIFIC
+            ),
+            constraints=current_policy.constraints,
+        )
+        engine = settings.engine.configuration(
+            self.workspace_service.paths.model_dir / "faster-whisper"
+        )
+        artifact = self.workspace_service.plan_artifact(
+            job, ArtifactKind.CANONICAL_JSON
+        )
+        resources = self._resources(
+            media,
+            settings.decoder,
+            settings.segmentation,
+            settings.model_cache_bytes,
+            settings.estimated_peak_memory_bytes,
+            policy,
+        )
+        warnings = ["paths_are_unreserved", "resume_contract_restored"]
+        if settings.provisional:
+            warnings.append("screening_output_is_provisional")
+        return TranscriptionJobPlan(
+            job=job,
+            artifact=artifact,
+            media=media,
+            runner=runner,
+            policy=policy,
+            engine=engine,
+            decoder=settings.decoder,
+            resources=resources,
+            warnings=tuple(warnings),
+            segmentation=settings.segmentation,
+            schema_version=settings.job_plan_schema_version,
         )
 
     def assess_strategies(
@@ -169,7 +259,8 @@ class TranscriptionJobPlanner:
         media: MediaInfo,
         decoder: DecodeConfiguration,
         segmentation: SegmentationConfiguration,
-        strategy: StrategyDefinition,
+        model_cache_bytes: int,
+        estimated_peak_memory_bytes: int,
         policy: ExecutionPolicy,
     ) -> ResourceEstimate:
         normalized_audio = 0
@@ -194,10 +285,10 @@ class TranscriptionJobPlanner:
         return ResourceEstimate(
             private_workspace_bytes=private_workspace,
             public_output_bytes=public_output,
-            model_cache_bytes=strategy.model_cache_bytes,
-            estimated_peak_memory_bytes=strategy.estimated_peak_memory_bytes,
+            model_cache_bytes=model_cache_bytes,
+            estimated_peak_memory_bytes=estimated_peak_memory_bytes,
             memory_budget_bytes=policy.memory_budget_bytes,
             fits_memory_budget=(
-                strategy.estimated_peak_memory_bytes <= policy.memory_budget_bytes
+                estimated_peak_memory_bytes <= policy.memory_budget_bytes
             ),
         )

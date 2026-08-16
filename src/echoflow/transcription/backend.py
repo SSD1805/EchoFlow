@@ -24,11 +24,16 @@ class FasterWhisperSession:
         model: Any,
         configuration: CpuEngineConfiguration,
         engine_version: str,
+        detected_language: str | None = None,
     ):
+        if detected_language is not None and not detected_language.strip():
+            raise ValueError("detected_language cannot be empty")
         self.model = model
         self.configuration = configuration
         self.engine_version = engine_version
-        self._detected_language: str | None = None
+        self._detected_language = (
+            detected_language if configuration.language is None else None
+        )
 
     def transcribe(self, audio_path: Path) -> EngineTranscript:
         try:
@@ -86,6 +91,7 @@ class FasterWhisperTranscriber:
         configuration: CpuEngineConfiguration,
         *,
         allow_model_download: bool,
+        detected_language: str | None = None,
     ) -> FasterWhisperSession:
         module, version = self._dependency()
         model = self._model(module, configuration, allow_model_download)
@@ -93,6 +99,7 @@ class FasterWhisperTranscriber:
             model=model,
             configuration=configuration,
             engine_version=version,
+            detected_language=detected_language,
         )
 
     def _dependency(self) -> tuple[Any, str]:

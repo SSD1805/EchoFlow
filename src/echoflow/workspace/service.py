@@ -8,6 +8,7 @@ from echoflow.workspace.errors import (
     ArtifactCollisionError,
     InvalidInputError,
     JobCollisionError,
+    JobNotFoundError,
     UnsafePathError,
 )
 from echoflow.workspace.models import (
@@ -66,6 +67,22 @@ class WorkspaceService:
             self.file_manager.reserve_directory(job.workspace_dir, private=True)
         except StorageAlreadyExistsError as exc:
             raise JobCollisionError(job.job_id.value, cause=exc) from exc
+        return job
+
+    def resume_job(
+        self,
+        input_path: str | Path,
+        *,
+        job_id: JobId,
+        output_dir: str | Path | None = None,
+    ) -> Job:
+        """Resolve an existing private job without creating a replacement workspace."""
+        job = self.plan_job(input_path, output_dir=output_dir, job_id=job_id)
+        self.initialize(job.output_dir)
+        if not job.workspace_dir.is_dir():
+            raise JobNotFoundError(job.job_id.value)
+        self.file_manager.ensure_directory_exists(job.workspace_dir, private=True)
+        self._validate_job(job, require_workspace=True)
         return job
 
     def plan_job(

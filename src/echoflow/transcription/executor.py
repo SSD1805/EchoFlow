@@ -10,7 +10,8 @@ from echoflow.media.models import MediaInfo
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.audio import DecodedAudio
-from echoflow.transcription.errors import ResourceAdmissionError
+from echoflow.transcription.checkpoint import RestoredCheckpoint
+from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
 from echoflow.transcription.models import (
     AudioSegmentWindow,
     CanonicalTranscript,
@@ -24,7 +25,7 @@ from echoflow.transcription.models import (
     TranscriptSource,
 )
 from echoflow.transcription.segmentation import MaterializedAudioSegment
-from echoflow.workspace.models import Artifact, ArtifactKind
+from echoflow.workspace.models import Artifact, ArtifactKind, Job
 from echoflow.workspace.service import WorkspaceService
 
 
@@ -63,6 +64,8 @@ class AudioSegmenter(Protocol):
 
 
 class TranscriptionSession(Protocol):
+    engine_version: str
+
     def transcribe(self, audio_path: Path) -> EngineTranscript: ...
 
 
@@ -72,6 +75,7 @@ class SessionTranscriber(Protocol):
         configuration: CpuEngineConfiguration,
         *,
         allow_model_download: bool,
+        detected_language: str | None = None,
     ) -> TranscriptionSession: ...
 
 
@@ -82,8 +86,67 @@ class SegmentTranscriptAssembler(Protocol):
     ) -> EngineTranscript: ...
 
 
+class SegmentCheckpointStore(Protocol):
+    def initialize(
+        self,
+        job: Job,
+        plan: TranscriptionJobPlan,
+        windows: tuple[AudioSegmentWindow, ...],
+    ) -> None: ...
+
+    def restore(
+        self,
+        job: Job,
+        plan: TranscriptionJobPlan,
+        windows: tuple[AudioSegmentWindow, ...],
+    ) -> RestoredCheckpoint: ...
+
+    def save_segment(
+        self,
+        job: Job,
+        plan: TranscriptionJobPlan,
+        windows: tuple[AudioSegmentWindow, ...],
+        window: AudioSegmentWindow,
+        result: EngineTranscript,
+    ) -> None: ...
+
+    def clear(self, job: Job) -> None: ...
+
+
+class _NoCheckpointStore:
+    def initialize(
+        self,
+        job: Job,
+        plan: TranscriptionJobPlan,
+        windows: tuple[AudioSegmentWindow, ...],
+    ) -> None:
+        del job, plan, windows
+
+    def restore(
+        self,
+        job: Job,
+        plan: TranscriptionJobPlan,
+        windows: tuple[AudioSegmentWindow, ...],
+    ) -> RestoredCheckpoint:
+        del job, plan, windows
+        raise CheckpointError("Checkpoint resume is not configured")
+
+    def save_segment(
+        self,
+        job: Job,
+        plan: TranscriptionJobPlan,
+        windows: tuple[AudioSegmentWindow, ...],
+        window: AudioSegmentWindow,
+        result: EngineTranscript,
+    ) -> None:
+        del job, plan, windows, window, result
+
+    def clear(self, job: Job) -> None:
+        del job
+
+
 class TranscriptionExecutor:
-    """Claim a plan, segment canonical audio, transcribe, and publish JSON."""
+    """Claim a plan, checkpoint deterministic segments, and publish JSON."""
 
     def __init__(
         self,
@@ -98,6 +161,7 @@ class TranscriptionExecutor:
         transcriber: SessionTranscriber,
         transcript_assembler: SegmentTranscriptAssembler,
         logger: ILogger,
+        checkpoint_store: SegmentCheckpointStore | None = None,
     ):
         self.media_probe = media_probe
         self.workspace_service = workspace_service
@@ -109,12 +173,14 @@ class TranscriptionExecutor:
         self.transcriber = transcriber
         self.transcript_assembler = transcript_assembler
         self.logger = logger
+        self.checkpoint_store = checkpoint_store or _NoCheckpointStore()
 
     def execute(
         self,
         plan: TranscriptionJobPlan,
         *,
         allow_model_download: bool = False,
+        resume: bool = False,
     ) -> TranscriptionExecutionResult:
         self._admit(plan)
         verified_media = self.media_probe.probe(plan.job.input_path)
@@ -123,11 +189,18 @@ class TranscriptionExecutor:
                 "Input changed between transcription planning and execution"
             )
 
-        job = self.workspace_service.create_job(
-            plan.job.input_path,
-            output_dir=plan.job.output_dir,
-            job_id=plan.job.job_id,
-        )
+        if resume:
+            job = self.workspace_service.resume_job(
+                plan.job.input_path,
+                output_dir=plan.job.output_dir,
+                job_id=plan.job.job_id,
+            )
+        else:
+            job = self.workspace_service.create_job(
+                plan.job.input_path,
+                output_dir=plan.job.output_dir,
+                job_id=plan.job.job_id,
+            )
         artifact = self.workspace_service.reserve_artifact(
             job, ArtifactKind.CANONICAL_JSON
         )
@@ -139,12 +212,14 @@ class TranscriptionExecutor:
             windows = self.audio_segmenter.plan(
                 decoded.path, plan.decoder, plan.segmentation
             )
+            restored = self._checkpoint_state(job, plan, windows, resume=resume)
             self._admit(plan)
             engine_result = self._transcribe_segments(
                 plan,
                 decoded,
                 windows,
-                job.workspace_dir,
+                job,
+                restored,
                 allow_model_download=allow_model_download,
             )
             transcript = self._transcript(plan, engine_result)
@@ -155,6 +230,7 @@ class TranscriptionExecutor:
                 separators=(",", ":"),
             )
             self.file_manager.save_file(f"{document}\n".encode(), artifact.path)
+            self._clear_completed_checkpoints(job)
         except BaseException:
             self._release_failed_artifact(artifact)
             raise
@@ -163,22 +239,66 @@ class TranscriptionExecutor:
                 self.audio_decoder.cleanup(decoded)
         return TranscriptionExecutionResult(job, artifact, transcript)
 
+    def _checkpoint_state(
+        self,
+        job: Job,
+        plan: TranscriptionJobPlan,
+        windows: tuple[AudioSegmentWindow, ...],
+        *,
+        resume: bool,
+    ) -> RestoredCheckpoint:
+        if not resume:
+            self.checkpoint_store.initialize(job, plan, windows)
+            return RestoredCheckpoint((), None, None)
+        restored = self.checkpoint_store.restore(job, plan, windows)
+        self.logger.bind(job_id=job.job_id.value).info(
+            "transcription_resume_validated",
+            completed_segment_count=len(restored.completed),
+            segment_count=len(windows),
+        )
+        return restored
+
     def _transcribe_segments(
         self,
         plan: TranscriptionJobPlan,
         decoded: DecodedAudio,
         windows: tuple[AudioSegmentWindow, ...],
-        workspace_dir: Path,
+        job: Job,
+        restored: RestoredCheckpoint,
         *,
         allow_model_download: bool,
     ) -> EngineTranscript:
-        session = self.transcriber.open_session(
-            plan.engine,
-            allow_model_download=allow_model_download,
-        )
-        results: list[tuple[AudioSegmentWindow, EngineTranscript]] = []
-        job_logger = self.logger.bind(job_id=plan.job.job_id.value)
-        for window in windows:
+        completed_count = len(restored.completed)
+        results = list(restored.completed)
+        if completed_count == len(windows):
+            self.logger.bind(job_id=job.job_id.value).info(
+                "transcription_resume_recognition_complete",
+                segment_count=len(windows),
+            )
+            return self.transcript_assembler.assemble(results)
+
+        allowed_download = allow_model_download and completed_count == 0
+        if restored.detected_language is None:
+            session = self.transcriber.open_session(
+                plan.engine,
+                allow_model_download=allowed_download,
+            )
+        else:
+            session = self.transcriber.open_session(
+                plan.engine,
+                allow_model_download=allowed_download,
+                detected_language=restored.detected_language,
+            )
+        if (
+            restored.engine_version is not None
+            and session.engine_version != restored.engine_version
+        ):
+            raise CheckpointError(
+                "Installed transcription engine version does not match checkpoints"
+            )
+
+        job_logger = self.logger.bind(job_id=job.job_id.value)
+        for window in windows[completed_count:]:
             job_logger.info(
                 "transcription_segment_started",
                 segment_id=window.segment_id,
@@ -189,20 +309,32 @@ class TranscriptionExecutor:
                 decoded.path,
                 window,
                 plan.decoder,
-                workspace_dir,
+                job.workspace_dir,
             )
             try:
                 result = session.transcribe(materialized.path)
             finally:
                 self.audio_segmenter.cleanup(materialized)
+            self.checkpoint_store.save_segment(job, plan, windows, window, result)
             results.append((window, result))
             job_logger.info(
                 "transcription_segment_completed",
                 segment_id=window.segment_id,
                 segment_index=window.index,
                 segment_count=len(windows),
+                checkpointed=True,
             )
         return self.transcript_assembler.assemble(results)
+
+    def _clear_completed_checkpoints(self, job: Job) -> None:
+        try:
+            self.checkpoint_store.clear(job)
+        except Exception as exc:
+            self.logger.warning(
+                "transcription_checkpoint_cleanup_failed",
+                job_id=job.job_id.value,
+                exception_type=type(exc).__name__,
+            )
 
     def _admit(self, plan: TranscriptionJobPlan) -> None:
         current_resources = self.runner_inspector.inspect()

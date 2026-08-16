@@ -57,9 +57,13 @@ class SegmentationConfiguration:
         if self.segment_duration_seconds < 1:
             raise ValueError("segment_duration_seconds must be positive")
         if self.overlap_seconds != 0:
-            raise ValueError("segmentation overlap is not supported by schema version 1")
+            raise ValueError(
+                "segmentation overlap is not supported by schema version 1"
+            )
         if self.concurrency != 1:
-            raise ValueError("segmentation concurrency must be one for schema version 1")
+            raise ValueError(
+                "segmentation concurrency must be one for schema version 1"
+            )
 
     def to_dict(self) -> dict[str, object]:
         return {

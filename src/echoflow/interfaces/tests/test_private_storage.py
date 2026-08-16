@@ -60,9 +60,10 @@ def test_windows_policy_removes_inheritance_and_grants_current_sid(
     policy.protect_file(file_path)
 
     commands = [call[0] for call in calls]
-    assert commands.count(
-        [str(system32 / "whoami.exe"), "/user", "/fo", "csv", "/nh"]
-    ) == 1
+    assert (
+        commands.count([str(system32 / "whoami.exe"), "/user", "/fo", "csv", "/nh"])
+        == 1
+    )
     assert [
         str(system32 / "icacls.exe"),
         str(directory),

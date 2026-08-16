@@ -357,7 +357,6 @@ def strategies(
     ] = False,
 ) -> None:
     """Show local transcription strategies and their current memory requirements."""
-
     try:
         container = _container(context)
         selected_profile = profile or container.config().PROCESSING_PROFILE
@@ -423,12 +422,25 @@ def _plan_transcription(
             job_id=JobId(resume),
         )
     selected_profile = profile or container.config().PROCESSING_PROFILE
+    if strategy is None and audio_stream is None:
+        return planner.plan(
+            input_path,
+            output_dir=output_dir,
+            profile=selected_profile,
+        )
     if strategy is None:
         return planner.plan(
             input_path,
             output_dir=output_dir,
             profile=selected_profile,
             audio_stream_index=audio_stream,
+        )
+    if audio_stream is None:
+        return planner.plan(
+            input_path,
+            output_dir=output_dir,
+            profile=selected_profile,
+            strategy_id=strategy,
         )
     return planner.plan(
         input_path,

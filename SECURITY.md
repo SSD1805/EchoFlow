@@ -18,10 +18,21 @@ Public failure messages omit input and artifact paths. Human and JSON job-plan
 output includes paths because producing that plan is the explicit command
 result; callers are responsible for where they store or forward it.
 
-Private state, cache, model, and per-job directories are owner-only on POSIX.
-Public transcript artifacts remain ordinary user files. EchoFlow does not
-currently encrypt artifacts at rest; storage encryption is an operating-system
-or volume responsibility.
+Private state, cache, model, and per-job directories use a platform-specific
+private-storage policy. On POSIX, private directories are tightened and verified
+as `0700`, and private file writes are tightened and verified as `0600`. On
+Windows, EchoFlow uses the operating system's built-in `whoami.exe` and
+`icacls.exe` utilities to resolve the current user SID, reset the path DACL,
+remove inherited access, grant that SID full control, and verify the resulting
+ACL structure. A private operation fails rather than silently continuing when
+the current SID or required ACL utility cannot be established.
+
+These controls limit ordinary access through the current operating-system user
+boundary; they are not application-level encryption. A local administrator,
+process with equivalent privileges, compromised user session, backup product, or
+storage snapshot may still access private state. Public transcript artifacts
+remain ordinary user files. EchoFlow does not currently encrypt artifacts at
+rest; storage encryption is an operating-system or volume responsibility.
 
 ## Supported versions
 
@@ -56,7 +67,7 @@ For media that is not already canonical mono 16 kHz PCM audio, EchoFlow invokes
 FFmpeg without a shell or stdin, restricts input protocols to `file`, explicitly
 maps the audio stream selected by FFprobe, discards video/subtitle/data streams,
 suppresses native diagnostic output from public failures, and enforces a
-configurable process timeout. Normalized audio exists only in the owner-private job
+configurable process timeout. Normalized audio exists only in the private job
 workspace and is removed after the attempt. Filesystem deletion is not secure
 erasure.
 
@@ -88,8 +99,8 @@ They bind the work to the input SHA-256 and media identity, engine/model/revisio
 decode configuration, segmentation schema, and exact PCM frame windows. Completed
 segment payloads contain the recognized transcript text required to resume exactly;
 that text is not masked because masking would change the recovered transcript.
-Checkpoint files are atomic private writes and are owner-only (`0600`) on POSIX,
-with private checkpoint directories tightened to `0700`.
+Checkpoint files are atomic private writes. Their private file/directory protection
+is enforced through the same POSIX-mode or Windows-DACL policy described above.
 
 Resume accepts only a contiguous prefix of completed segments whose manifest,
 window identity, and payload integrity checks match the current transcription
@@ -103,15 +114,16 @@ status fields, and exception types. They do not contain transcript text or sourc
 paths. After the final canonical transcript is published successfully, EchoFlow
 removes checkpoint payloads on a best-effort basis. Interrupted jobs retain them so
 that recovery remains possible. Deletion is ordinary filesystem deletion, not
-secure erasure; backups, snapshots, swap, SSD remapping, and same-user processes
-remain outside this guarantee.
+secure erasure; backups, snapshots, swap, SSD remapping, privileged local actors,
+and same-user processes remain outside this guarantee.
 
 ## Processing risks still outside the implemented boundary
 
 FFmpeg and the transcription engine still execute in the EchoFlow process/user
 security context rather than an operating-system sandbox. Model signatures,
 process-wide network egress enforcement, hard CPU limits, adversarial-media test
-corpora, encryption, and secure deletion are not implemented. Memory admission is
-a conservative preflight check, not a hard runtime memory cage. Windows ACL
-semantics are not equivalent to POSIX mode bits and require native hardening before
-a stable security claim. These properties must not be inferred from local-first.
+corpora, application-level encryption, and secure deletion are not implemented.
+Memory admission is a conservative preflight check, not a hard runtime memory cage.
+Private-storage ACLs and mode bits do not protect against a compromised user account,
+local administrators, or equivalent privileged processes. These properties must not
+be inferred from local-first.

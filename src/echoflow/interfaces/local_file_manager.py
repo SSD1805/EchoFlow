@@ -10,6 +10,10 @@ from echoflow.core.errors import (
     StoragePermissionError,
 )
 from echoflow.interfaces.base_file_manager import FileMetadata
+from echoflow.interfaces.private_storage import (
+    PrivateStoragePolicy,
+    default_private_storage_policy,
+)
 
 _WINDOWS_RESERVED_NAMES = {
     "CON",
@@ -24,6 +28,9 @@ _WINDOWS_RESERVED_NAMES = {
 class LocalFileManager:
     """Logger-free adapter for local filesystem behavior."""
 
+    def __init__(self, private_storage: PrivateStoragePolicy | None = None) -> None:
+        self.private_storage = private_storage or default_private_storage_policy()
+
     def save_file(
         self, content: bytes, file_path: str | Path, *, private: bool = False
     ) -> None:
@@ -34,14 +41,14 @@ class LocalFileManager:
                 mode="wb", delete=False, dir=destination.parent
             ) as temporary_file:
                 temporary_path = Path(temporary_file.name)
-                if private and os.name != "nt":
-                    os.chmod(temporary_path, 0o600)
+                if private:
+                    self.private_storage.protect_file(temporary_path)
                 temporary_file.write(content)
                 temporary_file.flush()
                 os.fsync(temporary_file.fileno())
             os.replace(temporary_path, destination)
-            if private and os.name != "nt":
-                destination.chmod(0o600)
+            if private:
+                self.private_storage.protect_file(destination)
         except Exception as exc:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
@@ -91,8 +98,8 @@ class LocalFileManager:
         path = Path(directory_path)
         try:
             path.mkdir(mode=0o700 if private else 0o777, parents=True, exist_ok=True)
-            if private and os.name != "nt":
-                path.chmod(0o700)
+            if private:
+                self.private_storage.protect_directory(path)
         except Exception as exc:
             raise self._error("create directory", path, exc) from exc
 
@@ -102,6 +109,8 @@ class LocalFileManager:
         path = Path(directory_path)
         try:
             path.mkdir(mode=0o700 if private else 0o777)
+            if private:
+                self.private_storage.protect_directory(path)
         except Exception as exc:
             raise self._error("reserve directory", path, exc) from exc
 

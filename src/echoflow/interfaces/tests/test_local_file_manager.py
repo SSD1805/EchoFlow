@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from hypothesis import given
@@ -10,6 +10,7 @@ from echoflow.core.errors import (
     StorageAlreadyExistsError,
     StorageError,
     StorageNotFoundError,
+    StoragePermissionError,
 )
 from echoflow.interfaces.base_file_manager import FileManager
 from echoflow.interfaces.local_file_manager import LocalFileManager
@@ -61,6 +62,38 @@ def test_private_directories_are_created_and_tightened_to_owner_only(manager, tm
     reserved = private / "job"
     manager.reserve_directory(reserved, private=True)
     assert reserved.stat().st_mode & 0o777 == 0o700
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX mode contract")
+def test_private_file_writes_are_owner_only(manager, tmp_path):
+    destination = tmp_path / "checkpoint.json"
+
+    manager.save_file(b"sensitive", destination, private=True)
+
+    assert destination.stat().st_mode & 0o777 == 0o600
+
+
+def test_private_operations_delegate_to_platform_policy(tmp_path):
+    policy = Mock()
+    manager = LocalFileManager(private_storage=policy)
+    directory = tmp_path / "private"
+    destination = directory / "checkpoint.json"
+
+    manager.ensure_directory_exists(directory, private=True)
+    manager.save_file(b"sensitive", destination, private=True)
+
+    policy.protect_directory.assert_called_once_with(directory)
+    assert policy.protect_file.call_count == 2
+    assert policy.protect_file.call_args_list[-1].args == (destination.absolute(),)
+
+
+def test_private_policy_failure_is_typed_permission_error(tmp_path):
+    policy = Mock()
+    policy.protect_directory.side_effect = PermissionError("ACL failure")
+    manager = LocalFileManager(private_storage=policy)
+
+    with pytest.raises(StoragePermissionError):
+        manager.ensure_directory_exists(tmp_path / "private", private=True)
 
 
 def test_directory_and_file_reservations_are_exclusive(manager, tmp_path):

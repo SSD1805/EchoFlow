@@ -247,12 +247,11 @@ class TranscriptionExecutor:
         *,
         resume: bool,
     ) -> RestoredCheckpoint:
-        job_logger = self.logger.bind(job_id=job.job_id.value)
         if not resume:
             self.checkpoint_store.initialize(job, plan, windows)
             return RestoredCheckpoint((), None, None)
         restored = self.checkpoint_store.restore(job, plan, windows)
-        job_logger.info(
+        self.logger.bind(job_id=job.job_id.value).info(
             "transcription_resume_validated",
             completed_segment_count=len(restored.completed),
             segment_count=len(windows),

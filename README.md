@@ -26,10 +26,13 @@ EchoFlow currently provides a tested application foundation:
 - Path-redacted routine logs and owner-only private directories on POSIX.
 - Namespaced, explicit configuration that does not consume ambient `.env` files.
 - CPU-, affinity-, cgroup-, and memory-aware runner policy inspection.
+- A deterministic local strategy evaluator that lists feasible faster-whisper
+  CPU/int8 choices, recommends one by processing profile, and refuses unsafe
+  explicit selections rather than silently downgrading them.
 - Local FFprobe inspection with protocol restriction, bounded output, timeout,
   full input fingerprinting, and typed media metadata.
 - An immutable `transcribe INPUT --dry-run` plan covering paths, streams, codec,
-  duration, CPU engine/model selection, decoding strategy, and resource estimates.
+  duration, selected local strategy, decoding strategy, and resource estimates.
 - One executable CPU/int8 faster-whisper path that rechecks resource admission,
   claims its workspace and output atomically, and writes canonical transcript JSON.
 - Audio extraction from audio-bearing containers, including video files, by mapping
@@ -37,8 +40,9 @@ EchoFlow currently provides a tested application foundation:
 - Explicit model-download authorization; execution is local-only by default.
 - Dependency Injector composition for the implemented services.
 
-Deterministic application-owned segmentation, checkpointing, resume, and derived
-TXT/SRT/VTT artifacts are not implemented yet.
+Deterministic application-owned segmentation, checkpointing, resume, calibrated
+performance estimates, GPU strategies, and derived TXT/SRT/VTT artifacts are not
+implemented yet.
 
 ## Requirements and installation
 
@@ -70,8 +74,11 @@ uv run echoflow doctor --json
 uv run echoflow doctor --workspace /path/to/workspace
 uv run echoflow runner
 uv run echoflow runner --profile screening --json
+uv run echoflow strategies
+uv run echoflow strategies --profile accuracy --json
 uv run echoflow transcribe /path/to/recording.wav --dry-run
 uv run echoflow transcribe /path/to/recording.wav --dry-run --profile screening --json
+uv run echoflow transcribe /path/to/recording.wav --strategy small-cpu-int8 --dry-run
 uv run echoflow transcribe /path/to/interview.mp4
 uv run echoflow transcribe /path/to/interview.mp4 --allow-model-download
 ```
@@ -144,25 +151,33 @@ Artifact names are reserved atomically and collisions are renamed rather than
 overwritten by default. Future SQLite job state will contain paths and metadata;
 audio and transcript documents will not be stored as database blobs.
 
-`echoflow runner` and transcription planning use the CPU and memory actually visible to the process,
-including common container limits, and derives an engine-neutral policy. A
-`screening` policy is explicitly provisional and recommends a compact model;
-it is not interchangeable with a final research transcript. `balanced` and
-`accuracy` select larger generic tiers only when the detected memory budget can
-support them. The first CPU plan maps those tiers to faster-whisper `tiny`,
-`small`, and `medium` models using int8 execution. The engine package and model
-weights are not installed or downloaded by a dry run.
+`echoflow runner` derives an engine-neutral CPU and memory budget from resources
+actually visible to the process, including common container limits and explicit
+user ceilings. It does not select a model. Transcription evaluates concrete
+faster-whisper strategies against that budget. `echoflow strategies` exposes all
+current CPU/int8 choices with their estimated model-cache and peak-memory costs,
+marks infeasible choices with typed reasons, and recommends a feasible strategy
+according to `screening`, `balanced`, or `accuracy` intent. An explicit
+`transcribe --strategy` choice is honored when feasible and refused otherwise;
+it is never silently replaced. Screening remains explicitly provisional.
 
-Execution consumes that plan rather than detecting a second, unrelated machine
-configuration inside the engine. It checks process-visible memory and CPU capacity
-before claiming paths and again after any FFmpeg normalization, immediately before
-model initialization. A video is not treated as visual input: FFmpeg discards video,
-subtitle, and data streams and emits only the selected audio stream to the private
-job workspace.
+Execution consumes the selected plan rather than detecting a second, unrelated
+machine configuration inside the engine. It checks process-visible memory and CPU
+capacity before claiming paths and again after any FFmpeg normalization,
+immediately before model initialization. A video is not treated as visual input:
+FFmpeg discards video, subtitle, and data streams and emits only the selected audio
+stream to the private job workspace.
 
 Resource estimates are deliberately conservative heuristics until real engine
-benchmarks are added. Dry-run workspace and artifact paths are candidates, not
-reservations; execution must claim them atomically before writing.
+benchmarks and privacy-safe local calibration are added. Dry-run workspace and
+artifact paths are candidates, not reservations; execution must claim them
+atomically before writing.
+
+Checkpoint resume is intentionally not represented as implemented yet. The current
+backend transcribes a complete decoded recording in one call. Truthful resume first
+requires deterministic, source-relative segment boundaries and a job-scoped model
+session; persisted per-segment state can then retain completed work across a crash
+without changing the model contract.
 
 The proposed processing boundaries, resumability model, and bounded audio
 bisection policy are documented in

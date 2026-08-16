@@ -3,7 +3,7 @@ from enum import StrEnum
 
 
 class ProcessingProfile(StrEnum):
-    """User intent for an eventual transcription plan."""
+    """User intent used to rank feasible processing strategies."""
 
     SCREENING = "screening"
     BALANCED = "balanced"
@@ -11,11 +11,12 @@ class ProcessingProfile(StrEnum):
 
 
 class ModelTier(StrEnum):
-    """Engine-neutral model-size recommendation."""
+    """Deprecated compatibility value; transcription strategy owns model selection."""
 
     COMPACT = "compact"
     STANDARD = "standard"
     LARGE = "large"
+    STRATEGY_SPECIFIC = "strategy-specific"
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,11 +40,13 @@ class RunnerResources:
 
 @dataclass(frozen=True, slots=True)
 class ExecutionPolicy:
+    """Engine-neutral resource budget derived from process-visible capacity."""
+
     profile: ProcessingProfile
     provisional: bool
     cpu_threads: int
     memory_budget_bytes: int
-    recommended_model_tier: ModelTier
+    recommended_model_tier: ModelTier = ModelTier.STRATEGY_SPECIFIC
     constraints: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:

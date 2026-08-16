@@ -8,6 +8,7 @@ from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.models import InputIdentity, MediaInfo, MediaStream, StreamKind
 from echoflow.runner.models import ProcessingProfile, RunnerResources
 from echoflow.runner.policy import RunnerPolicyPlanner
+from echoflow.transcription.errors import ResourceAdmissionError
 from echoflow.transcription.models import DecodeStrategy
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.workspace.models import WorkspacePaths
@@ -149,17 +150,18 @@ def test_accuracy_plan_selects_medium_model_when_budget_allows(tmp_path):
     assert plan.resources.fits_memory_budget is True
 
 
-def test_insufficient_compact_memory_is_recorded_not_hidden(tmp_path):
+def test_insufficient_compact_memory_is_refused_before_execution(tmp_path):
     source = tmp_path / "constrained.wav"
     source.write_bytes(b"audio")
     planner, _, _, _ = build_planner(
         tmp_path, media_info(source), runner_resources(1 * GIB)
     )
-    plan = planner.plan(source)
-    assert plan.engine.model == "tiny"
-    assert plan.resources.memory_budget_bytes == 1 * GIB
-    assert plan.resources.fits_memory_budget is False
-    assert "estimated_peak_memory_exceeds_budget" in plan.warnings
+
+    with pytest.raises(
+        ResourceAdmissionError,
+        match="^No local transcription strategy fits the current safe memory budget$",
+    ):
+        planner.plan(source)
 
 
 def test_peak_memory_equal_to_budget_is_feasible(tmp_path):
@@ -174,6 +176,54 @@ def test_peak_memory_equal_to_budget_is_feasible(tmp_path):
     assert plan.resources.estimated_peak_memory_bytes == exact_budget
     assert plan.resources.memory_budget_bytes == exact_budget
     assert plan.resources.fits_memory_budget is True
+
+
+def test_explicit_feasible_strategy_overrides_profile_recommendation(tmp_path):
+    source = tmp_path / "explicit.wav"
+    source.write_bytes(b"audio")
+    planner, _, _, _ = build_planner(tmp_path, media_info(source))
+
+    plan = planner.plan(
+        source,
+        profile=ProcessingProfile.SCREENING,
+        strategy_id="medium-cpu-int8",
+    )
+
+    assert plan.engine.model == "medium"
+    assert plan.policy.provisional is True
+
+
+def test_explicit_infeasible_strategy_is_not_silently_replaced(tmp_path):
+    source = tmp_path / "explicit-constrained.wav"
+    source.write_bytes(b"audio")
+    planner, _, _, _ = build_planner(
+        tmp_path, media_info(source), runner_resources(2 * GIB)
+    )
+
+    with pytest.raises(
+        ResourceAdmissionError,
+        match="^Selected transcription strategy exceeds the current safe memory budget$",
+    ):
+        planner.plan(source, strategy_id="medium-cpu-int8")
+
+
+def test_strategy_assessment_reports_recommendation_and_rejections(tmp_path):
+    source = tmp_path / "strategies.wav"
+    source.write_bytes(b"audio")
+    planner, _, _, _ = build_planner(
+        tmp_path, media_info(source), runner_resources(3 * GIB)
+    )
+
+    assessments = planner.assess_strategies(profile=ProcessingProfile.BALANCED)
+
+    assert tuple(item["strategy"]["strategy_id"] for item in assessments) == (
+        "tiny-cpu-int8",
+        "small-cpu-int8",
+        "medium-cpu-int8",
+    )
+    assert tuple(item["feasible"] for item in assessments) == (True, True, False)
+    assert tuple(item["recommended"] for item in assessments) == (False, True, False)
+    assert assessments[2]["rejection_reasons"] == ["insufficient_memory"]
 
 
 def test_long_recording_output_estimate_scales_beyond_minimum(tmp_path):

@@ -7,14 +7,10 @@ from echoflow.runner.models import (
     RunnerResources,
 )
 
-_GIB = 1024**3
-_STANDARD_MODEL_BUDGET = 4 * _GIB
-_LARGE_MODEL_BUDGET = 8 * _GIB
-
 
 @dataclass(frozen=True, slots=True)
 class RunnerPolicyPlanner:
-    """Turn runner limits and user ceilings into an engine-neutral policy."""
+    """Turn process-visible resources and user ceilings into a safe job budget."""
 
     memory_budget_fraction: float = 0.75
     max_cpu_threads: int | None = None
@@ -46,25 +42,18 @@ class RunnerPolicyPlanner:
             memory_budget = self.max_memory_bytes
             constraints.append("configured_memory_limit")
 
+        # Keep the pre-strategy screening wire marker for compatibility. This does
+        # not select an engine model; concrete strategy ranking owns that decision.
+        compatibility_tier = (
+            ModelTier.COMPACT
+            if profile is ProcessingProfile.SCREENING
+            else ModelTier.STRATEGY_SPECIFIC
+        )
         return ExecutionPolicy(
             profile=profile,
             provisional=profile is ProcessingProfile.SCREENING,
             cpu_threads=max(1, cpu_threads),
             memory_budget_bytes=max(0, memory_budget),
-            recommended_model_tier=self._model_tier(profile, memory_budget),
+            recommended_model_tier=compatibility_tier,
             constraints=tuple(dict.fromkeys(constraints)),
         )
-
-    @staticmethod
-    def _model_tier(profile: ProcessingProfile, memory_budget: int) -> ModelTier:
-        if (
-            profile is ProcessingProfile.SCREENING
-            or memory_budget < _STANDARD_MODEL_BUDGET
-        ):
-            return ModelTier.COMPACT
-        if (
-            profile is ProcessingProfile.ACCURACY
-            and memory_budget >= _LARGE_MODEL_BUDGET
-        ):
-            return ModelTier.LARGE
-        return ModelTier.STANDARD

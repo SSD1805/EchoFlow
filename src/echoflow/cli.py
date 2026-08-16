@@ -113,6 +113,33 @@ def _format_bytes(value: int) -> str:
     return f"{amount:.1f} {units[-1]}"
 
 
+def _render_strategies(
+    assessments: tuple[dict[str, object], ...], console: Console
+) -> None:
+    table = Table(title="EchoFlow local transcription strategies")
+    table.add_column("Strategy")
+    table.add_column("Model")
+    table.add_column("Safe now")
+    table.add_column("Peak memory")
+    table.add_column("Model cache")
+    table.add_column("Recommendation")
+    for assessment in assessments:
+        strategy = cast("dict[str, object]", assessment["strategy"])
+        reasons = cast("list[str]", assessment["rejection_reasons"])
+        recommendation = "recommended" if assessment["recommended"] else ""
+        if reasons:
+            recommendation = ", ".join(reasons)
+        table.add_row(
+            str(strategy["strategy_id"]),
+            str(strategy["model"]),
+            str(assessment["feasible"]).lower(),
+            _format_bytes(int(cast("int", strategy["estimated_peak_memory_bytes"]))),
+            _format_bytes(int(cast("int", strategy["model_cache_bytes"]))),
+            recommendation,
+        )
+    console.print(table)
+
+
 def _render_transcription_plan(plan: TranscriptionJobPlan, console: Console) -> None:
     audio = plan.media.primary_audio_stream
     table = Table(title="EchoFlow transcription dry run")
@@ -302,6 +329,44 @@ def inspect_runner(
         _render_runner(resources, policy, Console())
 
 
+@app.command("strategies")
+def strategies(
+    context: typer.Context,
+    profile: Annotated[
+        ProcessingProfile | None,
+        typer.Option(help="Profile used to rank currently safe strategies."),
+    ] = None,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable strategy assessments.")
+    ] = False,
+) -> None:
+    """Show local transcription strategies and their current memory requirements."""
+
+    try:
+        container = _container(context)
+        selected_profile = profile or container.config().PROCESSING_PROFILE
+        assessments = container.transcription_planner().assess_strategies(
+            profile=selected_profile
+        )
+    except EchoFlowError as exc:
+        typer.echo(exc.public_message, err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    except ValidationError:
+        typer.echo("Invalid EchoFlow configuration", err=True)
+        raise typer.Exit(code=1) from None
+    except Exception as exc:
+        typer.echo(
+            f"EchoFlow strategy inspection failed internally ({type(exc).__name__})",
+            err=True,
+        )
+        raise typer.Exit(code=3) from None
+
+    if json_output:
+        typer.echo(json.dumps(list(assessments), sort_keys=True))
+    else:
+        _render_strategies(assessments, Console())
+
+
 @app.command("transcribe")
 def transcribe(
     context: typer.Context,
@@ -335,6 +400,12 @@ def transcribe(
         ProcessingProfile | None,
         typer.Option(help="Override the configured processing profile."),
     ] = None,
+    strategy: Annotated[
+        str | None,
+        typer.Option(
+            help="Explicit safe strategy ID from `echoflow strategies`; never silently downgraded."
+        ),
+    ] = None,
     json_output: Annotated[
         bool,
         typer.Option("--json", help="Emit the plan or execution result as JSON."),
@@ -344,11 +415,19 @@ def transcribe(
     try:
         container = _container(context)
         selected_profile = profile or container.config().PROCESSING_PROFILE
-        plan = container.transcription_planner().plan(
-            input_path,
-            output_dir=output_dir,
-            profile=selected_profile,
-        )
+        if strategy is None:
+            plan = container.transcription_planner().plan(
+                input_path,
+                output_dir=output_dir,
+                profile=selected_profile,
+            )
+        else:
+            plan = container.transcription_planner().plan(
+                input_path,
+                output_dir=output_dir,
+                profile=selected_profile,
+                strategy_id=strategy,
+            )
         result = None
         if not dry_run:
             result = container.transcription_executor().execute(

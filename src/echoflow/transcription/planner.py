@@ -4,7 +4,7 @@ from typing import Protocol
 
 from echoflow.media.models import MediaInfo
 from echoflow.runner.inspector import RunnerInspector
-from echoflow.runner.models import ExecutionPolicy, ModelTier, ProcessingProfile
+from echoflow.runner.models import ExecutionPolicy, ProcessingProfile
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.models import (
     CpuEngineConfiguration,
@@ -13,25 +13,16 @@ from echoflow.transcription.models import (
     ResourceEstimate,
     TranscriptionJobPlan,
 )
+from echoflow.transcription.strategy import (
+    StrategyCatalog,
+    StrategyDefinition,
+    StrategyEvaluator,
+    faster_whisper_cpu_catalog,
+)
 from echoflow.workspace.models import ArtifactKind
 from echoflow.workspace.service import WorkspaceService
 
 _MIB = 1024**2
-_ENGINE_MODELS = {
-    ModelTier.COMPACT: "tiny",
-    ModelTier.STANDARD: "small",
-    ModelTier.LARGE: "medium",
-}
-_MODEL_CACHE_BYTES = {
-    "tiny": 150 * _MIB,
-    "small": 750 * _MIB,
-    "medium": 2_500 * _MIB,
-}
-_MODEL_PEAK_MEMORY_BYTES = {
-    "tiny": 1_024 * _MIB,
-    "small": 2_048 * _MIB,
-    "medium": 4_096 * _MIB,
-}
 _TARGET_SAMPLE_RATE_HZ = 16_000
 _TARGET_CHANNELS = 1
 _TARGET_BYTES_PER_SAMPLE = 2
@@ -51,12 +42,16 @@ class TranscriptionJobPlanner:
         workspace_service: WorkspaceService,
         runner_inspector: RunnerInspector,
         policy_planner: RunnerPolicyPlanner,
+        strategy_catalog: StrategyCatalog | None = None,
+        strategy_evaluator: StrategyEvaluator | None = None,
         model_revision: str | None = None,
     ):
         self.media_probe = media_probe
         self.workspace_service = workspace_service
         self.runner_inspector = runner_inspector
         self.policy_planner = policy_planner
+        self.strategy_catalog = strategy_catalog or faster_whisper_cpu_catalog()
+        self.strategy_evaluator = strategy_evaluator or StrategyEvaluator()
         self.model_revision = model_revision
 
     def plan(
@@ -65,22 +60,29 @@ class TranscriptionJobPlanner:
         *,
         output_dir: str | Path | None = None,
         profile: ProcessingProfile = ProcessingProfile.BALANCED,
+        strategy_id: str | None = None,
     ) -> TranscriptionJobPlan:
         job = self.workspace_service.plan_job(input_path, output_dir=output_dir)
         media = self.media_probe.probe(job.input_path)
         runner = self.runner_inspector.inspect()
         policy = self.policy_planner.plan(runner, profile)
-        engine = self._engine(policy)
+        assessments = self.strategy_evaluator.assess(
+            self.strategy_catalog, memory_budget_bytes=policy.memory_budget_bytes
+        )
+        selected = self.strategy_evaluator.select(
+            assessments,
+            profile=profile,
+            requested_strategy_id=strategy_id,
+        )
+        engine = self._engine(policy, selected.strategy)
         decoder = self._decoder(media)
         artifact = self.workspace_service.plan_artifact(
             job, ArtifactKind.CANONICAL_JSON
         )
-        resources = self._resources(media, decoder, engine, policy)
+        resources = self._resources(media, decoder, selected.strategy, policy)
         warnings = ["paths_are_unreserved"]
         if policy.provisional:
             warnings.append("screening_output_is_provisional")
-        if not resources.fits_memory_budget:
-            warnings.append("estimated_peak_memory_exceeds_budget")
         return TranscriptionJobPlan(
             job=job,
             artifact=artifact,
@@ -93,11 +95,40 @@ class TranscriptionJobPlanner:
             warnings=tuple(warnings),
         )
 
-    def _engine(self, policy: ExecutionPolicy) -> CpuEngineConfiguration:
-        model = _ENGINE_MODELS[policy.recommended_model_tier]
+    def assess_strategies(
+        self, *, profile: ProcessingProfile = ProcessingProfile.BALANCED
+    ) -> tuple[dict[str, object], ...]:
+        """Describe all local strategies against a fresh process-visible budget."""
+
+        runner = self.runner_inspector.inspect()
+        policy = self.policy_planner.plan(runner, profile)
+        assessments = self.strategy_evaluator.assess(
+            self.strategy_catalog, memory_budget_bytes=policy.memory_budget_bytes
+        )
+        feasible = tuple(
+            assessment for assessment in assessments if assessment.feasible
+        )
+        selected = (
+            self.strategy_evaluator.select(feasible, profile=profile)
+            if feasible
+            else None
+        )
+        return tuple(
+            {
+                **assessment.to_dict(),
+                "recommended": assessment is selected,
+                "cpu_threads": policy.cpu_threads,
+                "profile": profile.value,
+            }
+            for assessment in assessments
+        )
+
+    def _engine(
+        self, policy: ExecutionPolicy, strategy: StrategyDefinition
+    ) -> CpuEngineConfiguration:
         return CpuEngineConfiguration(
             engine="faster-whisper",
-            model=model,
+            model=strategy.model,
             device="cpu",
             compute_type="int8",
             cpu_threads=policy.cpu_threads,
@@ -130,7 +161,7 @@ class TranscriptionJobPlanner:
     def _resources(
         media: MediaInfo,
         decoder: DecodeConfiguration,
-        engine: CpuEngineConfiguration,
+        strategy: StrategyDefinition,
         policy: ExecutionPolicy,
     ) -> ResourceEstimate:
         normalized_audio = 0
@@ -143,12 +174,13 @@ class TranscriptionJobPlanner:
             )
         private_workspace = normalized_audio + 16 * _MIB
         public_output = max(64 * 1024, math.ceil(media.duration_seconds * 512))
-        peak_memory = _MODEL_PEAK_MEMORY_BYTES[engine.model] + 256 * _MIB
         return ResourceEstimate(
             private_workspace_bytes=private_workspace,
             public_output_bytes=public_output,
-            model_cache_bytes=_MODEL_CACHE_BYTES[engine.model],
-            estimated_peak_memory_bytes=peak_memory,
+            model_cache_bytes=strategy.model_cache_bytes,
+            estimated_peak_memory_bytes=strategy.estimated_peak_memory_bytes,
             memory_budget_bytes=policy.memory_budget_bytes,
-            fits_memory_budget=peak_memory <= policy.memory_budget_bytes,
+            fits_memory_budget=(
+                strategy.estimated_peak_memory_bytes <= policy.memory_budget_bytes
+            ),
         )

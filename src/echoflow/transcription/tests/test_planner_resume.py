@@ -127,9 +127,7 @@ def test_resume_refuses_when_current_memory_is_below_original_requirement(tmp_pa
     source = tmp_path / "interview.m4a"
     source.write_bytes(b"audio")
     media = media_info(source)
-    planner, _, _, _ = build_planner(
-        tmp_path, media, runner_resources(3 * GIB)
-    )
+    planner, _, _, _ = build_planner(tmp_path, media, runner_resources(3 * GIB))
     checkpoint_store = Mock()
     checkpoint_store.resume_settings.return_value = resume_settings(media)
     planner.checkpoint_store = checkpoint_store

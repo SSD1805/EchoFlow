@@ -2,7 +2,12 @@ from dataclasses import FrozenInstanceError, fields
 
 import pytest
 
-from echoflow.runner.models import ExecutionPolicy, ModelTier, ProcessingProfile, RunnerResources
+from echoflow.runner.models import (
+    ExecutionPolicy,
+    ModelTier,
+    ProcessingProfile,
+    RunnerResources,
+)
 
 
 def test_runner_resources_have_a_stable_machine_readable_shape():
@@ -52,7 +57,7 @@ def test_execution_policy_serializes_profile_without_production_model_decision()
         "provisional": True,
         "cpu_threads": 2,
         "memory_budget_bytes": 1024,
-        "recommended_model_tier": None,
+        "recommended_model_tier": "strategy-specific",
         "constraints": ("configured_cpu_limit",),
     }
     assert [profile.value for profile in ProcessingProfile] == [

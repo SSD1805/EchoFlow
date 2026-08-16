@@ -16,6 +16,7 @@ class ModelTier(StrEnum):
     COMPACT = "compact"
     STANDARD = "standard"
     LARGE = "large"
+    STRATEGY_SPECIFIC = "strategy-specific"
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,15 +46,11 @@ class ExecutionPolicy:
     provisional: bool
     cpu_threads: int
     memory_budget_bytes: int
-    recommended_model_tier: ModelTier | None = None
+    recommended_model_tier: ModelTier = ModelTier.STRATEGY_SPECIFIC
     constraints: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         result = asdict(self)
         result["profile"] = self.profile.value
-        result["recommended_model_tier"] = (
-            self.recommended_model_tier.value
-            if self.recommended_model_tier is not None
-            else None
-        )
+        result["recommended_model_tier"] = self.recommended_model_tier.value
         return result

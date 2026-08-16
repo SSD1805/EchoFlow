@@ -1,3 +1,4 @@
+import math
 from collections.abc import Sequence
 
 from echoflow.transcription.errors import TranscriptionError
@@ -8,6 +9,7 @@ from echoflow.transcription.models import (
 )
 
 _TIMESTAMP_TOLERANCE_SECONDS = 0.05
+_FLOAT_BOUNDARY_TOLERANCE_SECONDS = 1e-9
 
 
 class TranscriptAssembler:
@@ -89,9 +91,15 @@ class TranscriptAssembler:
             start_seconds = min(
                 window.end_seconds, window.start_seconds + segment.start_seconds
             )
-            end_seconds = min(
-                window.end_seconds, window.start_seconds + segment.end_seconds
-            )
+            if segment.end_seconds > window.duration_seconds or math.isclose(
+                segment.end_seconds,
+                window.duration_seconds,
+                rel_tol=0,
+                abs_tol=_FLOAT_BOUNDARY_TOLERANCE_SECONDS,
+            ):
+                end_seconds = window.end_seconds
+            else:
+                end_seconds = window.start_seconds + segment.end_seconds
             output.append(
                 RecognizedSegment(
                     index=len(output),

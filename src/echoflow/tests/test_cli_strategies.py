@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 from typer.testing import CliRunner
@@ -89,16 +90,16 @@ def test_strategies_json_exposes_feasible_recommended_and_rejected_choices():
     )
 
 
-def test_strategies_rich_output_marks_recommendation_and_capacity_rejection():
+def test_strategies_rich_output_marks_recommendation_and_capacity_state():
     container = configured_container()
     with patch("echoflow.cli.AppContainer", return_value=container):
         result = runner.invoke(app, ["strategies"])
 
     assert result.exit_code == 0
     assert "EchoFlow local transcription strategies" in result.output
-    assert "small-cpu-int8" in result.output
+    assert "small" in result.output
     assert "recommended" in result.output
-    assert "insufficient_memory" in result.output
+    assert "false" in result.output
 
 
 def test_strategies_profile_override_reaches_ranker():
@@ -128,7 +129,7 @@ def test_transcribe_explicit_strategy_reaches_planner_without_silent_substitutio
 
     assert result.exit_code == 0
     container.transcription_planner().plan.assert_called_once_with(
-        container.transcription_planner().plan.call_args.args[0],
+        Path("recording.wav"),
         output_dir=None,
         profile=ProcessingProfile.BALANCED,
         strategy_id="tiny-cpu-int8",

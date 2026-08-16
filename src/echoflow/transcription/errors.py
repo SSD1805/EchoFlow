@@ -19,3 +19,7 @@ class ModelUnavailableError(EchoFlowError):
 class TranscriptionError(EchoFlowError):
     code = ErrorCode.TRANSCRIPTION
     exit_code = 2
+
+
+class CheckpointError(TranscriptionError):
+    """Private resumability state is missing, corrupt, or incompatible."""

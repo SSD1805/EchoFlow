@@ -24,7 +24,9 @@ _WINDOWS_RESERVED_NAMES = {
 class LocalFileManager:
     """Logger-free adapter for local filesystem behavior."""
 
-    def save_file(self, content: bytes, file_path: str | Path) -> None:
+    def save_file(
+        self, content: bytes, file_path: str | Path, *, private: bool = False
+    ) -> None:
         destination = Path(file_path).absolute()
         temporary_path: Path | None = None
         try:
@@ -32,14 +34,25 @@ class LocalFileManager:
                 mode="wb", delete=False, dir=destination.parent
             ) as temporary_file:
                 temporary_path = Path(temporary_file.name)
+                if private and os.name != "nt":
+                    os.chmod(temporary_path, 0o600)
                 temporary_file.write(content)
                 temporary_file.flush()
                 os.fsync(temporary_file.fileno())
             os.replace(temporary_path, destination)
+            if private and os.name != "nt":
+                destination.chmod(0o600)
         except Exception as exc:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
             raise self._error("write", destination, exc) from exc
+
+    def read_file(self, file_path: str | Path) -> bytes:
+        path = Path(file_path)
+        try:
+            return path.read_bytes()
+        except Exception as exc:
+            raise self._error("read", path, exc) from exc
 
     def file_exists(self, file_path: str | Path) -> bool:
         return Path(file_path).is_file()

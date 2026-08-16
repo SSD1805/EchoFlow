@@ -55,9 +55,14 @@ class FileManagerFacade:
     def save_file(
         self, content: bytes, file_path: str | Path, *, private: bool = False
     ) -> None:
+        action = (
+            lambda: self.file_manager.save_file(content, file_path, private=True)
+            if private
+            else lambda: self.file_manager.save_file(content, file_path)
+        )
         self._execute(
             "save_file",
-            lambda: self.file_manager.save_file(content, file_path, private=private),
+            action,
             private=private,
             **path_log_context(self.path_disclosure, path=file_path),
         )

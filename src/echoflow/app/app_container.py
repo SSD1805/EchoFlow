@@ -26,7 +26,7 @@ from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.export import TranscriptExporter
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.segmentation import WaveAudioSegmenter
-from echoflow.workspace.capacity import StorageAdmissionPolicy
+from echoflow.transcription.storage import StorageAdmissionPolicy
 from echoflow.workspace.models import WorkspacePaths
 from echoflow.workspace.service import WorkspaceService
 

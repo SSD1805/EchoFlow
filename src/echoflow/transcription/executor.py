@@ -26,7 +26,7 @@ from echoflow.transcription.models import (
     TranscriptSource,
 )
 from echoflow.transcription.segmentation import MaterializedAudioSegment
-from echoflow.workspace.capacity import StorageAdmissionPolicy, StorageAllocation
+from echoflow.transcription.storage import StorageAdmissionPolicy, StorageAllocation
 from echoflow.workspace.models import Artifact, ArtifactKind, Job
 from echoflow.workspace.service import WorkspaceService
 

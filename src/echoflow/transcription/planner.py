@@ -105,7 +105,9 @@ class TranscriptionJobPlanner:
         assessments = self.strategy_evaluator.assess(
             self.strategy_catalog, memory_budget_bytes=policy.memory_budget_bytes
         )
-        feasible = tuple(assessment for assessment in assessments if assessment.feasible)
+        feasible = tuple(
+            assessment for assessment in assessments if assessment.feasible
+        )
         selected = (
             self.strategy_evaluator.select(feasible, profile=profile)
             if feasible

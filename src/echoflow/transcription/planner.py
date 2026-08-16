@@ -105,11 +105,12 @@ class TranscriptionJobPlanner:
         assessments = self.strategy_evaluator.assess(
             self.strategy_catalog, memory_budget_bytes=policy.memory_budget_bytes
         )
-        selected = None
-        try:
-            selected = self.strategy_evaluator.select(assessments, profile=profile)
-        except Exception:
-            pass
+        feasible = tuple(assessment for assessment in assessments if assessment.feasible)
+        selected = (
+            self.strategy_evaluator.select(feasible, profile=profile)
+            if feasible
+            else None
+        )
         return tuple(
             {
                 **assessment.to_dict(),

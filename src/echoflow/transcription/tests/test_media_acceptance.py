@@ -193,7 +193,7 @@ def test_real_local_pipeline_publishes_and_cleans_up_with_only_asr_faked(tmp_pat
     assert result.artifact.path.is_file()
     canonical = json.loads(result.artifact.path.read_text(encoding="utf-8"))
     assert canonical["job_id"] == result.job.job_id.value
-    assert canonical["transcript"]["text"] == "Synthetic segment."
+    assert canonical["text"] == "Synthetic segment."
     assert canonical["engine"]["package_version"] == "acceptance-fake-asr-1"
 
     assert not (result.job.workspace_dir / "normalized.wav").exists()

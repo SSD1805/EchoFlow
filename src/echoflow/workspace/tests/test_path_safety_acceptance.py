@@ -12,7 +12,9 @@ from echoflow.workspace.models import JobId, WorkspacePaths
 from echoflow.workspace.service import WorkspaceService
 
 
-@pytest.mark.skipif(os.name == "nt", reason="portable symlink creation is not guaranteed")
+@pytest.mark.skipif(
+    os.name == "nt", reason="portable symlink creation is not guaranteed"
+)
 def test_job_planning_rejects_preexisting_symlink_escape_before_mutation(
     tmp_path: Path,
 ) -> None:

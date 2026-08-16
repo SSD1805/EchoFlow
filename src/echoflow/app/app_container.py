@@ -16,10 +16,12 @@ from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.policy import RunnerPolicyPlanner
+from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.audio import FfmpegAudioDecoder
 from echoflow.transcription.backend import FasterWhisperTranscriber
 from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.planner import TranscriptionJobPlanner
+from echoflow.transcription.segmentation import WaveAudioSegmenter
 from echoflow.workspace.models import WorkspacePaths
 from echoflow.workspace.service import WorkspaceService
 
@@ -107,7 +109,9 @@ class AppContainer(containers.DeclarativeContainer):
         model_revision=config.provided.FASTER_WHISPER_MODEL_REVISION,
     )
     audio_decoder = providers.Factory(_create_audio_decoder, config=config)
+    audio_segmenter = providers.Factory(WaveAudioSegmenter)
     transcriber = providers.Factory(FasterWhisperTranscriber)
+    transcript_assembler = providers.Factory(TranscriptAssembler)
     transcription_executor = providers.Factory(
         TranscriptionExecutor,
         media_probe=media_probe,
@@ -116,7 +120,10 @@ class AppContainer(containers.DeclarativeContainer):
         runner_inspector=runner_inspector,
         policy_planner=runner_policy_planner,
         audio_decoder=audio_decoder,
+        audio_segmenter=audio_segmenter,
         transcriber=transcriber,
+        transcript_assembler=transcript_assembler,
+        logger=logger,
     )
     health_check = providers.Factory(
         _create_health_check, config=config, runner_inspector=runner_inspector

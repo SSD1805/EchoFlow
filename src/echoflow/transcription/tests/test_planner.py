@@ -35,12 +35,20 @@ def runner_resources(memory=8 * GIB) -> RunnerResources:
     )
 
 
-def media_info(source, *, duration=10.0, codec="aac", sample_rate=48_000, channels=2):
+def media_info(
+    source,
+    *,
+    duration=10.0,
+    codec="aac",
+    sample_rate=48_000,
+    channels=2,
+    container=None,
+):
     return MediaInfo(
         InputIdentity(
             source, source.stat().st_size, source.stat().st_mtime_ns, "0" * 64
         ),
-        "wav" if codec.startswith("pcm") else "mov,mp4,m4a,3gp,3g2,mj2",
+        container or ("wav" if codec.startswith("pcm") else "mov,mp4,m4a,3gp,3g2,mj2"),
         duration,
         (
             MediaStream(
@@ -87,6 +95,7 @@ def test_balanced_plan_composes_real_paths_media_cpu_engine_and_estimates(tmp_pa
 
     plan = planner.plan(source)
 
+    assert plan.schema_version == 1
     assert plan.job.job_id.value == "plan-1"
     assert plan.job.input_path == source.resolve()
     assert plan.job.workspace_dir == paths.jobs_dir / "plan-1"
@@ -106,7 +115,10 @@ def test_balanced_plan_composes_real_paths_media_cpu_engine_and_estimates(tmp_pa
     assert plan.engine.model_revision is None
     assert plan.decoder.strategy is DecodeStrategy.FFMPEG_NORMALIZE
     assert plan.decoder.output_codec == "pcm_s16le"
-    assert plan.resources.private_workspace_bytes == 16 * MIB + 320_000
+    assert plan.segmentation.segment_duration_seconds == 600
+    assert plan.segmentation.overlap_seconds == 0
+    assert plan.segmentation.concurrency == 1
+    assert plan.resources.private_workspace_bytes == 16 * MIB + 640_000
     assert plan.resources.public_output_bytes == 64 * 1024
     assert plan.resources.model_cache_bytes == 750 * MIB
     assert plan.resources.estimated_peak_memory_bytes == 2_304 * MIB
@@ -226,7 +238,7 @@ def test_strategy_assessment_reports_recommendation_and_rejections(tmp_path):
     assert assessments[2]["rejection_reasons"] == ["insufficient_memory"]
 
 
-def test_long_recording_output_estimate_scales_beyond_minimum(tmp_path):
+def test_long_recording_output_and_segment_estimates_scale_independently(tmp_path):
     source = tmp_path / "long.wav"
     source.write_bytes(b"audio")
     planner, _, _, _ = build_planner(
@@ -241,9 +253,10 @@ def test_long_recording_output_estimate_scales_beyond_minimum(tmp_path):
     )
     plan = planner.plan(source)
     assert plan.resources.public_output_bytes == 512_000
+    assert plan.resources.private_workspace_bytes == 16 * MIB + 19_200_000
 
 
-def test_exact_engine_ready_pcm_uses_direct_decode_and_no_normalized_audio(tmp_path):
+def test_exact_engine_ready_pcm_wav_uses_direct_decode_and_one_segment_temp(tmp_path):
     source = tmp_path / "ready.wav"
     source.write_bytes(b"audio")
     planner, _, _, _ = build_planner(
@@ -258,7 +271,28 @@ def test_exact_engine_ready_pcm_uses_direct_decode_and_no_normalized_audio(tmp_p
     )
     plan = planner.plan(source)
     assert plan.decoder.strategy is DecodeStrategy.DIRECT
-    assert plan.resources.private_workspace_bytes == 16 * MIB
+    assert plan.resources.private_workspace_bytes == 16 * MIB + 64_000
+
+
+def test_engine_ready_pcm_in_non_wav_container_is_normalized_before_segmentation(
+    tmp_path,
+):
+    source = tmp_path / "pcm.mov"
+    source.write_bytes(b"audio")
+    planner, _, _, _ = build_planner(
+        tmp_path,
+        media_info(
+            source,
+            duration=2,
+            codec="pcm_s16le",
+            sample_rate=16_000,
+            channels=1,
+            container="mov,mp4,m4a,3gp,3g2,mj2",
+        ),
+    )
+    plan = planner.plan(source)
+    assert plan.decoder.strategy is DecodeStrategy.FFMPEG_NORMALIZE
+    assert plan.resources.private_workspace_bytes == 16 * MIB + 128_000
 
 
 @pytest.mark.parametrize(

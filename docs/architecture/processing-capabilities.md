@@ -18,12 +18,13 @@ This target does not imply distributed execution across several machines. It
 means one plan respects the resources exposed to the process and records the
 decisions required to reproduce that work elsewhere.
 
-The implemented checkpoint now covers input validation, SHA-256 fingerprinting,
-FFprobe metadata, side-effect-free path resolution, CPU engine/model selection,
-decode strategy, resource estimates, immutable JSON/Rich dry-run output, local
-FFmpeg audio normalization, one CPU/int8 faster-whisper backend, resource
-readmission, and canonical transcript JSON. Model download is disabled unless the
-invocation explicitly authorizes it.
+The implemented path now covers input validation, SHA-256 fingerprinting,
+FFprobe metadata, side-effect-free path resolution, adaptive local CPU strategy
+selection, decode strategy, resource estimates, immutable JSON/Rich dry-run
+output, local FFmpeg audio normalization, deterministic application-owned PCM
+segmentation, one job-scoped CPU/int8 faster-whisper model session, source-relative
+transcript assembly, resource readmission, and canonical transcript JSON. Model
+download is disabled unless the invocation explicitly authorizes it.
 
 Video is not a downstream capability. An audio-bearing video container is accepted
 at the media boundary, its selected audio stream is extracted, and all video,
@@ -44,29 +45,65 @@ the same canonical audio input used for other noncanonical recordings.
    - Estimate temporary disk and memory requirements before processing.
    - Produce an immutable plan that can be logged, tested, and persisted.
 3. **Decode and normalize**
-   - Decode only when the engine cannot consume the original media.
-   - Normalize to the engine's required channel count and sample rate.
+   - Decode only when the engine cannot consume the original media in EchoFlow's
+     canonical segmentation format.
+   - Normalize to mono 16 kHz PCM16 WAV for deterministic frame segmentation.
    - Keep temporary media in the private workspace, never in the user's output
      directory.
 4. **Segment**
-   - Prefer deterministic time windows with explicit overlap and stable segment
+   - Use deterministic source-relative PCM frame windows with stable segment
      identifiers.
-   - Preserve source-relative timestamps so a resumed job produces the same
-     artifact boundaries.
+   - Segmentation schema version 1 uses sequential, non-overlapping windows and
+     a single worker. This deliberately avoids claiming overlap or concurrency
+     semantics before they can be reconciled deterministically.
+   - Materialize only one segment at a time with bounded reads so large inputs do
+     not need to be loaded into memory or duplicated in full.
 5. **Transcribe**
-   - Hide engine-specific behavior behind a narrow transcriber protocol.
+   - Hide engine-specific behavior behind a narrow job-scoped session boundary.
+   - Load the faster-whisper model once per job and reuse it across every app-level
+     segment.
    - Return timestamped segment results rather than writing final files.
 6. **Assemble**
-   - Reconcile overlapping words and segments deterministically.
+   - Rebase engine-local timestamps onto the source-relative timeline and
+     reindex them deterministically.
+   - Reject gaps, inconsistent segment order, mixed engine versions, or timestamps
+     outside the segment contract.
    - Preserve confidence and engine metadata in the canonical result.
 7. **Render artifacts**
    - Write canonical transcript JSON atomically.
-   - Derive TXT, SRT, and VTT from that canonical result.
+   - Derive TXT, SRT, and VTT from that canonical result in future work.
    - Put user-facing artifacts in an explicit output directory, with
      `Downloads/EchoFlow` resolved at the application-configuration boundary.
 8. **Record progress**
-   - Persist job, stage, segment, attempt, and artifact metadata in SQLite.
-   - Store paths and metadata in SQLite, not audio blobs or transcript files.
+   - Persist job, stage, segment, attempt, and artifact metadata in a future
+     checkpoint repository.
+   - Store paths and metadata in state, not audio blobs or transcript documents.
+
+## Segmentation contract
+
+EchoFlow owns segmentation rather than delegating segment boundaries to the speech
+engine. That ownership is what makes a future resumed job capable of proving that
+it is completing the same work rather than merely retrying an approximate chunk.
+
+The current contract is intentionally narrow:
+
+- canonical input is uncompressed PCM16 WAV at the planned sample rate and channel
+  count;
+- boundaries are integer PCM frame offsets, not accumulated floating-point times;
+- segment IDs derive from deterministic zero-based ordinals;
+- windows exactly cover the decoded source without gaps or overlap;
+- default segment duration is 600 seconds;
+- concurrency is one;
+- overlap is zero;
+- only the current segment is materialized as a private temporary WAV;
+- the selected model is loaded once for the job, not once per segment;
+- assembled timestamps are source-relative and global recognized-segment indices
+  are regenerated deterministically.
+
+These restrictions are not performance claims. They establish the stable unit of
+completed work required for checkpointing. Bounded parallelism or overlap may be
+added only when their reconciliation rules and resource behavior are measured and
+testable.
 
 ## Screening and resource policy
 
@@ -83,14 +120,15 @@ synonym for a low-quality final transcript.
 - A screening artifact cannot silently replace a balanced or accuracy-oriented
   canonical transcript.
 - Every job plan records the selected profile, runner limits, CPU thread budget,
-  memory budget, engine, concrete model, and engine-specific parameters.
+  memory budget, engine, concrete model, engine-specific parameters, and
+  segmentation policy.
 
 Runner inspection uses resources visible to the process, not merely host totals.
 On supported systems this includes CPU affinity and cgroup v2 CPU/memory limits.
-The first job planner maps compact, standard, and large tiers to faster-whisper
-`tiny`, `small`, and `medium` CPU/int8 configurations. That mapping is a
-versioned planning decision, not proof that the engine is installed. Resource
-figures are conservative heuristics pending measurements from the real engine.
+The runner produces an engine-neutral execution budget. The transcription strategy
+evaluator then ranks concrete faster-whisper CPU/int8 strategies against that
+budget. Resource figures remain conservative heuristics pending measurements from
+the real engine.
 
 ## Capability boundaries
 
@@ -99,16 +137,32 @@ figures are conservative heuristics pending measurements from the real engine.
 | `MediaProbe` | Input metadata and decoder requirements | Transcoding |
 | `JobPlanner` | Resource checks and immutable execution plan | Performing work |
 | `AudioDecoder` | Decode and normalization | Segmentation policy |
-| `Segmenter` | Stable segment boundaries and lineage | Speech recognition |
-| `Transcriber` | Engine invocation and timestamped results | Final file formats |
-| `TranscriptAssembler` | Overlap reconciliation and canonical result | Filesystem policy |
+| `Segmenter` | Stable segment boundaries and materialization | Speech recognition |
+| `TranscriptionSession` | One loaded engine/model and segment recognition | Final file formats |
+| `TranscriptAssembler` | Source-relative assembly and result invariants | Filesystem policy |
 | `ArtifactRenderer` | JSON/TXT/SRT/VTT rendering | Job state |
-| `JobRepository` | SQLite state and resumability | Artifact contents |
+| `JobRepository` | Future durable state and resumability | Artifact contents |
 | `WorkspaceService` | Private temp paths and atomic artifact paths | Audio semantics |
 
 Protocols should be introduced with the first real implementation that needs
 them. Empty interfaces, cloud variants, and speculative managers are not part
 of the first slice.
+
+## Checkpoint and resume boundary
+
+Deterministic segmentation is necessary for resume but is not itself resume. The
+current executor still keeps successfully recognized segment results only in
+process memory. If the process dies, those completed results are lost and the job
+must restart.
+
+A truthful checkpoint layer can now be built around the stable segment unit. It
+must persist enough private metadata to validate at least the source fingerprint,
+segmentation schema and windows, engine/model/revision contract, and completed
+segment result before a later process skips any work. A resumed job must never mix
+source identities, model revisions, or incompatible segment plans.
+
+Until that durable state exists, EchoFlow must not describe an interrupted job as
+resumable.
 
 ## Bounded audio bisection
 
@@ -125,10 +179,9 @@ default segmentation algorithm.
 6. Stop at a configured maximum depth or minimum duration and report the exact
    failed interval.
 
-The limits belong in the future processing configuration, with conservative
-initial defaults such as a 15-second minimum segment and three bisection levels.
-They must be validated against real audio before becoming compatibility
-guarantees.
+The limits belong in future processing configuration, with conservative initial
+defaults such as a 15-second minimum segment and three bisection levels. They must
+be validated against real audio before becoming compatibility guarantees.
 
 ## Sequence of implementation
 
@@ -138,11 +191,14 @@ guarantees.
    **Implemented.**
 3. Implement one CPU transcription engine for one supported input path.
    **Implemented for direct canonical audio and FFmpeg-normalized audio-bearing media.**
-4. Add deterministic segmentation and assembly.
-5. Add JSON and TXT output, then SRT and VTT.
-6. Add SQLite checkpoints and resume.
+4. Add deterministic segmentation, one job-scoped model session, and assembly.
+   **Implemented sequentially with segmentation schema version 1.**
+5. Add durable per-segment checkpoints and resume validation.
+6. Add JSON-derived TXT output, then SRT and VTT.
 7. Add bounded audio bisection using recorded stage/segment attempts.
-8. Add alternative engines or GPU execution only after the same contract suite
+8. Add calibrated local performance measurements and only then evaluate bounded
+   parallelism or additional execution strategies.
+9. Add alternative engines or GPU execution only after the same contract suite
    can exercise both implementations.
 
 ## Tree-sitter decision

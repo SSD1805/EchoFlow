@@ -1,20 +1,11 @@
 from dataclasses import dataclass
 
-from echoflow.runner.models import (
-    ExecutionPolicy,
-    ModelTier,
-    ProcessingProfile,
-    RunnerResources,
-)
-
-_GIB = 1024**3
-_STANDARD_MODEL_BUDGET = 4 * _GIB
-_LARGE_MODEL_BUDGET = 8 * _GIB
+from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
 
 
 @dataclass(frozen=True, slots=True)
 class RunnerPolicyPlanner:
-    """Turn runner limits and user ceilings into an engine-neutral policy."""
+    """Turn process-visible resources and user ceilings into a safe job budget."""
 
     memory_budget_fraction: float = 0.75
     max_cpu_threads: int | None = None
@@ -51,20 +42,5 @@ class RunnerPolicyPlanner:
             provisional=profile is ProcessingProfile.SCREENING,
             cpu_threads=max(1, cpu_threads),
             memory_budget_bytes=max(0, memory_budget),
-            recommended_model_tier=self._model_tier(profile, memory_budget),
             constraints=tuple(dict.fromkeys(constraints)),
         )
-
-    @staticmethod
-    def _model_tier(profile: ProcessingProfile, memory_budget: int) -> ModelTier:
-        if (
-            profile is ProcessingProfile.SCREENING
-            or memory_budget < _STANDARD_MODEL_BUDGET
-        ):
-            return ModelTier.COMPACT
-        if (
-            profile is ProcessingProfile.ACCURACY
-            and memory_budget >= _LARGE_MODEL_BUDGET
-        ):
-            return ModelTier.LARGE
-        return ModelTier.STANDARD

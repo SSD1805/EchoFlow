@@ -22,6 +22,7 @@ from echoflow.transcription.audio import FfmpegAudioDecoder
 from echoflow.transcription.backend import FasterWhisperTranscriber
 from echoflow.transcription.checkpoint import LocalCheckpointStore
 from echoflow.transcription.executor import TranscriptionExecutor
+from echoflow.transcription.export import TranscriptExporter
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.segmentation import WaveAudioSegmenter
 from echoflow.workspace.models import WorkspacePaths
@@ -131,6 +132,11 @@ class AppContainer(containers.DeclarativeContainer):
         transcript_assembler=transcript_assembler,
         checkpoint_store=checkpoint_store,
         logger=logger,
+    )
+    transcript_exporter = providers.Factory(
+        TranscriptExporter,
+        workspace_service=workspace_service,
+        file_manager=file_manager,
     )
     benchmark_runner = providers.Factory(
         BenchmarkRunner,

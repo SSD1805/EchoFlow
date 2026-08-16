@@ -38,6 +38,17 @@ jobs:
       - name: Import optional CPU engine
         run: uv run python -c "import faster_whisper; print(faster_whisper.__version__)"
 
+      - name: Install native media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+
+      - name: Verify native media tools
+        run: >-
+          uv run python -c "import shutil;
+          missing=[name for name in ('ffmpeg','ffprobe') if shutil.which(name) is None];
+          assert not missing, f'Missing native media tools: {missing}'"
+
       - name: Check lockfile
         run: uv lock --check
 
@@ -117,6 +128,20 @@ jobs:
 
       - name: Import optional CPU engine
         run: uv run python -c "import faster_whisper; print(faster_whisper.__version__)"
+
+      - name: Install native media tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
+      - name: Install native media tools (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg --yes --no-progress
+
+      - name: Verify native media tools
+        run: >-
+          uv run python -c "import shutil;
+          missing=[name for name in ('ffmpeg','ffprobe') if shutil.which(name) is None];
+          assert not missing, f'Missing native media tools: {missing}'"
 
       - name: Run tests
         run: uv run pytest

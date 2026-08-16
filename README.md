@@ -52,14 +52,19 @@ EchoFlow currently provides a tested application foundation:
 - Durable private per-segment checkpoints and `transcribe INPUT --resume JOB_ID`
   recovery that restores the original execution contract and skips only validated
   completed work.
+- Deterministic opt-in TXT, SRT, and WebVTT views derived from the completed
+  canonical transcript without rerunning speech recognition.
+- Native-media acceptance coverage that exercises real FFprobe, FFmpeg audio
+  extraction/normalization, canonical WAV validation, segmentation, and cleanup on
+  Linux, macOS, and Windows CI.
 - Explicit model-download authorization; execution is local-only by default.
 - Dependency Injector composition for the implemented services.
 - A distribution contract that builds the wheel and verifies a clean install of
   the packaged CLI and transcription extra outside the source checkout on Linux,
   macOS, and Windows CI.
 
-Calibrated performance estimates, GPU strategies, derived TXT/SRT/VTT artifacts,
-and standalone end-user installers are not implemented yet.
+Calibrated performance estimates, GPU strategies, and standalone end-user
+installers are not implemented yet.
 
 ## Requirements and installation
 
@@ -101,8 +106,16 @@ uv run echoflow transcribe /path/to/recording.wav --dry-run --profile screening 
 uv run echoflow transcribe /path/to/recording.wav --strategy small-cpu-int8 --dry-run
 uv run echoflow transcribe /path/to/interview.mp4
 uv run echoflow transcribe /path/to/interview.mp4 --allow-model-download
-uv run echoflow transcribe /path/to/interview.mp4 --resume JOB_ID
+uv run echoflow transcribe /path/to/interview.mp4 --export txt
+uv run echoflow transcribe /path/to/interview.mp4 --export srt --export vtt
+uv run echoflow transcribe /path/to/interview.mp4 --resume JOB_ID --export txt
 ```
+
+TXT, SRT, and WebVTT are derived views of the completed canonical transcript.
+Selecting an export does not invoke the recognition engine again. Canonical JSON
+remains the authoritative artifact with execution provenance; derived files can be
+removed or regenerated without becoming part of checkpoint or recognition state.
+Derived exports are opt-in for now.
 
 Without `--allow-model-download`, EchoFlow asks faster-whisper to use only model
 files already present in EchoFlow's private model cache. The flag authorizes the
@@ -163,7 +176,10 @@ transcription extra, license metadata, packaged license file, and accidental tes
 leakage. It then creates a temporary virtual environment outside the repository,
 disables user-site and source-path imports, installs `echoflow[transcription]` from
 that wheel, and exercises the installed CLI. CI runs that contract on Linux,
-macOS, and Windows.
+macOS, and Windows. CI also provisions FFmpeg/FFprobe explicitly and exercises a
+small generated MP4 through the production probe, decode, WAV, segmentation, and
+cleanup path on all three operating systems; this is a functional media-boundary
+check, not a performance benchmark or real-model accuracy test.
 
 The enforced budgets are:
 
@@ -177,8 +193,8 @@ The enforced budgets are:
 Radon reports complexity and maintainability trends; Ruff provides the hard
 complexity gate. Targeted Poodle mutation runs are used for changed decision
 logic because its broad runner currently has a process-timeout cleanup defect.
-The segmentation, assembly, and checkpoint modules are included in that targeted
-mutation scope.
+The segmentation, assembly, checkpoint, and transcript-export modules are included
+in that targeted mutation scope.
 
 The full feedback ladder and Git bisect procedure are documented in
 [`docs/development/testing-and-bisect.md`](docs/development/testing-and-bisect.md).
@@ -215,6 +231,13 @@ Only one segment is materialized at a time with bounded reads. A faster-whisper
 model is initialized once for the job and reused across each segment. Engine-local
 timestamps are then rebased onto one source-relative timeline and validated before
 the canonical transcript is written.
+
+TXT, SRT, and WebVTT publication occurs only after canonical transcript completion.
+The renderers consume canonical source-relative segment times; application-owned
+segmentation therefore does not reset subtitle clocks. Derived files are rendered
+before path reservation and published through the same atomic local-file boundary.
+If derived publication fails, EchoFlow rolls back that derived set while preserving
+the already-completed canonical JSON artifact.
 
 This sequential contract is intentionally conservative. It creates a stable,
 reproducible unit of completed work without assuming that parallelism improves

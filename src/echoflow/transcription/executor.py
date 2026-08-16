@@ -269,6 +269,14 @@ class TranscriptionExecutor:
         allow_model_download: bool,
     ) -> EngineTranscript:
         completed_count = len(restored.completed)
+        results = list(restored.completed)
+        if completed_count == len(windows):
+            self.logger.bind(job_id=job.job_id.value).info(
+                "transcription_resume_recognition_complete",
+                segment_count=len(windows),
+            )
+            return self.transcript_assembler.assemble(results)
+
         allowed_download = allow_model_download and completed_count == 0
         if restored.detected_language is None:
             session = self.transcriber.open_session(
@@ -289,7 +297,6 @@ class TranscriptionExecutor:
                 "Installed transcription engine version does not match checkpoints"
             )
 
-        results = list(restored.completed)
         job_logger = self.logger.bind(job_id=job.job_id.value)
         for window in windows[completed_count:]:
             job_logger.info(

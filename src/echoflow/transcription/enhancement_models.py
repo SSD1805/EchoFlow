@@ -14,7 +14,9 @@ def _validate_parameters(parameters: tuple[tuple[str, str], ...]) -> None:
     keys: set[str] = set()
     for key, value in parameters:
         if not key.strip() or not value.strip():
-            raise ValueError("enhancement parameters cannot contain empty keys or values")
+            raise ValueError(
+                "enhancement parameters cannot contain empty keys or values"
+            )
         if key in keys:
             raise ValueError("enhancement parameter keys must be unique")
         keys.add(key)
@@ -36,10 +38,13 @@ class EnhancementConfiguration:
             raise ValueError("unsupported enhancement schema version")
         _validate_parameters(self.parameters)
         if self.mode is EnhancementMode.OFF:
-            if any(
-                value is not None
-                for value in (self.provider, self.model_id, self.model_revision)
-            ) or self.parameters:
+            if (
+                any(
+                    value is not None
+                    for value in (self.provider, self.model_id, self.model_revision)
+                )
+                or self.parameters
+            ):
                 raise ValueError("disabled enhancement cannot declare provider state")
             return
         if self.provider is None or not self.provider.strip():

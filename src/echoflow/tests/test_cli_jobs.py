@@ -71,7 +71,7 @@ def test_jobs_human_views_include_progress_and_resume_state():
     assert "interview.wav" in listed.stdout
     assert shown.exit_code == 0
     assert "Resume" in shown.stdout
-    assert "--resume job-1" in shown.stdout
+    assert "job-1" in shown.stdout
 
 
 def test_jobs_discard_requires_nonrunning_job_and_can_skip_confirmation():

@@ -39,10 +39,9 @@ jobs:
           executor_path = Path("src/echoflow/transcription/executor.py")
           text = executor_path.read_text(encoding="utf-8")
 
-          old_probability = '''        language_probability = (
-              result.language_probability if detected_language is not None else None
-          )
-          '''
+          transcript_start = text.index("    def _transcript(\n")
+          probability_start = text.index("        language_probability = (", transcript_start)
+          probability_end = text.index("        return CanonicalTranscript(", probability_start)
           new_probability = '''        language_probability = (
               result.language_probability
               if plan.engine.auto_language_mode is AutoLanguageMode.JOB_LATCHED
@@ -51,9 +50,7 @@ jobs:
               else None
           )
           '''
-          if old_probability not in text:
-              raise RuntimeError("language probability block not found")
-          text = text.replace(old_probability, new_probability, 1)
+          text = text[:probability_start] + new_probability + text[probability_end:]
 
           start = text.index("    def _attribute_languages(\n")
           replacement = '''    def _attribute_languages(

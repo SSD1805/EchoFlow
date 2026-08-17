@@ -27,6 +27,8 @@ def test_dry_run_passes_explicit_audio_stream_to_fresh_planner() -> None:
         Path("recording.mkv"),
         output_dir=None,
         profile=container.config().PROCESSING_PROFILE,
+        strategy_id=None,
         audio_stream_index=5,
+        enhance=False,
     )
     container.transcription_executor().execute.assert_not_called()

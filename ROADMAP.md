@@ -11,7 +11,8 @@ Modern EchoFlow effectively restarted on August 2, 2026. The foundation now incl
 real local transcription vertical slice, deterministic media handling, segmentation,
 private checkpoints, resource admission, durable lifecycle state, multilingual
 semantics, anonymous speaker diarization, adaptive CPU/CUDA execution, explicit local
-model custody, and optional provenance-bearing noise suppression.
+model custody, optional provenance-bearing noise suppression, and a rebuildable local
+transcript library with evidence-first lexical search.
 
 The project is moving from **engine trust** to **product legibility and empirical
 qualification**. Backend contracts should remain strict while ordinary users gain
@@ -48,14 +49,18 @@ Current foundation:
   lanes;
 - multilingual faster-whisper decoding plus conservative local language attribution;
 - anonymous recording-scoped speaker diarization with conservative text projection;
-  and
-- a database-neutral `TranscriptIndex` port for a future rebuildable transcript
-  library.
+- a database-neutral `TranscriptIndex` application port with a private rebuildable
+  DuckDB backend;
+- deterministic offline BM25-style lexical ranking with phrase, ANY/ALL term,
+  speaker, language, transcript, and sort constraints; and
+- human-readable transcript evidence receipts that expose canonical/source locations,
+  recorded source SHA-256, and current source-integrity status.
 
 Canonical transcript JSON and checkpoint files remain authoritative execution evidence.
 Lifecycle metadata describes job state. Managed model manifests describe local
-execution dependencies. Enhanced audio is private derived processing material. Future
-search/index databases remain rebuildable derived state.
+execution dependencies. Enhanced audio is private derived processing material. The
+transcript search database is rebuildable derived state and contains no unique user
+information.
 
 ## Pre-production contract policy
 
@@ -89,7 +94,9 @@ EchoFlow remains CLI-first while backend contracts mature:
   switches;
 - ASR model acquisition/removal happens through model-management actions, never hidden
   inside transcription;
-- enhancement is explicit until evidence justifies automation; and
+- enhancement is explicit until evidence justifies automation;
+- corpus search compiles through a typed application query contract rather than
+  exposing SQL or DuckDB to users; and
 - a future desktop/web UI remains a presentation adapter over the same application
   services rather than a second pipeline implementation.
 
@@ -113,12 +120,13 @@ survivors and rerun only affected scopes.
 
 ## Near-term direction
 
-### 1. Adaptive execution, lifecycle, model, and enhancement dogfooding
+### 1. Adaptive execution, lifecycle, model, enhancement, and library dogfooding
 
 Exercise interruption/resume, stale-process reconciliation, progress rendering,
 accelerator re-admission, bounded prefetch cleanup, managed-model removal/reinstall,
-and enhancement on long/noisy recordings. Keep published artifacts separate from
-private execution state.
+enhancement on long/noisy recordings, transcript-library rebuilds, evidence receipts,
+and search over real multi-recording corpora. Keep published artifacts separate from
+private execution and index state.
 
 ### 2. Representative-device qualification
 
@@ -136,36 +144,42 @@ cost, and raw-ASR versus enhancement-plus-ASR accuracy/cost on representative no
 recordings. Calibrate strategies and any future enhancement heuristic from measurements,
 not hardware names or aesthetic audio-quality judgments.
 
-### 3. Corpus library and evidence-first search
+### 3. Corpus library retrieval UX
 
-Implement the existing `TranscriptIndex` port with a rebuildable local backend, likely
-DuckDB or an equivalently replaceable embedded analytical store.
+The first evidence-first library tranche is implemented behind the database-neutral
+`TranscriptIndex` port with a private rebuildable DuckDB backend. It provides plain
+lexical and exact-phrase search, deterministic BM25-style relevance ranking,
+source-relative timestamped evidence, cross-recording results, and initial
+speaker/language/transcript filters.
 
-The user experience is a search surface, not a database surface:
+The next corpus-library work should be driven by real search use and may add:
 
-- plain text and exact phrase search;
-- BM25-style lexical ranking;
+- richer snippets/highlighting;
 - filters and facets;
-- timestamped snippets;
-- cross-recording results;
 - saved searches/collections;
 - tags and notes; and
 - exportable result sets.
 
-Results must preserve the evidence trail to the source recording and exact transcript
-passage. Canonical transcript files remain truth; the index is disposable derived state.
+Results must continue to preserve the evidence trail to the source recording and exact
+canonical transcript passage. Canonical transcript files remain truth; the index stays
+disposable derived state.
 
 ### 4. Typed search grammar and query builder
 
-Keep SQL below the application boundary. Introduce a stable `SearchQuery`-style IR for
-text, phrase, speaker, language, date, recording, tag, duration, diarization, and sort
-constraints. CLI syntax, future query chips/dropdowns, and any local natural-language
-parser should compile to the same typed contract.
+The first stable `SearchQuery` contract is implemented for text, phrase, ANY/ALL term
+semantics, speaker, language, transcript/document, sorting, and bounded limits. SQL
+remains below the application boundary.
+
+Extend this contract only as product evidence requires date, tag, duration,
+diarization/enrichment, exclusion, facet, or collection constraints. CLI syntax,
+future query chips/dropdowns, and any local natural-language parser should compile to
+the same typed contract rather than learning database syntax.
 
 ### 5. Word/timestamp alignment
 
-Add alignment as a separate enrichment capability so speaker projection and result
-jumping can become more precise without rewriting raw ASR or diarization evidence.
+Add alignment as a separate enrichment capability so speaker projection, search-result
+highlighting, and jump-to-audio behavior can become more precise without rewriting raw
+ASR or diarization evidence.
 
 ### 6. Bounded failure recovery
 
@@ -194,7 +208,8 @@ Preferred progression:
 5. optional constrained local natural-language-to-`SearchQuery` translation; and
 6. only later, optional local summarization over an explicitly selected evidence set.
 
-Lexical retrieval comes first because it is fast, local, auditable, and useful for
+The first progression step and initial deterministic filters now exist. Lexical
+retrieval remains the default because it is fast, local, auditable, and useful for
 research. EchoFlow should not begin with “chat with your transcripts.” Generated
 answers can hide omissions and provenance. Primary results should remain inspectable
 passages, source recordings, speakers, and timestamps.
@@ -272,7 +287,12 @@ locations, not an uncited generated answer.
   model-backed enhancement must use model-management custody.
 - There is no automatic enhancement selector yet; raw-ASR versus enhancement-plus-ASR
   evidence comes first.
-- The transcript index/search backend is not implemented yet.
+- The transcript library has a private rebuildable DuckDB lexical backend and typed
+  evidence search. It does not yet provide facets, saved searches, tags/notes,
+  word-level alignment, semantic embeddings, or generated corpus answers.
+- Source-integrity inspection proves whether the file currently at the recorded source
+  path matches the SHA-256 fingerprint captured for transcription. It cannot prove that
+  no other process ever modified and later restored the file.
 - Alternate ASR engines, distributed execution, semantic embeddings, polished
   installers, and a desktop GUI remain later work.
 
@@ -288,7 +308,7 @@ These are investigations, not release promises:
   end-to-end ASR benefit reliably enough;
 - later speech/source separation for overlapping speakers, kept distinct from ordinary
   denoising;
-- local lexical/metadata search and corpus-statistical related terms;
+- corpus-statistical related terms, richer facets, and evidence-navigation aids;
 - constrained deterministic natural-language query grammar;
 - optional tiny local natural-language-to-typed-search translation;
 - optional summarization only over selected/citable search evidence;

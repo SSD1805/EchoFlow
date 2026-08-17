@@ -8,7 +8,8 @@ The product target is a privacy-by-default, resource-aware, reproducible, and re
 workflow for sensitive recordings rather than a model-specific transcription GUI.
 EchoFlow derives execution plans from CPU, system memory, and execution-capable
 accelerators actually available to the current process, keeps source media authoritative,
-and makes local model and preprocessing provenance explicit.
+makes local model and preprocessing provenance explicit, and provides evidence-first
+local search across completed transcripts.
 
 EchoFlow does not require a hosted transcription account. Durability, reliability,
 performance on ordinary hardware, local storage awareness, and portable user-owned
@@ -39,10 +40,13 @@ EchoFlow is pre-production. Its current tested foundation includes:
 - mandatory managed-model custody for ASR planning and execution;
 - optional deterministic local FFmpeg speech noise suppression with private derived
   audio, timeline-preservation checks, and transcript provenance;
+- a database-neutral transcript-index port with a private rebuildable DuckDB backend,
+  deterministic offline BM25-style lexical ranking, and typed evidence search;
+- human-readable transcript evidence receipts with canonical/source locations,
+  recorded source SHA-256, and current source-integrity verification;
 - storage preflight for normalization, enhancement, segment materialization, model
   acquisition, and published artifacts;
-- cross-platform private-storage enforcement and Linux/macOS/Windows CI; and
-- a database-neutral transcript-index port for future evidence-first corpus search.
+- cross-platform private-storage enforcement and Linux/macOS/Windows CI.
 
 Accelerator memory estimates and performance ranks remain conservative heuristics until
 representative-device qualification is complete. Standalone end-user installers and a
@@ -155,6 +159,58 @@ end-to-end ASR benefit before EchoFlow invents heuristics for when to turn it on
 See
 [`docs/architecture/speech-enhancement.md`](docs/architecture/speech-enhancement.md).
 
+## Search the local transcript library
+
+Completed canonical transcripts can be projected into a private rebuildable local
+library. Canonical JSON remains authoritative; the DuckDB search database is disposable
+derived state and contains no unique user information.
+
+Build or rebuild the library from EchoFlow's known completed transcripts:
+
+```bash
+uv run echoflow library rebuild
+uv run echoflow library
+```
+
+Additional canonical transcript files or directories can be included explicitly:
+
+```bash
+uv run echoflow library rebuild /path/to/transcripts
+```
+
+Search uses deterministic local BM25-style lexical ranking. DuckDB is an implementation
+detail below the application boundary; users do not provide SQL, and the first search
+tranche does not install or load a network-fetched DuckDB FTS extension.
+
+```bash
+uv run echoflow library search "housing insecurity"
+uv run echoflow library search "housing insecurity" --phrase
+uv run echoflow library search "rent increase" --all-terms --speaker speaker-02 --language en
+```
+
+Results preserve evidence context including the canonical transcript, source recording
+path when known, source SHA-256, source-relative timestamps, speaker/language evidence,
+and the matching passage.
+
+Inspect one transcript's custody and source-integrity evidence:
+
+```bash
+uv run echoflow library show JOB_ID
+```
+
+The evidence receipt distinguishes the original recording, canonical transcript, and
+private search index. It reports the SHA-256 recorded for transcription and can re-hash
+the file currently at the recorded source path to show whether those bytes still match.
+A match proves current byte identity with the recorded fingerprint; it does not claim
+that no external process ever modified and later restored the file.
+
+EchoFlow treats the supplied source recording as read-only input. Canonicalization,
+segmentation, enhancement, checkpoints, exports, and search data are written separately
+rather than overwriting that source.
+
+See
+[`docs/architecture/corpus-search.md`](docs/architecture/corpus-search.md).
+
 ## Resume interrupted work
 
 An interrupted job retains completed segment results in private local state. Resume
@@ -257,47 +313,3 @@ tests are green.
 
 See
 [`docs/development/testing-and-bisect.md`](docs/development/testing-and-bisect.md).
-
-## Architecture direction
-
-EchoFlow keeps source media and user-visible artifacts separate from private execution
-state. The original recording remains authoritative. Normalization, optional enhanced
-audio, segment materializations, model caches, lifecycle metadata, and checkpoints are
-private implementation state unless a future explicit export contract says otherwise.
-
-The current transcription path is:
-
-```text
-source -> inspect/select -> canonical decode -> optional noise suppression
-       -> deterministic segmentation -> managed local ASR -> transcript enrichment
-       -> canonical JSON -> optional derived exports
-```
-
-Execution consumes an immutable resource-admitted plan instead of letting an engine
-make a second placement/model decision. Accelerated execution may prepare one future
-segment on CPU while the accelerator infers the current segment, but checkpoints remain
-ordered and resumable.
-
-EchoFlow is pre-production. Internal durable schemas currently use one canonical
-contract rather than carrying migration branches for behavior that has never been
-released or dogfooded. When a real compatibility obligation exists, migrations should
-be introduced deliberately from that proven boundary rather than pre-accumulated.
-
-Architecture references:
-
-- [processing capabilities](docs/architecture/processing-capabilities.md)
-- [media and timeline](docs/architecture/media-and-timeline.md)
-- [adaptive heterogeneous execution](docs/architecture/adaptive-heterogeneous-execution.md)
-- [model management](docs/architecture/model-management.md)
-- [speech enhancement](docs/architecture/speech-enhancement.md)
-- [diarization](docs/architecture/diarization.md)
-- [planned corpus search](docs/architecture/corpus-search.md)
-
-Security boundaries, residual risks, and disclosure instructions are in
-[`SECURITY.md`](SECURITY.md). Historical review records under `docs/security/` are kept
-as historical evidence rather than rewritten to pretend earlier states never existed.
-
-## License
-
-EchoFlow is licensed under the [GNU Affero General Public License v3.0 only](LICENSE).
-See [`LICENSING.md`](LICENSING.md) for the transition from earlier Apache-2.0 versions.

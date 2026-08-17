@@ -9,6 +9,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "SSD" }]
 dependencies = [
     "dependency-injector>=4.48,<5",
+    "duckdb>=1.4,<2",
     "psutil>=7,<8",
     "pydantic>=2.10,<3",
     "pydantic-settings>=2.6,<3",
@@ -116,6 +117,10 @@ only_files = [
     "src/echoflow/core/performance_tracker.py",
     "src/echoflow/interfaces/local_file_manager.py",
     "src/echoflow/interfaces/private_storage.py",
+    "src/echoflow/library/index.py",
+    "src/echoflow/library/duckdb_index.py",
+    "src/echoflow/library/projection.py",
+    "src/echoflow/library/service.py",
     "src/echoflow/media/models.py",
     "src/echoflow/media/probe.py",
     "src/echoflow/model_management/catalog.py",

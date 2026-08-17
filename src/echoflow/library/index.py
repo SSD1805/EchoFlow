@@ -1,5 +1,16 @@
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Protocol, runtime_checkable
+
+
+class SearchOperator(StrEnum):
+    ANY = "any"
+    ALL = "all"
+
+
+class SearchSort(StrEnum):
+    RELEVANCE = "relevance"
+    TIMELINE = "timeline"
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,18 +39,16 @@ class IndexedSegment:
 
 @dataclass(frozen=True, slots=True)
 class IndexedTranscript:
-    """Database-neutral projection of one canonical transcript.
-
-    This object is intentionally a projection rather than the canonical transcript
-    schema itself. Index backends may store and optimize it however they want, but
-    EchoFlow must be able to discard the backend and rebuild it from canonical
-    artifacts.
-    """
+    """Database-neutral projection of one canonical transcript."""
 
     document_id: str
     source_sha256: str
     transcript_schema_version: int
     detected_language: str | None
+    canonical_path: str
+    source_path: str | None
+    source_size_bytes: int
+    source_modified_ns: int
     segments: tuple[IndexedSegment, ...]
 
     def __post_init__(self) -> None:
@@ -53,35 +62,73 @@ class IndexedTranscript:
             raise ValueError("transcript_schema_version must be positive")
         if self.detected_language is not None and not self.detected_language.strip():
             raise ValueError("detected_language cannot be empty")
+        if not self.canonical_path.strip():
+            raise ValueError("canonical_path cannot be empty")
+        if self.source_path is not None and not self.source_path.strip():
+            raise ValueError("source_path cannot be empty")
+        if self.source_size_bytes < 1:
+            raise ValueError("source_size_bytes must be positive")
+        if self.source_modified_ns < 0:
+            raise ValueError("source_modified_ns cannot be negative")
         segment_ids = tuple(segment.segment_id for segment in self.segments)
         if len(segment_ids) != len(set(segment_ids)):
             raise ValueError("segment IDs must be unique within a document")
 
 
 @dataclass(frozen=True, slots=True)
-class TranscriptQuery:
-    """Portable lexical query supported by every transcript-index backend."""
+class IndexedDocument:
+    document_id: str
+    source_sha256: str
+    detected_language: str | None
+    canonical_path: str
+    source_path: str | None
+    segment_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class SearchQuery:
+    """Stable application query contract shared by CLI, UI, and index adapters."""
 
     text: str
+    phrase: bool = False
+    operator: SearchOperator = SearchOperator.ANY
+    speaker_refs: tuple[str, ...] = ()
+    languages: tuple[str, ...] = ()
+    document_ids: tuple[str, ...] = ()
+    sort: SearchSort = SearchSort.RELEVANCE
     limit: int = 100
 
     def __post_init__(self) -> None:
         if not self.text.strip():
             raise ValueError("query text cannot be empty")
-        if self.limit < 1:
-            raise ValueError("query limit must be positive")
+        if self.limit < 1 or self.limit > 1_000:
+            raise ValueError("query limit must be between 1 and 1000")
+        for name, values in (
+            ("speaker_refs", self.speaker_refs),
+            ("languages", self.languages),
+            ("document_ids", self.document_ids),
+        ):
+            if any(not value.strip() for value in values):
+                raise ValueError(f"{name} cannot contain empty values")
+            if len(values) != len(set(values)):
+                raise ValueError(f"{name} cannot contain duplicates")
 
 
 @dataclass(frozen=True, slots=True)
 class TranscriptMatch:
-    """Portable search result independent of backend ranking implementation."""
+    """Evidence-bearing search result independent of backend implementation."""
 
     document_id: str
+    source_sha256: str
+    canonical_path: str
+    source_path: str | None
     segment_id: str
     start_seconds: float
     end_seconds: float
     text: str
-    score: float | None = None
+    language: str | None
+    speaker_ref: str | None
+    score: float
 
     def __post_init__(self) -> None:
         if not self.document_id.strip():
@@ -96,38 +143,25 @@ class TranscriptMatch:
 
 @runtime_checkable
 class TranscriptIndex(Protocol):
-    """Application port for a rebuildable transcript-search index.
-
-    Implementations may use DuckDB, SQLite, PostgreSQL, or another storage engine.
-    The port deliberately exposes transcript-library behavior instead of SQL so the
-    application never depends on a backend dialect or transaction API.
-    """
+    """Application port for disposable, rebuildable transcript search state."""
 
     @property
-    def backend_id(self) -> str:
-        """Stable identifier used for diagnostics and provenance."""
+    def backend_id(self) -> str: ...
+
+    def rebuild(self, transcripts: tuple[IndexedTranscript, ...]) -> None:
+        """Replace the complete derived index atomically."""
         ...
 
-    def upsert(self, transcript: IndexedTranscript) -> None:
-        """Replace the indexed projection for one canonical transcript atomically."""
-        ...
+    def upsert(self, transcript: IndexedTranscript) -> None: ...
 
-    def remove(self, document_id: str) -> None:
-        """Remove one indexed document. Missing documents must be harmless."""
-        ...
+    def remove(self, document_id: str) -> None: ...
 
-    def contains(self, document_id: str) -> bool:
-        """Return whether the backend currently contains the document."""
-        ...
+    def contains(self, document_id: str) -> bool: ...
 
-    def search(self, _query: TranscriptQuery) -> tuple[TranscriptMatch, ...]:
-        """Return at most query.limit lexical matches."""
-        ...
+    def documents(self) -> tuple[IndexedDocument, ...]: ...
 
-    def clear(self) -> None:
-        """Discard all derived index state without touching canonical artifacts."""
-        ...
+    def search(self, query: SearchQuery) -> tuple[TranscriptMatch, ...]: ...
 
-    def close(self) -> None:
-        """Release backend resources. Calling close repeatedly should be safe."""
-        ...
+    def clear(self) -> None: ...
+
+    def close(self) -> None: ...

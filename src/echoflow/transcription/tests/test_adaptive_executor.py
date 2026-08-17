@@ -7,6 +7,7 @@ import pytest
 
 from echoflow.core.measurements import MeasurementRecorder
 from echoflow.runner.models import RunnerResources
+from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.runner.topology import (
     AcceleratorBackend,
     AcceleratorDevice,
@@ -38,15 +39,15 @@ from echoflow.workspace.models import Job, JobId
 GIB = 1024**3
 
 
-def resources() -> RunnerResources:
+def resources(cpus=4) -> RunnerResources:
     return RunnerResources(
         platform="TestOS",
         machine="x86_64",
-        logical_cpus=8,
-        physical_cpus=4,
-        affinity_cpus=4,
+        logical_cpus=max(8, cpus),
+        physical_cpus=cpus,
+        affinity_cpus=cpus,
         cpu_quota_cores=None,
-        effective_cpus=4,
+        effective_cpus=cpus,
         memory_total_bytes=16 * GIB,
         memory_available_bytes=12 * GIB,
         memory_limit_bytes=None,
@@ -114,6 +115,9 @@ def bare_service() -> AdaptiveTranscriptionExecutor:
     service.audio_segmenter = Mock()
     service.checkpoint_store = Mock()
     service.transcript_assembler = Mock()
+    service.runner_inspector = Mock()
+    service.runner_inspector.inspect.return_value = resources()
+    service.policy_planner = RunnerPolicyPlanner(memory_budget_fraction=1)
     return service
 
 
@@ -154,7 +158,10 @@ def execution_plan(
             compute_type=compute_type,
             cpu_threads=engine_threads,
         ),
-        policy=SimpleNamespace(cpu_threads=policy_threads),
+        policy=SimpleNamespace(
+            cpu_threads=policy_threads,
+            profile=SimpleNamespace(value="balanced"),
+        ),
         runner=resources(),
         resources=SimpleNamespace(memory_budget_bytes=8 * GIB),
         decoder=SimpleNamespace(),
@@ -279,7 +286,7 @@ def test_accelerated_segments_prefetch_but_checkpoint_strictly_in_order(tmp_path
     assert service.observer.values()["segments.completed"] == 3
 
 
-def test_accelerated_segments_stay_sequential_without_cpu_headroom(tmp_path):
+def test_accelerated_segments_stay_sequential_without_planned_cpu_headroom(tmp_path):
     service = bare_service()
     planned = execution_plan(policy_threads=1, engine_threads=1)
     planned_job = job(tmp_path)
@@ -296,11 +303,36 @@ def test_accelerated_segments_stay_sequential_without_cpu_headroom(tmp_path):
     )
 
     assert service.observer.values()["segments.prefetch_depth"] == 0
+    service.runner_inspector.inspect.assert_not_called()
     assert session.transcribe.call_args_list == [
         call(segment.path) for segment in materialized
     ]
     assert service.audio_segmenter.cleanup.call_args_list == [
         call(segment) for segment in materialized
+    ]
+
+
+def test_execution_cpu_contraction_disables_planned_prefetch(tmp_path):
+    service = bare_service()
+    service.runner_inspector.inspect.return_value = resources(cpus=3)
+    planned = execution_plan(policy_threads=4, engine_threads=3)
+    planned_job = job(tmp_path)
+    segment_windows = windows(2)
+    materialized, session = _prepared_execution(service, segment_windows)
+
+    service._transcribe_accelerated(
+        planned,
+        DecodedAudio(Path.cwd() / "decoded.wav", False),
+        segment_windows,
+        planned_job,
+        RestoredCheckpoint((), None, None),
+        allow_model_download=False,
+    )
+
+    assert service.observer.values()["segments.prefetch_depth"] == 0
+    service.runner_inspector.inspect.assert_called_once_with()
+    assert session.transcribe.call_args_list == [
+        call(segment.path) for segment in materialized
     ]
 
 

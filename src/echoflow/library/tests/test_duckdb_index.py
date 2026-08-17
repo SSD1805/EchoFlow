@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import duckdb
 import pytest
 
 from echoflow.library.duckdb_index import DuckDbTranscriptIndex, lexical_tokens
@@ -239,7 +240,7 @@ def test_rebuild_rolls_back_to_previous_index_on_duplicate_document_failure(
         segments=(IndexedSegment("segment-000001", 1, 2, "second duplicate"),),
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(duckdb.ConstraintException):
         index.rebuild((duplicate_a, duplicate_b))
 
     assert [item.document_id for item in index.documents()] == ["original"]

@@ -113,9 +113,14 @@ class ModelManager:
         return manifest
 
     def is_installed(self, model_id: str) -> bool:
+        return self.resolved_revision(model_id) is not None
+
+    def resolved_revision(self, model_id: str) -> str | None:
+        """Return the verified managed revision without touching the network."""
         self.catalog.require(model_id)
         self._prepare_roots()
-        return self._manifest(model_id) is not None
+        manifest = self._manifest(model_id)
+        return None if manifest is None else manifest.resolved_revision
 
     def _prepare_roots(self) -> None:
         self.file_store.ensure_directory_exists(self.model_root, private=True)

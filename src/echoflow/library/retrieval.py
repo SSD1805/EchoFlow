@@ -59,7 +59,7 @@ class SearchPassage:
     speaker_refs: tuple[str, ...]
     lexical_rank: int | None
     semantic_rank: int | None
-    fused_rank: int
+    fused_rank: int | None
 
     def __post_init__(self) -> None:
         if not self.document_id.strip():
@@ -72,12 +72,10 @@ class SearchPassage:
             raise ValueError("search result timestamps must be ordered and non-negative")
         if not self.text.strip():
             raise ValueError("search result text cannot be empty")
-        for name in ("lexical_rank", "semantic_rank"):
+        for name in ("lexical_rank", "semantic_rank", "fused_rank"):
             rank = getattr(self, name)
             if rank is not None and rank < 1:
                 raise ValueError(f"{name} must be positive")
-        if self.fused_rank < 1:
-            raise ValueError("fused_rank must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +104,23 @@ class SearchResponse:
                 raise ValueError("hybrid response requires lexical and fusion provenance")
         elif self.fusion_profile is not None:
             raise ValueError("non-hybrid response cannot claim fusion provenance")
+        _validate_result_ranks(self.mode, self.results)
+
+
+def _validate_result_ranks(
+    mode: RetrievalMode, results: tuple[SearchPassage, ...]
+) -> None:
+    for result in results:
+        if mode is RetrievalMode.LEXICAL and (
+            result.semantic_rank is not None or result.fused_rank is not None
+        ):
+            raise ValueError("lexical results cannot claim semantic or fused rank")
+        if mode is RetrievalMode.SEMANTIC and (
+            result.lexical_rank is not None or result.fused_rank is not None
+        ):
+            raise ValueError("semantic results cannot claim lexical or fused rank")
+        if mode is RetrievalMode.HYBRID and result.fused_rank is None:
+            raise ValueError("hybrid results require fused rank")
 
 
 class TranscriptSearch:
@@ -144,7 +159,7 @@ class TranscriptSearch:
             self._lexical_passage(
                 match,
                 documents.get(match.document_id),
-                rank,
+                rank if query.sort is SearchSort.RELEVANCE else None,
             )
             for rank, match in enumerate(matches, start=1)
         )
@@ -171,7 +186,7 @@ class TranscriptSearch:
                 candidate.chunk,
                 semantic_rank=rank,
                 lexical_rank=None,
-                fused_rank=rank,
+                fused_rank=None,
             )
             for rank, candidate in enumerate(candidates, start=1)
         )
@@ -300,7 +315,7 @@ class TranscriptSearch:
     def _lexical_passage(
         match: TranscriptMatch,
         document: IndexedDocument | None,
-        rank: int,
+        rank: int | None,
     ) -> SearchPassage:
         return SearchPassage(
             document_id=match.document_id,
@@ -320,7 +335,7 @@ class TranscriptSearch:
             speaker_refs=() if match.speaker_ref is None else (match.speaker_ref,),
             lexical_rank=rank,
             semantic_rank=None,
-            fused_rank=rank,
+            fused_rank=None,
         )
 
     @staticmethod
@@ -329,7 +344,7 @@ class TranscriptSearch:
         *,
         lexical_rank: int | None,
         semantic_rank: int | None,
-        fused_rank: int,
+        fused_rank: int | None,
         matched_segment_ids: tuple[str, ...] = (),
     ) -> SearchPassage:
         return SearchPassage(

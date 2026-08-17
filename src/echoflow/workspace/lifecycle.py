@@ -111,9 +111,7 @@ class JobLifecycleRecord:
                     else float(cast("float", process_started_at))
                 ),
                 total_segments=(
-                    None
-                    if total_segments is None
-                    else int(cast("int", total_segments))
+                    None if total_segments is None else int(cast("int", total_segments))
                 ),
                 completed_segments=int(
                     cast("int", document.get("completed_segments", 0))
@@ -285,7 +283,9 @@ class JobLifecycleStore:
             return None
         metadata = self.file_manager.get_file_metadata(path)
         if metadata["size"] < 2 or metadata["size"] > self.max_manifest_bytes:
-            raise ValueError("private job lifecycle manifest size is outside safe bounds")
+            raise ValueError(
+                "private job lifecycle manifest size is outside safe bounds"
+            )
         try:
             parsed = json.loads(self.file_manager.read_file(path))
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:

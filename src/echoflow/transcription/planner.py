@@ -341,9 +341,7 @@ class TranscriptionJobPlanner:
         )
 
     @staticmethod
-    def _prefetch_depth(
-        policy: ExecutionPolicy, engine: CpuEngineConfiguration
-    ) -> int:
+    def _prefetch_depth(policy: ExecutionPolicy, engine: CpuEngineConfiguration) -> int:
         return int(engine.device != "cpu" and policy.cpu_threads > engine.cpu_threads)
 
     @staticmethod

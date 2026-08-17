@@ -106,6 +106,7 @@ class TranscriptionJobPlanner:
             requested_strategy_id=strategy_id,
         )
         engine = self._engine(policy, selected.strategy)
+        prefetch_depth = self._prefetch_depth(policy, engine)
         decoder = self._decoder(media)
         segmentation = SegmentationConfiguration()
         artifact = self.workspace_service.plan_artifact(
@@ -118,7 +119,7 @@ class TranscriptionJobPlanner:
             selected.strategy.model_cache_bytes,
             selected.peak_system_memory_bytes,
             policy,
-            materialized_segment_count=2 if selected.strategy.accelerated else 1,
+            materialized_segment_count=1 + prefetch_depth,
         )
         warnings = ["paths_are_unreserved"]
         if policy.provisional:
@@ -127,6 +128,8 @@ class TranscriptionJobPlanner:
             warnings.extend(
                 ("accelerator_strategy_selected", "accelerator_estimate_is_heuristic")
             )
+            if prefetch_depth == 0:
+                warnings.append("accelerator_prefetch_disabled_cpu_headroom")
         return TranscriptionJobPlan(
             job=job,
             artifact=artifact,
@@ -175,10 +178,15 @@ class TranscriptionJobPlanner:
                 "Current memory budget is below the interrupted job requirement"
             )
 
+        policy_threads = (
+            current_policy.cpu_threads
+            if settings.engine.device != "cpu"
+            else settings.engine.cpu_threads
+        )
         policy = ExecutionPolicy(
             profile=settings.profile,
             provisional=settings.provisional,
-            cpu_threads=settings.engine.cpu_threads,
+            cpu_threads=policy_threads,
             memory_budget_bytes=current_policy.memory_budget_bytes,
             recommended_model_tier=(
                 ModelTier.COMPACT
@@ -199,6 +207,7 @@ class TranscriptionJobPlanner:
             ),
         )
         self._admit_resume_accelerator(engine, topology, policy)
+        prefetch_depth = self._prefetch_depth(policy, engine)
         artifact = self.workspace_service.plan_artifact(
             job, ArtifactKind.CANONICAL_JSON
         )
@@ -209,13 +218,15 @@ class TranscriptionJobPlanner:
             settings.model_cache_bytes,
             settings.estimated_peak_memory_bytes,
             policy,
-            materialized_segment_count=2 if engine.device != "cpu" else 1,
+            materialized_segment_count=1 + prefetch_depth,
         )
         warnings = ["paths_are_unreserved", "resume_contract_restored"]
         if settings.provisional:
             warnings.append("screening_output_is_provisional")
         if engine.device != "cpu":
             warnings.append("accelerator_strategy_restored")
+            if prefetch_depth == 0:
+                warnings.append("accelerator_prefetch_disabled_cpu_headroom")
         return TranscriptionJobPlan(
             job=job,
             artifact=artifact,
@@ -311,12 +322,15 @@ class TranscriptionJobPlanner:
     def _engine(
         self, policy: ExecutionPolicy, strategy: StrategyDefinition
     ) -> CpuEngineConfiguration:
+        cpu_threads = policy.cpu_threads
+        if strategy.accelerated and cpu_threads > 1:
+            cpu_threads -= 1
         return CpuEngineConfiguration(
             engine=strategy.engine,
             model=strategy.model,
             device=strategy.device,
             compute_type=strategy.compute_type,
-            cpu_threads=policy.cpu_threads,
+            cpu_threads=cpu_threads,
             beam_size=1 if policy.provisional else 5,
             language=None,
             model_cache_path=(
@@ -325,6 +339,12 @@ class TranscriptionJobPlanner:
             model_revision=self.model_revision,
             auto_language_mode=AutoLanguageMode.NATIVE_MULTILINGUAL,
         )
+
+    @staticmethod
+    def _prefetch_depth(
+        policy: ExecutionPolicy, engine: CpuEngineConfiguration
+    ) -> int:
+        return int(engine.device != "cpu" and policy.cpu_threads > engine.cpu_threads)
 
     @staticmethod
     def _decoder(media: MediaInfo) -> DecodeConfiguration:

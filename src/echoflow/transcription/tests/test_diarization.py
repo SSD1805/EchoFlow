@@ -26,6 +26,10 @@ def _segment(
     )
 
 
+def _safe_version_reader(name: str) -> str:
+    return "2.6.6" if name == "lightning" else "4.0.0"
+
+
 def test_request_rejects_conflicting_exact_and_bounded_counts():
     with pytest.raises(ValueError, match="cannot be combined"):
         SpeakerDiarizationRequest(num_speakers=2, min_speakers=1)
@@ -65,7 +69,7 @@ def test_cache_only_diarization_disables_telemetry_and_normalizes_labels(tmp_pat
         model_revision="revision-1",
         snapshot_loader=snapshot_loader,
         module_loader=lambda name: SimpleNamespace(Pipeline=Pipeline),
-        version_reader=lambda name: "4.0.0",
+        version_reader=_safe_version_reader,
     )
     result = diarizer.diarize(
         tmp_path / "audio.wav",
@@ -111,10 +115,40 @@ def test_authorized_acquisition_allows_snapshot_download(tmp_path):
         model_cache_path=tmp_path,
         snapshot_loader=snapshot_loader,
         module_loader=lambda _name: SimpleNamespace(Pipeline=Pipeline),
-        version_reader=lambda _name: "4.0.0",
+        version_reader=_safe_version_reader,
     )
     diarizer.diarize(tmp_path / "audio.wav", allow_model_download=True)
     assert calls[0]["local_files_only"] is False
+
+
+def test_vulnerable_lightning_is_blocked_before_import_or_model_acquisition(tmp_path):
+    module_calls = []
+    snapshot_calls = []
+    diarizer = PyannoteSpeakerDiarizer(
+        model_cache_path=tmp_path,
+        snapshot_loader=lambda **kwargs: snapshot_calls.append(kwargs) or "model",
+        module_loader=lambda name: module_calls.append(name),
+        version_reader=lambda _name: "2.6.5",
+    )
+
+    with pytest.raises(DiarizationDependencyError, match="CVE-2026-58659"):
+        diarizer.diarize(tmp_path / "audio.wav", allow_model_download=True)
+
+    assert module_calls == []
+    assert snapshot_calls == []
+
+
+def test_unproven_lightning_prerelease_is_blocked_before_import(tmp_path):
+    module_calls = []
+    diarizer = PyannoteSpeakerDiarizer(
+        model_cache_path=tmp_path,
+        module_loader=lambda name: module_calls.append(name),
+        version_reader=lambda _name: "2.6.6rc1",
+    )
+
+    with pytest.raises(DiarizationDependencyError, match="cannot be proven safe"):
+        diarizer.diarize(tmp_path / "audio.wav", allow_model_download=False)
+    assert module_calls == []
 
 
 def test_missing_optional_runtime_fails_before_model_acquisition(tmp_path):
@@ -133,6 +167,7 @@ def test_missing_optional_runtime_fails_before_model_acquisition(tmp_path):
         model_cache_path=tmp_path,
         snapshot_loader=snapshot_loader,
         module_loader=module_loader,
+        version_reader=_safe_version_reader,
     )
     with pytest.raises(DiarizationDependencyError, match="not installed"):
         diarizer.diarize(tmp_path / "audio.wav", allow_model_download=True)
@@ -147,6 +182,7 @@ def test_missing_cached_model_fails_closed(tmp_path):
         model_cache_path=tmp_path,
         snapshot_loader=snapshot_loader,
         module_loader=lambda _name: SimpleNamespace(Pipeline=object),
+        version_reader=_safe_version_reader,
     )
     with pytest.raises(DiarizationModelUnavailableError, match="local cache"):
         diarizer.diarize(tmp_path / "audio.wav", allow_model_download=False)

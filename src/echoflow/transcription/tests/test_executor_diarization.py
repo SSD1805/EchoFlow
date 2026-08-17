@@ -10,7 +10,7 @@ from echoflow.transcription.speaker_models import (
 from echoflow.transcription.tests.test_executor import executor, plan
 
 
-def test_executor_diarizes_canonical_audio_and_publishes_schema_three(tmp_path):
+def test_executor_diarizes_canonical_audio_and_publishes_current_schema(tmp_path):
     planned, paths = plan(tmp_path)
     (
         service,
@@ -41,7 +41,7 @@ def test_executor_diarizes_canonical_audio_and_publishes_schema_three(tmp_path):
 
     result = service.execute(
         planned,
-        allow_model_download=True,
+        allow_diarization_model_download=True,
         diarization_request=request,
     )
 
@@ -50,13 +50,13 @@ def test_executor_diarizes_canonical_audio_and_publishes_schema_three(tmp_path):
         allow_model_download=True,
         request=request,
     )
-    assert result.transcript.schema_version == 3
+    assert result.transcript.schema_version == 1
     assert [segment.speaker_ref for segment in result.transcript.segments] == [
         "speaker-01",
         "speaker-02",
     ]
     document = json.loads(result.artifact.path.read_text())
-    assert document["schema_version"] == 3
+    assert document["schema_version"] == 1
     assert document["speaker_turns"] == [
         {
             "end_seconds": 1.0,

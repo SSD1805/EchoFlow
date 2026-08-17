@@ -10,12 +10,18 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-_PHRASE = (
+_ENGLISH_PHRASE = (
     "The quick brown fox jumps over the lazy dog. "
     "Echo Flow keeps local recordings private and recoverable."
 )
-_EXPECTED_WORDS = frozenset({"quick", "brown", "fox", "lazy", "dog"})
+_FRENCH_PHRASE = (
+    "Bonjour. La musique française accompagne notre journée. "
+    "Nous parlons français maintenant. Merci beaucoup."
+)
+_ENGLISH_WORDS = frozenset({"quick", "brown", "fox", "lazy", "dog"})
+_FRENCH_WORDS = frozenset({"bonjour", "musique", "française", "français", "merci"})
 _MIN_EXPECTED_WORDS = 4
+_MIN_MIXED_WORDS = 2
 _TIMESTAMP_TOLERANCE_SECONDS = 0.5
 
 
@@ -41,21 +47,19 @@ def _run(
     return completed
 
 
-def _generate_media(root: Path) -> tuple[Path, Path]:
-    synthesized = root / "known-speech-source.wav"
-    canonical = root / "known-speech-direct.wav"
-    container = root / "known-speech-media.mp4"
-
+def _synthesize(root: Path, name: str, *, voice: str, phrase: str) -> Path:
+    synthesized = root / f"{name}-source.wav"
+    canonical = root / f"{name}.wav"
     _run(
         [
             "espeak-ng",
             "-v",
-            "en-us",
+            voice,
             "-s",
             "145",
             "-w",
             str(synthesized),
-            _PHRASE,
+            phrase,
         ]
     )
     _run(
@@ -77,6 +81,11 @@ def _generate_media(root: Path) -> tuple[Path, Path]:
             str(canonical),
         ]
     )
+    return canonical
+
+
+def _wrap_media(root: Path, audio: Path) -> Path:
+    container = root / "known-speech-media.mp4"
     _run(
         [
             "ffmpeg",
@@ -90,7 +99,7 @@ def _generate_media(root: Path) -> tuple[Path, Path]:
             "-i",
             "color=c=black:s=160x120:r=1",
             "-i",
-            str(canonical),
+            str(audio),
             "-map",
             "0:v:0",
             "-map",
@@ -103,7 +112,49 @@ def _generate_media(root: Path) -> tuple[Path, Path]:
             str(container),
         ]
     )
-    return canonical, container
+    return container
+
+
+def _mixed_media(root: Path, english: Path) -> Path:
+    french = _synthesize(
+        root,
+        "known-speech-french",
+        voice="fr-fr",
+        phrase=_FRENCH_PHRASE,
+    )
+    mixed = root / "known-speech-english-french.wav"
+    _run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-y",
+            "-i",
+            str(english),
+            "-i",
+            str(french),
+            "-filter_complex",
+            "[0:a][1:a]concat=n=2:v=0:a=1[out]",
+            "-map",
+            "[out]",
+            "-c:a",
+            "pcm_s16le",
+            str(mixed),
+        ]
+    )
+    return mixed
+
+
+def _generate_media(root: Path) -> tuple[Path, Path, Path]:
+    english = _synthesize(
+        root,
+        "known-speech-direct",
+        voice="en-us",
+        phrase=_ENGLISH_PHRASE,
+    )
+    return english, _wrap_media(root, english), _mixed_media(root, english)
 
 
 def _environment(root: Path, output_dir: Path) -> dict[str, str]:
@@ -176,7 +227,7 @@ def _one_artifact(output_dir: Path, suffix: str) -> Path:
 
 
 def _words(text: str) -> set[str]:
-    return set(re.findall(r"[a-z]+", text.lower()))
+    return set(re.findall(r"[^\W\d_]+", text.lower(), flags=re.UNICODE))
 
 
 def _load_canonical(output_dir: Path) -> tuple[dict[str, Any], str]:
@@ -188,8 +239,7 @@ def _load_canonical(output_dir: Path) -> tuple[dict[str, Any], str]:
 
 
 def _validate_known_speech(document: dict[str, Any]) -> set[str]:
-    text = str(document.get("text", "")).strip()
-    recognized_expected = _words(text) & _EXPECTED_WORDS
+    recognized_expected = _words(str(document.get("text", ""))) & _ENGLISH_WORDS
     if len(recognized_expected) < _MIN_EXPECTED_WORDS:
         raise RuntimeError(
             "known speech was not recognized reliably enough: "
@@ -198,15 +248,51 @@ def _validate_known_speech(document: dict[str, Any]) -> set[str]:
     return recognized_expected
 
 
+def _validate_language_provenance(document: dict[str, Any]) -> None:
+    if document.get("schema_version") != 2:
+        raise RuntimeError("unexpected canonical transcript schema version")
+    engine = document.get("engine")
+    attribution = document.get("language_attribution")
+    if not isinstance(engine, dict) or not isinstance(attribution, dict):
+        raise RuntimeError("canonical language provenance is incomplete")
+    if engine.get("auto_language_mode") != "native_multilingual_v1":
+        raise RuntimeError("canonical transcript omitted multilingual language policy")
+    if attribution.get("provider") != "lingua":
+        raise RuntimeError("canonical transcript recorded the wrong language provider")
+    if not str(attribution.get("package_version", "")).strip():
+        raise RuntimeError("canonical transcript omitted language provider version")
+
+
+def _validate_language_segments(document: dict[str, Any]) -> None:
+    segments = document.get("segments")
+    if not isinstance(segments, list) or not segments:
+        raise RuntimeError("known speech produced no canonical recognition segments")
+    if any(not isinstance(segment, dict) for segment in segments):
+        raise RuntimeError("canonical transcript contains malformed language segments")
+    if not any(
+        isinstance(segment, dict) and segment.get("language_spans")
+        for segment in segments
+    ):
+        raise RuntimeError("canonical transcript contains no language-attributed spans")
+
+
+def _validate_language_contract(document: dict[str, Any]) -> None:
+    _validate_language_provenance(document)
+    _validate_language_segments(document)
+
+
 def _validate_provenance(
     document: dict[str, Any], *, expected_decode_strategy: str
 ) -> None:
-    if document.get("schema_version") != 1:
-        raise RuntimeError("unexpected canonical transcript schema version")
+    _validate_language_contract(document)
     if document.get("decode_strategy") != expected_decode_strategy:
         raise RuntimeError("canonical transcript recorded the wrong decode strategy")
     if document.get("detected_language") != "en":
         raise RuntimeError("known English speech was not detected as English")
+    if document.get("detected_languages") != ["en"]:
+        raise RuntimeError(
+            "known English speech recorded unexpected acoustic languages"
+        )
 
     source = document.get("source")
     engine = document.get("engine")
@@ -265,7 +351,7 @@ def _validate_exports(output_dir: Path) -> None:
         raise RuntimeError("one or more derived transcript exports are empty")
     if "-->" not in srt or "-->" not in vtt or not vtt.startswith("WEBVTT"):
         raise RuntimeError("subtitle exports do not contain timestamp cues")
-    if len(_words(txt) & _EXPECTED_WORDS) < _MIN_EXPECTED_WORDS:
+    if len(_words(txt) & _ENGLISH_WORDS) < _MIN_EXPECTED_WORDS:
         raise RuntimeError(
             "plain-text export does not contain recognizable known speech"
         )
@@ -287,6 +373,39 @@ def _validate_transcript(
     return recognized_expected
 
 
+def _validate_mixed_language(output_dir: Path) -> None:
+    document, _ = _load_canonical(output_dir)
+    _validate_language_contract(document)
+    text_words = _words(str(document.get("text", "")))
+    english_words = text_words & _ENGLISH_WORDS
+    french_words = text_words & _FRENCH_WORDS
+    if len(english_words) < _MIN_MIXED_WORDS:
+        raise RuntimeError(
+            "mixed-language speech lost too much English content: "
+            f"matched {sorted(english_words)}"
+        )
+    if len(french_words) < _MIN_MIXED_WORDS:
+        raise RuntimeError(
+            "mixed-language speech lost too much French content: "
+            f"matched {sorted(french_words)}"
+        )
+
+    languages: set[str] = set()
+    for raw_segment in document.get("segments", []):
+        if not isinstance(raw_segment, dict):
+            continue
+        for raw_span in raw_segment.get("language_spans", []):
+            if isinstance(raw_span, dict):
+                language = raw_span.get("language")
+                if isinstance(language, str):
+                    languages.add(language)
+    if not {"en", "fr"}.issubset(languages):
+        raise RuntimeError(
+            "mixed-language transcript did not preserve English and French text spans: "
+            f"found {sorted(languages)}"
+        )
+
+
 def _validate_private_cleanup(root: Path) -> None:
     state_dir = root / "state"
     leftovers = tuple(state_dir.rglob("*.wav")) if state_dir.exists() else ()
@@ -299,17 +418,13 @@ def _validate_private_cleanup(root: Path) -> None:
 def verify_engine() -> None:
     with tempfile.TemporaryDirectory(prefix="echoflow-engine-") as temporary:
         root = Path(temporary).resolve()
-        direct_audio, media_container = _generate_media(root)
+        direct_audio, media_container, mixed_audio = _generate_media(root)
         model_dir = root / "cache" / "models"
 
         direct_output = root / "output-direct"
         direct_env = _environment(root, direct_output)
         _initialize(direct_env)
-        _transcribe(
-            direct_audio,
-            env=direct_env,
-            allow_model_download=True,
-        )
+        _transcribe(direct_audio, env=direct_env, allow_model_download=True)
         direct_words = _validate_transcript(
             direct_output,
             input_path=direct_audio,
@@ -333,20 +448,25 @@ def verify_engine() -> None:
             model_dir=model_dir,
             expected_decode_strategy="ffmpeg_normalize",
         )
-
         if len(direct_words & normalized_words) < 3:
             raise RuntimeError(
                 "direct and normalized paths did not preserve enough recognizable speech"
             )
+
+        mixed_output = root / "output-mixed"
+        mixed_env = _environment(root, mixed_output)
+        _initialize(mixed_env)
+        _transcribe(mixed_audio, env=mixed_env, allow_model_download=False)
+        _validate_mixed_language(mixed_output)
         _validate_private_cleanup(root)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate known speech, run it through EchoFlow's real CLI and smallest "
-            "faster-whisper strategy, then prove offline cache reuse and the real "
-            "FFmpeg-normalized media path."
+            "Generate known English and mixed English/French speech, run the real "
+            "EchoFlow CLI with faster-whisper, prove offline cache reuse, real media "
+            "normalization, and local language attribution."
         )
     )
     parser.parse_args()

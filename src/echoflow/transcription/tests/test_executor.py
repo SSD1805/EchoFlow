@@ -216,7 +216,7 @@ def test_execution_segments_audio_once_loaded_and_writes_private_safe_json(tmp_p
     assert result.job.workspace_dir.is_dir()
     assert result.artifact.path.is_file()
     document = json.loads(result.artifact.path.read_text())
-    assert document["schema_version"] == 1
+    assert document["schema_version"] == 2
     assert document["job_id"] == "job-1"
     assert document["source"]["sha256"] == "0" * 64
     assert "path" not in document["source"]
@@ -231,9 +231,10 @@ def test_execution_segments_audio_once_loaded_and_writes_private_safe_json(tmp_p
         "cpu_threads": 4,
         "beam_size": 5,
         "requested_language": None,
+        "auto_language_mode": "job_latched_v1",
     }
-    assert document["detected_language"] == "en"
-    assert document["language_probability"] == 0.98
+    assert document["detected_language"] is None
+    assert document["language_probability"] is None
     assert document["text"] == "Hello world."
     assert [item["start_seconds"] for item in document["segments"]] == [0.0, 1.0]
     assert [item["segment_id"] for item in document["segments"]] == [

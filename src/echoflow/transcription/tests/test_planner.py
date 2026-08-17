@@ -95,7 +95,7 @@ def test_balanced_plan_composes_real_paths_media_cpu_engine_and_estimates(tmp_pa
 
     plan = planner.plan(source)
 
-    assert plan.schema_version == 1
+    assert plan.schema_version == 2
     assert plan.job.job_id.value == "plan-1"
     assert plan.job.input_path == source.resolve()
     assert plan.job.workspace_dir == paths.jobs_dir / "plan-1"

@@ -3,13 +3,17 @@
 from echoflow.transcription.audio import DecodedAudio, FfmpegAudioDecoder
 from echoflow.transcription.backend import FasterWhisperTranscriber
 from echoflow.transcription.executor import TranscriptionExecutor
+from echoflow.transcription.language import LinguaLanguageAttributor
 from echoflow.transcription.models import (
+    AutoLanguageMode,
     CanonicalTranscript,
     CpuEngineConfiguration,
     DecodeConfiguration,
     DecodeStrategy,
     EngineProvenance,
     EngineTranscript,
+    LanguageAttributionProvenance,
+    LanguageSpan,
     RecognizedSegment,
     ResourceEstimate,
     TranscriptionExecutionResult,
@@ -19,6 +23,7 @@ from echoflow.transcription.models import (
 from echoflow.transcription.planner import TranscriptionJobPlanner
 
 __all__ = [
+    "AutoLanguageMode",
     "CanonicalTranscript",
     "CpuEngineConfiguration",
     "DecodedAudio",
@@ -28,6 +33,9 @@ __all__ = [
     "EngineTranscript",
     "FasterWhisperTranscriber",
     "FfmpegAudioDecoder",
+    "LanguageAttributionProvenance",
+    "LanguageSpan",
+    "LinguaLanguageAttributor",
     "RecognizedSegment",
     "ResourceEstimate",
     "TranscriptSource",

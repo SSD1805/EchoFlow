@@ -32,18 +32,30 @@ class TranscriptAssembler:
             )
 
         recognized: list[RecognizedSegment] = []
-        language: str | None = None
-        language_probability: float | None = None
+        detected_languages: list[str] = []
+        probabilities: list[float] = []
         for window, result in results:
-            if language is None and result.language is not None:
-                language = result.language
-                language_probability = result.language_probability
+            if (
+                result.language is not None
+                and result.language not in detected_languages
+            ):
+                detected_languages.append(result.language)
+            if result.language_probability is not None:
+                probabilities.append(result.language_probability)
             self._append_window(recognized, window, result)
 
+        uniform_language = (
+            detected_languages[0] if len(detected_languages) == 1 else None
+        )
+        uniform_probability = (
+            min(probabilities)
+            if uniform_language is not None and probabilities
+            else None
+        )
         return EngineTranscript(
             segments=tuple(recognized),
-            language=language,
-            language_probability=language_probability,
+            language=uniform_language,
+            language_probability=uniform_probability,
             engine_version=engine_version,
         )
 
@@ -110,5 +122,10 @@ class TranscriptAssembler:
                     text=segment.text,
                     average_log_probability=segment.average_log_probability,
                     no_speech_probability=segment.no_speech_probability,
+                    detected_language=segment.detected_language,
+                    language_probability=segment.language_probability,
+                    language=segment.language,
+                    language_spans=segment.language_spans,
+                    speaker_ref=segment.speaker_ref,
                 )
             )

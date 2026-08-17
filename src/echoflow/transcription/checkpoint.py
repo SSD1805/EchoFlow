@@ -84,7 +84,7 @@ class ResumeSettings:
             raise ValueError("checkpoint model_cache_bytes cannot be negative")
         if self.estimated_peak_memory_bytes < 1:
             raise ValueError("checkpoint estimated_peak_memory_bytes must be positive")
-        if self.job_plan_schema_version != 1:
+        if self.job_plan_schema_version not in (1, 2):
             raise ValueError("checkpoint job-plan schema version is unsupported")
 
 

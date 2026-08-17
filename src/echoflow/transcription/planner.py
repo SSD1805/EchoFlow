@@ -1,4 +1,5 @@
 import math
+from dataclasses import replace
 from pathlib import Path
 from typing import Protocol
 
@@ -10,6 +11,7 @@ from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.checkpoint import ResumeSettings
 from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
 from echoflow.transcription.models import (
+    AutoLanguageMode,
     CpuEngineConfiguration,
     DecodeConfiguration,
     DecodeStrategy,
@@ -122,6 +124,7 @@ class TranscriptionJobPlanner:
             resources=resources,
             warnings=tuple(warnings),
             segmentation=segmentation,
+            schema_version=2,
         )
 
     def plan_resume(
@@ -171,6 +174,14 @@ class TranscriptionJobPlanner:
         )
         engine = settings.engine.configuration(
             self.workspace_service.paths.model_dir / "faster-whisper"
+        )
+        engine = replace(
+            engine,
+            auto_language_mode=(
+                AutoLanguageMode.JOB_LATCHED
+                if settings.job_plan_schema_version == 1
+                else AutoLanguageMode.NATIVE_MULTILINGUAL
+            ),
         )
         artifact = self.workspace_service.plan_artifact(
             job, ArtifactKind.CANONICAL_JSON
@@ -243,6 +254,7 @@ class TranscriptionJobPlanner:
                 self.workspace_service.paths.model_dir / "faster-whisper"
             ),
             model_revision=self.model_revision,
+            auto_language_mode=AutoLanguageMode.NATIVE_MULTILINGUAL,
         )
 
     @staticmethod

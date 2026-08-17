@@ -226,7 +226,9 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
         if planned_depth == 0:
             return 0
         current_resources = self.runner_inspector.inspect()
-        current_policy = self.policy_planner.plan(current_resources, plan.policy.profile)
+        current_policy = self.policy_planner.plan(
+            current_resources, plan.policy.profile
+        )
         return int(current_policy.cpu_threads > plan.engine.cpu_threads)
 
     def _materialize_segment(

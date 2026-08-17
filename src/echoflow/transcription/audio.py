@@ -1,3 +1,16 @@
+"""Canonical-audio extraction and normalization for transcription execution.
+
+The planner decides whether the selected audio stream is already canonical. If not,
+``FfmpegAudioDecoder`` extracts only that stream and writes a private normalized WAV
+using the immutable ``DecodeConfiguration``. Downstream segmentation therefore sees
+one predictable PCM representation regardless of whether the source was WAV, MP3,
+M4A, or an audio-bearing video container.
+
+Normalization changes representation, not EchoFlow's public timestamp basis. Segment
+windows are measured from frame zero of this canonical audio and the assembler maps
+engine-local timestamps back onto that one source-relative recording timeline.
+"""
+
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -10,6 +23,8 @@ from echoflow.transcription.models import DecodeConfiguration, DecodeStrategy
 
 @dataclass(frozen=True, slots=True)
 class DecodedAudio:
+    """Canonical audio made available to segmentation for one job."""
+
     path: Path
     temporary: bool
 
@@ -18,7 +33,13 @@ class DecodedAudio:
 
 
 class FfmpegAudioDecoder:
-    """Expose one canonical audio input while discarding all non-audio streams."""
+    """Extract the selected stream into EchoFlow's planned canonical audio format.
+
+    ``DIRECT`` returns an already-canonical source without copying it. The normalize
+    path invokes FFmpeg with file-only protocol access, maps exactly the selected
+    audio stream, drops video/subtitle/data streams, and writes the planned codec,
+    sample rate, and channel count to a private WAV in the job workspace.
+    """
 
     def __init__(self, timeout_seconds: float = 3_600.0):
         if timeout_seconds <= 0:

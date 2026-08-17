@@ -120,7 +120,7 @@ class TranscriptIndex(Protocol):
         """Return whether the backend currently contains the document."""
         ...
 
-    def search(self, query: TranscriptQuery) -> tuple[TranscriptMatch, ...]:
+    def search(self, _query: TranscriptQuery) -> tuple[TranscriptMatch, ...]:
         """Return at most query.limit lexical matches."""
         ...
 

@@ -53,7 +53,9 @@ def test_nvidia_probe_uses_fixed_query_and_parses_multiple_devices():
         return "0, RTX Laptop GPU, 4096, 3072\n1, RTX Second GPU, 8192, 4096\n"
 
     probe = NvidiaSmiAcceleratorProbe(
-        executable_resolver=lambda name: "/usr/bin/nvidia-smi" if name == "nvidia-smi" else None,
+        executable_resolver=lambda name: (
+            "/usr/bin/nvidia-smi" if name == "nvidia-smi" else None
+        ),
         command_runner=run,
         timeout_seconds=1.5,
     )
@@ -144,7 +146,10 @@ def test_duplicate_device_index_is_ignored_after_first_valid_row():
         ({"device_index": -1}, "device_index cannot be negative"),
         ({"name": ""}, "accelerator name cannot be empty"),
         ({"memory_total_bytes": 0}, "accelerator total memory must be positive"),
-        ({"memory_available_bytes": -1}, "accelerator available memory cannot be negative"),
+        (
+            {"memory_available_bytes": -1},
+            "accelerator available memory cannot be negative",
+        ),
         (
             {"memory_total_bytes": 10, "memory_available_bytes": 11},
             "accelerator available memory cannot exceed total memory",

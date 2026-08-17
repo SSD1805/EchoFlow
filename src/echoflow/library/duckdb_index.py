@@ -1,6 +1,6 @@
+import re
 from collections import Counter
 from pathlib import Path
-import re
 
 import duckdb
 
@@ -78,55 +78,68 @@ class DuckDbTranscriptIndex:
             """
         )
 
+    def rebuild(self, transcripts: tuple[IndexedTranscript, ...]) -> None:
+        self._require_open()
+        self._connection.execute("BEGIN TRANSACTION")
+        try:
+            self._clear_tables()
+            for transcript in transcripts:
+                self._insert_transcript(transcript)
+            self._connection.execute("COMMIT")
+        except Exception:
+            self._connection.execute("ROLLBACK")
+            raise
+
     def upsert(self, transcript: IndexedTranscript) -> None:
         self._require_open()
         self._connection.execute("BEGIN TRANSACTION")
         try:
             self._delete_document(transcript.document_id)
-            self._connection.execute(
-                """
-                INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    transcript.document_id,
-                    transcript.source_sha256,
-                    transcript.transcript_schema_version,
-                    transcript.detected_language,
-                    transcript.canonical_path,
-                    transcript.source_path,
-                    transcript.source_size_bytes,
-                    transcript.source_modified_ns,
-                ],
-            )
-            for segment in transcript.segments:
-                tokens = lexical_tokens(segment.text)
-                self._connection.execute(
-                    "INSERT INTO segments VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    [
-                        transcript.document_id,
-                        segment.segment_id,
-                        segment.start_seconds,
-                        segment.end_seconds,
-                        segment.text,
-                        segment.language,
-                        segment.speaker_ref,
-                        len(tokens),
-                    ],
-                )
-                for term, frequency in Counter(tokens).items():
-                    self._connection.execute(
-                        "INSERT INTO terms VALUES (?, ?, ?, ?)",
-                        [
-                            transcript.document_id,
-                            segment.segment_id,
-                            term,
-                            frequency,
-                        ],
-                    )
+            self._insert_transcript(transcript)
             self._connection.execute("COMMIT")
         except Exception:
             self._connection.execute("ROLLBACK")
             raise
+
+    def _insert_transcript(self, transcript: IndexedTranscript) -> None:
+        self._connection.execute(
+            "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                transcript.document_id,
+                transcript.source_sha256,
+                transcript.transcript_schema_version,
+                transcript.detected_language,
+                transcript.canonical_path,
+                transcript.source_path,
+                transcript.source_size_bytes,
+                transcript.source_modified_ns,
+            ],
+        )
+        for segment in transcript.segments:
+            tokens = lexical_tokens(segment.text)
+            self._connection.execute(
+                "INSERT INTO segments VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    transcript.document_id,
+                    segment.segment_id,
+                    segment.start_seconds,
+                    segment.end_seconds,
+                    segment.text,
+                    segment.language,
+                    segment.speaker_ref,
+                    len(tokens),
+                ],
+            )
+            for term, frequency in Counter(tokens).items():
+                self._connection.execute(
+                    "INSERT INTO terms VALUES (?, ?, ?, ?)",
+                    [
+                        transcript.document_id,
+                        segment.segment_id,
+                        term,
+                        frequency,
+                    ],
+                )
 
     def remove(self, document_id: str) -> None:
         self._require_open()
@@ -194,7 +207,7 @@ class DuckDbTranscriptIndex:
             if query.sort is SearchSort.TIMELINE
             else "score DESC, s.document_id, s.start_seconds, s.segment_id"
         )
-        sql = f"""
+        sql = f"""  # noqa: S608
             WITH query_terms(term) AS (VALUES {values}),
             corpus AS (
                 SELECT COUNT(*)::DOUBLE AS segment_count,
@@ -283,6 +296,9 @@ class DuckDbTranscriptIndex:
 
     def clear(self) -> None:
         self._require_open()
+        self._clear_tables()
+
+    def _clear_tables(self) -> None:
         self._connection.execute("DELETE FROM terms")
         self._connection.execute("DELETE FROM segments")
         self._connection.execute("DELETE FROM documents")

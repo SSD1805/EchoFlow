@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from typing import cast
+from typing import Annotated, cast
 
 import typer
 from rich.console import Console
@@ -200,9 +200,10 @@ def register_model_commands(
     @models_app.callback()
     def models_root(
         context: typer.Context,
-        json_output: bool = typer.Option(
-            False, "--json", help="Emit machine-readable model inventory."
-        ),
+        json_output: Annotated[
+            bool,
+            typer.Option("--json", help="Emit machine-readable model inventory."),
+        ] = False,
     ) -> None:
         if context.invoked_subcommand is None:
             _list_models(
@@ -214,15 +215,20 @@ def register_model_commands(
     @models_app.command("install")
     def install_model(
         context: typer.Context,
-        model_id: str = typer.Argument(..., metavar="MODEL"),
-        revision: str | None = typer.Option(
-            None,
-            "--revision",
-            help="Optional provider revision to resolve and record explicitly.",
-        ),
-        json_output: bool = typer.Option(
-            False, "--json", help="Emit the installed model manifest as JSON."
-        ),
+        model_id: Annotated[str, typer.Argument(metavar="MODEL")],
+        revision: Annotated[
+            str | None,
+            typer.Option(
+                "--revision",
+                help="Optional provider revision to resolve and record explicitly.",
+            ),
+        ] = None,
+        json_output: Annotated[
+            bool,
+            typer.Option(
+                "--json", help="Emit the installed model manifest as JSON."
+            ),
+        ] = False,
     ) -> None:
         _install_model(
             context,
@@ -235,11 +241,14 @@ def register_model_commands(
     @models_app.command("remove")
     def remove_model(
         context: typer.Context,
-        model_id: str = typer.Argument(..., metavar="MODEL"),
-        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation."),
-        json_output: bool = typer.Option(
-            False, "--json", help="Emit the removed model manifest as JSON."
-        ),
+        model_id: Annotated[str, typer.Argument(metavar="MODEL")],
+        yes: Annotated[
+            bool, typer.Option("--yes", "-y", help="Skip confirmation.")
+        ] = False,
+        json_output: Annotated[
+            bool,
+            typer.Option("--json", help="Emit the removed model manifest as JSON."),
+        ] = False,
     ) -> None:
         _remove_model(
             context,
@@ -252,12 +261,14 @@ def register_model_commands(
     @models_app.command("recommend")
     def recommend_model(
         context: typer.Context,
-        profile: ProcessingProfile | None = typer.Option(
-            None, help="Profile used to choose a safe local model strategy."
-        ),
-        json_output: bool = typer.Option(
-            False, "--json", help="Emit the recommendation as JSON."
-        ),
+        profile: Annotated[
+            ProcessingProfile | None,
+            typer.Option(help="Profile used to choose a safe local model strategy."),
+        ] = None,
+        json_output: Annotated[
+            bool,
+            typer.Option("--json", help="Emit the recommendation as JSON."),
+        ] = False,
     ) -> None:
         _recommend_model(
             context,

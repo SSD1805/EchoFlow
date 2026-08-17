@@ -63,7 +63,12 @@ def test_per_segment_session_redetects_language_for_each_work_unit(tmp_path):
     class Model:
         def transcribe(self, _path, **kwargs):
             calls.append(
-                (kwargs["language"], kwargs["multilingual"], kwargs["chunk_length"])
+                (
+                    kwargs["language"],
+                    kwargs["multilingual"],
+                    kwargs["chunk_length"],
+                    kwargs["condition_on_previous_text"],
+                )
             )
             return iter(()), next(infos)
 
@@ -79,7 +84,7 @@ def test_per_segment_session_redetects_language_for_each_work_unit(tmp_path):
     first = session.transcribe(tmp_path / "audio-000000.wav")
     second = session.transcribe(tmp_path / "audio-000001.wav")
 
-    assert calls == [(None, True, 10), (None, True, 10)]
+    assert calls == [(None, True, 8, False), (None, True, 8, False)]
     assert first.language == "en"
     assert second.language == "fr"
 

@@ -54,9 +54,7 @@ class LinguaLanguageAttributor:
                 language = detector.detect_language_of(unit)
                 if language is None:
                     continue
-                confidence = float(
-                    detector.compute_language_confidence(unit, language)
-                )
+                confidence = float(detector.compute_language_confidence(unit, language))
                 if not math.isfinite(confidence) or not 0 <= confidence <= 1:
                     raise ValueError("invalid language confidence")
                 spans.append(

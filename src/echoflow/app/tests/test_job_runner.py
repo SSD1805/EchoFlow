@@ -45,7 +45,9 @@ def _job(tmp_path):
 
 def test_runner_records_progress_and_completion(tmp_path):
     job = _job(tmp_path)
-    artifact = Artifact(job.job_id, ArtifactKind.CANONICAL_JSON, job.output_dir / "a.json")
+    artifact = Artifact(
+        job.job_id, ArtifactKind.CANONICAL_JSON, job.output_dir / "a.json"
+    )
     result = Mock(spec=TranscriptionExecutionResult)
     result.job = job
     result.artifact = artifact

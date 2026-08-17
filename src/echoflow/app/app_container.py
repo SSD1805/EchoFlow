@@ -16,6 +16,8 @@ from echoflow.core.ilogger import ILogger
 from echoflow.core.logger import configure_logging
 from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
+from echoflow.library.duckdb_index import DuckDbTranscriptIndex
+from echoflow.library.service import TranscriptLibraryService
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.media.selection import AudioStreamSelector
 from echoflow.model_management.catalog import faster_whisper_model_catalog
@@ -114,6 +116,15 @@ def _create_capability_registry() -> EngineCapabilityRegistry:
     return EngineCapabilityRegistry((FasterWhisperCapabilityProbe(),))
 
 
+def _create_transcript_index(
+    config: AppConfig, file_manager: FileManagerFacade
+) -> DuckDbTranscriptIndex:
+    return DuckDbTranscriptIndex(
+        config.STATE_DIR / "library" / "transcripts.duckdb",
+        file_manager,
+    )
+
+
 class _ModelStorageAdmitter:
     """Adapt the shared disk policy without coupling model management to ASR."""
 
@@ -188,6 +199,18 @@ class AppContainer(containers.DeclarativeContainer):
         JobLifecycleStore,
         file_manager=file_manager,
         paths=workspace_paths,
+    )
+    transcript_index = providers.Singleton(
+        _create_transcript_index,
+        config=config,
+        file_manager=file_manager,
+    )
+    transcript_library = providers.Singleton(
+        TranscriptLibraryService,
+        index=transcript_index,
+        lifecycle_store=job_lifecycle_store,
+        paths=workspace_paths,
+        file_manager=file_manager,
     )
     checkpoint_store = providers.Factory(
         LocalCheckpointStore, file_manager=file_manager

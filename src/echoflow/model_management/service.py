@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Protocol
 
 from echoflow.model_management.catalog import ModelCatalog
+from echoflow.model_management.errors import ModelManagementError
 from echoflow.model_management.models import (
     InstalledSnapshot,
     ManagedModelManifest,
@@ -57,12 +58,19 @@ class ModelManager:
         if revision is not None and not revision.strip():
             raise ValueError("revision cannot be empty")
         self._prepare_roots()
-        snapshot = self.provider.install(
-            spec,
-            cache_root=self.cache_root,
-            revision=revision,
-        )
-        self._validate_snapshot(snapshot)
+        try:
+            snapshot = self.provider.install(
+                spec,
+                cache_root=self.cache_root,
+                revision=revision,
+            )
+            self._validate_snapshot(snapshot)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception as exc:
+            raise ModelManagementError(
+                "The selected model could not be downloaded and verified", cause=exc
+            ) from exc
         manifest = ManagedModelManifest(
             schema_version=1,
             model_id=spec.model_id,
@@ -72,6 +80,7 @@ class ModelManager:
             resolved_revision=snapshot.resolved_revision,
             snapshot_path=snapshot.snapshot_path,
             size_bytes=snapshot.size_bytes,
+            verification=snapshot.verification,
         )
         self.file_store.save_file(
             json.dumps(manifest.to_dict(), sort_keys=True).encode("utf-8"),
@@ -86,13 +95,20 @@ class ModelManager:
         manifest = self._manifest(spec.model_id)
         if manifest is None:
             raise ValueError(f"model is not managed by EchoFlow: {model_id}")
-        self._validate_manifest(spec.model_id, manifest)
         snapshot = InstalledSnapshot(
             resolved_revision=manifest.resolved_revision,
             snapshot_path=manifest.snapshot_path,
             size_bytes=manifest.size_bytes,
+            verification=manifest.verification,
         )
-        self.provider.remove(snapshot, cache_root=self.cache_root)
+        try:
+            self.provider.remove(snapshot, cache_root=self.cache_root)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception as exc:
+            raise ModelManagementError(
+                "The managed model could not be removed safely", cause=exc
+            ) from exc
         self.file_store.delete_file(self._manifest_path(model_id))
         return manifest
 
@@ -118,7 +134,9 @@ class ModelManager:
             self._validate_manifest(model_id, manifest)
             return manifest
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-            raise ValueError(f"model registry entry is invalid: {model_id}") from exc
+            raise ModelManagementError(
+                "The local model registry is invalid", cause=exc
+            ) from exc
 
     def _validate_manifest(
         self, model_id: str, manifest: ManagedModelManifest
@@ -135,6 +153,7 @@ class ModelManager:
                 resolved_revision=manifest.resolved_revision,
                 snapshot_path=manifest.snapshot_path,
                 size_bytes=manifest.size_bytes,
+                verification=manifest.verification,
             )
         )
 
@@ -143,6 +162,7 @@ class ModelManager:
             raise ValueError("managed model snapshot escapes the model cache")
 
     def _manifest_path(self, model_id: str) -> Path:
-        if any(character not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for character in model_id):
+        allowed = "abcdefghijklmnopqrstuvwxyz0123456789-_"
+        if any(character not in allowed for character in model_id):
             raise ValueError("model ID cannot be used as a registry filename")
         return self.registry_root / f"{model_id}.json"

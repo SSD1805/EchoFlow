@@ -55,12 +55,8 @@ def _transcript(tmp_path: Path) -> IndexedTranscript:
         source_size_bytes=10,
         source_modified_ns=1,
         segments=(
-            IndexedSegment(
-                "s1", 0, 1, "housing affordability", "en", "speaker-01"
-            ),
-            IndexedSegment(
-                "s2", 1, 2, "rent burden pressure", "en", "speaker-02"
-            ),
+            IndexedSegment("s1", 0, 1, "housing affordability", "en", "speaker-01"),
+            IndexedSegment("s2", 1, 2, "rent burden pressure", "en", "speaker-02"),
         ),
     )
 

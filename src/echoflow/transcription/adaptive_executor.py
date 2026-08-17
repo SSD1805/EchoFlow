@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.core.ilogger import ILogger
 from echoflow.core.measurements import ExecutionObserver
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.runner.topology import AcceleratorProbe, HardwareTopology
+from echoflow.transcription.audio import DecodedAudio
 from echoflow.transcription.capabilities import EngineCapabilityRegistry
 from echoflow.transcription.checkpoint import RestoredCheckpoint
 from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
@@ -28,10 +31,7 @@ from echoflow.transcription.models import (
 from echoflow.transcription.pipeline import OrderedSegmentPrefetcher
 from echoflow.transcription.segmentation import MaterializedAudioSegment
 from echoflow.transcription.storage import StorageAdmissionPolicy
-from echoflow.transcription.strategy import (
-    StrategyCatalog,
-    StrategyEvaluator,
-)
+from echoflow.transcription.strategy import StrategyCatalog, StrategyEvaluator
 from echoflow.workspace.models import Job
 from echoflow.workspace.service import WorkspaceService
 
@@ -122,7 +122,7 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
     def _transcribe_segments(
         self,
         plan: TranscriptionJobPlan,
-        decoded,
+        decoded: DecodedAudio,
         windows: tuple[AudioSegmentWindow, ...],
         job: Job,
         restored: RestoredCheckpoint,
@@ -150,7 +150,7 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
     def _transcribe_accelerated(
         self,
         plan: TranscriptionJobPlan,
-        decoded,
+        decoded: DecodedAudio,
         windows: tuple[AudioSegmentWindow, ...],
         job: Job,
         restored: RestoredCheckpoint,
@@ -225,7 +225,7 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
     def _materialize_segment(
         self,
         plan: TranscriptionJobPlan,
-        audio_path,
+        audio_path: Path,
         window: AudioSegmentWindow,
         job: Job,
     ) -> MaterializedAudioSegment:

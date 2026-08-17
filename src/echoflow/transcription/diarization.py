@@ -122,9 +122,9 @@ class PyannoteSpeakerDiarizer:
             ) from exc
 
     def _load_pyannote(self) -> Any:
-        # pyannote reads this variable when its telemetry module is imported. Set it
-        # before importing pyannote so EchoFlow never emits usage metrics by default.
-        os.environ["PYANNOTE_METRICS_ENABLED"] = "false"
+        # Set the upstream-documented disable value before importing pyannote so
+        # EchoFlow never emits pyannote usage metrics by default.
+        os.environ["PYANNOTE_METRICS_ENABLED"] = "0"
         try:
             return self._module_loader("pyannote.audio")
         except ImportError as exc:

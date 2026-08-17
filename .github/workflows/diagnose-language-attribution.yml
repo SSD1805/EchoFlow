@@ -12,7 +12,7 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Check out branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -30,94 +30,54 @@ jobs:
           version: "0.11.33"
           enable-cache: false
 
-      - name: Install native tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg espeak-ng
-
       - name: Install locked transcription stack
         run: uv sync --locked --extra transcription
 
-      - name: Inspect language evidence and engine timestamps
+      - name: Inspect sentence-level candidate evidence
         run: |
           uv run python <<'PY'
           import json
-          import tempfile
-          import wave
-          from pathlib import Path
-
-          from faster_whisper import WhisperModel
           from lingua import LanguageDetectorBuilder
-          import scripts.verify_engine_acceptance as acceptance
 
           detector = LanguageDetectorBuilder.from_all_languages().build()
 
           def code(language):
               return language.iso_code_639_1.name.lower()
 
-          def confidence(text):
-              return [
-                  (code(item.language), round(float(item.value), 6))
-                  for item in detector.compute_language_confidence_values(text)[:5]
-              ]
-
-          def inspect_text(label, text):
-              sections = []
-              for result in detector.detect_multiple_languages_of(text):
-                  section = text[result.start_index:result.end_index]
-                  sections.append({
-                      "language": code(result.language),
-                      "text": section,
-                      "confidence": confidence(section),
-                  })
-              print(label + "=" + json.dumps({
+          def inspect(text):
+              values = detector.compute_language_confidence_values(text)[:8]
+              detected = detector.detect_language_of(text)
+              sections = detector.detect_multiple_languages_of(text)
+              return {
                   "text": text,
-                  "whole_confidence": confidence(text),
-                  "sections": sections,
-              }, ensure_ascii=False))
-
-          inspect_text(
-              "normalized_observed_text",
-              "The quick brown fox jump over a crazy dog. Echo flow keep slow call recordings private and recoverable.",
-          )
-
-          with tempfile.TemporaryDirectory(prefix="echoflow-language-diagnostic-") as tmp:
-              root = Path(tmp).resolve()
-              direct, _media, mixed = acceptance._generate_media(root)
-              model = WhisperModel(
-                  "tiny",
-                  device="cpu",
-                  compute_type="int8",
-                  cpu_threads=2,
-                  num_workers=1,
-                  download_root=str(root / "models"),
-              )
-              segments, info = model.transcribe(
-                  str(mixed),
-                  beam_size=1,
-                  language=None,
-                  word_timestamps=False,
-                  multilingual=True,
-                  chunk_length=10,
-                  vad_filter=False,
-                  log_progress=False,
-              )
-              raw = list(segments)
-              with wave.open(str(mixed), "rb") as handle:
-                  duration = handle.getnframes() / handle.getframerate()
-              payload = {
-                  "audio_duration": round(duration, 6),
-                  "initial_language": info.language,
-                  "initial_language_probability": round(float(info.language_probability), 6),
-                  "segments": [
-                      {
-                          "start": round(float(segment.start), 6),
-                          "end": round(float(segment.end), 6),
-                          "text": segment.text.strip(),
-                      }
-                      for segment in raw
+                  "detected": None if detected is None else code(detected),
+                  "confidence": [
+                      [code(item.language), round(float(item.value), 6)]
+                      for item in values
+                  ],
+                  "sections": [
+                      [
+                          code(item.language),
+                          text[item.start_index:item.end_index],
+                      ]
+                      for item in sections
                   ],
               }
-              print("mixed_engine=" + json.dumps(payload, ensure_ascii=False))
-              inspect_text("mixed_engine_text", " ".join(segment.text.strip() for segment in raw))
+
+          samples = [
+              "The quick brown fox jump over a crazy dog.",
+              "Echo flow keep slow call recordings private and recoverable.",
+              "The quick brown fox jump over a crazy dog. Echo flow keep slow call recordings private and recoverable.",
+              "Bonjour!",
+              "La Munich for Emma!",
+              "I'm Emma Tire.",
+              "Merci for you.",
+              "Bonjour! La Munich for Emma!",
+              "Bonjour. La musique française accompagne notre journée.",
+              "Nous parlons français maintenant. Merci beaucoup.",
+              "hello bonjour",
+              "I need to go home, mais je suis fatigué aujourd'hui.",
+          ]
+          for sample in samples:
+              print(json.dumps(inspect(sample), ensure_ascii=False))
           PY

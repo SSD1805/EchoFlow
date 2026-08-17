@@ -175,6 +175,7 @@ class AppContainer(containers.DeclarativeContainer):
         strategy_evaluator=strategy_evaluator,
         audio_stream_selector=audio_stream_selector,
         model_revision=config.provided.FASTER_WHISPER_MODEL_REVISION,
+        model_registry=model_manager,
         checkpoint_store=checkpoint_store,
     )
     audio_decoder = providers.Factory(_create_audio_decoder, config=config)

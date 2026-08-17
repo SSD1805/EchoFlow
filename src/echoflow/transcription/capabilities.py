@@ -30,7 +30,9 @@ class EngineExecutionTarget:
         if len(set(self.compute_types)) != len(self.compute_types):
             raise ValueError("execution target compute_types must be unique")
         if self.device == "cpu" and self.accelerator_backend is not None:
-            raise ValueError("CPU execution target cannot require an accelerator backend")
+            raise ValueError(
+                "CPU execution target cannot require an accelerator backend"
+            )
 
     def supports(self, *, device: str, device_index: int, compute_type: str) -> bool:
         return (

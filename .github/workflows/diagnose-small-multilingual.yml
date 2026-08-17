@@ -1,4 +1,4 @@
-name: Diagnose multilingual prompt reset
+name: Diagnose multilingual windows
 
 on:
   push:
@@ -38,7 +38,7 @@ jobs:
       - name: Install locked transcription stack
         run: uv sync --locked --extra transcription
 
-      - name: Test prompt reset workaround on exact EN-FR fixture
+      - name: Sweep small-model multilingual windows on exact EN-FR fixture
         run: |
           uv run python <<'PY'
           import json
@@ -48,53 +48,76 @@ jobs:
           from faster_whisper import WhisperModel
           import scripts.verify_engine_acceptance as acceptance
 
-          with tempfile.TemporaryDirectory(prefix="echoflow-prompt-reset-") as temporary:
+          class LanguageLogProxy:
+              def __init__(self, real):
+                  self._real = real
+                  self.log = []
+
+              def detect_language(self, encoder_output):
+                  result = self._real.detect_language(encoder_output)
+                  token, probability = result[0][0]
+                  self.log.append((token[2:-2], round(float(probability), 4)))
+                  return result
+
+              def __getattr__(self, name):
+                  return getattr(self._real, name)
+
+          with tempfile.TemporaryDirectory(prefix="echoflow-window-sweep-") as temporary:
               root = Path(temporary).resolve()
               _direct, _container, mixed = acceptance._generate_media(root)
+              model = WhisperModel(
+                  "small",
+                  device="cpu",
+                  compute_type="int8",
+                  cpu_threads=2,
+                  num_workers=1,
+                  download_root=str(root / "models"),
+              )
+              original_model = model.model
               results = {}
-              for model_name in ("tiny", "small"):
-                  model = WhisperModel(
-                      model_name,
-                      device="cpu",
-                      compute_type="int8",
-                      cpu_threads=2,
-                      num_workers=1,
-                      download_root=str(root / "models"),
-                  )
-                  segments, info = model.transcribe(
-                      str(mixed),
-                      beam_size=1,
-                      language=None,
-                      word_timestamps=False,
-                      multilingual=True,
-                      chunk_length=10,
-                      condition_on_previous_text=False,
-                      vad_filter=False,
-                      log_progress=False,
-                  )
-                  materialized = list(segments)
+              for chunk_length in (6, 7, 8, 9, 10, 12, 15, 30):
+                  proxy = LanguageLogProxy(original_model)
+                  model.model = proxy
+                  try:
+                      segments, info = model.transcribe(
+                          str(mixed),
+                          beam_size=1,
+                          language=None,
+                          word_timestamps=False,
+                          multilingual=True,
+                          chunk_length=chunk_length,
+                          condition_on_previous_text=False,
+                          vad_filter=False,
+                          log_progress=False,
+                      )
+                      materialized = list(segments)
+                  finally:
+                      model.model = original_model
                   text = " ".join(segment.text.strip() for segment in materialized)
                   words = acceptance._words(text)
-                  results[model_name] = {
+                  results[str(chunk_length)] = {
+                      "language_windows": proxy.log,
                       "text": text,
                       "english_anchors": sorted(words & acceptance._ENGLISH_WORDS),
                       "french_anchors": sorted(words & acceptance._FRENCH_WORDS),
-                      "initial_language": info.language,
                       "segments": [
-                          [round(float(segment.start), 2), round(float(segment.end), 2), segment.text.strip()]
+                          [
+                              round(float(segment.start), 2),
+                              round(float(segment.end), 2),
+                              segment.text.strip(),
+                          ]
                           for segment in materialized
                       ],
                   }
-                  del model
-              print(json.dumps(results, ensure_ascii=False))
-
+              print(json.dumps(results, ensure_ascii=False, indent=2))
               passing = [
-                  name
-                  for name, result in results.items()
+                  length
+                  for length, result in results.items()
                   if len(result["english_anchors"]) >= acceptance._MIN_MIXED_WORDS
                   and len(result["french_anchors"]) >= acceptance._MIN_MIXED_WORDS
+                  and any(language == "fr" for language, _ in result["language_windows"])
               ]
+              print("passing_windows=" + ",".join(passing))
               if not passing:
-                  raise RuntimeError("prompt reset did not recover enough bilingual content")
-              print("passing_models=" + ",".join(passing))
+                  raise RuntimeError("no tested window preserved enough bilingual content")
           PY

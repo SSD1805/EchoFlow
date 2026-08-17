@@ -149,6 +149,10 @@ class TranscriptIndex(Protocol):
     def backend_id(self) -> str:
         ...
 
+    def rebuild(self, transcripts: tuple[IndexedTranscript, ...]) -> None:
+        """Replace the complete derived index atomically."""
+        ...
+
     def upsert(self, transcript: IndexedTranscript) -> None:
         ...
 

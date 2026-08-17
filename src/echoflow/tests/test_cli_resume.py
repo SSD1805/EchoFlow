@@ -29,8 +29,9 @@ def test_resume_restores_plan_by_job_id_and_explicitly_resumes_execution():
     planner.plan.assert_not_called()
     container.transcription_executor().execute.assert_called_once_with(
         planner.plan_resume.return_value,
-        allow_model_download=False,
         resume=True,
+        diarization_request=None,
+        allow_diarization_model_download=False,
     )
 
 
@@ -40,6 +41,7 @@ def test_resume_restores_plan_by_job_id_and_explicitly_resumes_execution():
         ["--strategy", "small-cpu-int8"],
         ["--profile", "accuracy"],
         ["--audio-stream", "2"],
+        ["--enhance"],
     ],
 )
 def test_resume_refuses_execution_contract_override(override):

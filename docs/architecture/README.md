@@ -13,6 +13,12 @@ local implementations.
 - [Media normalization and transcript timeline](media-and-timeline.md) explains what
   FFprobe inspection does, how audio streams are selected, how FFmpeg canonicalizes
   media, and exactly what transcript timestamps mean.
+- [Local model management](model-management.md) defines explicit model acquisition,
+  private manifest custody, local revalidation, immutable revision pinning, and the
+  rule that ASR execution never downloads models implicitly.
+- [Local speech enhancement](speech-enhancement.md) defines optional deterministic
+  noise suppression, private derived audio, timeline preservation, provenance, and the
+  raw-audio boundary retained for diarization.
 - [`ROADMAP.md`](../../ROADMAP.md) separates implemented foundation from near-term
   product work and later research.
 - [`SECURITY.md`](../../SECURITY.md) documents the supported security/privacy threat
@@ -27,14 +33,16 @@ local implementations.
 | `interfaces` | Local filesystem/storage adapters and private-storage policy |
 | `media` | Read-only source inspection and deterministic audio-stream selection |
 | `runner` | Process-visible CPU/memory inspection and execution-budget policy |
-| `transcription` | Planning, normalization, segmentation, ASR, checkpoints, language attribution, assembly, exports |
+| `model_management` | Explicit local model inventory, acquisition, verification, provenance, and removal |
+| `transcription` | Planning, normalization, optional enhancement, segmentation, ASR, checkpoints, language attribution, diarization, assembly, exports |
 | `workspace` | Private job paths and public artifact allocation |
 | `benchmarking` | Privacy-minimized local execution measurement |
 | `library` | Database-neutral port for rebuildable transcript indexing/search |
 
 `runner` refers to the local compute environment available to the process; it is not
 an orchestration/task runner. `media.probe` performs inspection, not transcoding.
-Canonical audio normalization lives under the transcription execution boundary.
+Canonical audio normalization and optional noise suppression live under the
+transcription execution boundary.
 
 ## Dependency conventions
 
@@ -45,7 +53,7 @@ Canonical audio normalization lives under the transcription execution boundary.
   useful for testing or multiple implementations.
 - Structlog is isolated behind `core.observability.ILogger`; application services do
   not need to import Structlog directly.
-- Canonical transcript/checkpoint files are authoritative. Search databases are
-  derived and rebuildable.
+- Canonical transcript/checkpoint files are authoritative. Model manifests describe
+  execution dependencies. Search databases are derived and rebuildable.
 - New frameworks, adapters, and abstraction layers require a concrete capability or
   invariant they protect; file count alone is not a reason to add a manager.

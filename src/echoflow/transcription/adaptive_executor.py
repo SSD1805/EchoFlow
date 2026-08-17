@@ -14,6 +14,7 @@ from echoflow.transcription.checkpoint import RestoredCheckpoint
 from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
 from echoflow.transcription.executor import (
     AudioDecoder,
+    AudioEnhancer,
     AudioSegmenter,
     MediaProbe,
     SegmentCheckpointStore,
@@ -56,6 +57,7 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
         capability_registry: EngineCapabilityRegistry,
         strategy_catalog: StrategyCatalog,
         strategy_evaluator: StrategyEvaluator | None = None,
+        audio_enhancer: AudioEnhancer | None = None,
         checkpoint_store: SegmentCheckpointStore | None = None,
         storage_admission: StorageAdmissionPolicy | None = None,
         language_attributor: TranscriptLanguageAttributor | None = None,
@@ -69,6 +71,7 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
             runner_inspector=runner_inspector,
             policy_planner=policy_planner,
             audio_decoder=audio_decoder,
+            audio_enhancer=audio_enhancer,
             audio_segmenter=audio_segmenter,
             transcriber=transcriber,
             transcript_assembler=transcript_assembler,
@@ -124,8 +127,6 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
         windows: tuple[AudioSegmentWindow, ...],
         job: Job,
         restored: RestoredCheckpoint,
-        *,
-        allow_model_download: bool,
     ) -> EngineTranscript:
         if plan.engine.device == "cpu":
             return super()._transcribe_segments(
@@ -134,7 +135,6 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
                 windows,
                 job,
                 restored,
-                allow_model_download=allow_model_download,
             )
         return self._transcribe_accelerated(
             plan,
@@ -142,7 +142,6 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
             windows,
             job,
             restored,
-            allow_model_download=allow_model_download,
         )
 
     def _transcribe_accelerated(
@@ -152,8 +151,6 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
         windows: tuple[AudioSegmentWindow, ...],
         job: Job,
         restored: RestoredCheckpoint,
-        *,
-        allow_model_download: bool,
     ) -> EngineTranscript:
         completed_count = len(restored.completed)
         results = list(restored.completed)
@@ -166,13 +163,8 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
                 return self.transcript_assembler.assemble(results)
 
         prefetch_depth = self._execution_prefetch_depth(plan)
-        allowed_download = allow_model_download and completed_count == 0
         with self.observer.span("engine.open"):
-            session = self._open_session(
-                plan,
-                restored,
-                allow_model_download=allowed_download,
-            )
+            session = self.transcriber.open_session(plan.engine)
         if (
             restored.engine_version is not None
             and session.engine_version != restored.engine_version

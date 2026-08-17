@@ -2,169 +2,235 @@
 
 ## Current boundary
 
-EchoFlow is a local-first application. It has no cloud transcription integration
-or application telemetry. It executes locally resolved FFprobe for inspection,
-FFmpeg when audio extraction or normalization is required, and the optional
-faster-whisper/CTranslate2 engine for CPU transcription. Local-first describes
-where EchoFlow performs its work; it is not a claim that the host operating
-system, selected storage, third-party engine, model files, or external executables
-are trusted.
+EchoFlow is a local-first application. It has no cloud transcription integration or
+application telemetry. It executes locally resolved FFprobe for inspection, FFmpeg for
+canonicalization and optional noise suppression, faster-whisper/CTranslate2 for ASR,
+and optional local enrichment dependencies such as pyannote when their security gate
+permits execution.
 
-The application treats recording names and local paths as potentially
-sensitive. Routine logs redact paths by default. Full path logging requires the
-explicit `ECHOFLOW_LOG_PATHS=full` setting.
+Local-first describes where EchoFlow performs work. It is not a claim that the host
+operating system, selected storage, third-party libraries, model files, native media
+parsers, or external executables are trusted.
 
-Public failure messages omit input and artifact paths. Human and JSON job-plan
-output includes paths because producing that plan is the explicit command
-result; callers are responsible for where they store or forward it.
+Recording names and local paths are potentially sensitive. Routine logs redact paths by
+default. Full path logging requires explicit `ECHOFLOW_LOG_PATHS=full`.
 
-Private state, cache, model, and per-job directories use a platform-specific
-private-storage policy. On POSIX, private directories are tightened and verified
-as `0700`, and private file writes are tightened and verified as `0600`. On
-Windows, EchoFlow uses the operating system's built-in `whoami.exe` and
-`icacls.exe` utilities to resolve the current user SID, reset the path DACL,
-remove inherited access, grant that SID full control, and verify the resulting
-ACL structure. A private operation fails rather than silently continuing when
-the current SID or required ACL utility cannot be established.
+Public failure messages omit input/artifact paths. Human and JSON command results may
+include paths when paths are an intentional command result; callers control where those
+results are stored or forwarded.
 
-These controls limit ordinary access through the current operating-system user
-boundary; they are not application-level encryption. A local administrator,
-process with equivalent privileges, compromised user session, backup product, or
-storage snapshot may still access private state. Public transcript artifacts
-remain ordinary user files. EchoFlow does not currently encrypt artifacts at
-rest; storage encryption is an operating-system or volume responsibility.
+## Private local storage
+
+Private state, cache, model, and per-job directories use platform-specific access
+controls. POSIX private directories/files are tightened and verified as `0700`/`0600`.
+On Windows, EchoFlow uses built-in identity/ACL utilities to resolve the current user,
+remove inherited access, grant the current SID access, and verify the resulting DACL.
+A private operation fails rather than silently continuing when the required identity or
+ACL enforcement cannot be established.
+
+These controls protect the normal current-user filesystem boundary. They are not
+application-level encryption. Local administrators, equivalent privileged processes,
+a compromised user session, backups, snapshots, swap, or storage remapping may expose
+private state. EchoFlow does not claim secure erasure.
+
+Public transcript artifacts remain ordinary user files. At-rest encryption is an OS,
+volume, or storage responsibility today.
 
 ## Supported versions
 
-EchoFlow is pre-release software. Security fixes are applied to the current
-`main` branch.
+EchoFlow is pre-release software. Security fixes apply to current `main`.
+
+Because the project has not been released or meaningfully dogfooded, internal durable
+contracts currently use one canonical schema rather than migration branches for
+unreleased development states. This does not weaken validation: unsupported schema
+versions fail closed. A real migration policy should begin when an actual released or
+dogfooded compatibility boundary exists.
 
 ## Reporting a vulnerability
 
-Use GitHub's private vulnerability-reporting or security-advisory workflow for
-this repository. Do not include sensitive recordings, transcripts, participant
-identifiers, access tokens, or private filesystem layouts in a public issue.
+Use GitHub private vulnerability reporting/security advisories. Do not include
+sensitive recordings, transcripts, participant identifiers, tokens, or private
+filesystem layouts in a public issue.
 
-Include the affected version or commit, operating system, minimal reproduction,
-impact, and whether the issue requires a malicious local file, another local
-process, or network access.
+Include the affected commit/version, operating system, minimal reproduction, impact,
+and whether exploitation requires a malicious local file, another local process, or
+network access.
 
 ## Media inspection boundary
 
-Dry-run inspection resolves a regular local file, restricts FFprobe protocols
-to `file`, does not invoke a shell, selects a bounded metadata field
-set, enforces a configurable timeout and parser-output limit, and suppresses FFprobe stderr
-from public errors. EchoFlow records a full SHA-256 digest and rejects a file
-whose size, modification time, device, or inode changes during inspection.
+Dry-run inspection resolves a regular local file, restricts FFprobe protocols to
+`file`, does not invoke a shell, selects bounded metadata fields, enforces timeout and
+parser-output limits, and suppresses native stderr from public errors.
 
-FFprobe reports the available streams. EchoFlow then applies a separate
-deterministic audio-stream selection policy. By default the first discovered audio
-stream is selected to preserve the existing behavior; `transcribe --audio-stream
-INDEX` can select another discovered audio stream explicitly. A non-audio or missing
-index is rejected. The selected stream index becomes part of the immutable source
-provenance and checkpoint/resume contract rather than remaining an incidental
+EchoFlow fingerprints the complete input with SHA-256 and rejects a file whose observed
+filesystem identity changes during inspection. `AudioStreamSelector` then selects the
+first audio stream by default or a validated explicit `--audio-stream INDEX`. The
+selected stream becomes part of source/checkpoint provenance rather than an incidental
 FFmpeg argument.
 
-The output limit is checked after the child process exits, so it bounds JSON
-parsing but not the memory already consumed by `subprocess.run`. FFprobe remains
-native media-parsing code operating on user-selected input.
+The output limit bounds parsed FFprobe JSON after the process returns; it is not a hard
+memory cage for the native child process. FFprobe remains native media-parsing code
+operating on user-selected input.
 
-## Decode and transcription boundary
+## Decode and preprocessing boundary
 
-For media that is not already canonical mono 16 kHz PCM audio, EchoFlow invokes
-FFmpeg without a shell or stdin, restricts input protocols to `file`, explicitly
-maps the audio stream selected by the job plan, discards video/subtitle/data
-streams, suppresses native diagnostic output from public failures, and enforces a
-configurable process timeout. Normalized audio exists only in the private job
-workspace and is removed after the attempt. Filesystem deletion is not secure
-erasure.
+For media not already canonical mono 16 kHz PCM16 WAV, EchoFlow invokes FFmpeg without
+a shell/stdin, restricts input protocols to `file`, maps exactly the selected audio
+stream, discards video/subtitle/data streams, suppresses native diagnostics from public
+failures, and enforces a configurable process timeout.
 
-Before claiming the job workspace or decoding media, execution rechecks CPU and
-memory admission and verifies source identity. It also compares the known per-job
-private-workspace and public-output allocations with free space on the filesystems
-that will contain those paths. Allocations on one filesystem are summed before the
-configured minimum-free-space floor is applied; distinct filesystems are checked
-independently. This is a preflight admission check, not a disk quota or reservation.
-Free space can change after admission. Model-cache bytes are not currently included
-in this runtime disk check because EchoFlow does not yet maintain authoritative
-model-cache inventory; model management remains separate work.
+Normalized audio is private derived state in the job workspace and is removed after the
+attempt where possible.
 
-The faster-whisper package and model weights remain optional. The backend uses CPU
-int8 execution with the thread count selected by the runner policy and one model
-worker to avoid hidden memory multiplication. It uses local model files by default.
-`--allow-model-download` explicitly authorizes the engine's Hugging Face retrieval
-for that command; it does not authorize recording upload. EchoFlow records the
-engine package version, model name, requested revision, compute type, thread count,
-beam size, and language setting in canonical output. Unless an immutable model
-revision is configured, model provenance identifies the request but does not prove
-immutable model content.
+With explicit `--enhance`, EchoFlow runs a second local FFmpeg transform using the
+application-owned `afftdn=nf=-50:nr=12` contract. Enhanced audio is also private derived
+state and is never published automatically or treated as source truth.
 
-Canonical transcript JSON omits the source path, source filename, and model-cache
-path. It retains the input SHA-256, size, modification timestamp, container, audio
-stream index, and media duration for provenance. Command result envelopes include
-job and artifact paths because those paths are an explicit result of the command.
+Enhancement fails closed if FFmpeg is unavailable, its runtime version cannot be
+recorded, the requested provider/parameters differ from the planned contract, filtering
+fails, or the result changes channel count, sample width, sample rate, or frame count.
+These checks protect the source-relative timeline contract from hidden trimming,
+padding, resampling, or channel changes.
 
-## Local file and workspace boundary
+ASR consumes enhanced audio only when enhancement succeeded. EchoFlow does not silently
+fall back to raw ASR after a requested enhancement failure. Anonymous diarization still
+consumes the unmodified canonical decode in enhancement v1.
 
-Application writes use a temporary file in the destination directory, flush and
-`fsync` the file contents, and then replace the destination atomically. Private
-writes apply the platform private-storage policy before sensitive bytes are written
-to the temporary file and again to the final destination. Public artifact names are
-reserved with exclusive creation so concurrent processes do not silently overwrite
-one another.
+## Resource and storage admission
 
-The job workspace is derived only from EchoFlow's private jobs directory and a
-validated job ID. Planning validates the normalized workspace path before creation
-or resume mutates the filesystem, so a pre-existing symlink that resolves a planned
-job path outside the configured private jobs directory is rejected.
+Before claiming the job workspace or decoding media, execution rechecks CPU/memory
+admission and source identity. Storage admission compares planned private workspace and
+public output allocations with free space, summing allocations that share a filesystem
+before applying the configured minimum-free-space floor.
 
-These semantics protect ordinary process-level publication and recovery invariants.
-EchoFlow does not currently perform a cross-platform `fsync` of the containing
-directory after every atomic replace, so it does not claim that a just-renamed file
-is guaranteed to survive sudden power loss or filesystem metadata loss. Process
-crash recovery and storage-power-loss durability are separate guarantees.
+The private workspace estimate includes normalization when needed, optional full-
+recording enhanced audio, bounded segment materialization, and fixed workspace headroom.
+This is preflight admission, not a quota or reservation. Free space may change after
+admission.
+
+Model acquisition uses a separate model-storage admission boundary before network
+transfer begins.
+
+## Managed ASR model boundary
+
+Faster-whisper model acquisition is explicit model-management work, not a transcription
+side effect.
+
+A model becomes managed only after:
+
+- catalog identity is resolved;
+- disk admission succeeds;
+- provider acquisition completes;
+- returned snapshot path is proven inside EchoFlow's private model cache and bound to
+  the expected provider repository;
+- resolved revision agrees with snapshot identity;
+- required provider files exist and are non-empty; and
+- the private manifest is committed last.
+
+Inventory and revision lookup are offline and side-effect free. Existing manifests are
+revalidated against local snapshot reality before being trusted.
+
+New ASR plans require a verified managed immutable revision. There is no arbitrary
+configuration revision override and no ambient-cache fallback. faster-whisper executes
+with `local_files_only=True` and the exact revision in the plan. There is no
+`--allow-model-download` transcription flag.
+
+The current verification method proves expected provider layout,
+repository/revision identity, and required non-empty files. It does **not** claim an
+independent cryptographic allowlist/signature for upstream model weights.
+
+`echoflow models install MODEL` is the explicit network-bearing ASR model action. Model
+management never uploads recordings, transcripts, job metadata, or telemetry.
 
 ## Checkpoint and resume privacy boundary
 
-Interrupted transcription work is checkpointed only inside EchoFlow's private local
-job directory. Durable checkpoints do not use the operating-system temporary
-directory because they must survive process restarts and reboots. Disposable audio
-segment files remain temporary implementation data and are removed after each
-attempt.
+Interrupted work is checkpointed inside the private local job directory. Durable
+checkpoints do not use OS temporary directories because they must survive process
+restarts/reboots. Disposable segment and derived audio files remain transient
+implementation state.
 
-Checkpoint manifests omit the input path, source filename, and model-cache path.
-They bind the work to the input SHA-256 and media identity, including the selected
-audio stream, engine/model/revision, decode configuration, segmentation schema, and
-exact PCM frame windows. Completed segment payloads contain the recognized transcript
-text required to resume exactly; that text is not masked because masking would
-change the recovered transcript. Checkpoint files are atomic private writes. Their
-private file/directory protection is enforced through the same POSIX-mode or
-Windows-DACL policy described above.
+The current checkpoint manifest omits source path, source filename, and model-cache
+path while binding:
 
-Resume accepts only a contiguous prefix of completed segments whose manifest,
-window identity, and payload integrity checks match the current transcription
-contract. The checkpointed audio stream is explicitly reselected from the freshly
-probed source; a missing stream or source mismatch is refused rather than silently
-falling back to another track. Corrupt, unknown, reordered, mismatched, or oversized
-checkpoint files fail closed. A resumed job with completed work will not authorize
-model retrieval from the network, and the installed engine package version must
-match the version recorded by the completed checkpoints.
+- source fingerprint/media identity and selected audio stream;
+- profile/provisional state;
+- engine/model/immutable managed revision and execution target;
+- decode configuration;
+- enhancement off/on/provider/parameters/model identity if applicable;
+- segmentation settings and exact PCM frame windows; and
+- resource requirements.
 
-Routine checkpoint and resume logs contain only job/segment identifiers, counts,
-status fields, and exception types. They do not contain transcript text or source
-paths. After the final canonical transcript is published successfully, EchoFlow
-removes checkpoint payloads on a best-effort basis. Interrupted jobs retain them so
-that recovery remains possible. Deletion is ordinary filesystem deletion, not
-secure erasure; backups, snapshots, swap, SSD remapping, privileged local actors,
-and same-user processes remain outside this guarantee.
+Completed checkpoint payloads contain exact recognized text required for recovery.
+That text is not masked because masking would change the recovered transcript.
 
-## Processing risks still outside the implemented boundary
+Resume accepts only a contiguous prefix whose manifest, windows, payload integrity,
+source identity, engine version, and current resource admission all agree. It never
+downloads replacement ASR weights or substitutes a new model revision. Enhancement
+cannot be switched on/off or changed during resume because preprocessing identity is
+part of the contract digest.
 
-FFmpeg and the transcription engine still execute in the EchoFlow process/user
-security context rather than an operating-system sandbox. Model signatures,
-process-wide network egress enforcement, hard CPU limits, adversarial-media test
-corpora, application-level encryption, and secure deletion are not implemented.
-Memory and disk admission are conservative preflight checks, not hard runtime
-resource cages. Private-storage ACLs and mode bits do not protect against a
-compromised user account, local administrators, or equivalent privileged processes.
-These properties must not be inferred from local-first.
+After canonical publication, checkpoint payloads are removed on a best-effort basis.
+Interrupted jobs retain them. Ordinary deletion is not secure erasure.
+
+## Canonical transcript provenance
+
+Canonical JSON omits source path, source filename, and model-cache path. It retains
+source SHA-256, size, modification timestamp, container, audio stream, and duration.
+
+The current transcript contract also records managed engine/model/revision and execution
+parameters, language evidence, optional anonymous speaker evidence, and optional
+enhancement provider/version/operation/parameters. Enhancement provenance explains how
+ASR input was transformed; it does not make the derived WAV authoritative or public.
+
+Command result envelopes may include job/artifact paths because those are explicit
+command results.
+
+## Diarization security hold
+
+Anonymous speaker diarization is optional. EchoFlow does not perform biometric identity
+or cross-recording speaker linking.
+
+The locked pyannote dependency graph currently includes Lightning 2.6.5, affected by
+CVE-2026-58659. EchoFlow blocks diarization before pyannote import or model acquisition
+until a compatible patched Lightning release is available. The dependency-audit
+exception is restricted to the exact advisory/version so dependency drift forces
+re-evaluation.
+
+Any current diarization model-download authorization is narrowly scoped to the optional
+diarization capability. It is not a general ASR network permission.
+
+## Local file and workspace boundary
+
+Application writes use a temporary file in the destination directory, flush/fsync file
+contents, and atomically replace the destination. Private writes apply private-storage
+policy before sensitive bytes are written and again to the final destination. Public
+artifact names are exclusively reserved so concurrent processes do not silently
+overwrite each other.
+
+Job workspace paths derive only from EchoFlow's private jobs directory and validated job
+IDs. Planning validates normalized paths before creation/resume mutates the filesystem,
+so a pre-existing symlink resolving a planned job path outside the configured jobs root
+is rejected.
+
+EchoFlow does not currently perform a cross-platform directory `fsync` after every
+atomic replace, so it does not claim that a just-renamed file survives sudden power or
+filesystem metadata loss. Process-crash recovery and power-loss durability are separate
+guarantees.
+
+## Risks outside the implemented boundary
+
+FFmpeg, FFprobe, ASR, and optional model/native dependencies execute in the current
+process/user security context rather than an OS sandbox. EchoFlow does not currently
+provide:
+
+- independent upstream model signatures/allowlists;
+- process-wide network egress enforcement;
+- hard CPU/RAM/disk runtime cages;
+- adversarial-media sandboxing;
+- application-level encryption;
+- secure deletion;
+- malicious same-user TOCTOU protection; or
+- protection from a compromised account or local administrator.
+
+Resource admission and private-storage controls are meaningful safety boundaries, but
+none of the stronger properties above should be inferred from “local-first.”

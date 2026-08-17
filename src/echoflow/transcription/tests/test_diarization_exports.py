@@ -7,6 +7,7 @@ from echoflow.transcription.models import (
     RecognizedSegment,
     TranscriptSource,
 )
+from echoflow.transcription.speaker_models import DiarizationProvenance, SpeakerTurn
 
 
 def _transcript() -> CanonicalTranscript:
@@ -27,7 +28,7 @@ def _transcript() -> CanonicalTranscript:
             name="faster-whisper",
             package_version="1.2.1",
             model="tiny",
-            model_revision=None,
+            model_revision="revision-1",
             device="cpu",
             compute_type="int8",
             cpu_threads=2,
@@ -40,6 +41,16 @@ def _transcript() -> CanonicalTranscript:
             RecognizedSegment(0, 0.0, 1.0, "Hello", speaker_ref="speaker-01"),
             RecognizedSegment(1, 1.0, 2.0, "handoff"),
             RecognizedSegment(2, 2.0, 3.0, "Hi there", speaker_ref="speaker-02"),
+        ),
+        speaker_turns=(
+            SpeakerTurn(0.0, 1.0, "speaker-01"),
+            SpeakerTurn(2.0, 3.0, "speaker-02"),
+        ),
+        diarization=DiarizationProvenance(
+            provider="pyannote.audio",
+            package_version="4.0.7",
+            model="pyannote/speaker-diarization-community-1",
+            model_revision="revision-1",
         ),
     )
 

@@ -20,9 +20,9 @@ class TranscriptionExecutorLike(Protocol):
         self,
         plan: TranscriptionJobPlan,
         *,
-        allow_model_download: bool = False,
         resume: bool = False,
         diarization_request: SpeakerDiarizationRequest | None = None,
+        allow_diarization_model_download: bool = False,
     ) -> TranscriptionExecutionResult: ...
 
 
@@ -73,37 +73,6 @@ class _CombinedExecutionObserver:
             observer.record_value(name, value)
 
 
-def _execute_with_optional_enrichment(
-    executor: TranscriptionExecutorLike,
-    plan: TranscriptionJobPlan,
-    *,
-    allow_model_download: bool,
-    resume: bool,
-    diarization_request: SpeakerDiarizationRequest | None,
-) -> TranscriptionExecutionResult:
-    """Preserve the executor's existing optional-keyword call contract."""
-    if diarization_request is None:
-        if resume:
-            return executor.execute(
-                plan,
-                allow_model_download=allow_model_download,
-                resume=True,
-            )
-        return executor.execute(plan, allow_model_download=allow_model_download)
-    if resume:
-        return executor.execute(
-            plan,
-            allow_model_download=allow_model_download,
-            resume=True,
-            diarization_request=diarization_request,
-        )
-    return executor.execute(
-        plan,
-        allow_model_download=allow_model_download,
-        diarization_request=diarization_request,
-    )
-
-
 class TranscriptionJobRunner:
     """Own lifecycle state around one synchronous transcription execution."""
 
@@ -119,9 +88,9 @@ class TranscriptionJobRunner:
         self,
         plan: TranscriptionJobPlan,
         *,
-        allow_model_download: bool = False,
         resume: bool = False,
         diarization_request: SpeakerDiarizationRequest | None = None,
+        allow_diarization_model_download: bool = False,
         observer: ExecutionObserver | None = None,
     ) -> TranscriptionExecutionResult:
         self.lifecycle_store.start(plan.job)
@@ -132,12 +101,11 @@ class TranscriptionJobRunner:
         )
         executor = self.executor_factory(combined)
         try:
-            result = _execute_with_optional_enrichment(
-                executor,
+            result = executor.execute(
                 plan,
-                allow_model_download=allow_model_download,
                 resume=resume,
                 diarization_request=diarization_request,
+                allow_diarization_model_download=allow_diarization_model_download,
             )
         except KeyboardInterrupt:
             with suppress(Exception):

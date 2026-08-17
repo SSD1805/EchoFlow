@@ -13,7 +13,7 @@ from echoflow.transcription.errors import (
 from echoflow.transcription.models import CpuEngineConfiguration
 
 
-def configuration(tmp_path, *, revision=None):
+def configuration(tmp_path, *, revision="managed-revision", language=None):
     return CpuEngineConfiguration(
         engine="faster-whisper",
         model="tiny",
@@ -21,7 +21,7 @@ def configuration(tmp_path, *, revision=None):
         compute_type="int8",
         cpu_threads=2,
         beam_size=1,
-        language=None,
+        language=language,
         model_cache_path=tmp_path / "models/faster-whisper",
         model_revision=revision,
     )
@@ -45,12 +45,7 @@ def backend(model_class, *, version_reader=lambda _name: "1.2.1"):
     )
 
 
-def transcribe_once(transcriber, path, config, *, allowed=False):
-    session = transcriber.open_session(config, allow_model_download=allowed)
-    return session.transcribe(path)
-
-
-def test_local_cpu_session_uses_exact_plan_and_consumes_generator(tmp_path):
+def test_local_cpu_session_uses_exact_managed_plan_and_consumes_generator(tmp_path):
     calls = []
 
     class Model:
@@ -72,7 +67,7 @@ def test_local_cpu_session_uses_exact_plan_and_consumes_generator(tmp_path):
 
     config = configuration(tmp_path, revision="immutable-revision")
     transcriber = backend(Model)
-    session = transcriber.open_session(config, allow_model_download=False)
+    session = transcriber.open_session(config)
     result = session.transcribe(tmp_path / "audio.wav")
 
     assert calls[0] == (
@@ -93,9 +88,9 @@ def test_local_cpu_session_uses_exact_plan_and_consumes_generator(tmp_path):
             "beam_size": 1,
             "language": None,
             "word_timestamps": False,
-            "multilingual": False,
-            "chunk_length": None,
-            "condition_on_previous_text": True,
+            "multilingual": True,
+            "chunk_length": 8,
+            "condition_on_previous_text": False,
             "vad_filter": False,
             "log_progress": False,
         },
@@ -110,7 +105,7 @@ def test_local_cpu_session_uses_exact_plan_and_consumes_generator(tmp_path):
     assert result.engine_version == "1.2.1"
 
 
-def test_one_loaded_model_is_reused_for_multiple_audio_segments(tmp_path):
+def test_one_loaded_managed_model_is_reused_for_multiple_audio_segments(tmp_path):
     model = Mock()
     model.transcribe.return_value = (
         iter(()),
@@ -119,33 +114,33 @@ def test_one_loaded_model_is_reused_for_multiple_audio_segments(tmp_path):
     factory = Mock(return_value=model)
     transcriber = backend(factory)
 
-    session = transcriber.open_session(
-        configuration(tmp_path), allow_model_download=False
-    )
+    session = transcriber.open_session(configuration(tmp_path))
     first = session.transcribe(tmp_path / "audio-000000.wav")
     second = session.transcribe(tmp_path / "audio-000001.wav")
 
     factory.assert_called_once()
+    assert factory.call_args.kwargs["local_files_only"] is True
+    assert factory.call_args.kwargs["revision"] == "managed-revision"
     assert model.transcribe.call_count == 2
     assert first.engine_version == second.engine_version == "1.2.1"
 
 
-def test_explicit_download_authorization_disables_local_only_mode(tmp_path):
+def test_explicit_language_disables_multilingual_detection_window(tmp_path):
     model = Mock()
     model.transcribe.return_value = (
         iter(()),
-        SimpleNamespace(language=None, language_probability=None),
+        SimpleNamespace(language="en", language_probability=1.0),
     )
     factory = Mock(return_value=model)
-    result = transcribe_once(
-        backend(factory),
-        tmp_path / "audio.wav",
-        configuration(tmp_path),
-        allowed=True,
-    )
-    assert factory.call_args.kwargs["local_files_only"] is False
-    assert result.segments == ()
-    assert result.language is None
+    session = backend(factory).open_session(configuration(tmp_path, language="en"))
+
+    session.transcribe(tmp_path / "audio.wav")
+
+    kwargs = model.transcribe.call_args.kwargs
+    assert kwargs["language"] == "en"
+    assert kwargs["multilingual"] is False
+    assert kwargs["chunk_length"] is None
+    assert kwargs["condition_on_previous_text"] is True
 
 
 @pytest.mark.parametrize(
@@ -160,10 +155,7 @@ def test_missing_optional_engine_dependency_has_install_instruction(tmp_path, fa
         TranscriptionDependencyError,
         match="^CPU transcription support is not installed; install EchoFlow's transcription extra$",
     ):
-        transcriber.open_session(
-            configuration(tmp_path),
-            allow_model_download=False,
-        )
+        transcriber.open_session(configuration(tmp_path))
 
 
 def test_missing_package_metadata_is_a_dependency_failure(tmp_path):
@@ -172,39 +164,19 @@ def test_missing_package_metadata_is_a_dependency_failure(tmp_path):
         version_reader=Mock(side_effect=metadata.PackageNotFoundError("missing")),
     )
     with pytest.raises(TranscriptionDependencyError):
-        transcriber.open_session(
-            configuration(tmp_path),
-            allow_model_download=False,
-        )
+        transcriber.open_session(configuration(tmp_path))
 
 
-@pytest.mark.parametrize(
-    ("allowed", "error_type", "message"),
-    [
-        (
-            False,
-            ModelUnavailableError,
-            "The selected model is not available locally",
-        ),
-        (
-            True,
-            TranscriptionError,
-            "The selected model could not be downloaded or initialized",
-        ),
-    ],
-)
-def test_model_initialization_failure_reflects_download_authorization(
-    tmp_path, allowed, error_type, message
-):
+def test_model_initialization_failure_is_local_managed_model_error(tmp_path):
     class Model:
         def __init__(self, *_args, **_kwargs):
             raise RuntimeError("private hub detail")
 
-    with pytest.raises(error_type, match=f"^{message}") as error:
-        backend(Model).open_session(
-            configuration(tmp_path),
-            allow_model_download=allowed,
-        )
+    with pytest.raises(
+        ModelUnavailableError,
+        match="^Managed model 'tiny' is unavailable locally; run `echoflow models install tiny` to reinstall it$",
+    ) as error:
+        backend(Model).open_session(configuration(tmp_path))
     assert "private hub detail" not in str(error.value)
 
 
@@ -220,9 +192,7 @@ def test_engine_iteration_failure_is_redacted(tmp_path):
 
             return generated(), SimpleNamespace(language="en", language_probability=1.0)
 
-    session = backend(Model).open_session(
-        configuration(tmp_path), allow_model_download=False
-    )
+    session = backend(Model).open_session(configuration(tmp_path))
     with pytest.raises(
         TranscriptionError,
         match="^The transcription engine failed while processing audio$",
@@ -248,9 +218,7 @@ def test_invalid_engine_segment_values_are_typed(tmp_path, bad_segment):
                 language="en", language_probability=1.0
             )
 
-    session = backend(Model).open_session(
-        configuration(tmp_path), allow_model_download=False
-    )
+    session = backend(Model).open_session(configuration(tmp_path))
     with pytest.raises(
         TranscriptionError,
         match="^The transcription engine returned invalid segment data$",
@@ -268,9 +236,7 @@ def test_invalid_language_probability_is_typed_without_native_detail(tmp_path):
                 language="en", language_probability="not-a-number"
             )
 
-    session = backend(Model).open_session(
-        configuration(tmp_path), allow_model_download=False
-    )
+    session = backend(Model).open_session(configuration(tmp_path))
     with pytest.raises(
         TranscriptionError,
         match="^The transcription engine returned invalid probability data$",
@@ -284,7 +250,4 @@ def test_keyboard_interrupt_is_not_wrapped_during_model_loading(tmp_path):
             raise KeyboardInterrupt
 
     with pytest.raises(KeyboardInterrupt):
-        backend(Model).open_session(
-            configuration(tmp_path),
-            allow_model_download=False,
-        )
+        backend(Model).open_session(configuration(tmp_path))

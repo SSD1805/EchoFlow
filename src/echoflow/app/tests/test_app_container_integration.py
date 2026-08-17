@@ -6,6 +6,7 @@ from echoflow.core.privacy import PathDisclosure
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.transcription.audio import FfmpegAudioDecoder
+from echoflow.transcription.enhancement import FfmpegAfftdnEnhancer
 
 
 def _test_config(tmp_path, **overrides) -> AppConfig:
@@ -78,16 +79,17 @@ def test_container_applies_configured_media_probe_timeout(tmp_path):
     assert probe.timeout_seconds == 7.5
 
 
-def test_container_applies_execution_timeout_and_model_revision(tmp_path):
+def test_container_applies_shared_audio_processing_timeout(tmp_path):
     container = AppContainer()
     container.config.override(
         _test_config(
             tmp_path,
             FFMPEG_PROCESS_TIMEOUT_SECONDS=123.0,
-            FASTER_WHISPER_MODEL_REVISION="revision-1",
         )
     )
     executor = container.transcription_executor()
     assert isinstance(executor.audio_decoder, FfmpegAudioDecoder)
+    assert isinstance(executor.audio_enhancer, FfmpegAfftdnEnhancer)
     assert executor.audio_decoder.timeout_seconds == 123.0
-    assert container.transcription_planner().model_revision == "revision-1"
+    assert executor.audio_enhancer.timeout_seconds == 123.0
+    assert container.transcription_planner().model_registry is container.model_manager()

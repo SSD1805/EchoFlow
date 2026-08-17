@@ -38,6 +38,7 @@ from echoflow.transcription.capabilities import (
 )
 from echoflow.transcription.checkpoint import LocalCheckpointStore
 from echoflow.transcription.diarization import PyannoteSpeakerDiarizer
+from echoflow.transcription.enhancement import FfmpegAfftdnEnhancer
 from echoflow.transcription.errors import ResourceAdmissionError
 from echoflow.transcription.export import TranscriptExporter
 from echoflow.transcription.language import LinguaLanguageAttributor
@@ -95,6 +96,10 @@ def _create_media_probe(config: AppConfig) -> FfprobeMediaProbe:
 
 def _create_audio_decoder(config: AppConfig) -> FfmpegAudioDecoder:
     return FfmpegAudioDecoder(timeout_seconds=config.FFMPEG_PROCESS_TIMEOUT_SECONDS)
+
+
+def _create_audio_enhancer(config: AppConfig) -> FfmpegAfftdnEnhancer:
+    return FfmpegAfftdnEnhancer(timeout_seconds=config.FFMPEG_PROCESS_TIMEOUT_SECONDS)
 
 
 def _create_speaker_diarizer(config: AppConfig) -> PyannoteSpeakerDiarizer:
@@ -198,11 +203,11 @@ class AppContainer(containers.DeclarativeContainer):
         strategy_catalog=strategy_catalog,
         strategy_evaluator=strategy_evaluator,
         audio_stream_selector=audio_stream_selector,
-        model_revision=config.provided.FASTER_WHISPER_MODEL_REVISION,
         model_registry=model_manager,
         checkpoint_store=checkpoint_store,
     )
     audio_decoder = providers.Factory(_create_audio_decoder, config=config)
+    audio_enhancer = providers.Factory(_create_audio_enhancer, config=config)
     audio_segmenter = providers.Factory(WaveAudioSegmenter)
     transcriber = providers.Factory(FasterWhisperTranscriber)
     transcript_assembler = providers.Factory(TranscriptAssembler)
@@ -216,6 +221,7 @@ class AppContainer(containers.DeclarativeContainer):
         runner_inspector=runner_inspector,
         policy_planner=runner_policy_planner,
         audio_decoder=audio_decoder,
+        audio_enhancer=audio_enhancer,
         audio_segmenter=audio_segmenter,
         transcriber=transcriber,
         transcript_assembler=transcript_assembler,

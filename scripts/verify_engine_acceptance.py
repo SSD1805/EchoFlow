@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -21,6 +21,7 @@ _FRENCH_PHRASE = (
 _ENGLISH_WORDS = frozenset({"quick", "brown", "fox", "lazy", "dog"})
 _FRENCH_WORDS = frozenset({"bonjour", "musique", "française", "français", "merci"})
 _MIN_EXPECTED_WORDS = 4
+_MIN_ENHANCED_WORDS = 3
 _MIN_MIXED_WORDS = 2
 _TIMESTAMP_TOLERANCE_SECONDS = 0.5
 
@@ -45,6 +46,14 @@ def _run(
             message = f"{message}: {detail}"
         raise RuntimeError(message)
     return completed
+
+
+def _json_command(command: list[str], *, env: dict[str, str]) -> dict[str, Any]:
+    completed = _run(command, env=env, capture_output=True)
+    payload = json.loads(completed.stdout)
+    if not isinstance(payload, dict):
+        raise RuntimeError("acceptance command did not return a JSON object")
+    return payload
 
 
 def _synthesize(root: Path, name: str, *, voice: str, phrase: str) -> Path:
@@ -115,7 +124,7 @@ def _wrap_media(root: Path, audio: Path) -> Path:
     return container
 
 
-def _mixed_media(root: Path, english: Path) -> Path:
+def _mixed_audio(root: Path, english: Path) -> Path:
     french = _synthesize(
         root,
         "known-speech-french",
@@ -147,16 +156,6 @@ def _mixed_media(root: Path, english: Path) -> Path:
     return mixed
 
 
-def _generate_media(root: Path) -> tuple[Path, Path, Path]:
-    english = _synthesize(
-        root,
-        "known-speech-direct",
-        voice="en-us",
-        phrase=_ENGLISH_PHRASE,
-    )
-    return english, _wrap_media(root, english), _mixed_media(root, english)
-
-
 def _environment(root: Path, output_dir: Path) -> dict[str, str]:
     env = os.environ.copy()
     env.update(
@@ -174,21 +173,41 @@ def _environment(root: Path, output_dir: Path) -> dict[str, str]:
 
 
 def _initialize(env: dict[str, str]) -> None:
-    completed = _run(
-        [sys.executable, "-m", "echoflow", "init", "--json"],
-        env=env,
-        capture_output=True,
+    payload = _json_command(
+        [sys.executable, "-m", "echoflow", "init", "--json"], env=env
     )
-    payload = json.loads(completed.stdout)
-    if not isinstance(payload, dict):
-        raise RuntimeError("EchoFlow init did not return a JSON object")
+    if not payload:
+        raise RuntimeError("EchoFlow init returned no directory state")
+
+
+def _install_tiny(env: dict[str, str]) -> str:
+    manifest = _json_command(
+        [
+            sys.executable,
+            "-m",
+            "echoflow",
+            "models",
+            "install",
+            "tiny",
+            "--json",
+        ],
+        env=env,
+    )
+    if manifest.get("model_id") != "tiny":
+        raise RuntimeError("model management installed the wrong model")
+    revision = str(manifest.get("resolved_revision", "")).strip()
+    if not revision:
+        raise RuntimeError("managed model omitted immutable resolved revision")
+    if not str(manifest.get("verification", "")).strip():
+        raise RuntimeError("managed model omitted verification evidence")
+    return revision
 
 
 def _transcribe(
     input_path: Path,
     *,
     env: dict[str, str],
-    allow_model_download: bool,
+    enhance: bool = False,
 ) -> dict[str, Any]:
     command = [
         sys.executable,
@@ -208,21 +227,15 @@ def _transcribe(
         "vtt",
         "--json",
     ]
-    if allow_model_download:
-        command.append("--allow-model-download")
-    completed = _run(command, env=env, capture_output=True)
-    payload = json.loads(completed.stdout)
-    if not isinstance(payload, dict):
-        raise RuntimeError("EchoFlow transcribe did not return a JSON object")
-    return payload
+    if enhance:
+        command.append("--enhance")
+    return _json_command(command, env=env)
 
 
 def _one_artifact(output_dir: Path, suffix: str) -> Path:
     matches = tuple(output_dir.glob(f"*{suffix}"))
     if len(matches) != 1:
-        raise RuntimeError(
-            f"expected one {suffix} artifact, found {len(matches)} in acceptance output"
-        )
+        raise RuntimeError(f"expected one {suffix} artifact, found {len(matches)}")
     return matches[0]
 
 
@@ -238,109 +251,85 @@ def _load_canonical(output_dir: Path) -> tuple[dict[str, Any], str]:
     return document, raw_document
 
 
-def _validate_known_speech(document: dict[str, Any]) -> set[str]:
-    recognized_expected = _words(str(document.get("text", ""))) & _ENGLISH_WORDS
-    if len(recognized_expected) < _MIN_EXPECTED_WORDS:
-        raise RuntimeError(
-            "known speech was not recognized reliably enough: "
-            f"matched {sorted(recognized_expected)}"
-        )
-    return recognized_expected
-
-
-def _validate_language_provenance(document: dict[str, Any]) -> None:
-    if document.get("schema_version") != 2:
-        raise RuntimeError("unexpected canonical transcript schema version")
+def _validate_engine_contract(
+    document: dict[str, Any], *, expected_revision: str
+) -> None:
     engine = document.get("engine")
-    attribution = document.get("language_attribution")
-    if not isinstance(engine, dict) or not isinstance(attribution, dict):
-        raise RuntimeError("canonical language provenance is incomplete")
-    if engine.get("auto_language_mode") != "native_multilingual_v1":
-        raise RuntimeError("canonical transcript omitted multilingual language policy")
-    if attribution.get("provider") != "lingua":
-        raise RuntimeError("canonical transcript recorded the wrong language provider")
-    if not str(attribution.get("package_version", "")).strip():
-        raise RuntimeError("canonical transcript omitted language provider version")
-
-
-def _validate_language_segments(document: dict[str, Any]) -> None:
-    segments = document.get("segments")
-    if not isinstance(segments, list) or not segments:
-        raise RuntimeError("known speech produced no canonical recognition segments")
-    if any(not isinstance(segment, dict) for segment in segments):
-        raise RuntimeError("canonical transcript contains malformed language segments")
-    if not any(
-        isinstance(segment, dict) and segment.get("language_spans")
-        for segment in segments
-    ):
-        raise RuntimeError("canonical transcript contains no language-attributed spans")
+    if not isinstance(engine, dict):
+        raise RuntimeError("canonical engine provenance is malformed")
+    if engine.get("name") != "faster-whisper" or engine.get("model") != "tiny":
+        raise RuntimeError("canonical transcript recorded wrong engine/model")
+    if engine.get("model_revision") != expected_revision:
+        raise RuntimeError("canonical transcript did not preserve managed revision")
+    if engine.get("device") != "cpu" or engine.get("compute_type") != "int8":
+        raise RuntimeError("canonical transcript recorded wrong CPU configuration")
+    if "auto_language_mode" in engine:
+        raise RuntimeError("legacy language-mode compatibility field survived")
 
 
 def _validate_language_contract(document: dict[str, Any]) -> None:
-    _validate_language_provenance(document)
-    _validate_language_segments(document)
+    attribution = document.get("language_attribution")
+    if not isinstance(attribution, dict) or attribution.get("provider") != "lingua":
+        raise RuntimeError("canonical transcript omitted local language provenance")
 
 
-def _validate_provenance(
-    document: dict[str, Any], *, expected_decode_strategy: str
+def _validate_enhancement_contract(
+    document: dict[str, Any], *, expect_enhancement: bool
 ) -> None:
-    _validate_language_contract(document)
-    if document.get("decode_strategy") != expected_decode_strategy:
-        raise RuntimeError("canonical transcript recorded the wrong decode strategy")
-    if document.get("detected_language") != "en":
-        raise RuntimeError("known English speech was not detected as English")
-    if document.get("detected_languages") != ["en"]:
-        raise RuntimeError(
-            "known English speech recorded unexpected acoustic languages"
-        )
+    enhancement = document.get("enhancement")
+    if not expect_enhancement:
+        if enhancement is not None:
+            raise RuntimeError("raw run unexpectedly recorded enhancement provenance")
+        return
+    if not isinstance(enhancement, dict):
+        raise RuntimeError("enhanced run omitted enhancement provenance")
+    if enhancement.get("provider") != "ffmpeg-afftdn":
+        raise RuntimeError("enhanced run recorded wrong provider")
+    if enhancement.get("operation") != "noise_suppression":
+        raise RuntimeError("enhanced run recorded wrong operation")
+    if not str(enhancement.get("provider_version", "")).strip():
+        raise RuntimeError("enhanced run omitted FFmpeg version")
 
-    source = document.get("source")
-    engine = document.get("engine")
-    if not isinstance(source, dict) or not isinstance(engine, dict):
-        raise RuntimeError("canonical provenance is incomplete")
-    if engine.get("name") != "faster-whisper" or engine.get("model") != "tiny":
-        raise RuntimeError("canonical transcript recorded the wrong engine or model")
-    if engine.get("device") != "cpu" or engine.get("compute_type") != "int8":
-        raise RuntimeError("canonical transcript recorded the wrong CPU configuration")
-    if not str(engine.get("package_version", "")).strip():
-        raise RuntimeError("canonical transcript omitted the engine package version")
+
+def _validate_contract(
+    document: dict[str, Any],
+    *,
+    expected_decode_strategy: str,
+    expected_revision: str,
+    expect_enhancement: bool,
+) -> None:
+    if document.get("schema_version") != 1:
+        raise RuntimeError("unexpected canonical transcript schema version")
+    if document.get("decode_strategy") != expected_decode_strategy:
+        raise RuntimeError("canonical transcript recorded wrong decode strategy")
+    _validate_engine_contract(document, expected_revision=expected_revision)
+    _validate_language_contract(document)
+    _validate_enhancement_contract(document, expect_enhancement=expect_enhancement)
 
 
 def _validate_timestamps(document: dict[str, Any]) -> None:
     source = document.get("source")
     segments = document.get("segments")
-    if not isinstance(source, dict):
-        raise RuntimeError("canonical transcript source provenance is malformed")
-    if not isinstance(segments, list) or not segments:
-        raise RuntimeError("known speech produced no canonical recognition segments")
-
+    if not isinstance(source, dict) or not isinstance(segments, list) or not segments:
+        raise RuntimeError("canonical transcript source/segments are malformed")
     duration_seconds = float(source.get("duration_seconds", 0.0))
-    if duration_seconds <= 0:
-        raise RuntimeError("canonical transcript recorded an invalid source duration")
-
     previous_start = 0.0
     for index, segment in enumerate(segments):
-        if not isinstance(segment, dict):
-            raise RuntimeError("canonical transcript contains a malformed segment")
-        if segment.get("index") != index:
+        if not isinstance(segment, dict) or segment.get("index") != index:
             raise RuntimeError("canonical segment indices are not contiguous")
         start = float(segment.get("start_seconds", -1.0))
         end = float(segment.get("end_seconds", -1.0))
         if start < 0 or end < start or start < previous_start:
-            raise RuntimeError(
-                "canonical segment timestamps are not finite and ordered"
-            )
+            raise RuntimeError("canonical segment timestamps are not ordered")
         if end > duration_seconds + _TIMESTAMP_TOLERANCE_SECONDS:
             raise RuntimeError("canonical segment timestamp exceeds source duration")
         previous_start = start
 
 
 def _validate_privacy(raw_document: str, *, input_path: Path, model_dir: Path) -> None:
-    sensitive_values = (str(input_path), input_path.name, str(model_dir))
-    if any(value and value in raw_document for value in sensitive_values):
-        raise RuntimeError(
-            "canonical transcript leaked a local path or source filename"
-        )
+    for value in (str(input_path), input_path.name, str(model_dir)):
+        if value and value in raw_document:
+            raise RuntimeError("canonical transcript leaked local path/source filename")
 
 
 def _validate_exports(output_dir: Path) -> None:
@@ -348,61 +337,63 @@ def _validate_exports(output_dir: Path) -> None:
     srt = _one_artifact(output_dir, ".srt").read_text(encoding="utf-8")
     vtt = _one_artifact(output_dir, ".vtt").read_text(encoding="utf-8")
     if not txt.strip() or not srt.strip() or not vtt.strip():
-        raise RuntimeError("one or more derived transcript exports are empty")
+        raise RuntimeError("one or more derived exports are empty")
     if "-->" not in srt or "-->" not in vtt or not vtt.startswith("WEBVTT"):
         raise RuntimeError("subtitle exports do not contain timestamp cues")
-    if len(_words(txt) & _ENGLISH_WORDS) < _MIN_EXPECTED_WORDS:
-        raise RuntimeError(
-            "plain-text export does not contain recognizable known speech"
-        )
 
 
-def _validate_transcript(
+def _validate_english(
     output_dir: Path,
     *,
     input_path: Path,
     model_dir: Path,
+    expected_revision: str,
     expected_decode_strategy: str,
+    expect_enhancement: bool = False,
+    minimum_expected_words: int = _MIN_EXPECTED_WORDS,
 ) -> set[str]:
     document, raw_document = _load_canonical(output_dir)
-    recognized_expected = _validate_known_speech(document)
-    _validate_provenance(document, expected_decode_strategy=expected_decode_strategy)
+    recognized = _words(str(document.get("text", ""))) & _ENGLISH_WORDS
+    if len(recognized) < minimum_expected_words:
+        raise RuntimeError(
+            f"known speech recognition too weak: matched {sorted(recognized)}"
+        )
+    _validate_contract(
+        document,
+        expected_decode_strategy=expected_decode_strategy,
+        expected_revision=expected_revision,
+        expect_enhancement=expect_enhancement,
+    )
     _validate_timestamps(document)
     _validate_privacy(raw_document, input_path=input_path, model_dir=model_dir)
     _validate_exports(output_dir)
-    return recognized_expected
+    return recognized
 
 
-def _validate_mixed_language(output_dir: Path) -> None:
+def _validate_mixed_language(output_dir: Path, *, expected_revision: str) -> None:
     document, _ = _load_canonical(output_dir)
-    _validate_language_contract(document)
-    text_words = _words(str(document.get("text", "")))
-    english_words = text_words & _ENGLISH_WORDS
-    french_words = text_words & _FRENCH_WORDS
-    if len(english_words) < _MIN_MIXED_WORDS:
-        raise RuntimeError(
-            "mixed-language speech lost too much English content: "
-            f"matched {sorted(english_words)}"
-        )
-    if len(french_words) < _MIN_MIXED_WORDS:
-        raise RuntimeError(
-            "mixed-language speech lost too much French content: "
-            f"matched {sorted(french_words)}"
-        )
+    _validate_contract(
+        document,
+        expected_decode_strategy="direct",
+        expected_revision=expected_revision,
+        expect_enhancement=False,
+    )
+    words = _words(str(document.get("text", "")))
+    if len(words & _ENGLISH_WORDS) < _MIN_MIXED_WORDS:
+        raise RuntimeError("mixed-language run lost too much English content")
+    if len(words & _FRENCH_WORDS) < _MIN_MIXED_WORDS:
+        raise RuntimeError("mixed-language run lost too much French content")
 
     languages: set[str] = set()
     for raw_segment in document.get("segments", []):
         if not isinstance(raw_segment, dict):
             continue
         for raw_span in raw_segment.get("language_spans", []):
-            if isinstance(raw_span, dict):
-                language = raw_span.get("language")
-                if isinstance(language, str):
-                    languages.add(language)
+            if isinstance(raw_span, dict) and isinstance(raw_span.get("language"), str):
+                languages.add(str(raw_span["language"]))
     if not {"en", "fr"}.issubset(languages):
         raise RuntimeError(
-            "mixed-language transcript did not preserve English and French text spans: "
-            f"found {sorted(languages)}"
+            f"mixed-language transcript lost language evidence: {sorted(languages)}"
         )
 
 
@@ -410,69 +401,79 @@ def _validate_private_cleanup(root: Path) -> None:
     state_dir = root / "state"
     leftovers = tuple(state_dir.rglob("*.wav")) if state_dir.exists() else ()
     if leftovers:
-        raise RuntimeError(
-            "successful execution left temporary decoded/segment WAV data"
-        )
+        raise RuntimeError("successful execution left private temporary WAV data")
 
 
 def verify_engine() -> None:
     with tempfile.TemporaryDirectory(prefix="echoflow-engine-") as temporary:
         root = Path(temporary).resolve()
-        direct_audio, media_container, mixed_audio = _generate_media(root)
         model_dir = root / "cache" / "models"
+        english = _synthesize(
+            root,
+            "known-speech-direct",
+            voice="en-us",
+            phrase=_ENGLISH_PHRASE,
+        )
+        media_container = _wrap_media(root, english)
+        mixed = _mixed_audio(root, english)
+
+        setup_env = _environment(root, root / "output-setup")
+        _initialize(setup_env)
+        revision = _install_tiny(setup_env)
 
         direct_output = root / "output-direct"
         direct_env = _environment(root, direct_output)
-        _initialize(direct_env)
-        _transcribe(direct_audio, env=direct_env, allow_model_download=True)
-        direct_words = _validate_transcript(
+        _transcribe(english, env=direct_env)
+        direct_words = _validate_english(
             direct_output,
-            input_path=direct_audio,
+            input_path=english,
             model_dir=model_dir,
+            expected_revision=revision,
             expected_decode_strategy="direct",
         )
-        if not model_dir.exists() or not any(model_dir.iterdir()):
-            raise RuntimeError("model download did not populate the private cache")
 
         normalized_output = root / "output-normalized"
         normalized_env = _environment(root, normalized_output)
-        _initialize(normalized_env)
-        _transcribe(
-            media_container,
-            env=normalized_env,
-            allow_model_download=False,
-        )
-        normalized_words = _validate_transcript(
+        _transcribe(media_container, env=normalized_env)
+        normalized_words = _validate_english(
             normalized_output,
             input_path=media_container,
             model_dir=model_dir,
+            expected_revision=revision,
             expected_decode_strategy="ffmpeg_normalize",
         )
-        if len(direct_words & normalized_words) < 3:
+        if len(direct_words & normalized_words) < _MIN_EXPECTED_WORDS:
             raise RuntimeError(
-                "direct and normalized paths did not preserve enough recognizable speech"
+                "normalization changed known-speech recognition too much"
             )
 
         mixed_output = root / "output-mixed"
         mixed_env = _environment(root, mixed_output)
-        _initialize(mixed_env)
-        _transcribe(mixed_audio, env=mixed_env, allow_model_download=False)
-        _validate_mixed_language(mixed_output)
+        _transcribe(mixed, env=mixed_env)
+        _validate_mixed_language(mixed_output, expected_revision=revision)
+
+        enhanced_output = root / "output-enhanced"
+        enhanced_env = _environment(root, enhanced_output)
+        _transcribe(english, env=enhanced_env, enhance=True)
+        _validate_english(
+            enhanced_output,
+            input_path=english,
+            model_dir=model_dir,
+            expected_revision=revision,
+            expected_decode_strategy="direct",
+            expect_enhancement=True,
+            minimum_expected_words=_MIN_ENHANCED_WORDS,
+        )
+
+        if not model_dir.is_dir() or not any(model_dir.iterdir()):
+            raise RuntimeError("managed model install did not populate private cache")
         _validate_private_cleanup(root)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Generate known English and mixed English/French speech, run the real "
-            "EchoFlow CLI with faster-whisper, prove offline cache reuse, real media "
-            "normalization, and local language attribution."
-        )
-    )
-    parser.parse_args()
-    verify_engine()
-    return 0
-
-
 if __name__ == "__main__":
-    raise SystemExit(main())
+    for executable in ("ffmpeg", "ffprobe", "espeak-ng"):
+        if shutil.which(executable) is None:
+            raise SystemExit(
+                f"required acceptance executable unavailable: {executable}"
+            )
+    verify_engine()

@@ -103,12 +103,53 @@ def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> None:
     subprocess.run(command, cwd=cwd, env=env, check=True)  # noqa: S603
 
 
+def _run_capture(
+    command: list[str], *, cwd: Path, env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(  # noqa: S603
+        command,
+        cwd=cwd,
+        env=env,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+
 def _write_acceptance_wave(path: Path) -> None:
     with wave.open(str(path), "wb") as audio:
         audio.setnchannels(1)
         audio.setsampwidth(2)
         audio.setframerate(16_000)
         audio.writeframes(b"\x00\x00" * 16_000)
+
+
+def _verify_managed_model_boundary(
+    console: Path,
+    sample_audio: Path,
+    *,
+    cwd: Path,
+    env: dict[str, str],
+) -> None:
+    completed = _run_capture(
+        [
+            str(console),
+            "transcribe",
+            str(sample_audio),
+            "--dry-run",
+            "--profile",
+            "screening",
+            "--json",
+        ],
+        cwd=cwd,
+        env=env,
+    )
+    if completed.returncode != 2:
+        raise RuntimeError(
+            "fresh clean-wheel transcription did not refuse an unmanaged model"
+        )
+    if "echoflow models install tiny" not in completed.stderr:
+        raise RuntimeError("unmanaged-model refusal did not explain the install action")
 
 
 def _verify_clean_install(wheel: Path) -> None:
@@ -186,16 +227,11 @@ def _verify_clean_install(wheel: Path) -> None:
         _run([str(console), "doctor", "--json"], cwd=work_dir, env=env)
         _run([str(console), "runner", "--json"], cwd=work_dir, env=env)
         _run([str(console), "strategies", "--json"], cwd=work_dir, env=env)
-        _run(
-            [
-                str(console),
-                "transcribe",
-                str(sample_audio),
-                "--dry-run",
-                "--profile",
-                "screening",
-                "--json",
-            ],
+        _run([str(console), "models", "--json"], cwd=work_dir, env=env)
+        _run([str(console), "models", "recommend", "--json"], cwd=work_dir, env=env)
+        _verify_managed_model_boundary(
+            console,
+            sample_audio,
             cwd=work_dir,
             env=env,
         )

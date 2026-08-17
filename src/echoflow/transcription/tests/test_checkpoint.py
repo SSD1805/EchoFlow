@@ -11,6 +11,8 @@ from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.models import InputIdentity, MediaInfo, MediaStream, StreamKind
 from echoflow.runner.models import ProcessingProfile
 from echoflow.transcription.checkpoint import LocalCheckpointStore
+from echoflow.transcription.enhancement import ffmpeg_afftdn_configuration
+from echoflow.transcription.enhancement_models import EnhancementConfiguration
 from echoflow.transcription.errors import CheckpointError
 from echoflow.transcription.models import (
     AudioSegmentWindow,
@@ -66,6 +68,7 @@ def context(tmp_path, *, profile=ProcessingProfile.BALANCED):
         "revision-1",
     )
     plan.decoder = DecodeConfiguration(DecodeStrategy.DIRECT, "pcm_s16le", 16_000, 1)
+    plan.enhancement = EnhancementConfiguration()
     plan.segmentation = SegmentationConfiguration(segment_duration_seconds=1)
     plan.resources = SimpleNamespace(
         model_cache_bytes=750 * MIB,
@@ -81,7 +84,18 @@ def context(tmp_path, *, profile=ProcessingProfile.BALANCED):
 
 def result(text, *, language="en"):
     return EngineTranscript(
-        (RecognizedSegment(0, 0.0, 1.0, text, -0.2, 0.1),),
+        (
+            RecognizedSegment(
+                0,
+                0.0,
+                1.0,
+                text,
+                -0.2,
+                0.1,
+                detected_language=language,
+                language_probability=0.98,
+            ),
+        ),
         language,
         0.98,
         "1.2.1",
@@ -100,7 +114,9 @@ def test_manifest_is_private_local_and_omits_source_and_model_paths(tmp_path):
     assert source.name not in document
     assert str(plan.engine.model_cache_path) not in document
     assert "model_cache_path" not in document
-    assert json.loads(document)["contract"]["source"]["sha256"] == "a" * 64
+    contract = json.loads(document)["contract"]
+    assert contract["source"]["sha256"] == "a" * 64
+    assert contract["enhancement"]["mode"] == "off"
     if os.name != "nt":
         assert manifest.stat().st_mode & 0o777 == 0o600
         assert manifest.parent.stat().st_mode & 0o777 == 0o700
@@ -117,6 +133,7 @@ def test_manifest_restores_original_execution_settings_without_local_paths(tmp_p
     assert settings.engine.cpu_threads == 4
     assert settings.engine.model_revision == "revision-1"
     assert settings.decoder == plan.decoder
+    assert settings.enhancement == plan.enhancement
     assert settings.segmentation == plan.segmentation
     assert settings.model_cache_bytes == 750 * MIB
     assert settings.estimated_peak_memory_bytes == 2_304 * MIB
@@ -133,8 +150,10 @@ def test_completed_segment_round_trips_with_detected_language(tmp_path):
 
     assert len(restored.completed) == 1
     assert restored.completed[0][0] == windows[0]
-    assert restored.completed[0][1].segments[0].text == "sensitive words"
-    assert restored.detected_language == "en"
+    restored_result = restored.completed[0][1]
+    assert restored_result.segments[0].text == "sensitive words"
+    assert restored_result.segments[0].detected_language == "en"
+    assert restored_result.segments[0].language_probability == 0.98
     assert restored.engine_version == "1.2.1"
 
 
@@ -142,6 +161,18 @@ def test_contract_change_refuses_resume(tmp_path):
     store, job, plan, windows, _ = context(tmp_path)
     store.initialize(job, plan, windows)
     plan.policy = SimpleNamespace(profile=ProcessingProfile.ACCURACY, provisional=False)
+
+    with pytest.raises(
+        CheckpointError,
+        match="^Private checkpoint does not match the current transcription contract$",
+    ):
+        store.restore(job, plan, windows)
+
+
+def test_enhancement_change_refuses_resume(tmp_path):
+    store, job, plan, windows, _ = context(tmp_path)
+    store.initialize(job, plan, windows)
+    plan.enhancement = ffmpeg_afftdn_configuration()
 
     with pytest.raises(
         CheckpointError,

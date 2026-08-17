@@ -135,6 +135,8 @@ def planner(
     topology_inspector.inspect.return_value = HardwareTopology(
         resources(memory), devices
     )
+    model_registry = Mock()
+    model_registry.resolved_revision.return_value = "revision-1"
     service = TranscriptionJobPlanner(
         media_probe=media_probe,
         workspace_service=workspace,
@@ -145,6 +147,7 @@ def planner(
         capability_registry=EngineCapabilityRegistry(
             (CapabilityProvider(compute_types),)
         ),
+        model_registry=model_registry,
     )
     return service, source, paths, topology_inspector
 
@@ -157,6 +160,7 @@ def test_balanced_laptop_uses_cuda_when_runtime_and_safe_vram_are_available(tmp_
     assert plan.engine.model == "small"
     assert plan.engine.device == "cuda"
     assert plan.engine.compute_type == "float16"
+    assert plan.engine.model_revision == "revision-1"
     assert plan.policy.cpu_threads == 4
     assert plan.engine.cpu_threads == 3
     assert plan.engine.model_cache_path == paths.model_dir / "faster-whisper"
@@ -305,6 +309,7 @@ def test_accelerator_resume_readmission_succeeds_only_when_current_topology_matc
         beam_size=5,
         language=None,
         model_cache_path=paths.model_dir / "faster-whisper",
+        model_revision="revision-1",
     )
     policy = ExecutionPolicy(
         profile=ProcessingProfile.BALANCED,
@@ -341,6 +346,7 @@ def test_unknown_resume_strategy_is_typed_instead_of_mutated(tmp_path):
         beam_size=5,
         language=None,
         model_cache_path=Path(paths.model_dir / "faster-whisper"),
+        model_revision="revision-1",
     )
     policy = ExecutionPolicy(
         ProcessingProfile.BALANCED,

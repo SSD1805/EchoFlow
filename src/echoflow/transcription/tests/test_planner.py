@@ -8,7 +8,7 @@ from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.models import InputIdentity, MediaInfo, MediaStream, StreamKind
 from echoflow.runner.models import ProcessingProfile, RunnerResources
 from echoflow.runner.policy import RunnerPolicyPlanner
-from echoflow.transcription.errors import ResourceAdmissionError
+from echoflow.transcription.errors import ModelUnavailableError, ResourceAdmissionError
 from echoflow.transcription.models import DecodeStrategy
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.workspace.models import WorkspacePaths
@@ -16,6 +16,7 @@ from echoflow.workspace.service import WorkspaceService
 
 MIB = 1024**2
 GIB = 1024**3
+_DEFAULT_REGISTRY = object()
 
 
 def runner_resources(memory=8 * GIB) -> RunnerResources:
@@ -70,8 +71,7 @@ def build_planner(
     media,
     resources=None,
     *,
-    model_registry=None,
-    model_revision=None,
+    model_registry=_DEFAULT_REGISTRY,
 ):
     paths = WorkspacePaths(
         tmp_path / "state",
@@ -85,13 +85,18 @@ def build_planner(
     probe.probe.return_value = media
     inspector = Mock()
     inspector.inspect.return_value = resources or runner_resources()
+    registry = model_registry
+    if registry is _DEFAULT_REGISTRY:
+        registry = Mock()
+        registry.resolved_revision.side_effect = lambda model_id: (
+            f"{model_id}-managed-revision"
+        )
     planner = TranscriptionJobPlanner(
         media_probe=probe,
         workspace_service=workspace,
         runner_inspector=inspector,
         policy_planner=RunnerPolicyPlanner(memory_budget_fraction=1),
-        model_registry=model_registry,
-        model_revision=model_revision,
+        model_registry=registry,
     )
     return planner, paths, probe, inspector
 
@@ -104,7 +109,7 @@ def test_balanced_plan_composes_real_paths_media_cpu_engine_and_estimates(tmp_pa
 
     plan = planner.plan(source)
 
-    assert plan.schema_version == 2
+    assert plan.schema_version == 1
     assert plan.job.job_id.value == "plan-1"
     assert plan.job.input_path == source.resolve()
     assert plan.job.workspace_dir == paths.jobs_dir / "plan-1"
@@ -121,9 +126,10 @@ def test_balanced_plan_composes_real_paths_media_cpu_engine_and_estimates(tmp_pa
     assert plan.engine.beam_size == 5
     assert plan.engine.language is None
     assert plan.engine.model_cache_path == paths.model_dir / "faster-whisper"
-    assert plan.engine.model_revision is None
+    assert plan.engine.model_revision == "small-managed-revision"
     assert plan.decoder.strategy is DecodeStrategy.FFMPEG_NORMALIZE
     assert plan.decoder.output_codec == "pcm_s16le"
+    assert plan.enhancement.enabled is False
     assert plan.segmentation.segment_duration_seconds == 600
     assert plan.segmentation.overlap_seconds == 0
     assert plan.segmentation.concurrency == 1
@@ -159,22 +165,36 @@ def test_managed_model_revision_is_pinned_without_mutating_workspace(tmp_path):
     assert not paths.cache_dir.exists()
 
 
-def test_explicit_model_revision_wins_without_registry_substitution(tmp_path):
-    source = tmp_path / "explicit-revision.wav"
+def test_missing_model_registry_fails_closed(tmp_path):
+    source = tmp_path / "unconfigured.wav"
+    source.write_bytes(b"audio")
+    planner, _, _, _ = build_planner(
+        tmp_path,
+        media_info(source),
+        model_registry=None,
+    )
+
+    with pytest.raises(
+        ModelUnavailableError, match="model management is not configured"
+    ):
+        planner.plan(source)
+
+
+def test_unmanaged_selected_model_requires_explicit_install(tmp_path):
+    source = tmp_path / "unmanaged.wav"
     source.write_bytes(b"audio")
     registry = Mock()
-    registry.resolved_revision.return_value = "managed-abc123"
+    registry.resolved_revision.return_value = None
     planner, _, _, _ = build_planner(
         tmp_path,
         media_info(source),
         model_registry=registry,
-        model_revision="operator-requested",
     )
 
-    plan = planner.plan(source)
+    with pytest.raises(ModelUnavailableError, match="echoflow models install small"):
+        planner.plan(source)
 
-    assert plan.engine.model_revision == "operator-requested"
-    registry.resolved_revision.assert_not_called()
+    registry.resolved_revision.assert_called_once_with("small")
 
 
 def test_screening_plan_is_provisional_compact_and_low_beam(tmp_path):
@@ -186,6 +206,7 @@ def test_screening_plan_is_provisional_compact_and_low_beam(tmp_path):
 
     assert plan.policy.provisional is True
     assert plan.engine.model == "tiny"
+    assert plan.engine.model_revision == "tiny-managed-revision"
     assert plan.engine.beam_size == 1
     assert plan.resources.model_cache_bytes == 150 * MIB
     assert plan.resources.estimated_peak_memory_bytes == 1_280 * MIB
@@ -203,9 +224,38 @@ def test_accuracy_plan_selects_medium_model_when_budget_allows(tmp_path):
     )
     plan = planner.plan(source, profile=ProcessingProfile.ACCURACY)
     assert plan.engine.model == "medium"
+    assert plan.engine.model_revision == "medium-managed-revision"
     assert plan.resources.model_cache_bytes == 2_500 * MIB
     assert plan.resources.estimated_peak_memory_bytes == 4_352 * MIB
     assert plan.resources.fits_memory_budget is True
+
+
+def test_enhancement_adds_full_private_derivative_and_provenance_contract(tmp_path):
+    source = tmp_path / "enhance.wav"
+    source.write_bytes(b"audio")
+    planner, _, _, _ = build_planner(
+        tmp_path,
+        media_info(
+            source,
+            duration=10,
+            codec="pcm_s16le",
+            sample_rate=16_000,
+            channels=1,
+        ),
+    )
+
+    raw = planner.plan(source)
+    enhanced = planner.plan(source, enhance=True)
+
+    assert raw.enhancement.enabled is False
+    assert enhanced.enhancement.enabled is True
+    assert enhanced.enhancement.provider == "ffmpeg-afftdn"
+    assert (
+        enhanced.resources.private_workspace_bytes
+        - raw.resources.private_workspace_bytes
+        == 320_000
+    )
+    assert "noise_suppression_enabled" in enhanced.warnings
 
 
 def test_insufficient_compact_memory_is_refused_before_execution(tmp_path):
@@ -248,6 +298,7 @@ def test_explicit_feasible_strategy_overrides_profile_recommendation(tmp_path):
     )
 
     assert plan.engine.model == "medium"
+    assert plan.engine.model_revision == "medium-managed-revision"
     assert plan.policy.provisional is True
 
 

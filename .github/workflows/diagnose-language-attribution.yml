@@ -33,51 +33,42 @@ jobs:
       - name: Install locked transcription stack
         run: uv sync --locked --extra transcription
 
-      - name: Inspect sentence-level candidate evidence
+      - name: Validate focused language attribution
         run: |
+          uv run ruff check src/echoflow/transcription/language.py src/echoflow/transcription/tests/test_language.py
+          uv run ruff format --check src/echoflow/transcription/language.py src/echoflow/transcription/tests/test_language.py
+          uv run pytest \
+            src/echoflow/transcription/tests/test_language.py \
+            src/echoflow/transcription/tests/test_multilingual_semantics.py \
+            src/echoflow/transcription/tests/test_executor.py
           uv run python <<'PY'
-          import json
-          from lingua import LanguageDetectorBuilder
+          from echoflow.transcription.language import LinguaLanguageAttributor
 
-          detector = LanguageDetectorBuilder.from_all_languages().build()
+          attributor = LinguaLanguageAttributor()
+          normalized = (
+              "The quick brown fox jump over a crazy dog. "
+              "Echo flow keep slow call recordings private and recoverable."
+          )
+          mixed = (
+              "The quick brownfarks jump over the rainy dog. "
+              "Echo flow keep slow call recording, private and recoverable. "
+              "Bonjour! La Munich for Emma! I'm Emma Tire. Merci for you."
+          )
 
-          def code(language):
-              return language.iso_code_639_1.name.lower()
-
-          def inspect(text):
-              values = detector.compute_language_confidence_values(text)[:8]
-              detected = detector.detect_language_of(text)
-              sections = detector.detect_multiple_languages_of(text)
-              return {
-                  "text": text,
-                  "detected": None if detected is None else code(detected),
-                  "confidence": [
-                      [code(item.language), round(float(item.value), 6)]
-                      for item in values
-                  ],
-                  "sections": [
-                      [
-                          code(item.language),
-                          text[item.start_index:item.end_index],
-                      ]
-                      for item in sections
-                  ],
-              }
-
-          samples = [
-              "The quick brown fox jump over a crazy dog.",
-              "Echo flow keep slow call recordings private and recoverable.",
-              "The quick brown fox jump over a crazy dog. Echo flow keep slow call recordings private and recoverable.",
-              "Bonjour!",
-              "La Munich for Emma!",
-              "I'm Emma Tire.",
-              "Merci for you.",
-              "Bonjour! La Munich for Emma!",
-              "Bonjour. La musique française accompagne notre journée.",
-              "Nous parlons français maintenant. Merci beaucoup.",
-              "hello bonjour",
-              "I need to go home, mais je suis fatigué aujourd'hui.",
-          ]
-          for sample in samples:
-              print(json.dumps(inspect(sample), ensure_ascii=False))
+          normalized_languages = {span.language for span in attributor.attribute(normalized)}
+          mixed_languages = {span.language for span in attributor.attribute(mixed)}
+          print("normalized", normalized_languages)
+          print("mixed", mixed_languages)
+          if normalized_languages != {"en"}:
+              raise RuntimeError(
+                  f"normalized English retained false language labels: {sorted(normalized_languages)}"
+              )
+          if not {"en", "fr"}.issubset(mixed_languages):
+              raise RuntimeError(
+                  f"mixed text lost English/French evidence: {sorted(mixed_languages)}"
+              )
+          if {"pl", "la"} & mixed_languages:
+              raise RuntimeError(
+                  f"mixed text retained known false labels: {sorted(mixed_languages)}"
+              )
           PY

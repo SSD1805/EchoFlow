@@ -7,7 +7,10 @@ from echoflow.transcription.diarization import (
     PyannoteSpeakerDiarizer,
     project_speaker_refs,
 )
-from echoflow.transcription.errors import DiarizationModelUnavailableError
+from echoflow.transcription.errors import (
+    DiarizationDependencyError,
+    DiarizationModelUnavailableError,
+)
 from echoflow.transcription.models import RecognizedSegment
 from echoflow.transcription.speaker_models import (
     SpeakerDiarizationRequest,
@@ -114,6 +117,28 @@ def test_authorized_acquisition_allows_snapshot_download(tmp_path):
     assert calls[0]["local_files_only"] is False
 
 
+def test_missing_optional_runtime_fails_before_model_acquisition(tmp_path):
+    snapshot_calls = []
+
+    def snapshot_loader(**kwargs):
+        snapshot_calls.append(kwargs)
+        return str(tmp_path / "should-not-be-used")
+
+    def module_loader(name):
+        if name == "pyannote.audio":
+            raise ImportError("not installed")
+        raise AssertionError(f"unexpected module load: {name}")
+
+    diarizer = PyannoteSpeakerDiarizer(
+        model_cache_path=tmp_path,
+        snapshot_loader=snapshot_loader,
+        module_loader=module_loader,
+    )
+    with pytest.raises(DiarizationDependencyError, match="not installed"):
+        diarizer.diarize(tmp_path / "audio.wav", allow_model_download=True)
+    assert snapshot_calls == []
+
+
 def test_missing_cached_model_fails_closed(tmp_path):
     def snapshot_loader(**_kwargs):
         raise FileNotFoundError("not cached")
@@ -121,6 +146,7 @@ def test_missing_cached_model_fails_closed(tmp_path):
     diarizer = PyannoteSpeakerDiarizer(
         model_cache_path=tmp_path,
         snapshot_loader=snapshot_loader,
+        module_loader=lambda _name: SimpleNamespace(Pipeline=object),
     )
     with pytest.raises(DiarizationModelUnavailableError, match="local cache"):
         diarizer.diarize(tmp_path / "audio.wav", allow_model_download=False)

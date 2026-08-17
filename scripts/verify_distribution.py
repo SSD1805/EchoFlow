@@ -82,7 +82,9 @@ def _inspect_wheel(wheel: Path) -> None:
 
         entry_points = archive.read(entry_point_names[0]).decode("utf-8")
         if "echoflow = echoflow.cli:app" not in entry_points:
-            raise RuntimeError("built wheel does not expose the echoflow console command")
+            raise RuntimeError(
+                "built wheel does not expose the echoflow console command"
+            )
 
 
 def _venv_python(venv_dir: Path) -> Path:

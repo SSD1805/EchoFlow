@@ -1,4 +1,4 @@
-name: Diagnose small multilingual
+name: Diagnose multilingual prompt reset
 
 on:
   push:
@@ -38,65 +38,63 @@ jobs:
       - name: Install locked transcription stack
         run: uv sync --locked --extra transcription
 
-      - name: Qualify supported small CPU strategy on EN-FR fixture
+      - name: Test prompt reset workaround on exact EN-FR fixture
         run: |
           uv run python <<'PY'
           import json
-          import sys
           import tempfile
           from pathlib import Path
 
+          from faster_whisper import WhisperModel
           import scripts.verify_engine_acceptance as acceptance
 
-          with tempfile.TemporaryDirectory(prefix="echoflow-small-multilingual-") as temporary:
+          with tempfile.TemporaryDirectory(prefix="echoflow-prompt-reset-") as temporary:
               root = Path(temporary).resolve()
               _direct, _container, mixed = acceptance._generate_media(root)
-              output = root / "output-small"
-              env = acceptance._environment(root, output)
-              acceptance._initialize(env)
-
-              command = [
-                  sys.executable,
-                  "-m",
-                  "echoflow",
-                  "transcribe",
-                  str(mixed),
-                  "--profile",
-                  "screening",
-                  "--strategy",
-                  "small-cpu-int8",
-                  "--allow-model-download",
-                  "--json",
-              ]
-              acceptance._run(command, env=env, capture_output=True)
-              document, _ = acceptance._load_canonical(output)
-              text = str(document.get("text", ""))
-              words = acceptance._words(text)
-              english = sorted(words & acceptance._ENGLISH_WORDS)
-              french = sorted(words & acceptance._FRENCH_WORDS)
-              languages = sorted({
-                  str(span.get("language"))
-                  for segment in document.get("segments", [])
-                  if isinstance(segment, dict)
-                  for span in segment.get("language_spans", [])
-                  if isinstance(span, dict) and span.get("language")
-              })
-              print(json.dumps({
-                  "text": text,
-                  "english_anchors": english,
-                  "french_anchors": french,
-                  "languages": languages,
-                  "engine_model": document.get("engine", {}).get("model"),
-              }, ensure_ascii=False))
-
-              if len(english) < acceptance._MIN_MIXED_WORDS:
-                  raise RuntimeError(f"small lost English anchors: {english}")
-              if len(french) < acceptance._MIN_MIXED_WORDS:
-                  raise RuntimeError(f"small lost French anchors: {french}")
-              if not {"en", "fr"}.issubset(set(languages)):
-                  raise RuntimeError(
-                      f"small transcript did not retain EN/FR attribution: {languages}"
+              results = {}
+              for model_name in ("tiny", "small"):
+                  model = WhisperModel(
+                      model_name,
+                      device="cpu",
+                      compute_type="int8",
+                      cpu_threads=2,
+                      num_workers=1,
+                      download_root=str(root / "models"),
                   )
-              if document.get("engine", {}).get("model") != "small":
-                  raise RuntimeError("EchoFlow did not execute the requested small model")
+                  segments, info = model.transcribe(
+                      str(mixed),
+                      beam_size=1,
+                      language=None,
+                      word_timestamps=False,
+                      multilingual=True,
+                      chunk_length=10,
+                      condition_on_previous_text=False,
+                      vad_filter=False,
+                      log_progress=False,
+                  )
+                  materialized = list(segments)
+                  text = " ".join(segment.text.strip() for segment in materialized)
+                  words = acceptance._words(text)
+                  results[model_name] = {
+                      "text": text,
+                      "english_anchors": sorted(words & acceptance._ENGLISH_WORDS),
+                      "french_anchors": sorted(words & acceptance._FRENCH_WORDS),
+                      "initial_language": info.language,
+                      "segments": [
+                          [round(float(segment.start), 2), round(float(segment.end), 2), segment.text.strip()]
+                          for segment in materialized
+                      ],
+                  }
+                  del model
+              print(json.dumps(results, ensure_ascii=False))
+
+              passing = [
+                  name
+                  for name, result in results.items()
+                  if len(result["english_anchors"]) >= acceptance._MIN_MIXED_WORDS
+                  and len(result["french_anchors"]) >= acceptance._MIN_MIXED_WORDS
+              ]
+              if not passing:
+                  raise RuntimeError("prompt reset did not recover enough bilingual content")
+              print("passing_models=" + ",".join(passing))
           PY

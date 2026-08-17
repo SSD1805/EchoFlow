@@ -102,9 +102,14 @@ speculative infrastructure:
   not perform biometric identity or cross-recording linking, and ambiguous ASR
   segments intentionally remain unlabeled without word-level alignment.
 - The pyannote dependency graph is continuously audited and has a clean-install
-  acceptance lane. Real Community-1 inference is credential-gated and still requires
-  representative-device qualification before EchoFlow should make low-memory
-  performance claims.
+  acceptance lane. Its current Lightning 2.6.5 dependency is affected by
+  CVE-2026-58659, so EchoFlow blocks diarization before pyannote import or model
+  acquisition until a compatible patched Lightning release is available. The audit
+  exception is limited to that advisory and exact locked version so dependency drift
+  forces re-evaluation.
+- Real Community-1 inference remains credential-gated and must clear the Lightning
+  security hold plus representative-device qualification before EchoFlow makes
+  operational or low-memory performance claims.
 - Lifecycle state improves discoverability and recovery, but EchoFlow is still a
   synchronous local application rather than a background job daemon or distributed
   task system.

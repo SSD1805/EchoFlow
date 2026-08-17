@@ -92,7 +92,9 @@ class FfmpegAfftdnEnhancer:
             )
         except subprocess.TimeoutExpired as exc:
             destination.unlink(missing_ok=True)
-            raise AudioEnhancementError("Audio noise suppression timed out", cause=exc) from exc
+            raise AudioEnhancementError(
+                "Audio noise suppression timed out", cause=exc
+            ) from exc
         except OSError as exc:
             destination.unlink(missing_ok=True)
             raise MediaToolUnavailableError(
@@ -125,7 +127,10 @@ class FfmpegAfftdnEnhancer:
             raise ValueError("unsupported enhancement provider")
         if configuration.parameters != _PARAMETERS:
             raise ValueError("unsupported ffmpeg-afftdn parameter contract")
-        if configuration.model_id is not None or configuration.model_revision is not None:
+        if (
+            configuration.model_id is not None
+            or configuration.model_revision is not None
+        ):
             raise ValueError("ffmpeg-afftdn does not use a model")
 
     @staticmethod
@@ -145,7 +150,9 @@ class FfmpegAfftdnEnhancer:
                 "FFmpeg version could not be verified for enhancement provenance",
                 cause=exc,
             ) from exc
-        first_line = completed.stdout.splitlines()[0].strip() if completed.stdout else ""
+        first_line = (
+            completed.stdout.splitlines()[0].strip() if completed.stdout else ""
+        )
         if completed.returncode != 0 or not first_line:
             raise MediaToolUnavailableError(
                 "FFmpeg version could not be verified for enhancement provenance"

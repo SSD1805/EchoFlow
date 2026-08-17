@@ -67,9 +67,13 @@ class SearchPassage:
         if not self.segment_ids:
             raise ValueError("search passage must reference at least one segment")
         if any(item not in self.segment_ids for item in self.matched_segment_ids):
-            raise ValueError("matched segments must belong to the result evidence window")
+            raise ValueError(
+                "matched segments must belong to the result evidence window"
+            )
         if self.start_seconds < 0 or self.end_seconds < self.start_seconds:
-            raise ValueError("search result timestamps must be ordered and non-negative")
+            raise ValueError(
+                "search result timestamps must be ordered and non-negative"
+            )
         if not self.text.strip():
             raise ValueError("search result text cannot be empty")
         for name in ("lexical_rank", "semantic_rank", "fused_rank"):
@@ -94,14 +98,19 @@ class SearchResponse:
         if self.mode is RetrievalMode.LEXICAL:
             if self.lexical_backend_id is None:
                 raise ValueError("lexical response requires a lexical backend")
-            if self.semantic_backend_id is not None or self.semantic_profile is not None:
+            if (
+                self.semantic_backend_id is not None
+                or self.semantic_profile is not None
+            ):
                 raise ValueError("lexical response cannot claim semantic provenance")
         else:
             if self.semantic_backend_id is None or self.semantic_profile is None:
                 raise ValueError("semantic retrieval requires semantic provenance")
         if self.mode is RetrievalMode.HYBRID:
             if self.lexical_backend_id is None or self.fusion_profile is None:
-                raise ValueError("hybrid response requires lexical and fusion provenance")
+                raise ValueError(
+                    "hybrid response requires lexical and fusion provenance"
+                )
         elif self.fusion_profile is not None:
             raise ValueError("non-hybrid response cannot claim fusion provenance")
         _validate_result_ranks(self.mode, self.results)
@@ -147,7 +156,9 @@ class TranscriptSearch:
         if state is None:
             raise ValueError("semantic index is empty; build embeddings first")
         if state.profile.identity_tuple() != provider.profile.identity_tuple():
-            raise ValueError("semantic model profile does not match the indexed vectors")
+            raise ValueError(
+                "semantic model profile does not match the indexed vectors"
+            )
         if mode is RetrievalMode.SEMANTIC:
             return self._semantic(query, semantic, provider)
         return self._hybrid(query, semantic, provider)
@@ -216,9 +227,7 @@ class TranscriptSearch:
             sort=SearchSort.RELEVANCE,
         )
         lexical_matches = self.lexical.search(candidate_query)
-        keys = tuple(
-            (match.document_id, match.segment_id) for match in lexical_matches
-        )
+        keys = tuple((match.document_id, match.segment_id) for match in lexical_matches)
         chunks_by_segment = semantic.chunks_for_segments(keys)
         lexical_ranks, matched_segments, chunks = self._collapse_lexical(
             lexical_matches, chunks_by_segment
@@ -303,12 +312,12 @@ class TranscriptSearch:
         return score
 
     @staticmethod
-    def _query_vector(
-        provider: EmbeddingProvider, text: str
-    ) -> tuple[float, ...]:
+    def _query_vector(provider: EmbeddingProvider, text: str) -> tuple[float, ...]:
         vectors = provider.embed_queries((text,))
         if len(vectors) != 1:
-            raise RuntimeError("embedding provider returned an invalid query vector count")
+            raise RuntimeError(
+                "embedding provider returned an invalid query vector count"
+            )
         return vectors[0]
 
     @staticmethod
@@ -320,9 +329,7 @@ class TranscriptSearch:
         return SearchPassage(
             document_id=match.document_id,
             source_sha256=match.source_sha256,
-            canonical_sha256=(
-                None if document is None else document.canonical_sha256
-            ),
+            canonical_sha256=(None if document is None else document.canonical_sha256),
             canonical_path=match.canonical_path,
             source_path=match.source_path,
             chunk_id=None,

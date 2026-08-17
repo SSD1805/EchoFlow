@@ -68,6 +68,12 @@ jobs:
       # CVE-2026-58659 / PYSEC-2026-3624. EchoFlow's diarization adapter blocks
       # affected/unproven Lightning releases before importing pyannote or resolving
       # a model. Keep this one advisory visible here until upstream ships its merged fix.
+      - name: Verify compensated Lightning advisory scope
+        shell: bash
+        run: >-
+          grep -Eq '^lightning==2\.6\.5([ ;]|$)'
+          "${{ runner.temp }}/echoflow-runtime-requirements.txt"
+
       - name: Audit locked runtime dependencies
         run: >-
           uvx --from pip-audit==2.10.1 pip-audit

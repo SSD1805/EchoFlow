@@ -50,6 +50,7 @@ class IndexedTranscript:
     source_size_bytes: int
     source_modified_ns: int
     segments: tuple[IndexedSegment, ...]
+    canonical_sha256: str | None = None
 
     def __post_init__(self) -> None:
         if not self.document_id.strip():
@@ -58,6 +59,16 @@ class IndexedTranscript:
             character not in "0123456789abcdef" for character in self.source_sha256
         ):
             raise ValueError("source_sha256 must be a lowercase 64-character digest")
+        if self.canonical_sha256 is not None and (
+            len(self.canonical_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.canonical_sha256
+            )
+        ):
+            raise ValueError(
+                "canonical_sha256 must be a lowercase 64-character digest"
+            )
         if self.transcript_schema_version < 1:
             raise ValueError("transcript_schema_version must be positive")
         if self.detected_language is not None and not self.detected_language.strip():
@@ -83,6 +94,7 @@ class IndexedDocument:
     canonical_path: str
     source_path: str | None
     segment_count: int
+    canonical_sha256: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,7 +128,7 @@ class SearchQuery:
 
 @dataclass(frozen=True, slots=True)
 class TranscriptMatch:
-    """Evidence-bearing search result independent of backend implementation."""
+    """Evidence-bearing lexical result independent of backend implementation."""
 
     document_id: str
     source_sha256: str

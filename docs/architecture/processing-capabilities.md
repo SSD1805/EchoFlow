@@ -195,27 +195,50 @@ POSIX systems enforce owner-only mode bits; Windows uses current-user DACL polic
 These are filesystem access controls, not application-level encryption or secure
 erasure.
 
-## Transcript library boundary
+## Transcript library and retrieval boundary
 
-`TranscriptIndex` is the database-neutral application port for derived, rebuildable
-transcript search state. The current `DuckDbTranscriptIndex` adapter stores private
-index state under `STATE_DIR/library/transcripts.duckdb` and implements deterministic
-local BM25-style ranking from ordinary document, segment, and term-statistic tables.
+Canonical transcript JSON remains authoritative. The lexical and semantic databases are
+private rebuildable projections and must not contain the only copy of user-authored
+information.
 
-`SearchQuery` keeps text, phrase mode, ANY/ALL semantics, speaker/language/document
-filters, sort order, and result limits above the storage boundary. User input is passed
-as parameterized values rather than SQL fragments. EchoFlow deliberately does not
-install or load DuckDB's FTS extension for this first tranche, so search does not gain a
-surprise network dependency on a fresh machine.
+`TranscriptIndex` remains the database-neutral lexical port. The current
+`DuckDbTranscriptIndex` adapter stores document, segment, and term statistics under
+`STATE_DIR/library/transcripts.duckdb` and implements deterministic offline BM25-style
+ranking.
 
-`TranscriptLibraryService` discovers canonical transcripts, validates a narrow searchable
-projection, performs transactional rebuilds, exposes evidence-bearing matches, and can
-verify whether the bytes currently at a known source path still match the SHA-256
-recorded for transcription.
+Canonical projection now records both the source recording SHA-256 and the SHA-256 of
+the exact canonical JSON artifact. The latter is used to detect stale semantic state.
 
-The search database is never canonical custody. Deleting or rebuilding it must not
-mutate canonical transcript JSON or source recordings, and canonical transcript JSON
-remains the authoritative corpus artifact.
+Semantic retrieval is split across narrower capabilities rather than expanding
+`TranscriptIndex` into a universal search manager:
+
+- `ChunkingProfile` and `build_search_chunks()` create deterministic derived windows
+  anchored to exact canonical segment IDs and timestamps.
+- `EmbeddingProvider` separates query-side and passage-side encoding.
+- `SentenceTransformersE5Provider` implements strict-local
+  `intfloat/multilingual-e5-small` semantics with immutable revision provenance.
+- `DuckDbSemanticIndex` stores numeric `FLOAT[]` vectors and performs exact local
+  similarity after hard metadata filtering.
+- `TranscriptSearch` composes lexical and semantic ranks and implements hybrid RRF.
+- `SearchResponse` exposes evidence coordinates plus lexical, semantic, and fused
+  ranks for presentation adapters.
+
+`SearchQuery` remains above both storage adapters. User values do not become SQL
+fragments.
+
+The first semantic generation records model ID, immutable revision, 384 dimensions,
+L2 normalization, mean pooling, dot-product metric, E5 query/passage transforms,
+embedding schema, chunking profile, and a corpus fingerprint over canonical JSON
+digests. A mismatch between that fingerprint and the current lexical corpus fails
+semantic/hybrid retrieval closed.
+
+The Sentence Transformers runtime is lazy and optional. This tranche does not add an
+unresolved dependency to `pyproject.toml`; the repository's existing locked dependency
+contract remains intact. Lexical retrieval therefore remains available on the base
+install even when the optional semantic runtime is absent.
+
+See [corpus-search.md](corpus-search.md) for the full retrieval and data-ownership
+contract.
 
 ## Capability ownership
 
@@ -227,7 +250,7 @@ remains the authoritative corpus artifact.
 | `HardwareTopologyInspector` | Physical accelerator evidence | Runtime support claims |
 | `EngineCapabilityRegistry` | Engine/device/compute support | Strategy ranking |
 | `StrategyEvaluator` | Safe strategy admission/ranking | Model acquisition |
-| `ModelManager` | Managed model custody and revision identity | ASR execution |
+| `ModelManager` | Managed ASR model custody and revision identity | ASR execution |
 | `TranscriptionJobPlanner` | Immutable combined execution plan | Performing work |
 | `FfmpegAudioDecoder` | Selected-stream canonicalization | Acoustic enhancement |
 | `FfmpegAfftdnEnhancer` | Optional deterministic noise suppression | Source authority |
@@ -238,9 +261,12 @@ remains the authoritative corpus artifact.
 | `LinguaLanguageAttributor` | Conservative text-language labels | Acoustic decoding |
 | `SpeakerDiarizer` | Anonymous speaker evidence | Biometric identity |
 | `TranscriptExporter` | TXT/SRT/VTT derived publication | Recognition truth |
-| `TranscriptIndex` | Database-neutral rebuildable search contract | Canonical custody |
+| `TranscriptIndex` | Database-neutral lexical search contract | Semantic model execution |
 | `DuckDbTranscriptIndex` | Private lexical index and BM25 execution | Authoritative transcript state |
-| `TranscriptLibraryService` | Discovery, rebuild, search, and source-integrity receipts | SQL or canonical transcript ownership |
+| `EmbeddingProvider` | Query/passage embedding semantics | Corpus custody |
+| `DuckDbSemanticIndex` | Rebuildable chunks/vector state and exact similarity | Canonical transcript truth |
+| `TranscriptSearch` | Lexical/semantic composition and RRF | Storage implementation |
+| `TranscriptLibraryService` | Discovery, rebuild, stale-state checks, retrieval, integrity receipts | SQL or canonical transcript ownership |
 | `WorkspaceService` | Private/public path allocation | Audio semantics |
 
 Protocols are introduced around real substitutable behavior, not pre-emptively for
@@ -262,10 +288,13 @@ EchoFlow does not currently claim:
 - storage durability across sudden power loss;
 - malicious same-user TOCTOU resistance;
 - secure erasure;
-- word-level alignment, semantic/vector retrieval, saved collections, tags/notes, or
-  generated corpus answers; or
+- word-level alignment;
+- a qualified/locked Sentence Transformers semantic dependency extra;
+- ANN/HNSW, learned reranking, generated corpus answers, or user tags/notes/collections;
+  or
 - a polished installer or desktop GUI.
 
-The next product work is dogfooding the current execution and library contracts,
-representative-device and enhancement qualification, corpus retrieval UX, and then
-word/timestamp alignment where real use shows the need for finer evidence coordinates.
+The next product work is dogfooding the current execution/retrieval contracts,
+representative-device and enhancement qualification, semantic dependency/model-custody
+qualification, retrieval UX, and word/timestamp alignment where real use shows the need
+for finer evidence coordinates.

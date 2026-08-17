@@ -11,3 +11,9 @@ class TranscriptProjectionError(TranscriptLibraryError):
 
 class TranscriptLibraryBuildError(TranscriptLibraryError):
     exit_code = 2
+
+
+class SemanticSearchUnavailableError(TranscriptLibraryError):
+    """Semantic capability is absent, unbuilt, stale, or cannot load locally."""
+
+    exit_code = 2

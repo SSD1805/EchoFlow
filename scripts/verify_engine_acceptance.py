@@ -443,7 +443,9 @@ def verify_engine() -> None:
             expected_decode_strategy="ffmpeg_normalize",
         )
         if len(direct_words & normalized_words) < _MIN_EXPECTED_WORDS:
-            raise RuntimeError("normalization changed known-speech recognition too much")
+            raise RuntimeError(
+                "normalization changed known-speech recognition too much"
+            )
 
         mixed_output = root / "output-mixed"
         mixed_env = _environment(root, mixed_output)
@@ -471,5 +473,7 @@ def verify_engine() -> None:
 if __name__ == "__main__":
     for executable in ("ffmpeg", "ffprobe", "espeak-ng"):
         if shutil.which(executable) is None:
-            raise SystemExit(f"required acceptance executable unavailable: {executable}")
+            raise SystemExit(
+                f"required acceptance executable unavailable: {executable}"
+            )
     verify_engine()

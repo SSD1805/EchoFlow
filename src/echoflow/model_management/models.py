@@ -2,6 +2,20 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def _required_str(document: dict[str, object], key: str) -> str:
+    value = document[key]
+    if not isinstance(value, str):
+        raise ValueError(f"{key} must be a string")
+    return value
+
+
+def _required_int(document: dict[str, object], key: str) -> int:
+    value = document[key]
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{key} must be an integer")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class ModelSpec:
     model_id: str
@@ -105,16 +119,18 @@ class ManagedModelManifest:
     def from_dict(cls, document: dict[str, object]) -> "ManagedModelManifest":
         try:
             requested = document.get("requested_revision")
+            if requested is not None and not isinstance(requested, str):
+                raise ValueError("requested_revision must be a string or null")
             return cls(
-                schema_version=int(document["schema_version"]),
-                model_id=str(document["model_id"]),
-                engine=str(document["engine"]),
-                repository_id=str(document["repository_id"]),
-                requested_revision=(None if requested is None else str(requested)),
-                resolved_revision=str(document["resolved_revision"]),
-                snapshot_path=Path(str(document["snapshot_path"])),
-                size_bytes=int(document["size_bytes"]),
-                verification=str(document["verification"]),
+                schema_version=_required_int(document, "schema_version"),
+                model_id=_required_str(document, "model_id"),
+                engine=_required_str(document, "engine"),
+                repository_id=_required_str(document, "repository_id"),
+                requested_revision=requested,
+                resolved_revision=_required_str(document, "resolved_revision"),
+                snapshot_path=Path(_required_str(document, "snapshot_path")),
+                size_bytes=_required_int(document, "size_bytes"),
+                verification=_required_str(document, "verification"),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError("invalid model manifest") from exc

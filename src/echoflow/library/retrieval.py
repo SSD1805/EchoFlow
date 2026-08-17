@@ -239,7 +239,7 @@ class TranscriptSearch:
                 fused_rank=relevance_rank[chunk_id],
                 matched_segment_ids=tuple(
                     sorted(
-                        matched_segments.get(chunk_id, ()),
+                        matched_segments.get(chunk_id, set()),
                         key=chunks[chunk_id].segment_ids.index,
                     )
                 ),

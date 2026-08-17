@@ -67,6 +67,24 @@ pleasant for humans without becoming ambiguous for automation:
 A graphical UI and polished non-developer installer are therefore intentionally
 deferred until the backend contracts are mature enough that the UI can stay thin.
 
+## Engineering qualification policy
+
+Routine commit and pull-request gates must stay fast enough to support iterative
+development. Keep deterministic tests, Hypothesis, branch coverage, Ruff, formatting,
+strict mypy, Vulture, Radon, dependency/security audit, package builds, clean-wheel
+checks, and cross-platform smoke tests in normal CI.
+
+Mutation testing serves a different purpose. Poodle is a targeted development and
+qualification technique for asking whether tests detect plausible bad decisions, not
+a routine every-commit gate. Run focused mutations locally or in an available
+sandbox while developing decision-heavy code, then use the manual GitHub Actions
+mutation workflow for deliberate qualification of recovery, security, resource
+admission, provenance, execution-strategy, or release-sensitive changes. Prefer a
+small set of load-bearing modules over broad repository sweeps, inspect surviving
+mutants, strengthen the relevant assertions, and rerun only the affected mutation
+scope. A future scheduled mutation-health run may be added if measured runtime and
+signal justify it, but ordinary PR progress must not wait on hundreds of mutants.
+
 ## Near-term direction
 
 The next development sequence should improve user value without front-loading

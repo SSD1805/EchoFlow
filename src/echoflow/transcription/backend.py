@@ -9,7 +9,6 @@ from echoflow.transcription.errors import (
     TranscriptionError,
 )
 from echoflow.transcription.models import (
-    AutoLanguageMode,
     CpuEngineConfiguration,
     EngineTranscript,
     RecognizedSegment,
@@ -27,38 +26,15 @@ class FasterWhisperSession:
         model: Any,
         configuration: CpuEngineConfiguration,
         engine_version: str,
-        detected_language: str | None = None,
     ):
-        if detected_language is not None and not detected_language.strip():
-            raise ValueError("detected_language cannot be empty")
-        if (
-            detected_language is not None
-            and configuration.auto_language_mode is AutoLanguageMode.NATIVE_MULTILINGUAL
-        ):
-            raise ValueError(
-                "detected_language cannot seed a per-segment language session"
-            )
         self.model = model
         self.configuration = configuration
         self.engine_version = engine_version
-        self._detected_language = (
-            detected_language if configuration.language is None else None
-        )
 
     def transcribe(self, audio_path: Path) -> EngineTranscript:
         try:
             requested_language = self.configuration.language
-            if (
-                requested_language is None
-                and self.configuration.auto_language_mode
-                is AutoLanguageMode.JOB_LATCHED
-            ):
-                requested_language = self._detected_language
-            multilingual = (
-                requested_language is None
-                and self.configuration.auto_language_mode
-                is AutoLanguageMode.NATIVE_MULTILINGUAL
-            )
+            multilingual = requested_language is None
             raw_segments, info = self.model.transcribe(
                 str(audio_path),
                 beam_size=self.configuration.beam_size,
@@ -83,14 +59,6 @@ class FasterWhisperSession:
                 detected_language=None if multilingual else language,
                 language_probability=None if multilingual else language_probability,
             )
-            if (
-                self.configuration.language is None
-                and self.configuration.auto_language_mode
-                is AutoLanguageMode.JOB_LATCHED
-                and self._detected_language is None
-                and language is not None
-            ):
-                self._detected_language = language
             return EngineTranscript(
                 segments=segments,
                 language=language,
@@ -108,7 +76,7 @@ class FasterWhisperSession:
 
 
 class FasterWhisperTranscriber:
-    """Open job-scoped faster-whisper sessions from immutable engine plans."""
+    """Open job-scoped faster-whisper sessions from managed local model plans."""
 
     def __init__(
         self,
@@ -122,17 +90,13 @@ class FasterWhisperTranscriber:
     def open_session(
         self,
         configuration: CpuEngineConfiguration,
-        *,
-        allow_model_download: bool,
-        detected_language: str | None = None,
     ) -> FasterWhisperSession:
         module, version = self._dependency()
-        model = self._model(module, configuration, allow_model_download)
+        model = self._model(module, configuration)
         return FasterWhisperSession(
             model=model,
             configuration=configuration,
             engine_version=version,
-            detected_language=detected_language,
         )
 
     def _dependency(self) -> tuple[Any, str]:
@@ -148,11 +112,7 @@ class FasterWhisperTranscriber:
         return module, version
 
     @staticmethod
-    def _model(
-        module: Any,
-        configuration: CpuEngineConfiguration,
-        allow_model_download: bool,
-    ) -> Any:
+    def _model(module: Any, configuration: CpuEngineConfiguration) -> Any:
         try:
             return module.WhisperModel(
                 configuration.model,
@@ -161,20 +121,16 @@ class FasterWhisperTranscriber:
                 cpu_threads=configuration.cpu_threads,
                 num_workers=1,
                 download_root=str(configuration.model_cache_path),
-                local_files_only=not allow_model_download,
+                local_files_only=True,
                 revision=configuration.model_revision,
             )
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception as exc:
-            if not allow_model_download:
-                raise ModelUnavailableError(
-                    "The selected model is not available locally; rerun with "
-                    "--allow-model-download to authorize network access",
-                    cause=exc,
-                ) from exc
-            raise TranscriptionError(
-                "The selected model could not be downloaded or initialized", cause=exc
+            raise ModelUnavailableError(
+                f"Managed model '{configuration.model}' is unavailable locally; run "
+                f"`echoflow models install {configuration.model}` to reinstall it",
+                cause=exc,
             ) from exc
 
     @classmethod

@@ -13,9 +13,10 @@ recording is the same person in another recording.
 The first adapter targets the open-source pyannote `community-1` pipeline. Upstream
 currently requires accepting the model conditions and authenticating with Hugging
 Face for initial model acquisition. EchoFlow does not store an HF token in its own
-configuration. Model acquisition uses the standard Hugging Face credential flow and
-the same explicit `--allow-model-download` authorization used for ASR model
-retrieval.
+configuration. Model acquisition uses the standard Hugging Face credential flow and a
+narrow `--allow-diarization-model-download` authorization that applies only to this
+optional capability. ASR model acquisition remains a separate explicit
+`echoflow models install MODEL` action.
 
 Pyannote telemetry is disabled by EchoFlow before the pyannote package is imported.
 The adapter records `telemetry_enabled: false` in diarization provenance. Recording
@@ -61,8 +62,20 @@ containing the merged fix is available and qualified.
 Diarization is opt-in:
 
 ```bash
-uv run echoflow transcribe interview.wav --diarize --allow-model-download
+uv run echoflow transcribe interview.wav --diarize
 ```
+
+If the Community-1 snapshot is not already available in EchoFlow's configured model
+cache and the security gate has been cleared, acquisition must be authorized narrowly:
+
+```bash
+uv run echoflow transcribe interview.wav \
+  --diarize \
+  --allow-diarization-model-download
+```
+
+This flag does not authorize faster-whisper model downloads. ASR execution still
+requires a separately installed, verified managed model revision.
 
 If the speaker count is known, the user can provide an exact count:
 
@@ -97,9 +110,15 @@ Raw backend labels are not stable API. EchoFlow sorts turns deterministically an
 maps backend labels to `speaker-01`, `speaker-02`, and so on in first-seen timeline
 order.
 
-Canonical transcript schema version 3 stores both the exact `speaker_turns` and the
-diarization provenance. Non-diarized transcripts remain schema version 2 and retain
-their existing wire shape.
+EchoFlow's one current pre-production canonical transcript schema is version 1.
+Diarization is represented inside that same shape with optional `diarization`,
+`speaker_turns`, and per-segment `speaker_ref` evidence. A transcript without
+diarization keeps those optional capability fields empty rather than switching to a
+different schema version.
+
+Schema numbers represent structural evolution of the canonical contract, not feature
+combinations. EchoFlow intentionally does not retain the earlier unreleased v2/v3
+feature-version split.
 
 ## Conservative text projection
 
@@ -130,8 +149,13 @@ timestamps or becomes canonical custody.
 ## Model and dependency boundary
 
 The adapter resolves the configured pyannote snapshot into EchoFlow's private model
-cache. With `--allow-model-download` absent, snapshot resolution is cache-only. Once
-resolved, pyannote receives the local snapshot path for inference.
+cache. Without scoped diarization download authorization, snapshot resolution is
+cache-only. Once resolved, pyannote receives the local snapshot path for inference and
+does not need to fetch model bytes during execution.
+
+The internal diarization adapter carries an `allow_model_download` decision only for
+this pyannote resolution boundary. It is not a general application permission and does
+not reopen the removed transcription-time faster-whisper download path.
 
 The `diarization` extra is intentionally separate because the current pyannote 4.x
 stack resolves a substantial PyTorch dependency graph. Representative CPU-only

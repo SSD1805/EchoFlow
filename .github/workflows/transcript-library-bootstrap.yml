@@ -54,6 +54,28 @@ jobs:
               text = text.replace(old_registration, new_registration, 1)
           cli.write_text(text)
 
+          library_cli = Path("src/echoflow/cli_library.py")
+          text = library_cli.read_text()
+          text = text.replace("from typing import cast\n", "from typing import Annotated, cast\n", 1)
+          text = text.replace(
+              '        paths: list[Path] | None = typer.Argument(\n            None,\n            metavar="[PATH]...",\n            help="Optional canonical transcript file(s) or directories to include.",\n        ),',
+              '        paths: Annotated[\n            list[Path] | None,\n            typer.Argument(\n                metavar="[PATH]...",\n                help="Optional canonical transcript file(s) or directories to include.",\n            ),\n        ] = None,',
+              1,
+          )
+          text = text.replace(
+              '        speakers: list[str] | None = typer.Option(None, "--speaker"),\n        languages: list[str] | None = typer.Option(None, "--language"),\n        documents: list[str] | None = typer.Option(None, "--transcript"),\n        sort: SearchSort = typer.Option(SearchSort.RELEVANCE, "--sort"),',
+              '        speakers: Annotated[list[str] | None, typer.Option("--speaker")] = None,\n        languages: Annotated[list[str] | None, typer.Option("--language")] = None,\n        documents: Annotated[list[str] | None, typer.Option("--transcript")] = None,\n        sort: Annotated[SearchSort, typer.Option("--sort")] = SearchSort.RELEVANCE,',
+              1,
+          )
+          library_cli.write_text(text)
+
+          duckdb_index = Path("src/echoflow/library/duckdb_index.py")
+          text = duckdb_index.read_text()
+          if not text.startswith("# ruff: noqa: S608"):
+              text = "# ruff: noqa: S608\n" + text
+          text = text.replace('sql = f"""  # noqa: S608', 'sql = f"""', 1)
+          duckdb_index.write_text(text)
+
           pyproject = Path("pyproject.toml")
           text = pyproject.read_text()
           dependency_anchor = '    "dependency-injector>=4.48,<5",\n'

@@ -72,3 +72,5 @@ jobs:
                   f"mixed text retained known false labels: {sorted(mixed_languages)}"
               )
           PY
+
+# rerun after formatting correction

@@ -118,6 +118,7 @@ class TranscriptionJobPlanner:
             selected.strategy.model_cache_bytes,
             selected.peak_system_memory_bytes,
             policy,
+            materialized_segment_count=2 if selected.strategy.accelerated else 1,
         )
         warnings = ["paths_are_unreserved"]
         if policy.provisional:
@@ -208,6 +209,7 @@ class TranscriptionJobPlanner:
             settings.model_cache_bytes,
             settings.estimated_peak_memory_bytes,
             policy,
+            materialized_segment_count=2 if engine.device != "cpu" else 1,
         )
         warnings = ["paths_are_unreserved", "resume_contract_restored"]
         if settings.provisional:
@@ -351,7 +353,11 @@ class TranscriptionJobPlanner:
         model_cache_bytes: int,
         estimated_peak_memory_bytes: int,
         policy: ExecutionPolicy,
+        *,
+        materialized_segment_count: int = 1,
     ) -> ResourceEstimate:
+        if materialized_segment_count < 1:
+            raise ValueError("materialized_segment_count must be positive")
         normalized_audio = 0
         if decoder.strategy is DecodeStrategy.FFMPEG_NORMALIZE:
             normalized_audio = math.ceil(
@@ -369,7 +375,11 @@ class TranscriptionJobPlanner:
             * decoder.channels
             * _TARGET_BYTES_PER_SAMPLE
         )
-        private_workspace = normalized_audio + largest_segment_audio + 16 * _MIB
+        private_workspace = (
+            normalized_audio
+            + largest_segment_audio * materialized_segment_count
+            + 16 * _MIB
+        )
         public_output = max(64 * 1024, math.ceil(media.duration_seconds * 512))
         return ResourceEstimate(
             private_workspace_bytes=private_workspace,

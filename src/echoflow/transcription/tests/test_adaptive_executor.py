@@ -115,6 +115,7 @@ def bare_service() -> AdaptiveTranscriptionExecutor:
     service.audio_segmenter = Mock()
     service.checkpoint_store = Mock()
     service.transcript_assembler = Mock()
+    service.transcriber = Mock()
     service.runner_inspector = Mock()
     service.runner_inspector.inspect.return_value = resources()
     service.policy_planner = RunnerPolicyPlanner(memory_budget_fraction=1)
@@ -154,6 +155,7 @@ def execution_plan(
         engine=SimpleNamespace(
             engine="faster-whisper",
             model="small",
+            model_revision="managed-revision",
             device=device,
             compute_type=compute_type,
             cpu_threads=engine_threads,
@@ -250,7 +252,7 @@ def _prepared_execution(service, segment_windows):
     service.audio_segmenter.materialize.side_effect = materialized
     session = Mock(engine_version="1.2.1")
     session.transcribe.side_effect = tuple(engine_result() for _ in segment_windows)
-    service._open_session = Mock(return_value=session)
+    service.transcriber.open_session.return_value = session
     service.transcript_assembler.assemble.return_value = engine_result()
     return materialized, session
 
@@ -267,11 +269,11 @@ def test_accelerated_segments_prefetch_but_checkpoint_strictly_in_order(tmp_path
         DecodedAudio(Path.cwd() / "decoded.wav", False),
         segment_windows,
         planned_job,
-        RestoredCheckpoint((), None, None),
-        allow_model_download=False,
+        RestoredCheckpoint((), None),
     )
 
     assert result.engine_version == "1.2.1"
+    service.transcriber.open_session.assert_called_once_with(planned.engine)
     assert session.transcribe.call_args_list == [
         call(segment.path) for segment in materialized
     ]
@@ -298,8 +300,7 @@ def test_accelerated_segments_stay_sequential_without_planned_cpu_headroom(tmp_p
         DecodedAudio(Path.cwd() / "decoded.wav", False),
         segment_windows,
         planned_job,
-        RestoredCheckpoint((), None, None),
-        allow_model_download=False,
+        RestoredCheckpoint((), None),
     )
 
     assert service.observer.values()["segments.prefetch_depth"] == 0
@@ -325,8 +326,7 @@ def test_execution_cpu_contraction_disables_planned_prefetch(tmp_path):
         DecodedAudio(Path.cwd() / "decoded.wav", False),
         segment_windows,
         planned_job,
-        RestoredCheckpoint((), None, None),
-        allow_model_download=False,
+        RestoredCheckpoint((), None),
     )
 
     assert service.observer.values()["segments.prefetch_depth"] == 0
@@ -368,7 +368,7 @@ def test_transcription_failure_cleans_started_prefetch_segment(tmp_path):
         raise TranscriptionError("engine failed")
 
     session.transcribe.side_effect = fail_transcription
-    service._open_session = Mock(return_value=session)
+    service.transcriber.open_session.return_value = session
 
     with pytest.raises(TranscriptionError, match="^engine failed$"):
         service._transcribe_accelerated(
@@ -376,8 +376,7 @@ def test_transcription_failure_cleans_started_prefetch_segment(tmp_path):
             DecodedAudio(Path.cwd() / "decoded.wav", False),
             segment_windows,
             planned_job,
-            RestoredCheckpoint((), None, None),
-            allow_model_download=False,
+            RestoredCheckpoint((), None),
         )
 
     service.audio_segmenter.cleanup.assert_has_calls(
@@ -409,7 +408,7 @@ def test_checkpoint_failure_cleans_started_prefetch_without_committing_it(tmp_pa
         return engine_result()
 
     session.transcribe.side_effect = transcribe
-    service._open_session = Mock(return_value=session)
+    service.transcriber.open_session.return_value = session
     service.checkpoint_store.save_segment.side_effect = CheckpointError("write failed")
 
     with pytest.raises(CheckpointError, match="^write failed$"):
@@ -418,8 +417,7 @@ def test_checkpoint_failure_cleans_started_prefetch_without_committing_it(tmp_pa
             DecodedAudio(Path.cwd() / "decoded.wav", False),
             segment_windows,
             planned_job,
-            RestoredCheckpoint((), None, None),
-            allow_model_download=False,
+            RestoredCheckpoint((), None),
         )
 
     service.audio_segmenter.cleanup.assert_has_calls(
@@ -434,7 +432,7 @@ def test_resume_engine_version_mismatch_happens_before_new_materialization(tmp_p
     planned = execution_plan()
     planned_job = job(tmp_path)
     session = Mock(engine_version="2.0")
-    service._open_session = Mock(return_value=session)
+    service.transcriber.open_session.return_value = session
 
     with pytest.raises(
         CheckpointError,
@@ -445,8 +443,7 @@ def test_resume_engine_version_mismatch_happens_before_new_materialization(tmp_p
             DecodedAudio(Path.cwd() / "decoded.wav", False),
             windows(2),
             planned_job,
-            RestoredCheckpoint((), None, "1.0"),
-            allow_model_download=False,
+            RestoredCheckpoint((), "1.0"),
         )
 
     service.audio_segmenter.materialize.assert_not_called()
@@ -459,17 +456,15 @@ def test_completed_resume_assembles_without_opening_engine_or_prefetching(tmp_pa
     segment_windows = windows(1)
     completed_result = engine_result()
     service.transcript_assembler.assemble.return_value = completed_result
-    service._open_session = Mock()
 
     result = service._transcribe_accelerated(
         planned,
         DecodedAudio(Path.cwd() / "decoded.wav", False),
         segment_windows,
         planned_job,
-        RestoredCheckpoint(((segment_windows[0], completed_result),), None, "1.2.1"),
-        allow_model_download=False,
+        RestoredCheckpoint(((segment_windows[0], completed_result),), "1.2.1"),
     )
 
     assert result is completed_result
-    service._open_session.assert_not_called()
+    service.transcriber.open_session.assert_not_called()
     service.audio_segmenter.materialize.assert_not_called()

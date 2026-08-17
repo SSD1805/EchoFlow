@@ -104,9 +104,7 @@ class Provider:
         assert texts
         return ((1.0, 0.0, 0.0),)
 
-    def embed_passages(
-        self, texts: tuple[str, ...]
-    ) -> tuple[tuple[float, ...], ...]:
+    def embed_passages(self, texts: tuple[str, ...]) -> tuple[tuple[float, ...], ...]:
         raise AssertionError("search must not re-embed passages")
 
 

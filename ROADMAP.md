@@ -140,6 +140,52 @@ model may translate a user sentence into the typed query representation, but it 
 not need the transcript corpus itself and EchoFlow should show the interpreted query
 back to the user before or alongside retrieval.
 
+## Later-stage semantic and hybrid retrieval
+
+Semantic retrieval is a later capability layered on top of a proven lexical search
+surface, not a replacement for it. BM25 answers lexical relevance questions while
+vector similarity answers conceptual-nearness questions; EchoFlow should preserve both
+signals rather than pretend one is an optimization of the other.
+
+The intended architecture is:
+
+`canonical transcripts -> deterministic chunks -> lexical index + local embeddings -> optional vector index -> hybrid ranking -> deterministic metadata filters -> evidence-bearing results`
+
+All semantic-search state remains disposable derived state. Canonical transcript JSON
+is still truth. Embeddings, vector indexes, lexical indexes, and any fused ranking
+cache must be rebuildable without mutating transcript artifacts. Semantic-index
+provenance should record at least embedding engine/version, model/revision,
+dimensionality, chunking schema, normalization policy, vector metric, and index schema
+version so a model or policy change triggers an explicit rebuild rather than silent
+state drift.
+
+EchoFlow should begin semantic retrieval with exact vector similarity where corpus
+size permits it. Approximate nearest-neighbor structures such as HNSW are an optional
+execution strategy only after measurement shows that exact search no longer meets an
+interactive latency target. The search subsystem should apply the same resource-
+admission discipline as transcription: corpus size, embedding dimensionality, memory
+headroom, persistence/rebuild cost, and measured latency determine whether an ANN
+index is responsible on the current machine. An 8 GB laptop should never be punished
+because HNSW is fashionable.
+
+When both lexical and semantic retrieval are enabled, the first fusion strategy should
+remain simple and inspectable, for example reciprocal-rank fusion over independently
+ranked lexical and semantic candidate sets followed by deterministic metadata
+constraints. EchoFlow should be able to retain provenance such as lexical rank,
+semantic rank, score source, language, speaker, recording, and timestamp even when the
+ordinary UI shows only the useful subset.
+
+Multilingual embeddings are a particularly interesting optional capability because
+they may retrieve conceptually related passages across languages without hosted query
+translation. They should still be opt-in local models with explicit model provenance
+and resource cost. A future embedding-engine capability port may negotiate CPU or
+accelerator execution in the same spirit as ASR engines, but semantic search must not
+become mandatory for a useful transcript library.
+
+The product-level rule remains evidence first: semantic retrieval returns passages and
+source locations, not an uncited generated answer. Any later summarization or synthesis
+must operate over an explicit, inspectable result set.
+
 ## Current capability boundaries
 
 - Multilingual decoding can reconsider acoustic language within a durable work unit;
@@ -197,6 +243,12 @@ These are directions to investigate, not committed release promises:
 - optional local summarization only over explicitly selected/citable search evidence;
 - optional semantic embeddings and hybrid lexical/semantic retrieval after lexical
   search is proven insufficient;
+- exact vector similarity before approximate nearest-neighbor indexing;
+- resource-admitted HNSW or another ANN strategy only when measured corpus scale and
+  latency justify its memory/rebuild cost;
+- explainable lexical/semantic fusion such as reciprocal-rank fusion before learned
+  reranking;
+- optional multilingual embedding models for cross-language conceptual retrieval;
 - multiple local ASR engine adapters when they provide a meaningful hardware,
   accuracy, packaging, or deployment advantage;
 - additional accelerator backends when a real engine adapter can consume them and

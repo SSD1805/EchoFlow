@@ -10,6 +10,7 @@ from rich.table import Table
 
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
+from echoflow.model_management.errors import ModelManagementError
 from echoflow.model_management.models import ManagedModelManifest, ModelInventoryItem
 from echoflow.runner.models import ProcessingProfile
 
@@ -142,8 +143,17 @@ def _recommend_model(
             profile=selected_profile
         )
         recommended = next(
-            assessment for assessment in assessments if assessment["recommended"]
+            (
+                assessment
+                for assessment in assessments
+                if assessment["recommended"]
+            ),
+            None,
         )
+        if recommended is None:
+            raise ModelManagementError(
+                "No safe local model recommendation fits the current resources"
+            )
         strategy = cast("dict[str, object]", recommended["strategy"])
         model_id = str(strategy["model"])
         installed = container.model_manager().is_installed(model_id)

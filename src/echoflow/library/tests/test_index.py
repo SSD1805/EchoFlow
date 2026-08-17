@@ -10,7 +10,9 @@ from echoflow.library.index import (
 )
 
 
-def test_indexed_segment_validates_identity_timestamps_text_and_optional_labels() -> None:
+def test_indexed_segment_validates_identity_timestamps_text_and_optional_labels() -> (
+    None
+):
     with pytest.raises(ValueError, match="segment_id"):
         IndexedSegment(" ", 0, 1, "text")
     with pytest.raises(ValueError, match="timestamps"):

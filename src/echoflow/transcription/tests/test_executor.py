@@ -18,7 +18,10 @@ from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.audio import DecodedAudio
 from echoflow.transcription.enhancement import ffmpeg_afftdn_configuration
-from echoflow.transcription.enhancement_models import EnhancedAudio, EnhancementProvenance
+from echoflow.transcription.enhancement_models import (
+    EnhancedAudio,
+    EnhancementProvenance,
+)
 from echoflow.transcription.errors import ResourceAdmissionError, TranscriptionError
 from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.models import (
@@ -132,7 +135,9 @@ def plan(
             estimate,
             ("paths_are_unreserved",),
             enhancement=(
-                ffmpeg_afftdn_configuration() if enhance else ffmpeg_afftdn_configuration().__class__()
+                ffmpeg_afftdn_configuration()
+                if enhance
+                else ffmpeg_afftdn_configuration().__class__()
             ),
             segmentation=SegmentationConfiguration(segment_duration_seconds=1),
         ),

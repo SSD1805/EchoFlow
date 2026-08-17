@@ -1,11 +1,11 @@
 """Optional local anonymous speaker diarization and conservative ASR fusion."""
 
+import os
 from collections.abc import Callable
 from dataclasses import replace
 from importlib import import_module, metadata
-import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from echoflow.transcription.errors import (
     DiarizationDependencyError,
@@ -71,7 +71,9 @@ class PyannoteSpeakerDiarizer:
                 raise DiarizationModelUnavailableError(
                     "The local diarization model could not be loaded"
                 )
-            output = pipeline(str(audio_path), **(request or SpeakerDiarizationRequest()).kwargs())
+            output = pipeline(
+                str(audio_path), **(request or SpeakerDiarizationRequest()).kwargs()
+            )
             raw_turns = tuple(output.speaker_diarization)
         except DiarizationModelUnavailableError:
             raise
@@ -107,7 +109,11 @@ class PyannoteSpeakerDiarizer:
                 local_files_only=not allow_model_download,
             )
         except Exception as exc:
-            action = "download or access" if allow_model_download else "find in the local cache"
+            action = (
+                "download or access"
+                if allow_model_download
+                else "find in the local cache"
+            )
             raise DiarizationModelUnavailableError(
                 f"Could not {action} the speaker diarization model",
                 cause=exc,
@@ -129,12 +135,14 @@ class PyannoteSpeakerDiarizer:
         parsed: list[tuple[float, float, str]] = []
         for item in raw_turns:
             try:
-                turn, raw_speaker = item  # type: ignore[misc]
+                turn, raw_speaker = cast(tuple[Any, Any], item)
                 start = float(turn.start)
                 end = float(turn.end)
                 label = str(raw_speaker)
             except (AttributeError, TypeError, ValueError) as exc:
-                raise DiarizationError("Diarization returned invalid speaker turns", cause=exc) from exc
+                raise DiarizationError(
+                    "Diarization returned invalid speaker turns", cause=exc
+                ) from exc
             parsed.append((start, end, label))
         parsed.sort(key=lambda item: (item[0], item[1], item[2]))
 

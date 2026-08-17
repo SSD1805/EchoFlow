@@ -71,10 +71,11 @@ class FakeEmbeddingProvider:
 
 
 def _paths(tmp_path: Path) -> WorkspacePaths:
+    cache_dir = tmp_path / "cache"
     return WorkspacePaths(
         state_dir=tmp_path / "state",
-        cache_dir=tmp_path / "cache",
-        model_dir=tmp_path / "models",
+        cache_dir=cache_dir,
+        model_dir=cache_dir / "models",
         output_dir=tmp_path / "output",
     )
 

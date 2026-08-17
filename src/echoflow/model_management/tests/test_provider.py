@@ -14,14 +14,26 @@ def _spec() -> ModelSpec:
         repository_id="Systran/faster-whisper-small",
         estimated_cache_bytes=750,
         quality_rank=2,
+        required_files=("model.bin", "config.json", "tokenizer.json"),
     )
+
+
+def _snapshot(cache_root: Path) -> Path:
+    snapshot = (
+        cache_root
+        / "models--Systran--faster-whisper-small"
+        / "snapshots"
+        / "abc123"
+    )
+    snapshot.mkdir(parents=True)
+    for name in _spec().required_files:
+        (snapshot / name).write_bytes(b"x")
+    return snapshot
 
 
 def test_provider_installs_snapshot_into_requested_cache(tmp_path: Path) -> None:
     cache_root = tmp_path / "cache"
-    snapshot = cache_root / "models--Systran--faster-whisper-small" / "snapshots" / "abc123"
-    snapshot.mkdir(parents=True)
-    (snapshot / "model.bin").write_bytes(b"1234")
+    snapshot = _snapshot(cache_root)
     calls: list[dict[str, object]] = []
 
     def snapshot_download(**kwargs: object) -> str:
@@ -35,15 +47,27 @@ def test_provider_installs_snapshot_into_requested_cache(tmp_path: Path) -> None
 
     assert installed.resolved_revision == "abc123"
     assert installed.snapshot_path == snapshot.resolve()
-    assert installed.size_bytes == 4
+    assert installed.size_bytes == 3
+    assert installed.verification == "huggingface_snapshot_required_files_v1"
     assert calls == [
         {
             "repo_id": "Systran/faster-whisper-small",
             "revision": "release-v1",
-            "cache_dir": str(cache_root),
+            "cache_dir": str(cache_root.resolve()),
             "local_files_only": False,
         }
     ]
+
+
+def test_provider_rejects_missing_required_file(tmp_path: Path) -> None:
+    cache_root = tmp_path / "cache"
+    snapshot = _snapshot(cache_root)
+    (snapshot / "model.bin").unlink()
+    module = SimpleNamespace(snapshot_download=lambda **_: str(snapshot))
+    provider = HuggingFaceModelProvider(module_loader=lambda _: module)
+
+    with pytest.raises(ValueError, match="model.bin"):
+        provider.install(_spec(), cache_root=cache_root, revision=None)
 
 
 def test_provider_rejects_snapshot_outside_cache(tmp_path: Path) -> None:
@@ -70,15 +94,17 @@ def test_provider_removes_only_resolved_revision(tmp_path: Path) -> None:
             revisions.append(revision)
             return Deletion()
 
+    cache_root = tmp_path / "cache"
     module = SimpleNamespace(scan_cache_dir=lambda **_: CacheInfo())
     provider = HuggingFaceModelProvider(module_loader=lambda _: module)
     snapshot = InstalledSnapshot(
         resolved_revision="abc123",
-        snapshot_path=tmp_path / "cache" / "snapshots" / "abc123",
+        snapshot_path=cache_root / "snapshots" / "abc123",
         size_bytes=4,
+        verification="fake_verified_v1",
     )
 
-    provider.remove(snapshot, cache_root=tmp_path / "cache")
+    provider.remove(snapshot, cache_root=cache_root)
 
     assert revisions == ["abc123"]
     assert executed == [True]

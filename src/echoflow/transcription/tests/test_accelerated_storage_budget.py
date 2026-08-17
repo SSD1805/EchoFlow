@@ -4,9 +4,9 @@ from echoflow.runner.models import RunnerResources
 from echoflow.runner.topology import HardwareTopology
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.tests.test_heterogeneous_planner import (
+    cuda,
     GIB,
     MIB,
-    cuda,
     planner,
 )
 

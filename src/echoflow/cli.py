@@ -550,6 +550,59 @@ def _render_transcription_command_output(
         _render_transcription_result(execution_result, exports, Console())
 
 
+def _execute_cli_plan(
+    container: AppContainer,
+    plan: TranscriptionJobPlan,
+    *,
+    dry_run: bool,
+    json_output: bool,
+    allow_model_download: bool,
+    resume: str | None,
+    diarization_request: SpeakerDiarizationRequest | None,
+    export_formats: list[TranscriptExportFormat] | None,
+) -> tuple[TranscriptionExecutionResult | None, TranscriptExportResult]:
+    if dry_run:
+        return None, TranscriptExportResult(())
+    if resume is None:
+        typer.echo(f"EchoFlow job ID: {plan.job.job_id.value}", err=True)
+    if json_output:
+        result = _execute_transcription(
+            container,
+            plan,
+            allow_model_download=allow_model_download,
+            resume=resume is not None,
+            diarization_request=diarization_request,
+        )
+    else:
+        with RichTranscriptionProgress() as progress:
+            result = _execute_transcription(
+                container,
+                plan,
+                allow_model_download=allow_model_download,
+                resume=resume is not None,
+                diarization_request=diarization_request,
+                observer=progress,
+            )
+    return result, _publish_exports(container, result, export_formats)
+
+
+def _report_transcription_interrupt(plan: TranscriptionJobPlan | None) -> None:
+    typer.echo("", err=True)
+    if plan is None:
+        typer.echo("EchoFlow interrupted before the job started.", err=True)
+        return
+    typer.echo(
+        "EchoFlow job interrupted. Your completed segments remain private and "
+        "checkpointed.",
+        err=True,
+    )
+    typer.echo(
+        f"Resume: echoflow transcribe {plan.job.input_path} "
+        f"--resume {plan.job.job_id.value}",
+        err=True,
+    )
+
+
 @app.command("transcribe")
 def transcribe(
     context: typer.Context,
@@ -671,49 +724,20 @@ def transcribe(
             audio_stream=audio_stream,
             resume=resume,
         )
-        result = None
-        exports = TranscriptExportResult(())
-        if not dry_run:
-            if resume is None:
-                typer.echo(f"EchoFlow job ID: {plan.job.job_id.value}", err=True)
-            if json_output:
-                result = _execute_transcription(
-                    container,
-                    plan,
-                    allow_model_download=allow_model_download,
-                    resume=resume is not None,
-                    diarization_request=speaker_request,
-                )
-            else:
-                with RichTranscriptionProgress() as progress:
-                    result = _execute_transcription(
-                        container,
-                        plan,
-                        allow_model_download=allow_model_download,
-                        resume=resume is not None,
-                        diarization_request=speaker_request,
-                        observer=progress,
-                    )
-            exports = _publish_exports(container, result, export_formats)
+        result, exports = _execute_cli_plan(
+            container,
+            plan,
+            dry_run=dry_run,
+            json_output=json_output,
+            allow_model_download=allow_model_download,
+            resume=resume,
+            diarization_request=speaker_request,
+            export_formats=export_formats,
+        )
     except KeyboardInterrupt:
-        typer.echo("", err=True)
-        if plan is not None:
-            typer.echo(
-                "EchoFlow job interrupted. Your completed segments remain private and "
-                "checkpointed.",
-                err=True,
-            )
-            typer.echo(
-                f"Resume: echoflow transcribe {plan.job.input_path} "
-                f"--resume {plan.job.job_id.value}",
-                err=True,
-            )
-        else:
-            typer.echo("EchoFlow interrupted before the job started.", err=True)
+        _report_transcription_interrupt(plan)
         raise typer.Exit(code=130) from None
-    except typer.BadParameter:
-        raise
-    except typer.Exit:
+    except (typer.BadParameter, typer.Exit):
         raise
     except EchoFlowError as exc:
         typer.echo(exc.public_message, err=True)
@@ -728,11 +752,8 @@ def transcribe(
         )
         raise typer.Exit(code=3) from None
 
-    if plan is None:
-        typer.echo("EchoFlow transcription did not produce a plan", err=True)
-        raise typer.Exit(code=3)
     _render_transcription_command_output(
-        plan,
+        cast("TranscriptionJobPlan", plan),
         result,
         exports,
         dry_run=dry_run,

@@ -37,11 +37,10 @@ def faster_whisper_model_catalog(strategies: StrategyCatalog) -> ModelCatalog:
         grouped.setdefault(strategy.model, []).append(strategy)
 
     specs: list[ModelSpec] = []
-    for model_id in sorted(grouped):
+    for model_id, model_strategies in grouped.items():
         repository_id = _FAST_WHISPER_REPOSITORIES.get(model_id)
         if repository_id is None:
             raise ValueError(f"no repository mapping for faster-whisper model {model_id}")
-        model_strategies = grouped[model_id]
         specs.append(
             ModelSpec(
                 model_id=model_id,

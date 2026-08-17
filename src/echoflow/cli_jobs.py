@@ -173,7 +173,9 @@ def _discard_job(
     typer.echo(f"Discarded private EchoFlow job {job_id}")
 
 
-def register_job_commands(app: typer.Typer, container_factory: ContainerFactory) -> None:
+def register_job_commands(
+    app: typer.Typer, container_factory: ContainerFactory
+) -> None:
     jobs_app = typer.Typer(
         help="Inspect and clean up private local transcription jobs.",
         invoke_without_command=True,

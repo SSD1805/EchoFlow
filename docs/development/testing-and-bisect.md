@@ -39,6 +39,68 @@ Use the smallest trustworthy oracle first, then widen it:
 8. Targeted mutation scope for changed decision logic, followed by package
    build and lock verification.
 
+## Mutation anticipation rule
+
+Mutation testing is not the first place EchoFlow should discover weak test
+contracts. For load-bearing decision logic, define the plausible bad edits while
+designing the tests and identify which test is expected to kill each one.
+
+At minimum, review changed decision logic for these mutation families:
+
+- boundary/operator changes such as `<` vs `<=`, `>` vs `>=`, `==` vs `!=`;
+- Boolean changes such as `and` vs `or`, removed `not`, or inverted predicates;
+- threshold and constant perturbations around `0`, `1`, counts, sizes, durations,
+  percentages, schema versions, and resource limits;
+- arithmetic/accounting changes such as `+` vs `-`, omitted terms, double counting,
+  integer rounding, or changed multipliers;
+- fallback mutations that silently downgrade, upgrade, or select a different
+  provider/device/model than requested;
+- fail-open mutations where an exception, missing capability, malformed probe, or
+  uncertain security condition is treated as success;
+- ordering mutations around checkpoint, persistence, publish, cleanup, cancellation,
+  and provenance writes;
+- ownership/lifecycle mutations such as skipped cleanup, double cleanup, leaked
+  prefetched work, or reuse of stale state;
+- resume/idempotence mutations that accept mismatched identity, engine, source,
+  version, or execution contracts;
+- provenance/serialization mutations that omit or alter fields needed to explain how
+  an artifact was produced;
+- concurrency mutations such as increased prefetch depth, oversubscription, changed
+  worker counts, or out-of-order commits.
+
+The preferred test shape is explicit: positive case, negative case, boundary case,
+and failure-path assertion where the contract warrants them. Property-based tests are
+preferred for invariants spanning many values, but they do not replace named boundary
+examples for safety-relevant decisions.
+
+A useful review question is: **if this comparator, Boolean, threshold, fallback, or
+ordering decision were subtly wrong, which exact test would fail?** If there is no
+clear answer, strengthen the test plan before relying on Poodle to discover the gap.
+
+Run Poodle only after ordinary tests are green and only over the smallest relevant
+module set. Inspect survivors as evidence about test strength, not as a requirement to
+mutate the entire repository on every commit. Routine CI does not gate on mutation
+sweeps; use the manual GitHub workflow or an available local/sandbox checkout for
+deliberate qualification.
+
+## Sandbox readiness
+
+A sandbox can only run repository-local tools when it actually has an EchoFlow
+checkout. The repository cannot force an external execution environment to mount that
+checkout, so every coding session must verify the workspace before claiming local
+mutation capability.
+
+When a checkout is available, prepare it with:
+
+```bash
+python scripts/prepare_dev_environment.py
+```
+
+That command performs a locked development sync and verifies that Poodle is runnable.
+If the checkout is absent, use the connected GitHub repository for inspection and the
+manual mutation workflow for qualification rather than asking a developer to wait on
+per-commit mutation CI.
+
 ## Git bisect
 
 A bisect command must be deterministic, noninteractive, and narrow enough to

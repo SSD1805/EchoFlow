@@ -128,24 +128,33 @@ def _render_strategies(
 ) -> None:
     table = Table(title="EchoFlow local transcription strategies")
     table.add_column("Strategy")
-    table.add_column("Model")
-    table.add_column("Safe now")
-    table.add_column("Peak memory")
-    table.add_column("Model cache")
-    table.add_column("Recommendation")
+    table.add_column("Target")
+    table.add_column("Safe")
+    table.add_column("Resources")
+    table.add_column("Status")
     for assessment in assessments:
         strategy = cast("dict[str, object]", assessment["strategy"])
         reasons = cast("list[str]", assessment["rejection_reasons"])
-        recommendation = "recommended" if assessment["recommended"] else ""
+        status = "recommended" if assessment["recommended"] else ""
         if reasons:
-            recommendation = ", ".join(reasons)
+            status = ", ".join(reasons)
+        device = str(strategy.get("device", "cpu"))
+        compute_type = str(strategy.get("compute_type", "int8"))
+        device_memory = int(
+            cast("int", strategy.get("estimated_peak_device_memory_bytes", 0))
+        )
+        peak_vram = _format_bytes(device_memory) if device_memory else "n/a"
+        resources = (
+            f"RAM {_format_bytes(int(cast('int', strategy['estimated_peak_memory_bytes'])))}; "
+            f"VRAM {peak_vram}; "
+            f"cache {_format_bytes(int(cast('int', strategy['model_cache_bytes'])))}"
+        )
         table.add_row(
             str(strategy["strategy_id"]),
-            str(strategy["model"]),
+            f"{device}/{compute_type}",
             str(assessment["feasible"]).lower(),
-            _format_bytes(int(cast("int", strategy["estimated_peak_memory_bytes"]))),
-            _format_bytes(int(cast("int", strategy["model_cache_bytes"]))),
-            recommendation,
+            resources,
+            status,
         )
     console.print(table)
 
@@ -177,7 +186,8 @@ def _render_transcription_plan(plan: TranscriptionJobPlan, console: Console) -> 
         ("Provisional", str(plan.policy.provisional).lower()),
         ("Engine", plan.engine.engine),
         ("Model", plan.engine.model),
-        ("CPU configuration", f"{plan.engine.cpu_threads} threads / int8"),
+        ("Execution target", f"{plan.engine.device} / {plan.engine.compute_type}"),
+        ("CPU threads", str(plan.engine.cpu_threads)),
         ("Decode", plan.decoder.strategy.value),
         ("Estimated disk", _format_bytes(plan.resources.total_disk_bytes)),
         (
@@ -208,6 +218,11 @@ def _render_transcription_result(
         ("Provisional", str(transcript.provisional).lower()),
         ("Engine", f"{transcript.engine.name} {transcript.engine.package_version}"),
         ("Model", transcript.engine.model),
+        (
+            "Execution target",
+            f"{transcript.engine.device} / {transcript.engine.compute_type}",
+        ),
+        ("CPU threads", str(transcript.engine.cpu_threads)),
         ("Decode", transcript.decode_strategy.value),
         ("Audio stream", str(transcript.source.audio_stream_index)),
         ("Detected language", transcript.detected_language or "unknown"),
@@ -365,7 +380,7 @@ def strategies(
         bool, typer.Option("--json", help="Emit machine-readable strategy assessments.")
     ] = False,
 ) -> None:
-    """Show local transcription strategies and their current memory requirements."""
+    """Show local transcription strategies and their current resource requirements."""
     try:
         container = _container(context)
         selected_profile = profile or container.config().PROCESSING_PROFILE

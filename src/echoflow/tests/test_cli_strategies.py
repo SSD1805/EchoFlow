@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -7,7 +8,7 @@ from typer.testing import CliRunner
 from echoflow.cli import app
 from echoflow.core.health_check import OverallStatus
 from echoflow.runner.models import ProcessingProfile
-from echoflow.tests.test_cli import FakeContainer, report
+from echoflow.tests.test_cli import FakeContainer, report, transcription_plan
 
 runner = CliRunner()
 
@@ -134,3 +135,20 @@ def test_transcribe_explicit_strategy_reaches_planner_without_silent_substitutio
         profile=ProcessingProfile.BALANCED,
         strategy_id="tiny-cpu-int8",
     )
+
+
+def test_accelerated_dry_run_renders_actual_device_and_compute_type():
+    container = configured_container()
+    plan = transcription_plan()
+    container.transcription_planner().plan.return_value = replace(
+        plan,
+        engine=replace(plan.engine, device="cuda", compute_type="float16"),
+    )
+
+    with patch("echoflow.cli.AppContainer", return_value=container):
+        result = runner.invoke(app, ["transcribe", "recording.wav", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "Execution target" in result.output
+    assert "cuda / float16" in result.output
+    assert "CPU configuration" not in result.output

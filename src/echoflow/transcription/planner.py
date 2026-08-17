@@ -8,6 +8,11 @@ from echoflow.media.selection import AudioStreamSelector
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.models import ExecutionPolicy, ModelTier, ProcessingProfile
 from echoflow.runner.policy import RunnerPolicyPlanner
+from echoflow.runner.topology import HardwareTopology, HardwareTopologyInspector
+from echoflow.transcription.capabilities import (
+    EngineCapabilities,
+    EngineCapabilityRegistry,
+)
 from echoflow.transcription.checkpoint import ResumeSettings
 from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
 from echoflow.transcription.models import (
@@ -21,6 +26,7 @@ from echoflow.transcription.models import (
     TranscriptSource,
 )
 from echoflow.transcription.strategy import (
+    StrategyAssessment,
     StrategyCatalog,
     StrategyDefinition,
     StrategyEvaluator,
@@ -44,7 +50,7 @@ class ResumeCheckpointStore(Protocol):
 
 
 class TranscriptionJobPlanner:
-    """Compose media, workspace, runner, and engine decisions into one plan."""
+    """Compose media, topology, and engine decisions into one immutable plan."""
 
     def __init__(
         self,
@@ -55,6 +61,8 @@ class TranscriptionJobPlanner:
         policy_planner: RunnerPolicyPlanner,
         strategy_catalog: StrategyCatalog | None = None,
         strategy_evaluator: StrategyEvaluator | None = None,
+        topology_inspector: HardwareTopologyInspector | None = None,
+        capability_registry: EngineCapabilityRegistry | None = None,
         audio_stream_selector: AudioStreamSelector | None = None,
         model_revision: str | None = None,
         checkpoint_store: ResumeCheckpointStore | None = None,
@@ -65,6 +73,8 @@ class TranscriptionJobPlanner:
         self.policy_planner = policy_planner
         self.strategy_catalog = strategy_catalog or faster_whisper_cpu_catalog()
         self.strategy_evaluator = strategy_evaluator or StrategyEvaluator()
+        self.topology_inspector = topology_inspector
+        self.capability_registry = capability_registry or EngineCapabilityRegistry()
         self.audio_stream_selector = audio_stream_selector or AudioStreamSelector()
         self.model_revision = model_revision
         self.checkpoint_store = checkpoint_store
@@ -86,17 +96,17 @@ class TranscriptionJobPlanner:
             self.media_probe.probe(job.input_path),
             requested_index=audio_stream_index,
         )
-        runner = self.runner_inspector.inspect()
+        topology = self._topology()
+        runner = topology.resources
         policy = self.policy_planner.plan(runner, profile)
-        assessments = self.strategy_evaluator.assess(
-            self.strategy_catalog, memory_budget_bytes=policy.memory_budget_bytes
-        )
+        assessments = self._assess(topology, policy)
         selected = self.strategy_evaluator.select(
             assessments,
             profile=profile,
             requested_strategy_id=strategy_id,
         )
         engine = self._engine(policy, selected.strategy)
+        prefetch_depth = self._prefetch_depth(policy, engine)
         decoder = self._decoder(media)
         segmentation = SegmentationConfiguration()
         artifact = self.workspace_service.plan_artifact(
@@ -107,12 +117,19 @@ class TranscriptionJobPlanner:
             decoder,
             segmentation,
             selected.strategy.model_cache_bytes,
-            selected.strategy.estimated_peak_memory_bytes,
+            selected.peak_system_memory_bytes,
             policy,
+            materialized_segment_count=1 + prefetch_depth,
         )
         warnings = ["paths_are_unreserved"]
         if policy.provisional:
             warnings.append("screening_output_is_provisional")
+        if selected.strategy.accelerated:
+            warnings.extend(
+                ("accelerator_strategy_selected", "accelerator_estimate_is_heuristic")
+            )
+            if prefetch_depth == 0:
+                warnings.append("accelerator_prefetch_disabled_cpu_headroom")
         return TranscriptionJobPlan(
             job=job,
             artifact=artifact,
@@ -149,7 +166,8 @@ class TranscriptionJobPlanner:
         if TranscriptSource.from_media(media) != settings.source:
             raise CheckpointError("Input does not match the interrupted job checkpoint")
 
-        runner = self.runner_inspector.inspect()
+        topology = self._topology()
+        runner = topology.resources
         current_policy = self.policy_planner.plan(runner, settings.profile)
         if settings.engine.cpu_threads > current_policy.cpu_threads:
             raise ResourceAdmissionError(
@@ -160,10 +178,15 @@ class TranscriptionJobPlanner:
                 "Current memory budget is below the interrupted job requirement"
             )
 
+        policy_threads = (
+            current_policy.cpu_threads
+            if settings.engine.device != "cpu"
+            else settings.engine.cpu_threads
+        )
         policy = ExecutionPolicy(
             profile=settings.profile,
             provisional=settings.provisional,
-            cpu_threads=settings.engine.cpu_threads,
+            cpu_threads=policy_threads,
             memory_budget_bytes=current_policy.memory_budget_bytes,
             recommended_model_tier=(
                 ModelTier.COMPACT
@@ -183,6 +206,8 @@ class TranscriptionJobPlanner:
                 else AutoLanguageMode.NATIVE_MULTILINGUAL
             ),
         )
+        self._admit_resume_accelerator(engine, topology, policy)
+        prefetch_depth = self._prefetch_depth(policy, engine)
         artifact = self.workspace_service.plan_artifact(
             job, ArtifactKind.CANONICAL_JSON
         )
@@ -193,10 +218,15 @@ class TranscriptionJobPlanner:
             settings.model_cache_bytes,
             settings.estimated_peak_memory_bytes,
             policy,
+            materialized_segment_count=1 + prefetch_depth,
         )
         warnings = ["paths_are_unreserved", "resume_contract_restored"]
         if settings.provisional:
             warnings.append("screening_output_is_provisional")
+        if engine.device != "cpu":
+            warnings.append("accelerator_strategy_restored")
+            if prefetch_depth == 0:
+                warnings.append("accelerator_prefetch_disabled_cpu_headroom")
         return TranscriptionJobPlan(
             job=job,
             artifact=artifact,
@@ -214,13 +244,11 @@ class TranscriptionJobPlanner:
     def assess_strategies(
         self, *, profile: ProcessingProfile = ProcessingProfile.BALANCED
     ) -> tuple[dict[str, object], ...]:
-        """Describe all local strategies against a fresh process-visible budget."""
+        """Describe all strategies against fresh CPU, RAM, and accelerator evidence."""
 
-        runner = self.runner_inspector.inspect()
-        policy = self.policy_planner.plan(runner, profile)
-        assessments = self.strategy_evaluator.assess(
-            self.strategy_catalog, memory_budget_bytes=policy.memory_budget_bytes
-        )
+        topology = self._topology()
+        policy = self.policy_planner.plan(topology.resources, profile)
+        assessments = self._assess(topology, policy)
         feasible = tuple(
             assessment for assessment in assessments if assessment.feasible
         )
@@ -239,15 +267,70 @@ class TranscriptionJobPlanner:
             for assessment in assessments
         )
 
+    def _topology(self) -> HardwareTopology:
+        if self.topology_inspector is not None:
+            return self.topology_inspector.inspect()
+        return HardwareTopology(resources=self.runner_inspector.inspect())
+
+    def _capabilities(
+        self, topology: HardwareTopology
+    ) -> tuple[EngineCapabilities, ...]:
+        return tuple(
+            self.capability_registry.inspect(engine, topology)
+            for engine in self.strategy_catalog.engines
+        )
+
+    def _assess(
+        self, topology: HardwareTopology, policy: ExecutionPolicy
+    ) -> tuple[StrategyAssessment, ...]:
+        return self.strategy_evaluator.assess(
+            self.strategy_catalog,
+            memory_budget_bytes=policy.memory_budget_bytes,
+            accelerators=topology.accelerators,
+            capabilities=self._capabilities(topology),
+        )
+
+    def _admit_resume_accelerator(
+        self,
+        engine: CpuEngineConfiguration,
+        topology: HardwareTopology,
+        policy: ExecutionPolicy,
+    ) -> None:
+        if engine.device == "cpu":
+            return
+        strategy = self.strategy_catalog.find_configuration(
+            engine=engine.engine,
+            model=engine.model,
+            device=engine.device,
+            compute_type=engine.compute_type,
+        )
+        if strategy is None:
+            raise ResourceAdmissionError(
+                "Interrupted job accelerator strategy is no longer supported"
+            )
+        assessment = self.strategy_evaluator.assess(
+            StrategyCatalog((strategy,), version=self.strategy_catalog.version),
+            memory_budget_bytes=policy.memory_budget_bytes,
+            accelerators=topology.accelerators,
+            capabilities=self._capabilities(topology),
+        )[0]
+        if not assessment.feasible:
+            raise ResourceAdmissionError(
+                "Current accelerator capacity is below the interrupted job requirement"
+            )
+
     def _engine(
         self, policy: ExecutionPolicy, strategy: StrategyDefinition
     ) -> CpuEngineConfiguration:
+        cpu_threads = policy.cpu_threads
+        if strategy.accelerated and cpu_threads > 1:
+            cpu_threads -= 1
         return CpuEngineConfiguration(
-            engine="faster-whisper",
+            engine=strategy.engine,
             model=strategy.model,
-            device="cpu",
-            compute_type="int8",
-            cpu_threads=policy.cpu_threads,
+            device=strategy.device,
+            compute_type=strategy.compute_type,
+            cpu_threads=cpu_threads,
             beam_size=1 if policy.provisional else 5,
             language=None,
             model_cache_path=(
@@ -256,6 +339,10 @@ class TranscriptionJobPlanner:
             model_revision=self.model_revision,
             auto_language_mode=AutoLanguageMode.NATIVE_MULTILINGUAL,
         )
+
+    @staticmethod
+    def _prefetch_depth(policy: ExecutionPolicy, engine: CpuEngineConfiguration) -> int:
+        return int(engine.device != "cpu" and policy.cpu_threads > engine.cpu_threads)
 
     @staticmethod
     def _decoder(media: MediaInfo) -> DecodeConfiguration:
@@ -284,7 +371,11 @@ class TranscriptionJobPlanner:
         model_cache_bytes: int,
         estimated_peak_memory_bytes: int,
         policy: ExecutionPolicy,
+        *,
+        materialized_segment_count: int = 1,
     ) -> ResourceEstimate:
+        if materialized_segment_count < 1:
+            raise ValueError("materialized_segment_count must be positive")
         normalized_audio = 0
         if decoder.strategy is DecodeStrategy.FFMPEG_NORMALIZE:
             normalized_audio = math.ceil(
@@ -302,7 +393,11 @@ class TranscriptionJobPlanner:
             * decoder.channels
             * _TARGET_BYTES_PER_SAMPLE
         )
-        private_workspace = normalized_audio + largest_segment_audio + 16 * _MIB
+        private_workspace = (
+            normalized_audio
+            + largest_segment_audio * materialized_segment_count
+            + 16 * _MIB
+        )
         public_output = max(64 * 1024, math.ceil(media.duration_seconds * 512))
         return ResourceEstimate(
             private_workspace_bytes=private_workspace,

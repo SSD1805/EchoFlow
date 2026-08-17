@@ -79,6 +79,12 @@ def lexical_tokens(text: str) -> tuple[str, ...]:
     return tuple(match.group(0).casefold() for match in _TOKEN_PATTERN.finditer(text))
 
 
+def _numeric_cell(value: object, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise RuntimeError(f"DuckDB returned an invalid numeric {field}")
+    return float(value)
+
+
 class DuckDbTranscriptIndex:
     """Rebuildable DuckDB transcript index with offline BM25 ranking.
 
@@ -292,12 +298,12 @@ class DuckDbTranscriptIndex:
             canonical_path=str(row[2]),
             source_path=None if row[3] is None else str(row[3]),
             segment_id=str(row[4]),
-            start_seconds=float(row[5]),
-            end_seconds=float(row[6]),
+            start_seconds=_numeric_cell(row[5], "start_seconds"),
+            end_seconds=_numeric_cell(row[6], "end_seconds"),
             text=str(row[7]),
             language=None if row[8] is None else str(row[8]),
             speaker_ref=None if row[9] is None else str(row[9]),
-            score=float(row[10]),
+            score=_numeric_cell(row[10], "score"),
         )
 
     def clear(self) -> None:

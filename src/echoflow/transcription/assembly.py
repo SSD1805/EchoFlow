@@ -117,12 +117,8 @@ class TranscriptAssembler:
                     text=segment.text,
                     average_log_probability=segment.average_log_probability,
                     no_speech_probability=segment.no_speech_probability,
-                    detected_language=segment.detected_language or result.language,
-                    language_probability=(
-                        segment.language_probability
-                        if segment.language_probability is not None
-                        else result.language_probability
-                    ),
+                    detected_language=segment.detected_language,
+                    language_probability=segment.language_probability,
                     language=segment.language,
                     language_spans=segment.language_spans,
                     speaker_ref=segment.speaker_ref,

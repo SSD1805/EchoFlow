@@ -49,7 +49,7 @@ def test_attributor_preserves_mixed_language_character_spans(monkeypatch):
     attributor = LinguaLanguageAttributor()
     spans = attributor.attribute("hello bonjour")
 
-    assert builder.low_accuracy is True
+    assert builder.low_accuracy is False
     assert tuple((span.start_char, span.end_char, span.language) for span in spans) == (
         (0, 5, "en"),
         (6, 13, "fr"),

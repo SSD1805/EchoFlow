@@ -29,6 +29,7 @@ from echoflow.transcription.language import LinguaLanguageAttributor
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.segmentation import WaveAudioSegmenter
 from echoflow.transcription.storage import StorageAdmissionPolicy
+from echoflow.workspace.lifecycle import JobLifecycleStore
 from echoflow.workspace.models import WorkspacePaths
 from echoflow.workspace.service import WorkspaceService
 
@@ -115,6 +116,11 @@ class AppContainer(containers.DeclarativeContainer):
         WorkspaceService,
         paths=workspace_paths,
         file_manager=file_manager,
+    )
+    job_lifecycle_store = providers.Singleton(
+        JobLifecycleStore,
+        file_manager=file_manager,
+        paths=workspace_paths,
     )
     storage_admission = providers.Singleton(
         StorageAdmissionPolicy,

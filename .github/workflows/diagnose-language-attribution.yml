@@ -38,70 +38,86 @@ jobs:
       - name: Install locked transcription stack
         run: uv sync --locked --extra transcription
 
-      - name: Inspect synthetic English and English-French attribution
+      - name: Inspect language evidence and engine timestamps
         run: |
           uv run python <<'PY'
           import json
           import tempfile
+          import wave
           from pathlib import Path
 
+          from faster_whisper import WhisperModel
           from lingua import LanguageDetectorBuilder
           import scripts.verify_engine_acceptance as acceptance
 
-          def summarize(document):
-              spans = []
-              for segment in document.get("segments", []):
-                  text = str(segment.get("text", ""))
-                  for span in segment.get("language_spans", []):
-                      start = int(span["start_char"])
-                      end = int(span["end_char"])
-                      spans.append({
-                          "language": span.get("language"),
-                          "text": text[start:end],
-                      })
-              detector = LanguageDetectorBuilder.from_all_languages().build()
-              whole = str(document.get("text", ""))
-              confidence = detector.compute_language_confidence_values(whole)[:8]
-              raw_sections = [
-                  {
-                      "language": result.language.iso_code_639_1.name.lower(),
-                      "text": whole[result.start_index:result.end_index],
-                  }
-                  for result in detector.detect_multiple_languages_of(whole)
+          detector = LanguageDetectorBuilder.from_all_languages().build()
+
+          def code(language):
+              return language.iso_code_639_1.name.lower()
+
+          def confidence(text):
+              return [
+                  (code(item.language), round(float(item.value), 6))
+                  for item in detector.compute_language_confidence_values(text)[:5]
               ]
-              return {
-                  "text": whole,
-                  "detected_language": document.get("detected_language"),
-                  "detected_languages": document.get("detected_languages"),
-                  "projected_spans": spans,
-                  "whole_text_confidence": [
-                      {
-                          "language": item.language.iso_code_639_1.name.lower(),
-                          "value": round(float(item.value), 6),
-                      }
-                      for item in confidence
-                  ],
-                  "raw_sections": raw_sections,
-              }
+
+          def inspect_text(label, text):
+              sections = []
+              for result in detector.detect_multiple_languages_of(text):
+                  section = text[result.start_index:result.end_index]
+                  sections.append({
+                      "language": code(result.language),
+                      "text": section,
+                      "confidence": confidence(section),
+                  })
+              print(label + "=" + json.dumps({
+                  "text": text,
+                  "whole_confidence": confidence(text),
+                  "sections": sections,
+              }, ensure_ascii=False))
+
+          inspect_text(
+              "normalized_observed_text",
+              "The quick brown fox jump over a crazy dog. Echo flow keep slow call recordings private and recoverable.",
+          )
 
           with tempfile.TemporaryDirectory(prefix="echoflow-language-diagnostic-") as tmp:
               root = Path(tmp).resolve()
-              direct, media, mixed = acceptance._generate_media(root)
-
-              cases = (
-                  ("direct_en", direct, True),
-                  ("normalized_en", media, False),
-                  ("mixed_en_fr", mixed, False),
+              direct, _media, mixed = acceptance._generate_media(root)
+              model = WhisperModel(
+                  "tiny",
+                  device="cpu",
+                  compute_type="int8",
+                  cpu_threads=2,
+                  num_workers=1,
+                  download_root=str(root / "models"),
               )
-              for name, source, allow_download in cases:
-                  output = root / f"output-{name}"
-                  env = acceptance._environment(root, output)
-                  acceptance._initialize(env)
-                  acceptance._transcribe(
-                      source,
-                      env=env,
-                      allow_model_download=allow_download,
-                  )
-                  document, _ = acceptance._load_canonical(output)
-                  print(name + "=" + json.dumps(summarize(document), ensure_ascii=False))
+              segments, info = model.transcribe(
+                  str(mixed),
+                  beam_size=1,
+                  language=None,
+                  word_timestamps=False,
+                  multilingual=True,
+                  chunk_length=10,
+                  vad_filter=False,
+                  log_progress=False,
+              )
+              raw = list(segments)
+              with wave.open(str(mixed), "rb") as handle:
+                  duration = handle.getnframes() / handle.getframerate()
+              payload = {
+                  "audio_duration": round(duration, 6),
+                  "initial_language": info.language,
+                  "initial_language_probability": round(float(info.language_probability), 6),
+                  "segments": [
+                      {
+                          "start": round(float(segment.start), 6),
+                          "end": round(float(segment.end), 6),
+                          "text": segment.text.strip(),
+                      }
+                      for segment in raw
+                  ],
+              }
+              print("mixed_engine=" + json.dumps(payload, ensure_ascii=False))
+              inspect_text("mixed_engine_text", " ".join(segment.text.strip() for segment in raw))
           PY

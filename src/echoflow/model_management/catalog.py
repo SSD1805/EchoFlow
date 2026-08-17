@@ -23,7 +23,9 @@ class ModelCatalog:
             raise ValueError("model IDs must be unique")
 
     def require(self, model_id: str) -> ModelSpec:
-        selected = next((spec for spec in self.specs if spec.model_id == model_id), None)
+        selected = next(
+            (spec for spec in self.specs if spec.model_id == model_id), None
+        )
         if selected is None:
             raise ValueError(f"unknown model: {model_id}")
         return selected
@@ -49,7 +51,9 @@ def faster_whisper_model_catalog(strategies: StrategyCatalog) -> ModelCatalog:
                 estimated_cache_bytes=max(
                     strategy.model_cache_bytes for strategy in model_strategies
                 ),
-                quality_rank=max(strategy.quality_rank for strategy in model_strategies),
+                quality_rank=max(
+                    strategy.quality_rank for strategy in model_strategies
+                ),
                 required_files=_FAST_WHISPER_REQUIRED_FILES,
             )
         )

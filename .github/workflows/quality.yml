@@ -86,8 +86,10 @@ jobs:
       - name: Lint
         run: uv run ruff check . --output-format=github
 
+      # Ruff's diff mode is still a non-mutating formatting gate, but unlike the
+      # plain check it prints the exact proposed changes when CI rejects formatting.
       - name: Check formatting
-        run: uv run ruff format --check .
+        run: uv run ruff format --diff .
 
       - name: Type check
         run: uv run mypy

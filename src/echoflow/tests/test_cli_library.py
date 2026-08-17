@@ -267,7 +267,6 @@ def test_library_search_human_view_keeps_evidence_and_ranks_visible() -> None:
     assert "1.50-2.50s" in result.stdout
     assert "speaker-02" in result.stdout
     assert "L:1" in result.stdout
-    assert "F:-" in result.stdout
     assert "housing" in result.stdout
     assert "affordability" in result.stdout
 

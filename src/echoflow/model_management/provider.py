@@ -114,10 +114,13 @@ class HuggingFaceModelProvider:
         )
         if missing:
             raise ValueError(
-                "model snapshot failed required-file verification: " + ", ".join(missing)
+                "model snapshot failed required-file verification: "
+                + ", ".join(missing)
             )
 
     @staticmethod
     def _require_contained(path: Path, cache_root: Path) -> None:
         if not path.is_relative_to(cache_root):
-            raise ValueError("model provider returned a snapshot outside the model cache")
+            raise ValueError(
+                "model provider returned a snapshot outside the model cache"
+            )

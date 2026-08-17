@@ -1,0 +1,381 @@
+name: Repair multilingual schema migration
+
+on:
+  push:
+    branches: [agent/multilingual-language-attribution]
+    paths:
+      - .github/workflows/repair-multilingual-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: agent/multilingual-language-attribution
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: false
+
+      - name: Apply schema and test migration
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def read(path: str) -> str:
+              return Path(path).read_text(encoding="utf-8")
+
+          def write(path: str, text: str) -> None:
+              Path(path).write_text(text, encoding="utf-8")
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              text = read(path)
+              if text.count(old) != 1:
+                  raise RuntimeError(f"expected exactly one replacement in {path}: {old[:80]!r}")
+              write(path, text.replace(old, new, 1))
+
+          # New job-plan schema 2 is a supported checkpoint contract; schema 1 remains valid.
+          replace_once(
+              "src/echoflow/transcription/checkpoint.py",
+              '        if self.job_plan_schema_version != 1:\n            raise ValueError("checkpoint job-plan schema version is unsupported")\n',
+              '        if self.job_plan_schema_version not in (1, 2):\n            raise ValueError("checkpoint job-plan schema version is unsupported")\n',
+          )
+
+          # Keep legacy recognition-segment JSON sparse while v2 emits only evidence that exists.
+          path = "src/echoflow/transcription/models.py"
+          text = read(path)
+          class_start = text.index("class RecognizedSegment:")
+          method_start = text.index("    def to_dict(self) -> dict[str, object]:", class_start)
+          method_end = text.index("\n\n\n@dataclass(frozen=True, slots=True)\nclass EngineTranscript:", method_start)
+          segment_method = '''    def to_dict(self) -> dict[str, object]:
+              document: dict[str, object] = {
+                  "segment_id": self.segment_id,
+                  "index": self.index,
+                  "start_seconds": self.start_seconds,
+                  "end_seconds": self.end_seconds,
+                  "text": self.text,
+                  "average_log_probability": self.average_log_probability,
+                  "no_speech_probability": self.no_speech_probability,
+              }
+              if self.detected_language is not None:
+                  document["detected_language"] = self.detected_language
+              if self.language_probability is not None:
+                  document["language_probability"] = self.language_probability
+              if self.language is not None:
+                  document["language"] = self.language
+              if self.language_spans:
+                  document["language_spans"] = [
+                      span.to_dict() for span in self.language_spans
+                  ]
+              if self.speaker_ref is not None:
+                  document["speaker_ref"] = self.speaker_ref
+              return document
+          '''
+          text = text[:method_start] + segment_method + text[method_end:]
+
+          # Preserve the legacy EngineProvenance wire shape; v2 records its language policy.
+          class_start = text.index("class EngineProvenance:")
+          method_start = text.index("    def to_dict(self) -> dict[str, object]:", class_start)
+          method_end = text.index("\n\n\n@dataclass(frozen=True, slots=True)\nclass CanonicalTranscript:", method_start)
+          engine_method = '''    def to_dict(self) -> dict[str, object]:
+              document: dict[str, object] = {
+                  "name": self.name,
+                  "package_version": self.package_version,
+                  "model": self.model,
+                  "model_revision": self.model_revision,
+                  "device": self.device,
+                  "compute_type": self.compute_type,
+                  "cpu_threads": self.cpu_threads,
+                  "beam_size": self.beam_size,
+                  "requested_language": self.requested_language,
+              }
+              if self.auto_language_mode is AutoLanguageMode.PER_SEGMENT:
+                  document["auto_language_mode"] = self.auto_language_mode.value
+              return document
+          '''
+          text = text[:method_start] + engine_method + text[method_end:]
+
+          # Canonical schema 1 remains constructible for old objects; current execution emits v2.
+          canonical_start = text.index("@dataclass(frozen=True, slots=True)\nclass CanonicalTranscript:")
+          canonical_end = text.index("@dataclass(frozen=True, slots=True)\nclass TranscriptionExecutionResult:", canonical_start)
+          canonical = '''@dataclass(frozen=True, slots=True)
+          class CanonicalTranscript:
+              job_id: str
+              source: TranscriptSource
+              profile: ProcessingProfile
+              provisional: bool
+              decode_strategy: DecodeStrategy
+              engine: EngineProvenance
+              detected_language: str | None
+              language_probability: float | None
+              segments: tuple[RecognizedSegment, ...]
+              schema_version: int = 1
+              detected_languages: tuple[str, ...] = ()
+              language_attribution: LanguageAttributionProvenance | None = None
+
+              def __post_init__(self) -> None:
+                  if self.schema_version not in (1, 2):
+                      raise ValueError("unsupported transcript schema version")
+                  if not self.job_id:
+                      raise ValueError("job_id cannot be empty")
+                  if self.provisional != (self.profile is ProcessingProfile.SCREENING):
+                      raise ValueError("provisional flag must match the processing profile")
+                  if self.detected_language is not None and not self.detected_language.strip():
+                      raise ValueError("detected_language cannot be empty")
+                  if self.language_probability is not None and not (
+                      math.isfinite(self.language_probability)
+                      and 0 <= self.language_probability <= 1
+                  ):
+                      raise ValueError("language_probability must be between 0 and 1")
+                  if tuple(segment.index for segment in self.segments) != tuple(
+                      range(len(self.segments))
+                  ):
+                      raise ValueError("segment indices must be contiguous and zero-based")
+
+                  if self.schema_version == 1:
+                      if self.engine.auto_language_mode is not AutoLanguageMode.JOB_LATCHED:
+                          raise ValueError(
+                              "transcript schema version 1 requires legacy language latching"
+                          )
+                      if self.detected_languages or self.language_attribution is not None:
+                          raise ValueError(
+                              "transcript schema version 1 cannot contain v2 language attribution"
+                          )
+                      return
+
+                  if self.engine.auto_language_mode is not AutoLanguageMode.PER_SEGMENT:
+                      raise ValueError(
+                          "transcript schema version 2 requires multilingual language detection"
+                      )
+                  derived_languages: list[str] = []
+                  for segment in self.segments:
+                      for span in segment.language_spans:
+                          if span.language not in derived_languages:
+                              derived_languages.append(span.language)
+                  if not derived_languages:
+                      for segment in self.segments:
+                          if (
+                              segment.detected_language is not None
+                              and segment.detected_language not in derived_languages
+                          ):
+                              derived_languages.append(segment.detected_language)
+                  if not self.detected_languages:
+                      object.__setattr__(
+                          self, "detected_languages", tuple(derived_languages)
+                      )
+                  elif tuple(derived_languages) != self.detected_languages:
+                      raise ValueError(
+                          "detected_languages must match transcript language evidence"
+                      )
+                  if len(self.detected_languages) > 1 and self.detected_language is not None:
+                      raise ValueError(
+                          "mixed-language transcripts cannot have one detected_language"
+                      )
+                  if len(self.detected_languages) == 1:
+                      only_language = self.detected_languages[0]
+                      if self.detected_language is None:
+                          object.__setattr__(self, "detected_language", only_language)
+                      elif self.detected_language != only_language:
+                          raise ValueError(
+                              "detected_language must match transcript language evidence"
+                          )
+                  if self.detected_language is None and self.language_probability is not None:
+                      raise ValueError("language_probability requires detected_language")
+
+              @property
+              def text(self) -> str:
+                  return " ".join(segment.text.strip() for segment in self.segments)
+
+              def to_dict(self) -> dict[str, object]:
+                  document: dict[str, object] = {
+                      "schema_version": self.schema_version,
+                      "job_id": self.job_id,
+                      "source": self.source.to_dict(),
+                      "profile": self.profile.value,
+                      "provisional": self.provisional,
+                      "decode_strategy": self.decode_strategy.value,
+                      "engine": self.engine.to_dict(),
+                      "detected_language": self.detected_language,
+                      "language_probability": self.language_probability,
+                      "text": self.text,
+                      "segments": [segment.to_dict() for segment in self.segments],
+                  }
+                  if self.schema_version == 2:
+                      document["detected_languages"] = list(self.detected_languages)
+                      document["language_attribution"] = (
+                          None
+                          if self.language_attribution is None
+                          else self.language_attribution.to_dict()
+                      )
+                  return document
+
+
+          '''
+          text = text[:canonical_start] + canonical + text[canonical_end:]
+          write(path, text)
+
+          # Canonical v2 languages come from text attribution first, not a fabricated
+          # acoustic label that faster-whisper does not expose for native multilingual windows.
+          path = "src/echoflow/transcription/executor.py"
+          text = read(path)
+          start = text.index("    def _transcript(\n")
+          end = text.index("    def _attribute_languages(\n", start)
+          transcript_method = '''    def _transcript(
+              self, plan: TranscriptionJobPlan, result: EngineTranscript
+          ) -> CanonicalTranscript:
+              segments, attribution = self._attribute_languages(result.segments)
+              detected_languages: list[str] = []
+              for segment in segments:
+                  for span in segment.language_spans:
+                      if span.language not in detected_languages:
+                          detected_languages.append(span.language)
+              if not detected_languages:
+                  for segment in segments:
+                      if (
+                          segment.detected_language is not None
+                          and segment.detected_language not in detected_languages
+                      ):
+                          detected_languages.append(segment.detected_language)
+              detected_language = (
+                  detected_languages[0] if len(detected_languages) == 1 else None
+              )
+              language_probability = (
+                  result.language_probability
+                  if detected_language is not None and result.language == detected_language
+                  else None
+              )
+              return CanonicalTranscript(
+                  job_id=plan.job.job_id.value,
+                  source=TranscriptSource.from_media(plan.media),
+                  profile=plan.policy.profile,
+                  provisional=plan.policy.provisional,
+                  decode_strategy=plan.decoder.strategy,
+                  engine=EngineProvenance.from_engine(plan.engine, result.engine_version),
+                  detected_language=detected_language,
+                  language_probability=language_probability,
+                  detected_languages=tuple(detected_languages),
+                  language_attribution=attribution,
+                  segments=segments,
+                  schema_version=2,
+              )
+
+          '''
+          text = text[:start] + transcript_method + text[end:]
+          write(path, text)
+
+          # Modernize stale tests without weakening their behavioral assertions.
+          replace_once(
+              "src/echoflow/transcription/tests/test_models.py",
+              '        TranscriptionJobPlan(*arguments, warnings=(), schema_version=2)\n',
+              '        TranscriptionJobPlan(*arguments, warnings=(), schema_version=3)\n',
+          )
+          replace_once(
+              "src/echoflow/transcription/tests/test_models.py",
+              '        ({"schema_version": 2}, "unsupported transcript schema version"),\n',
+              '        ({"schema_version": 3}, "unsupported transcript schema version"),\n',
+          )
+          replace_once(
+              "src/echoflow/transcription/tests/test_planner.py",
+              '    assert plan.schema_version == 1\n',
+              '    assert plan.schema_version == 2\n',
+          )
+          replace_once(
+              "src/echoflow/transcription/tests/test_executor.py",
+              '    assert document["schema_version"] == 1\n',
+              '    assert document["schema_version"] == 2\n',
+          )
+
+          # Native multilingual decoding deliberately does not fabricate an acoustic
+          # language on public Segment objects because faster-whisper does not expose it.
+          path = "src/echoflow/transcription/tests/test_multilingual_semantics.py"
+          text = read(path)
+          text = text.replace(
+              '    assert tuple(segment.detected_language for segment in assembled.segments) == (\n        "en",\n        "fr",\n    )\n',
+              '    assert all(\n        segment.detected_language is None for segment in assembled.segments\n    )\n',
+          )
+          write(path, text)
+
+          # Keep the acceptance validator readable and accept unknown very-short text spans.
+          path = "scripts/verify_engine_acceptance.py"
+          text = read(path)
+          start = text.index("def _validate_language_contract(document: dict[str, Any]) -> None:\n")
+          end = text.index("def _validate_provenance(\n", start)
+          validators = '''def _validate_language_provenance(document: dict[str, Any]) -> None:
+              if document.get("schema_version") != 2:
+                  raise RuntimeError("unexpected canonical transcript schema version")
+              engine = document.get("engine")
+              attribution = document.get("language_attribution")
+              if not isinstance(engine, dict) or not isinstance(attribution, dict):
+                  raise RuntimeError("canonical language provenance is incomplete")
+              if engine.get("auto_language_mode") != "per_segment_v1":
+                  raise RuntimeError("canonical transcript omitted multilingual language policy")
+              if attribution.get("provider") != "lingua":
+                  raise RuntimeError("canonical transcript recorded the wrong language provider")
+              if not str(attribution.get("package_version", "")).strip():
+                  raise RuntimeError("canonical transcript omitted language provider version")
+
+
+          def _validate_language_segments(document: dict[str, Any]) -> None:
+              segments = document.get("segments")
+              if not isinstance(segments, list) or not segments:
+                  raise RuntimeError("known speech produced no canonical recognition segments")
+              if any(not isinstance(segment, dict) for segment in segments):
+                  raise RuntimeError("canonical transcript contains malformed language segments")
+              attributed = [
+                  segment
+                  for segment in segments
+                  if isinstance(segment, dict) and segment.get("language_spans")
+              ]
+              if not attributed:
+                  raise RuntimeError("canonical transcript contains no language-attributed spans")
+
+
+          def _validate_language_contract(document: dict[str, Any]) -> None:
+              _validate_language_provenance(document)
+              _validate_language_segments(document)
+
+
+          '''
+          text = text[:start] + validators + text[end:]
+          write(path, text)
+          PY
+
+          uv run ruff check --fix \
+            src/echoflow/transcription/models.py \
+            src/echoflow/transcription/executor.py \
+            src/echoflow/transcription/checkpoint.py \
+            src/echoflow/transcription/tests/test_models.py \
+            src/echoflow/transcription/tests/test_planner.py \
+            src/echoflow/transcription/tests/test_executor.py \
+            src/echoflow/transcription/tests/test_multilingual_semantics.py \
+            scripts/verify_engine_acceptance.py
+          uv run ruff format \
+            src/echoflow/transcription/models.py \
+            src/echoflow/transcription/executor.py \
+            src/echoflow/transcription/checkpoint.py \
+            src/echoflow/transcription/tests/test_models.py \
+            src/echoflow/transcription/tests/test_planner.py \
+            src/echoflow/transcription/tests/test_executor.py \
+            src/echoflow/transcription/tests/test_multilingual_semantics.py \
+            scripts/verify_engine_acceptance.py
+
+          git rm .github/workflows/repair-multilingual-migration.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src scripts
+          git commit -m "Repair multilingual schema migration"
+          git push origin HEAD:agent/multilingual-language-attribution

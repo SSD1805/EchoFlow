@@ -125,9 +125,7 @@ class TranscriptionJobRunner:
         observer: ExecutionObserver | None = None,
     ) -> TranscriptionExecutionResult:
         self.lifecycle_store.start(plan.job)
-        lifecycle_observer = _LifecycleProgressObserver(
-            self.lifecycle_store, plan.job
-        )
+        lifecycle_observer = _LifecycleProgressObserver(self.lifecycle_store, plan.job)
         combined = _CombinedExecutionObserver(
             lifecycle_observer,
             observer or NoOpExecutionObserver(),

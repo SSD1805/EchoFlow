@@ -94,6 +94,85 @@ def _render_job(
     console.print(table)
 
 
+def _list_jobs(
+    context: typer.Context,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        container = container_factory(_root_context(context))
+        records = container.job_lifecycle_store().list_records()
+    except EchoFlowError as exc:
+        typer.echo(exc.public_message, err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    except Exception as exc:
+        typer.echo(
+            f"EchoFlow job inspection failed internally ({type(exc).__name__})",
+            err=True,
+        )
+        raise typer.Exit(code=3) from None
+    if json_output:
+        typer.echo(
+            json.dumps(
+                [_record_document(container, record) for record in records],
+                sort_keys=True,
+            )
+        )
+        return
+    _render_jobs(container, records, Console())
+
+
+def _show_job(
+    context: typer.Context,
+    job_id: str,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        container = container_factory(_root_context(context))
+        record = container.job_lifecycle_store().get(JobId(job_id))
+    except EchoFlowError as exc:
+        typer.echo(exc.public_message, err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="JOB_ID") from exc
+    if json_output:
+        typer.echo(json.dumps(_record_document(container, record), sort_keys=True))
+        return
+    _render_job(container, record, Console())
+
+
+def _discard_job(
+    context: typer.Context,
+    job_id: str,
+    *,
+    yes: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        container = container_factory(_root_context(context))
+        selected = JobId(job_id)
+        record = container.job_lifecycle_store().get(selected)
+        if record.status is JobStatus.RUNNING:
+            raise typer.BadParameter("a running job cannot be discarded")
+        if not yes and not typer.confirm(
+            "Discard this job's private checkpoints and lifecycle state? "
+            "Published transcript files will remain."
+        ):
+            raise typer.Abort()
+        container.job_lifecycle_store().discard(selected)
+    except (typer.Abort, typer.BadParameter):
+        raise
+    except EchoFlowError as exc:
+        typer.echo(exc.public_message, err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="JOB_ID") from exc
+    typer.echo(f"Discarded private EchoFlow job {job_id}")
+
+
 def register_job_commands(app: typer.Typer, container_factory: ContainerFactory) -> None:
     jobs_app = typer.Typer(
         help="Inspect and clean up private local transcription jobs.",
@@ -108,29 +187,12 @@ def register_job_commands(app: typer.Typer, container_factory: ContainerFactory)
             False, "--json", help="Emit machine-readable lifecycle records."
         ),
     ) -> None:
-        if context.invoked_subcommand is not None:
-            return
-        try:
-            container = container_factory(_root_context(context))
-            records = container.job_lifecycle_store().list_records()
-        except EchoFlowError as exc:
-            typer.echo(exc.public_message, err=True)
-            raise typer.Exit(code=exc.exit_code) from None
-        except Exception as exc:
-            typer.echo(
-                f"EchoFlow job inspection failed internally ({type(exc).__name__})",
-                err=True,
+        if context.invoked_subcommand is None:
+            _list_jobs(
+                context,
+                json_output=json_output,
+                container_factory=container_factory,
             )
-            raise typer.Exit(code=3) from None
-        if json_output:
-            typer.echo(
-                json.dumps(
-                    [_record_document(container, record) for record in records],
-                    sort_keys=True,
-                )
-            )
-        else:
-            _render_jobs(container, records, Console())
 
     @jobs_app.command("show")
     def show_job(
@@ -140,18 +202,12 @@ def register_job_commands(app: typer.Typer, container_factory: ContainerFactory)
             False, "--json", help="Emit the lifecycle record as JSON."
         ),
     ) -> None:
-        try:
-            container = container_factory(_root_context(context))
-            record = container.job_lifecycle_store().get(JobId(job_id))
-        except EchoFlowError as exc:
-            typer.echo(exc.public_message, err=True)
-            raise typer.Exit(code=exc.exit_code) from None
-        except ValueError as exc:
-            raise typer.BadParameter(str(exc), param_hint="JOB_ID") from exc
-        if json_output:
-            typer.echo(json.dumps(_record_document(container, record), sort_keys=True))
-        else:
-            _render_job(container, record, Console())
+        _show_job(
+            context,
+            job_id,
+            json_output=json_output,
+            container_factory=container_factory,
+        )
 
     @jobs_app.command("discard")
     def discard_job(
@@ -164,29 +220,11 @@ def register_job_commands(app: typer.Typer, container_factory: ContainerFactory)
             help="Discard private state without an interactive confirmation.",
         ),
     ) -> None:
-        try:
-            container = container_factory(_root_context(context))
-            selected = JobId(job_id)
-            record = container.job_lifecycle_store().get(selected)
-            if record.status is JobStatus.RUNNING:
-                raise typer.BadParameter("a running job cannot be discarded")
-            if not yes:
-                confirmed = typer.confirm(
-                    "Discard this job's private checkpoints and lifecycle state? "
-                    "Published transcript files will remain."
-                )
-                if not confirmed:
-                    raise typer.Abort()
-            container.job_lifecycle_store().discard(selected)
-        except typer.Abort:
-            raise
-        except typer.BadParameter:
-            raise
-        except EchoFlowError as exc:
-            typer.echo(exc.public_message, err=True)
-            raise typer.Exit(code=exc.exit_code) from None
-        except ValueError as exc:
-            raise typer.BadParameter(str(exc), param_hint="JOB_ID") from exc
-        typer.echo(f"Discarded private EchoFlow job {job_id}")
+        _discard_job(
+            context,
+            job_id,
+            yes=yes,
+            container_factory=container_factory,
+        )
 
     app.add_typer(jobs_app, name="jobs")

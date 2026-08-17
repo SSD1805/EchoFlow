@@ -232,7 +232,7 @@ class TranscriptionJobPlan:
     segmentation: SegmentationConfiguration = field(
         default_factory=SegmentationConfiguration
     )
-    schema_version: int = 2
+    schema_version: int = 1
     paths_reserved: bool = False
 
     def __post_init__(self) -> None:
@@ -480,7 +480,7 @@ class EngineProvenance:
     cpu_threads: int
     beam_size: int
     requested_language: str | None
-    auto_language_mode: AutoLanguageMode
+    auto_language_mode: AutoLanguageMode = AutoLanguageMode.JOB_LATCHED
 
     def __post_init__(self) -> None:
         for name in ("name", "package_version", "model", "device", "compute_type"):

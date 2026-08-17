@@ -1,161 +1,238 @@
 # Evidence-first corpus search
 
-Status: planned capability, not implemented  
+Status: first lexical library tranche implemented  
 Last updated: August 17, 2026
 
 ## Product intent
 
-EchoFlow should make a local transcript corpus searchable without exposing its storage
-engine as the user experience. A researcher should not need to know that DuckDB,
-FTS/BM25, or another embedded index exists.
-
-The default interaction should be ordinary search:
-
-```text
-housing insecurity
-```
-
-EchoFlow should return matching passages with enough provenance to inspect and cite
-them: recording, timestamp, speaker reference when available, language evidence,
-matching snippet, and any relevant tags or metadata. A result should be able to jump
-back to the transcript and eventually to the corresponding audio position.
-
+EchoFlow makes a local transcript corpus searchable without exposing its storage engine
+as the user experience. A researcher should not need to know that DuckDB or BM25 exists.
 The database is infrastructure. The product is evidence retrieval.
 
-## Retrieval order
+The first implemented interaction is ordinary lexical search:
 
-The first retrieval primitive should be lexical search, using BM25 or an equivalent
-local relevance model. For research, journalism, and archival work, matching the words
-people actually used is often a strength rather than a limitation.
+```text
+echoflow library rebuild
+echoflow library search "housing insecurity"
+```
 
-The initial search surface should progressively support:
+Results carry the evidence needed to inspect the hit rather than only returning text:
+recording path when EchoFlow still knows it, canonical transcript path, source SHA-256,
+segment identity, source-relative timestamps, speaker reference when available,
+language evidence, passage text, and relevance score.
 
-1. plain text search;
-2. exact phrases;
-3. AND/OR and exclusions where useful;
-4. fielded filters for recording, speaker, language, date, tags, duration, and
-   enrichment state;
-5. fuzzy or prefix behavior only where its semantics can be made explicit;
-6. facets and result counts;
-7. saved searches and user collections; and
-8. export of the result set to portable formats such as CSV, JSON, or Markdown.
+Canonical transcript JSON remains authoritative. The DuckDB database is private,
+disposable derived state and can be rebuilt from canonical artifacts.
 
-Semantic retrieval and embeddings are later optional capabilities, not prerequisites
-for useful corpus search.
+## Current architecture
+
+The current path is:
+
+```text
+canonical transcript JSON
+  -> validated searchable projection
+  -> database-neutral TranscriptIndex port
+  -> private DuckDB tables
+  -> deterministic local BM25 ranking
+  -> evidence-bearing TranscriptMatch
+  -> CLI now / future UI later
+```
+
+The implementation has three primary layers:
+
+1. **Corpus index**: `DuckDbTranscriptIndex` stores rebuildable document, segment, and
+   lexical term statistics. It owns no authoritative transcript state.
+2. **Library/search service**: `TranscriptLibraryService` discovers canonical artifacts,
+   validates projections, performs transactional rebuilds, exposes search, and produces
+   source-integrity evidence receipts.
+3. **Presentation adapters**: `echoflow library` is the current adapter. A later GUI can
+   consume the same service and query contract rather than implementing another search
+   pipeline.
+
+The DuckDB file lives under EchoFlow private state at
+`STATE_DIR/library/transcripts.duckdb`. Removing that file must never destroy unique
+user information.
+
+## Offline BM25
+
+The first ranking strategy is BM25-style lexical ranking over deterministic local token
+statistics. EchoFlow stores per-segment token counts and term frequencies in ordinary
+DuckDB tables and computes ranking from those statistics.
+
+EchoFlow deliberately does **not** `INSTALL` or `LOAD` DuckDB's FTS extension in this
+tranche. Extension installation can introduce an unexpected network dependency on a
+fresh machine. Search must remain available offline once EchoFlow itself is installed.
+
+This also makes ranking behavior explicit and replaceable. DuckDB is an adapter, not
+the query API.
 
 ## Typed query boundary
 
-The UI, CLI, and storage backend should not exchange handwritten SQL. They should
-exchange a stable application-level query representation, conceptually:
+The CLI, future UI, and storage backend exchange a stable application-level query
+representation instead of handwritten SQL:
 
 ```text
 SearchQuery
   text = "housing"
   phrase = false
+  operator = any | all
   speaker_refs = ["speaker-02"]
   languages = ["en"]
-  date_range = ...
-  tags = ...
-  sort = relevance
+  document_ids = ["job-123"]
+  sort = relevance | timeline
+  limit = 100
 ```
 
-A search adapter compiles this representation into the embedded backend's query
-language. This keeps DuckDB or any later index replaceable and lets several interfaces
-share exactly the same search semantics.
+The DuckDB adapter compiles this representation using bounded application-owned SQL
+structure and parameterized user values. Users never provide SQL fragments.
 
-A future visual query builder can therefore express:
+The initial query contract supports:
+
+- ordinary lexical search;
+- exact phrase requirements;
+- ANY or ALL lexical-term semantics;
+- speaker filters;
+- language filters;
+- transcript/document filters;
+- relevance or source-timeline ordering; and
+- bounded result limits.
+
+Date/tag/duration/enrichment filters, facets, exclusions, saved searches, and
+collections remain later extensions of the typed contract.
+
+## Rebuild semantics
+
+`echoflow library rebuild` discovers completed canonical artifacts from EchoFlow job
+lifecycle metadata and the normal EchoFlow output directory. Additional canonical files
+or directories may be supplied explicitly.
+
+A rebuild validates the complete searchable projection before replacing index state.
+The DuckDB replacement itself is transactional. If a known canonical transcript is
+malformed, a duplicate canonical job identity is found, or the database replacement
+fails, EchoFlow does not silently publish a partial new library.
+
+Directory discovery may encounter unrelated JSON files. Those are skipped only when
+they were found opportunistically during directory scanning. A lifecycle-known or
+explicitly requested canonical artifact is strict and fails closed if it cannot be
+validated.
+
+## Source-integrity evidence
+
+The library also exposes a human-readable evidence receipt:
 
 ```text
-text contains housing
-AND speaker is speaker-02
-AND recording date is after 2025-01-01
+echoflow library show TRANSCRIPT_ID
 ```
 
-without ever presenting SQL to the user.
+The receipt separates several facts that should not be collapsed into one vague
+"trusted" badge:
 
-## Three layers
+- **Original recording path**: where the input was located when EchoFlow recorded the
+  lifecycle relationship, if that relationship is still available.
+- **Recorded source SHA-256**: the digest stored in canonical transcript provenance when
+  the recording was inspected for transcription.
+- **Current source integrity**: whether the bytes currently at that source path hash to
+  the same digest.
+- **Canonical transcript path**: the user-visible authoritative transcript artifact.
+- **Search-index custody**: explicitly described as private, rebuildable derived state.
 
-The intended architecture has three primary layers:
+Integrity states are explicit:
 
-1. **Corpus index**: rebuildable derived state containing transcript passages and
-   searchable metadata. DuckDB with lexical/FTS support is the leading initial
-   candidate, not an authoritative artifact store.
-2. **Search service**: owns typed query semantics, ranking behavior, filters, facets,
-   result snippets, and provenance back to canonical transcript evidence.
-3. **Presentation adapters**: CLI now and a later desktop/web UI. Search boxes,
-   checkboxes, query chips, saved searches, and result navigation live here rather
-   than in the storage adapter.
+- `matches-recorded-source`
+- `changed-since-transcription`
+- `source-file-missing`
+- `source-path-unavailable`
 
-Canonical transcript JSON remains authoritative. The complete index must be
-rebuildable from user-owned canonical artifacts plus separately owned user annotations.
+EchoFlow re-hashes the source only when integrity inspection is requested. It snapshots
+file identity before and after hashing and fails closed if the file changes during the
+verification pass.
+
+This proves whether the current source bytes match the bytes EchoFlow fingerprinted for
+the transcript. It is not a claim that software can prove the file was never touched by
+any process at any point in history.
+
+EchoFlow's transcription pipeline treats the supplied source as read-only input. Decode,
+normalization, segmentation, enhancement, checkpoints, and search-index data are written
+as separate derived material rather than overwriting the supplied recording.
+
+## CLI surface
+
+Current commands are:
+
+```text
+# Inspect the existing local library
+echoflow library
+
+# Rebuild from known/default canonical artifacts
+echoflow library rebuild
+
+# Include an additional canonical file or directory
+echoflow library rebuild ~/Research/Transcripts
+
+# Lexical BM25-style evidence search
+echoflow library search "housing insecurity"
+
+# Require the literal phrase
+echoflow library search "housing insecurity" --phrase
+
+# Require every lexical term and filter evidence
+echoflow library search "rent increase" \
+  --all-terms \
+  --speaker speaker-02 \
+  --language en
+
+# Inspect source/canonical/index custody for one transcript
+echoflow library show JOB_ID
+```
+
+Every command supports or preserves a deterministic machine-readable path through
+`--json` where appropriate.
+
+## Alignment boundary
+
+Current search results are segment-level evidence. Their timestamps are the canonical
+source-relative segment timestamps already produced by transcription. This makes the
+result contract ready for later word/timestamp alignment without pretending word-level
+precision exists today.
+
+Alignment should remain a separate enrichment capability. When implemented, it may
+make result highlighting, speaker projection, and jump-to-audio behavior more precise
+without changing the authoritative raw ASR or diarization evidence.
 
 ## Natural language without giving away the corpus
 
 Natural-language convenience must not require sending transcripts to a hosted model.
-Two local-first paths are acceptable.
+A later deterministic grammar may compile common sentences into `SearchQuery`. A small
+optional local model may eventually translate a user sentence into the same typed
+contract, but should not need the transcript corpus to perform that translation and
+should show the interpreted query back to the user.
 
-The first is a constrained deterministic parser for common requests such as:
-
-- “interviews with Alice from March”;
-- “mentions of housing after 2024”; or
-- “French passages spoken by speaker 2”.
-
-The second, later option is a small local model whose only task is user sentence to
-typed `SearchQuery`. It should not need the transcript corpus to translate the query.
-The deterministic search service still executes retrieval.
-
-When probabilistic query translation is used, EchoFlow should display the interpreted
-query back to the user, for example:
-
-```text
-Searching for: rent increases
-Across: all recordings
-Sort: relevance
-```
-
-The probabilistic component must not silently control corpus retrieval.
+The probabilistic component must never silently control corpus retrieval.
 
 ## Why chat is not the default
 
-“Chat with your transcripts” is not the primary research interface. A generated answer
+"Chat with your transcripts" is not the primary research interface. A generated answer
 can conceal omitted interviews, disagreement, minority evidence, and the distinction
 between source language and model interpretation.
 
-The default response to a question such as “what did people say about rent?” should
-therefore be inspectable retrieval evidence, such as 37 matching passages across 12
-recordings, rather than a polished paragraph with uncertain coverage.
+The default response to a question such as "what did people say about rent?" should
+therefore be inspectable passages across recordings rather than a polished paragraph
+with uncertain coverage. Optional local summarization may later operate over an
+explicitly selected evidence set, with the underlying passages still visible.
 
-Optional local summarization may later operate over an explicitly selected result set.
-The evidence must remain visible underneath the interpretation.
+## Later retrieval layers
 
-## Useful non-generative UX
+High-value deterministic additions include facets, highlighted snippets, saved searches,
+collections, user tags/notes, exportable result sets, and direct jump-to-timestamp UX.
+Semantic retrieval remains optional and later.
 
-A modern search experience does not require an LLM. High-value local features include:
+If embeddings are introduced, embedding state is also disposable derived state and
+must record model/revision, chunking, dimensions, normalization, metric, and index
+schema. Exact similarity should precede ANN. HNSW or another approximate structure is
+an execution strategy only when measured corpus scale demonstrates that exact search
+misses an interactive latency target.
 
-- search-as-you-type;
-- highlighted snippets;
-- facets by recording, speaker, language, date, and tags;
-- timeline clustering within long recordings;
-- cross-recording retrieval;
-- saved collections for research themes or chapters;
-- user tags and notes attached to evidence;
-- direct jump-to-timestamp behavior; and
-- corpus-statistical related terms before embedding-based similarity.
-
-These capabilities are deterministic, fast, testable, and compatible with EchoFlow's
-privacy model.
-
-## Privacy and custody
-
-Search is local by default. Building or querying the corpus index must not upload
-recordings, transcripts, snippets, tags, or queries to hosted services.
-
-The index is derived state, not transcript custody. Deleting or rebuilding an index
-must not delete canonical transcripts. User-created notes, tags, saved searches, and
-collections are separate owned state and need an explicit backup/export story before
-they can be treated as disposable.
-
-The stable rule is:
+The stable rule remains:
 
 > local evidence first, typed queries in the middle, replaceable database underneath,
 > optional interpretation only above a visible result set.

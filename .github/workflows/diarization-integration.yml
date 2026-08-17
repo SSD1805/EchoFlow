@@ -26,7 +26,7 @@ jobs:
           version: '0.11.33'
       - name: Apply integration patch and resolve lock
         run: |
-          python scripts/integrate_diarization_feature.py
+          python scripts/integrate_diarization_feature_v2.py
           uv lock
           uv sync --locked --all-groups --extra transcription
       - name: Format and validate focused feature

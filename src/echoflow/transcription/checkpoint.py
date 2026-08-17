@@ -361,9 +361,7 @@ class LocalCheckpointStore:
             parameters=tuple(
                 (str(key), str(value)) for key, value in raw_parameters.items()
             ),
-            model_id=(
-                None if raw.get("model_id") is None else str(raw["model_id"])
-            ),
+            model_id=(None if raw.get("model_id") is None else str(raw["model_id"])),
             model_revision=(
                 None
                 if raw.get("model_revision") is None

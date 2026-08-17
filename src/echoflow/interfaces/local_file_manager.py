@@ -83,6 +83,14 @@ class LocalFileManager:
         except Exception as exc:
             raise self._error("delete", path, exc) from exc
 
+    def delete_directory(self, directory_path: str | Path) -> None:
+        path = Path(directory_path)
+        try:
+            if path.exists():
+                shutil.rmtree(path)
+        except Exception as exc:
+            raise self._error("delete directory", path, exc) from exc
+
     def copy_file(self, source: str | Path, destination: str | Path) -> None:
         source_path = Path(source)
         destination_path = Path(destination)

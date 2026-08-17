@@ -103,7 +103,9 @@ def _manager(tmp_path: Path) -> tuple[ModelManager, MemoryStore, FakeProvider]:
     )
 
 
-def test_inventory_is_offline_and_reports_uninstalled_model(tmp_path: Path) -> None:
+def test_inventory_is_offline_read_only_and_reports_uninstalled_model(
+    tmp_path: Path,
+) -> None:
     manager, store, provider = _manager(tmp_path)
 
     inventory = manager.inventory()
@@ -112,7 +114,15 @@ def test_inventory_is_offline_and_reports_uninstalled_model(tmp_path: Path) -> N
     assert inventory[0].spec.model_id == "small"
     assert inventory[0].installed is False
     assert provider.installs == []
-    assert manager.registry_root in store.directories
+    assert store.directories == set()
+
+
+def test_resolved_revision_lookup_is_read_only_when_unmanaged(tmp_path: Path) -> None:
+    manager, store, provider = _manager(tmp_path)
+
+    assert manager.resolved_revision("small") is None
+    assert store.directories == set()
+    assert provider.installs == []
 
 
 def test_install_records_requested_resolved_and_verification(tmp_path: Path) -> None:
@@ -129,6 +139,7 @@ def test_install_records_requested_resolved_and_verification(tmp_path: Path) -> 
     assert document["repository_id"] == "Systran/faster-whisper-small"
     assert document["resolved_revision"] == "resolved-abc"
     assert document["verification"] == "fake_verified_v1"
+    assert manager.resolved_revision("small") == "resolved-abc"
     assert manager.is_installed("small") is True
 
 

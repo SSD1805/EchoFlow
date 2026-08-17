@@ -49,6 +49,10 @@ class ResumeCheckpointStore(Protocol):
     def resume_settings(self, job: Job) -> ResumeSettings: ...
 
 
+class ManagedModelRegistry(Protocol):
+    def resolved_revision(self, model_id: str) -> str | None: ...
+
+
 class TranscriptionJobPlanner:
     """Compose media, topology, and engine decisions into one immutable plan."""
 
@@ -65,6 +69,7 @@ class TranscriptionJobPlanner:
         capability_registry: EngineCapabilityRegistry | None = None,
         audio_stream_selector: AudioStreamSelector | None = None,
         model_revision: str | None = None,
+        model_registry: ManagedModelRegistry | None = None,
         checkpoint_store: ResumeCheckpointStore | None = None,
     ):
         self.media_probe = media_probe
@@ -77,6 +82,7 @@ class TranscriptionJobPlanner:
         self.capability_registry = capability_registry or EngineCapabilityRegistry()
         self.audio_stream_selector = audio_stream_selector or AudioStreamSelector()
         self.model_revision = model_revision
+        self.model_registry = model_registry
         self.checkpoint_store = checkpoint_store
 
     def plan(
@@ -336,9 +342,16 @@ class TranscriptionJobPlanner:
             model_cache_path=(
                 self.workspace_service.paths.model_dir / "faster-whisper"
             ),
-            model_revision=self.model_revision,
+            model_revision=self._planned_model_revision(strategy.model),
             auto_language_mode=AutoLanguageMode.NATIVE_MULTILINGUAL,
         )
+
+    def _planned_model_revision(self, model_id: str) -> str | None:
+        if self.model_revision is not None:
+            return self.model_revision
+        if self.model_registry is None:
+            return None
+        return self.model_registry.resolved_revision(model_id)
 
     @staticmethod
     def _prefetch_depth(policy: ExecutionPolicy, engine: CpuEngineConfiguration) -> int:

@@ -16,7 +16,9 @@ ContainerFactory = Callable[[typer.Context], AppContainer]
 
 
 def _root_context(context: typer.Context) -> typer.Context:
-    return context.parent or context
+    while context.parent is not None:
+        context = context.parent
+    return context
 
 
 def _progress_text(record: JobLifecycleRecord) -> str:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
-from contextlib import AbstractContextManager, ExitStack, contextmanager, suppress
+from contextlib import ExitStack, contextmanager, suppress
 from typing import Protocol
 
 from echoflow.core.errors import EchoFlowError

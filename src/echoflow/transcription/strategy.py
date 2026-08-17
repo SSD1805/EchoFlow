@@ -132,7 +132,10 @@ class StrategyAssessment:
 
     @property
     def peak_system_memory_bytes(self) -> int:
-        return self.effective_peak_memory_bytes or self.strategy.estimated_peak_memory_bytes
+        return (
+            self.effective_peak_memory_bytes
+            or self.strategy.estimated_peak_memory_bytes
+        )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -257,7 +260,9 @@ class StrategyEvaluator:
             rejection_reasons=tuple(dict.fromkeys(reasons)),
             effective_peak_memory_bytes=effective_memory,
             device_memory_budget_bytes=device_budget,
-            accelerator_id=(None if accelerator is None else accelerator.accelerator_id),
+            accelerator_id=(
+                None if accelerator is None else accelerator.accelerator_id
+            ),
         )
 
     @staticmethod
@@ -340,12 +345,20 @@ class StrategyEvaluator:
         if profile is ProcessingProfile.SCREENING:
             quality = min(item.strategy.quality_rank for item in feasible)
             return self._fastest(
-                tuple(item for item in feasible if item.strategy.quality_rank == quality)
+                tuple(
+                    item
+                    for item in feasible
+                    if item.strategy.quality_rank == quality
+                )
             )
         if profile is ProcessingProfile.ACCURACY:
             quality = max(item.strategy.quality_rank for item in feasible)
             return self._fastest(
-                tuple(item for item in feasible if item.strategy.quality_rank == quality)
+                tuple(
+                    item
+                    for item in feasible
+                    if item.strategy.quality_rank == quality
+                )
             )
 
         distance = min(abs(item.strategy.quality_rank - 2) for item in feasible)
@@ -363,7 +376,10 @@ class StrategyEvaluator:
     ) -> StrategyAssessment:
         return max(
             assessments,
-            key=lambda item: (item.strategy.performance_rank, item.strategy.strategy_id),
+            key=lambda item: (
+                item.strategy.performance_rank,
+                item.strategy.strategy_id,
+            ),
         )
 
 

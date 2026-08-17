@@ -63,8 +63,11 @@ class PyannoteSpeakerDiarizer:
         request: SpeakerDiarizationRequest | None = None,
     ) -> SpeakerDiarizationResult:
         """Return deterministic anonymous turns for one canonical local audio file."""
-        local_model = self._resolve_model(allow_model_download=allow_model_download)
+        # Prove the optional runtime is installed before model resolution. Otherwise
+        # a normal transcription install could download a large gated model only to
+        # fail afterward because the diarization extra itself is absent.
         pyannote = self._load_pyannote()
+        local_model = self._resolve_model(allow_model_download=allow_model_download)
         try:
             pipeline = pyannote.Pipeline.from_pretrained(local_model)
             if pipeline is None:

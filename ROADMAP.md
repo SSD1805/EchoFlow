@@ -15,8 +15,8 @@ multilingual semantics, and anonymous speaker diarization.
 
 The project is now moving from **engine trust** to **product legibility**: the backend
 should remain strict and boring while ordinary users gain clear progress, durable job
-state, intentional recovery, and eventually a graphical shell that does not redefine
-the application underneath it.
+state, intentional recovery, adaptive use of local hardware, corpus search, and
+eventually a graphical shell that does not redefine the application underneath it.
 
 The current foundation includes:
 
@@ -29,6 +29,11 @@ The current foundation includes:
 - Rich interactive progress over the same execution-observer seam used by benchmarks;
 - source-relative canonical timestamps with TXT/SRT/WebVTT derived exports;
 - process-visible CPU/memory admission and storage preflight;
+- accelerator topology discovery separated from engine capability negotiation;
+- engine-neutral strategy admission across system RAM and dedicated/shared/unified
+  accelerator memory;
+- bounded one-segment CPU preparation overlap for accelerated inference while
+  preserving ordered checkpoints and resumability;
 - cross-platform private-storage enforcement for Windows and POSIX systems;
 - empirical benchmarking instrumentation;
 - native-media, abrupt-process, clean-wheel, known-speech, and diarization evidence
@@ -53,9 +58,11 @@ pleasant for humans without becoming ambiguous for automation:
 - `--json` remains deterministic and free of presentation noise;
 - long-running work has durable job IDs, status, progress, resume evidence, and
   explicit private-state cleanup;
+- hardware selection should happen through typed application services rather than
+  CLI-specific GPU switches;
 - a future desktop or web UI should be a presentation adapter over the same
-  application services and lifecycle state, not a second implementation of the
-  transcription pipeline.
+  application services, lifecycle state, and search service, not a second
+  implementation of the transcription pipeline.
 
 A graphical UI and polished non-developer installer are therefore intentionally
 deferred until the backend contracts are mature enough that the UI can stay thin.
@@ -65,27 +72,73 @@ deferred until the backend contracts are mature enough that the UI can stay thin
 The next development sequence should improve user value without front-loading
 speculative infrastructure:
 
-1. **Finish job-lifecycle qualification and dogfooding.** Exercise interruption,
-   resume, stale-process reconciliation, progress rendering, and cleanup on long real
-   recordings. Keep lifecycle metadata private and keep published artifacts separate.
+1. **Finish adaptive-execution qualification and lifecycle dogfooding.** Exercise
+   interruption, resume, stale-process reconciliation, progress rendering, accelerator
+   re-admission, bounded prefetch cleanup, and long recordings. Keep published
+   artifacts separate from private execution state.
 2. **Model management.** Add local model inventory, recommendation, explicit download,
    verification/provenance, and removal. Integrate model-storage requirements with
    disk admission once inventory is authoritative.
 3. **Representative-device qualification.** Collect repeated benchmark evidence from
-   8 GB Windows, 16 GB commodity machines, Apple Silicon, and larger workstations.
-   Calibrate strategy heuristics from measurements rather than hosted-CI guesses.
-4. **Word/timestamp alignment.** Add alignment as a separate enrichment capability so
-   speaker projection can become more precise without rewriting raw ASR or diarization
-   evidence.
-5. **Transcript library/search implementation.** Implement the existing
-   `TranscriptIndex` port with a rebuildable local backend when the user-facing
-   library is scheduled. Start with lexical/metadata search before semantic
-   embeddings.
-6. **Bounded failure recovery.** Add deterministic audio bisection/retry policy only
+   8 GB Windows, 16 GB commodity machines, Apple Silicon, discrete-GPU laptops, and
+   larger workstations. Measure cold/warm cache behavior, sustained real-time factor,
+   thermal effects, CPU/RAM pressure, and accelerator memory/utilization where the
+   backend exposes reliable counters. Calibrate strategy heuristics from measurements
+   rather than hardware-name guesses.
+4. **Corpus library and evidence-first search.** Implement the existing
+   `TranscriptIndex` port with a rebuildable local backend, initially DuckDB or an
+   equivalently replaceable embedded analytical store. The user experience should be
+   a search surface, not a database surface: plain text and exact phrase search,
+   BM25-style lexical ranking, filters, facets, timestamped snippets, cross-recording
+   results, saved searches/collections, tags and notes, and exportable result sets.
+   Search results must preserve the evidence trail back to the source recording and
+   exact transcript passage.
+5. **Typed search grammar and query builder.** Keep SQL below the application boundary.
+   Introduce a stable `SearchQuery`-style intermediate representation for text,
+   phrase, speaker, language, date, recording, tag, duration, diarization, and sort
+   constraints. CLI syntax, future query chips/dropdowns, and any later local natural-
+   language parser should compile into that same typed query contract. DuckDB remains
+   a replaceable derived-state adapter rather than user-facing homework.
+6. **Word/timestamp alignment.** Add alignment as a separate enrichment capability so
+   speaker projection and result jumping can become more precise without rewriting raw
+   ASR or diarization evidence.
+7. **Bounded failure recovery.** Add deterministic audio bisection/retry policy only
    if real long-recording failures justify it.
-7. **Release/install and graphical UI.** Revisit these after the backend and lifecycle
-   contracts have survived representative dogfooding. The eventual interface should
-   remain replaceable and thin.
+8. **Release/install and graphical UI.** Revisit these after the backend, lifecycle,
+   model-management, and search contracts have survived representative dogfooding.
+   The eventual interface should remain replaceable and thin.
+
+## Corpus-search product principles
+
+The database should be power, not homework. A researcher should be able to search for
+`housing insecurity` and receive ranked passages across recordings with source,
+speaker, language, and timestamp context without knowing that an embedded database is
+involved.
+
+The preferred progression is:
+
+1. plain text and exact phrase search;
+2. deterministic filters and facets;
+3. saved searches and collections;
+4. structured query chips or a visual query builder;
+5. optional constrained local natural-language-to-`SearchQuery` translation; and
+6. only later, optional local summarization over an explicitly selected evidence set.
+
+Lexical retrieval is the default because it is fast, local, auditable, and useful for
+research. BM25 or an equivalent lexical relevance model should rank actual matching
+passages before semantic retrieval is considered.
+
+EchoFlow should not begin with “chat with your transcripts.” A polished generated
+answer can hide omissions, disagreement, and provenance. The primary retrieval result
+should remain inspectable evidence: matching passages, source recordings, speakers,
+and timestamps. Any future summary should sit above an explicit result set rather than
+replace it.
+
+Natural-language convenience must not require sending the corpus to a hosted LLM. A
+small deterministic grammar can cover common requests first. A later optional local
+model may translate a user sentence into the typed query representation, but it should
+not need the transcript corpus itself and EchoFlow should show the interpreted query
+back to the user before or alongside retrieval.
 
 ## Current capability boundaries
 
@@ -113,8 +166,19 @@ speculative infrastructure:
 - Lifecycle state improves discoverability and recovery, but EchoFlow is still a
   synchronous local application rather than a background job daemon or distributed
   task system.
-- GPU strategies, alternate ASR engines, distributed execution, semantic embeddings,
-  polished installers, and a desktop GUI remain later work.
+- Adaptive execution currently has a real CPU/int8 fallback and a CUDA-capable
+  faster-whisper strategy path. CUDA is admitted only when physical topology,
+  CTranslate2 runtime support, compute type, system-memory budget, and free device
+  memory all agree. Other accelerator backends remain future adapters rather than
+  implied support.
+- Accelerator memory estimates and performance ranks are conservative heuristics
+  pending representative-device qualification. EchoFlow does not yet claim that a
+  detected GPU is faster on every workload.
+- The transcript index/search backend is not implemented yet. Canonical transcript
+  files remain authoritative and any future DuckDB index must be rebuildable derived
+  state.
+- Alternate ASR engines, distributed execution, semantic embeddings, polished
+  installers, and a desktop GUI remain later work.
 
 ## Research candidates
 
@@ -126,13 +190,22 @@ These are directions to investigate, not committed release promises:
 - alignment/word timestamps as a separate enrichment capability;
 - original media timecode/capture-time provenance beyond source-relative seconds;
 - local lexical and metadata search across transcript collections;
-- optional semantic embeddings and hybrid lexical/semantic retrieval;
+- corpus-statistical related terms before embedding-based relatedness;
+- a constrained deterministic natural-language query grammar;
+- an optional tiny local model whose only role is natural-language-to-typed-search
+  translation, with the interpreted query visible to the user;
+- optional local summarization only over explicitly selected/citable search evidence;
+- optional semantic embeddings and hybrid lexical/semantic retrieval after lexical
+  search is proven insufficient;
 - multiple local ASR engine adapters when they provide a meaningful hardware,
   accuracy, packaging, or deployment advantage;
-- GPU execution only after representative measurements justify the additional
-  dependency/resource surface.
+- additional accelerator backends when a real engine adapter can consume them and
+  representative measurements justify the dependency/resource surface;
+- multiple simultaneous inference workers only if measurements show that they beat a
+  single model session plus bounded pipeline overlap without unacceptable memory or
+  recovery cost.
 
 The order can change when benchmarks, security review, implementation complexity, or
 actual dogfooding contradicts an assumption. The stable direction is narrower:
-**make sensitive local transcription boringly dependable, then make that dependable
-system easy to use.**
+**make sensitive local transcription boringly dependable, use local hardware well,
+then make the evidence easy to find and use.**

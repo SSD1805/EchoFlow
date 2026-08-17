@@ -23,9 +23,9 @@ def test_local_defaults_are_valid():
     assert config.FFMPEG_TIMEOUT_SECONDS == 2.0
     assert config.FFPROBE_TIMEOUT_SECONDS == 30.0
     assert config.FFMPEG_PROCESS_TIMEOUT_SECONDS == 3_600.0
-    assert config.FASTER_WHISPER_MODEL_REVISION is None
     assert config.PYANNOTE_MODEL_ID == "pyannote/speaker-diarization-community-1"
     assert config.PYANNOTE_MODEL_REVISION is None
+    assert "FASTER_WHISPER_MODEL_REVISION" not in AppConfig.model_fields
     platform_paths = PlatformDirs("EchoFlow", appauthor=False)
     assert platform_paths.user_state_path == config.STATE_DIR
     assert platform_paths.user_cache_path == config.CACHE_DIR
@@ -48,7 +48,6 @@ def test_environment_overrides_local_settings(monkeypatch, tmp_path):
     monkeypatch.setenv("ECHOFLOW_MEMORY_BUDGET_FRACTION", "0.5")
     monkeypatch.setenv("ECHOFLOW_FFPROBE_TIMEOUT_SECONDS", "45")
     monkeypatch.setenv("ECHOFLOW_FFMPEG_PROCESS_TIMEOUT_SECONDS", "900")
-    monkeypatch.setenv("ECHOFLOW_FASTER_WHISPER_MODEL_REVISION", "abc123")
     monkeypatch.setenv("ECHOFLOW_PYANNOTE_MODEL_ID", "example/local-diarizer")
     monkeypatch.setenv("ECHOFLOW_PYANNOTE_MODEL_REVISION", "speaker-revision")
     monkeypatch.setenv("ECHOFLOW_STATE_DIR", str(tmp_path / "state"))
@@ -66,13 +65,19 @@ def test_environment_overrides_local_settings(monkeypatch, tmp_path):
     assert config.MEMORY_BUDGET_FRACTION == 0.5
     assert config.FFPROBE_TIMEOUT_SECONDS == 45.0
     assert config.FFMPEG_PROCESS_TIMEOUT_SECONDS == 900.0
-    assert config.FASTER_WHISPER_MODEL_REVISION == "abc123"
     assert config.PYANNOTE_MODEL_ID == "example/local-diarizer"
     assert config.PYANNOTE_MODEL_REVISION == "speaker-revision"
     assert tmp_path / "state" == config.STATE_DIR
     assert tmp_path / "cache" == config.CACHE_DIR
     assert tmp_path / "cache" / "models" == config.MODEL_DIR
     assert tmp_path / "output" == config.OUTPUT_DIR
+
+
+def test_obsolete_asr_revision_environment_override_is_ignored(monkeypatch):
+    monkeypatch.setenv("ECHOFLOW_FASTER_WHISPER_MODEL_REVISION", "unmanaged")
+    config = AppConfig(_env_file=None)
+    assert "FASTER_WHISPER_MODEL_REVISION" not in config.model_fields
+    assert "unmanaged" not in config.model_dump().values()
 
 
 def test_model_directory_follows_an_overridden_cache_by_default(tmp_path):
@@ -213,7 +218,6 @@ def test_resource_and_diagnostic_lower_boundaries_are_exact():
         {"FFMPEG_TIMEOUT_SECONDS": -0.5},
         {"FFPROBE_TIMEOUT_SECONDS": 0},
         {"FFMPEG_PROCESS_TIMEOUT_SECONDS": 0},
-        {"FASTER_WHISPER_MODEL_REVISION": ""},
         {"PYANNOTE_MODEL_ID": ""},
         {"PYANNOTE_MODEL_REVISION": ""},
     ):
@@ -262,10 +266,7 @@ def test_configuration_field_descriptions_are_stable_public_schema():
             "Maximum time allowed for dry-run media inspection"
         ),
         "FFMPEG_PROCESS_TIMEOUT_SECONDS": (
-            "Maximum time allowed for one audio normalization process"
-        ),
-        "FASTER_WHISPER_MODEL_REVISION": (
-            "Optional immutable model revision requested from the model hub"
+            "Maximum time allowed for one audio-processing process"
         ),
         "PYANNOTE_MODEL_ID": "Optional local speaker-diarization model identifier",
         "PYANNOTE_MODEL_REVISION": "Optional immutable pyannote model revision",

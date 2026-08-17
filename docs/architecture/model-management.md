@@ -7,21 +7,20 @@ opaque cache entries. Model management gives the application an explicit invento
 installation, verification, provenance, recommendation, and removal boundary without
 inventing a second model storage format or requiring hosted control-plane state.
 
-The first implementation manages faster-whisper models only. It is intentionally
-small enough that later local capabilities, including speech enhancement, can reuse the
-same custody contracts without inheriting faster-whisper-specific orchestration.
+The first implementation manages faster-whisper models. Later model-backed local
+capabilities should reuse the same custody contracts rather than create parallel
+network, cache, and provenance paths.
 
 ## Ownership and custody
 
 The Hugging Face cache remains the byte-level storage layout consumed by
-faster-whisper. EchoFlow does not copy model weights into a private proprietary format.
-Instead, EchoFlow owns a private registry of manifests that describes which cached
-snapshots it deliberately installed and verified.
+faster-whisper. EchoFlow does not copy model weights into a proprietary format.
+Instead, EchoFlow owns private manifests describing the exact cached snapshots it
+deliberately installed and verified.
 
-A cached model is therefore not automatically an EchoFlow-managed model. EchoFlow
-claims management only after an explicit install succeeds and a private manifest is
-committed. Arbitrary pre-existing cache contents remain untracked until a future
-explicit adoption workflow exists.
+A cached model is not automatically an EchoFlow-managed model. Management begins only
+after an explicit install succeeds and a private manifest is committed. Arbitrary
+pre-existing cache contents are not adopted implicitly.
 
 A managed manifest records at least:
 
@@ -39,18 +38,18 @@ the physical source of model bytes.
 ## Components
 
 `ModelCatalog` describes the finite set of models EchoFlow knows how to reason about.
-For faster-whisper it derives cache-size and quality metadata from the existing
-transcription strategy catalog rather than duplicating execution policy.
+For faster-whisper it derives cache-size and quality metadata from the transcription
+strategy catalog instead of duplicating execution policy.
 
-`ModelManager` owns the application workflow: offline inventory, explicit install,
-manifest custody, revalidation, resolved-revision lookup, and removal.
+`ModelManager` owns offline inventory, explicit install, manifest custody, local
+revalidation, resolved-revision lookup, and removal.
 
 `ModelProvider` owns provider-specific mechanics such as downloading a Hugging Face
-snapshot, validating its provider layout, and deleting an exact cached revision.
+snapshot, validating provider layout, and deleting an exact cached revision.
 
-`ModelStorageAdmitter` is a small application port used before downloads. The current
-application container adapts EchoFlow's existing disk-admission policy to that port so
-model management does not depend on transcription internals.
+`ModelStorageAdmitter` runs before downloads. The application container adapts the
+shared disk-admission policy to this port so model management does not depend on
+transcription internals.
 
 ## Install transaction
 
@@ -59,60 +58,69 @@ A model install follows this ordering:
 1. Resolve the model ID through the catalog.
 2. Reject an invalid or blank requested revision.
 3. Admit the catalog's estimated cache requirement against current disk capacity.
-4. Create the private model/cache/registry directories only after admission succeeds.
+4. Create private model/cache/registry directories only after admission succeeds.
 5. Ask the provider to acquire the requested repository and revision.
-6. Reject any returned snapshot outside EchoFlow's configured model cache before
-   inspecting its contents.
+6. Reject any returned snapshot outside EchoFlow's configured model cache.
 7. Bind the snapshot path to the declared provider repository cache directory.
-8. Require the snapshot directory name to equal the resolved revision recorded for the
-   install.
-9. Verify the provider-specific required files exist and are non-empty.
+8. Require the snapshot directory name to equal the resolved revision.
+9. Verify provider-specific required files exist and are non-empty.
 10. Measure the installed snapshot and construct provenance.
 11. Commit the private EchoFlow manifest last.
 
-The ordering is intentional. A disk-admission failure cannot start a large download.
-A failed or malformed provider result cannot create a managed manifest. A manifest is
-therefore evidence of a completed application-level install transaction, not merely an
-attempt.
+The ordering is intentional. Disk refusal cannot begin a large download, and a failed
+or malformed provider result cannot become managed state.
 
 ## Inventory and local revalidation
 
 Inventory and resolved-revision lookup are offline and side-effect free. They do not
 create directories, download models, or repair cache state.
 
-When a managed manifest exists, EchoFlow validates it before reporting the model as
-managed or using its revision in a new plan. Validation checks:
+When a managed manifest exists, EchoFlow revalidates it before reporting the model as
+managed or returning its revision to a planner. Validation checks:
 
 - manifest identity matches the catalog model and repository;
 - the snapshot remains inside the configured model cache;
 - the snapshot belongs to the declared provider repository cache directory;
 - the snapshot path agrees with the recorded resolved revision;
 - the recorded verification method is supported; and
-- the provider's required files still exist and remain non-empty.
+- required provider files still exist and remain non-empty.
 
 If external deletion or tampering makes a manifest stale, EchoFlow fails closed instead
-of treating the old receipt as proof that the model is usable.
+of treating an old receipt as proof that the model remains usable.
 
-This first verification method establishes structural/provider provenance. It does not
-claim an independently maintained cryptographic allowlist for upstream model weights.
-A future provider may add stronger digest or signature evidence without changing the
-application-level custody contract.
+This verification establishes structural/provider provenance. It does not claim an
+independently maintained cryptographic allowlist for upstream model weights. A future
+provider may add digest or signature evidence without changing the application custody
+boundary.
 
-## Transcription plan pinning
+## Transcription custody boundary
 
-New transcription plans resolve the model revision with this precedence:
+There is one ASR model path.
 
-1. an explicit operator-configured revision;
-2. the verified resolved revision from EchoFlow's managed registry; or
-3. no explicit revision when neither exists.
+A new transcription plan must resolve the selected faster-whisper model through the
+verified managed registry. If the selected model is not installed and locally
+revalidated, planning fails with an install-first error. A successful plan therefore
+always records a non-empty immutable resolved revision.
 
-An explicit operator revision is never silently replaced by registry state. A managed
-revision improves reproducibility because a plan records the immutable snapshot that
-was locally verified instead of depending on a moving provider default.
+Transcription execution is local-only with respect to ASR model acquisition. The
+faster-whisper adapter uses `local_files_only=True` and the exact revision already
+recorded in the plan. There is no transcription-time ASR download flag, ambient
+Hugging Face cache fallback, or configuration override that can substitute an
+unmanaged revision.
 
-Resume does not re-plan model identity. Existing checkpoint semantics remain
-authoritative so an interrupted job restores the revision already recorded in its
-execution contract.
+Model acquisition happens through the explicit user action:
+
+```text
+echoflow models install MODEL
+```
+
+Resume restores the exact managed model revision already recorded in the checkpoint
+contract. It never replans to a newer revision and never downloads a replacement as a
+side effect of resume.
+
+EchoFlow is pre-production, so this contract intentionally replaces earlier
+compatibility scaffolding rather than carrying migration branches for behavior that has
+not been dogfooded or released.
 
 ## Removal transaction
 
@@ -124,70 +132,76 @@ Removal is deliberately asymmetric with installation:
 4. Delete the EchoFlow manifest only after provider removal succeeds.
 
 If provider removal fails, the manifest is retained. EchoFlow must not claim that it
-forgot ownership while the managed bytes may still remain on disk.
+forgot ownership while managed bytes may still remain on disk.
 
-The current CLI requires confirmation unless `--yes` is supplied.
+The CLI requires confirmation unless `--yes` is supplied.
 
 ## User surface
 
-The first CLI surface is intentionally explicit:
+The model-management CLI is explicit:
 
-- `echoflow models` lists the offline managed inventory;
-- `echoflow models recommend` reuses the current resource-aware transcription strategy
-  planner and reports whether the recommended model is managed;
-- `echoflow models install MODEL` explicitly authorizes provider network acquisition,
-  verifies the resulting snapshot, and records provenance; and
+- `echoflow models` lists offline managed inventory;
+- `echoflow models recommend` reuses current resource-aware strategy assessment and
+  reports whether the recommended model is managed;
+- `echoflow models install MODEL` authorizes provider network acquisition, verifies the
+  resulting snapshot, and records provenance; and
 - `echoflow models remove MODEL` removes an exact managed revision after confirmation.
 
-The existing transcription `--allow-model-download` path remains a compatibility seam
-in this tranche. It can be reconsidered after managed installation has survived normal
-use and resume scenarios; model management does not silently remove an established
-execution path underneath durable jobs.
+A normal first transcription flow is therefore:
+
+```text
+echoflow models recommend
+echoflow models install small
+echoflow transcribe recording.m4a
+```
+
+The selected model may differ by profile or explicit strategy, so the model required by
+a plan must be managed before that plan can execute.
 
 ## Failure and privacy semantics
 
 Registry manifests and model storage live under EchoFlow's private application model
 root. Inventory and recommendation do not contact the network. Installation is the
-explicit network-bearing operation.
+explicit network-bearing ASR model operation.
 
-Public errors intentionally describe the application failure without leaking internal
-paths. Corrupt registry data, path escape, repository mismatch, stale snapshots,
-verification failure, storage refusal, and provider removal failure all fail closed.
+Public errors describe the application failure without leaking internal paths. Corrupt
+registry data, path escape, repository mismatch, stale snapshots, verification
+failure, storage refusal, and provider removal failure all fail closed.
 
 No transcript, source media, job metadata, or telemetry is sent to the model provider
 as part of model management.
 
 ## Extension contract for future local models
 
-Speech enhancement should reuse these application concepts rather than creating an
-independent downloader and cache registry:
+A future model-backed capability should reuse these concepts:
 
-- a capability-specific catalog can describe provider/model choices;
-- provider adapters can implement their own structural or cryptographic verification;
-- the same private manifest/provenance boundary can record resolved revisions;
-- disk admission must happen before acquisition;
+- a capability-specific catalog may describe provider/model choices;
+- provider adapters may implement structural or cryptographic verification;
+- private manifests record immutable resolved revisions;
+- disk admission happens before acquisition;
 - inventory remains offline; and
-- execution planners consume verified model identity through a narrow application
-  port.
+- execution planners consume verified model identity through narrow application ports.
 
-The shared abstraction should be generalized only when a second real provider exposes
-the necessary variation. The current implementation deliberately avoids a speculative
-universal model marketplace.
+The first speech noise-suppression provider is intentionally model-free and therefore
+does not fabricate a model manifest. If EchoFlow later adopts a neural enhancement
+provider with weights, those weights must enter through this custody boundary.
 
-## Out of scope for the first tranche
+The shared abstraction should be generalized only when a second real model-backed
+provider exposes necessary variation. EchoFlow does not need a speculative universal
+model marketplace.
 
-The first tranche does not provide:
+## Out of scope
+
+The current tranche does not provide:
 
 - automatic model updates or background downloads;
 - adoption of arbitrary pre-existing cache entries as managed state;
 - generic support for arbitrary model hubs;
 - model garbage collection or quota management;
-- hosted telemetry or a remote inventory service;
-- simultaneous management of speech-enhancement models before an enhancement provider
-  is selected; or
-- a promise that structural required-file verification is equivalent to independent
-  cryptographic attestation of upstream weights.
+- hosted telemetry or a remote inventory service; or
+- a claim that structural required-file verification equals independent cryptographic
+  attestation of upstream weights.
 
-The stable rule is narrower: EchoFlow should know which local model dependency it chose,
-where it came from, which immutable revision it verified, whether it is still present,
-and when it is safe to remove it.
+The stable rule is simple: EchoFlow knows which local model dependency it chose, where
+it came from, which immutable revision it verified, whether it is still present, and
+when it is safe to remove it.

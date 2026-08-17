@@ -3,6 +3,7 @@ from pathlib import Path
 
 
 class ErrorCode(StrEnum):
+    INTERNAL = "internal_error"
     CONFIGURATION = "configuration_error"
     STORAGE = "storage_error"
     NOT_FOUND = "storage_not_found"
@@ -26,7 +27,7 @@ class ErrorCode(StrEnum):
 class EchoFlowError(Exception):
     """Base for failures that can cross an application or CLI boundary safely."""
 
-    code = ErrorCode.STORAGE
+    code = ErrorCode.INTERNAL
     exit_code = 1
 
     def __init__(self, public_message: str, *, cause: Exception | None = None):
@@ -41,6 +42,8 @@ class ConfigurationError(EchoFlowError):
 
 
 class StorageError(EchoFlowError):
+    code = ErrorCode.STORAGE
+
     def __init__(
         self, operation: str, path: str | Path, *, cause: Exception | None = None
     ):

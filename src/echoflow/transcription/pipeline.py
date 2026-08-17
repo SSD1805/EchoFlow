@@ -26,7 +26,7 @@ class OrderedSegmentPrefetcher:
         self._executor: ThreadPoolExecutor | None = None
         self._future: Future[MaterializedAudioSegment] | None = None
 
-    def __enter__(self) -> "OrderedSegmentPrefetcher":
+    def __enter__(self) -> OrderedSegmentPrefetcher:
         if self._executor is not None:
             raise RuntimeError("segment prefetcher is already active")
         if self.prefetch_depth:

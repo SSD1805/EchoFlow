@@ -168,9 +168,7 @@ def _render_transcription_plan(plan: TranscriptionJobPlan, console: Console) -> 
         for stream in plan.media.streams
         if stream.kind is StreamKind.AUDIO
     )
-    enhancement = (
-        plan.enhancement.provider if plan.enhancement.enabled else "off"
-    )
+    enhancement = plan.enhancement.provider if plan.enhancement.enabled else "off"
     table = Table(title="EchoFlow transcription dry run")
     table.add_column("Setting")
     table.add_column("Planned value")

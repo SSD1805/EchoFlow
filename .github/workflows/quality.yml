@@ -94,7 +94,8 @@ jobs:
           fi
           uv run ruff format .
           while IFS= read -r path; do
-            echo "::error file=${path}::Ruff formatting required"
+            patch=$(git diff -- "${path}" | base64 -w 0)
+            echo "::error file=${path}::RUFF_FORMAT_PATCH_BASE64=${patch}"
           done < <(git diff --name-only)
           exit 1
 

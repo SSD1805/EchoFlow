@@ -150,14 +150,19 @@ class ModelManager:
             or manifest.repository_id != spec.repository_id
         ):
             raise ValueError("model manifest identity does not match the catalog")
-        self._validate_snapshot(
-            InstalledSnapshot(
-                resolved_revision=manifest.resolved_revision,
-                snapshot_path=manifest.snapshot_path,
-                size_bytes=manifest.size_bytes,
-                verification=manifest.verification,
-            )
+        snapshot = InstalledSnapshot(
+            resolved_revision=manifest.resolved_revision,
+            snapshot_path=manifest.snapshot_path,
+            size_bytes=manifest.size_bytes,
+            verification=manifest.verification,
         )
+        self._validate_snapshot(snapshot)
+        try:
+            self.provider.validate(spec, snapshot, cache_root=self.cache_root)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception as exc:
+            raise ValueError("managed model snapshot is no longer valid") from exc
 
     def _validate_snapshot(self, snapshot: InstalledSnapshot) -> None:
         if not snapshot.snapshot_path.is_relative_to(self.cache_root):

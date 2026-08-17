@@ -165,6 +165,7 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
             with self.observer.span("transcript.assemble"):
                 return self.transcript_assembler.assemble(results)
 
+        prefetch_depth = self._execution_prefetch_depth(plan)
         allowed_download = allow_model_download and completed_count == 0
         with self.observer.span("engine.open"):
             session = self._open_session(
@@ -181,7 +182,6 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
             )
 
         remaining = windows[completed_count:]
-        prefetch_depth = int(plan.policy.cpu_threads > plan.engine.cpu_threads)
         self.observer.record_value("segments.prefetch_depth", prefetch_depth)
         job_logger = self.logger.bind(job_id=job.job_id.value)
         with OrderedSegmentPrefetcher(
@@ -220,6 +220,14 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
                 )
         with self.observer.span("transcript.assemble"):
             return self.transcript_assembler.assemble(results)
+
+    def _execution_prefetch_depth(self, plan: TranscriptionJobPlan) -> int:
+        planned_depth = int(plan.policy.cpu_threads > plan.engine.cpu_threads)
+        if planned_depth == 0:
+            return 0
+        current_resources = self.runner_inspector.inspect()
+        current_policy = self.policy_planner.plan(current_resources, plan.policy.profile)
+        return int(current_policy.cpu_threads > plan.engine.cpu_threads)
 
     def _materialize_segment(
         self,

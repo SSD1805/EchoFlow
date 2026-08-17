@@ -132,7 +132,9 @@ class HuggingFaceModelProvider:
         snapshot: InstalledSnapshot,
         cache_root: Path,
     ) -> None:
-        repository_cache = cache_root / f"models--{spec.repository_id.replace('/', '--')}"
+        repository_cache = (
+            cache_root / f"models--{spec.repository_id.replace('/', '--')}"
+        )
         expected_parent = repository_cache / "snapshots"
         if snapshot.snapshot_path.parent != expected_parent:
             raise ValueError("model snapshot does not match the declared repository")

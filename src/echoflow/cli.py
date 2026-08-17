@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import json
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, cast
+from typing import Annotated
 
 import typer
+from dependency_injector import providers
 from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
@@ -11,134 +13,88 @@ from rich.table import Table
 from echoflow.app.app_container import AppContainer
 from echoflow.core.config import AppConfig
 from echoflow.core.errors import EchoFlowError
-from echoflow.core.health_check import HealthReport
 from echoflow.media.models import StreamKind
-from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
-from echoflow.transcription.export import TranscriptExportFormat, TranscriptExportResult
+from echoflow.runner.models import ProcessingProfile
+from echoflow.transcription.export import (
+    TranscriptExportFormat,
+    TranscriptExportResult,
+)
 from echoflow.transcription.models import (
     TranscriptionExecutionResult,
     TranscriptionJobPlan,
 )
 from echoflow.transcription.speaker_models import SpeakerDiarizationRequest
-from echoflow.workspace.models import JobId, WorkspacePaths
+from echoflow.workspace.models import JobId
 
-app = typer.Typer(
-    name="echoflow",
-    help="Local-first audio processing and transcription.",
-    no_args_is_help=False,
-    invoke_without_command=True,
-)
-
-
-@dataclass(frozen=True, slots=True)
-class CliOptions:
-    config_file: Path | None = None
-
-
-@app.callback()
-def root(
-    context: typer.Context,
-    config_file: Annotated[
-        Path | None,
-        typer.Option(
-            "--config",
-            exists=True,
-            file_okay=True,
-            dir_okay=False,
-            readable=True,
-            resolve_path=True,
-            help="Explicit EchoFlow dotenv configuration file.",
-        ),
-    ] = None,
-) -> None:
-    """EchoFlow command-line interface."""
-    context.obj = CliOptions(config_file=config_file)
-    if context.invoked_subcommand is None:
-        typer.echo(context.get_help())
+app = typer.Typer(no_args_is_help=True)
 
 
 def _container(context: typer.Context) -> AppContainer:
-    container = AppContainer()
-    options = context.ensure_object(CliOptions)
-    if options.config_file is not None:
-        container.config.override(AppConfig.load(options.config_file))
+    container = context.obj
+    if not isinstance(container, AppContainer):
+        raise RuntimeError("EchoFlow application container is unavailable")
     return container
-
-
-def _render_report(report: HealthReport, console: Console) -> None:
-    table = Table(title=f"EchoFlow doctor: {report.status.value}")
-    table.add_column("Check")
-    table.add_column("Status")
-    table.add_column("Result")
-    for result in report.checks:
-        table.add_row(result.check_id, result.status.value, result.summary)
-    console.print(table)
-
-
-def _render_paths(paths: WorkspacePaths, console: Console) -> None:
-    table = Table(title="EchoFlow directories initialized")
-    table.add_column("Purpose")
-    table.add_column("Path")
-    for purpose, path in paths.to_dict().items():
-        table.add_row(purpose, path)
-    console.print(table)
-
-
-def _render_runner(
-    resources: RunnerResources, policy: ExecutionPolicy, console: Console
-) -> None:
-    table = Table(title="EchoFlow runner policy")
-    table.add_column("Setting")
-    table.add_column("Value")
-    rows = {
-        "Platform": f"{resources.platform} {resources.machine}",
-        "Effective CPUs": str(resources.effective_cpus),
-        "Effective memory": str(resources.effective_memory_available_bytes),
-        "Profile": policy.profile.value,
-        "Provisional": str(policy.provisional).lower(),
-        "CPU threads": str(policy.cpu_threads),
-        "Memory budget": str(policy.memory_budget_bytes),
-        "Model tier": policy.recommended_model_tier.value,
-        "Constraints": ", ".join(policy.constraints) or "none",
-    }
-    for setting, value in rows.items():
-        table.add_row(setting, value)
-    console.print(table)
 
 
 def _format_bytes(value: int) -> str:
     units = ("B", "KiB", "MiB", "GiB", "TiB")
-    amount = float(value)
-    for unit in units[:-1]:
-        if amount < 1024:
-            return f"{amount:.1f} {unit}"
-        amount /= 1024
-    return f"{amount:.1f} {units[-1]}"
+    size = float(value)
+    for unit in units:
+        if size < 1024 or unit == units[-1]:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    raise AssertionError("unreachable")
 
 
-def _render_strategies(
-    assessments: tuple[dict[str, object], ...], console: Console
-) -> None:
-    table = Table(title="EchoFlow local transcription strategies")
+def _render_paths(paths, console: Console) -> None:
+    table = Table(title="EchoFlow workspace")
+    table.add_column("Path")
+    table.add_column("Location")
+    for name, value in paths.to_dict().items():
+        table.add_row(name, value)
+    console.print(table)
+
+
+def _render_health(report, console: Console) -> None:
+    table = Table(title="EchoFlow doctor")
+    table.add_column("Probe")
+    table.add_column("Status")
+    table.add_column("Message")
+    for result in report.results:
+        table.add_row(result.name, result.status.value, result.message)
+    console.print(table)
+
+
+def _render_runner(snapshot, console: Console) -> None:
+    table = Table(title="EchoFlow runner")
+    table.add_column("Resource")
+    table.add_column("Value")
+    rows = (
+        ("Effective CPUs", str(snapshot.effective_cpu_count)),
+        ("Effective memory", _format_bytes(snapshot.effective_memory_bytes)),
+        ("Available memory", _format_bytes(snapshot.available_memory_bytes)),
+        ("Process memory", _format_bytes(snapshot.process_memory_bytes)),
+    )
+    for name, value in rows:
+        table.add_row(name, value)
+    console.print(table)
+
+
+def _render_strategies(assessments, console: Console) -> None:
+    table = Table(title="EchoFlow transcription strategies")
     table.add_column("Strategy")
     table.add_column("Model")
-    table.add_column("Safe now")
-    table.add_column("Peak memory")
-    table.add_column("Model cache")
-    table.add_column("Recommendation")
+    table.add_column("Fits")
+    table.add_column("Estimated peak memory")
+    table.add_column("Reason")
     for assessment in assessments:
-        strategy = cast("dict[str, object]", assessment["strategy"])
-        reasons = cast("list[str]", assessment["rejection_reasons"])
-        recommendation = "recommended" if assessment["recommended"] else ""
-        if reasons:
-            recommendation = ", ".join(reasons)
+        strategy = assessment.strategy
         table.add_row(
-            str(strategy["strategy_id"]),
-            str(strategy["model"]),
-            str(assessment["feasible"]).lower(),
-            _format_bytes(int(cast("int", strategy["estimated_peak_memory_bytes"]))),
-            _format_bytes(int(cast("int", strategy["model_cache_bytes"]))),
-            recommendation,
+            strategy.strategy_id,
+            strategy.model,
+            str(assessment.feasible).lower(),
+            _format_bytes(strategy.estimated_peak_memory_bytes),
+            assessment.reason,
         )
     console.print(table)
 
@@ -146,7 +102,7 @@ def _render_strategies(
 def _render_transcription_plan(plan: TranscriptionJobPlan, console: Console) -> None:
     audio = plan.media.primary_audio_stream
     audio_streams = ", ".join(
-        str(stream.index)
+        f"{stream.index}:{stream.codec}"
         for stream in plan.media.streams
         if stream.kind is StreamKind.AUDIO
     )
@@ -269,66 +225,45 @@ def doctor(
         ),
     ] = None,
     json_output: Annotated[
-        bool, typer.Option("--json", help="Emit a machine-readable health report.")
-    ] = False,
-    strict: Annotated[
-        bool,
-        typer.Option("--strict", help="Treat warnings as a failed diagnostic."),
+        bool, typer.Option("--json", help="Emit machine-readable health output.")
     ] = False,
 ) -> None:
-    """Check local state, disk, FFmpeg, and system resources."""
+    """Run local health checks without modifying user data."""
     try:
         container = _container(context)
         if workspace is not None:
             current = container.config()
-            container.config.override(
-                current.model_copy(update={"STATE_DIR": workspace})
-            )
+            container.config.override(current.model_copy(update={"STATE_DIR": workspace}))
         report = container.health_check().run()
     except EchoFlowError as exc:
         typer.echo(exc.public_message, err=True)
         raise typer.Exit(code=exc.exit_code) from None
-    except ValidationError:
-        typer.echo("Invalid EchoFlow configuration", err=True)
-        raise typer.Exit(code=1) from None
     except Exception as exc:
         typer.echo(
-            f"EchoFlow doctor failed internally ({type(exc).__name__})", err=True
+            f"EchoFlow health check failed internally ({type(exc).__name__})",
+            err=True,
         )
         raise typer.Exit(code=3) from None
 
     if json_output:
         typer.echo(json.dumps(report.to_dict(), sort_keys=True))
     else:
-        _render_report(report, Console())
-    if report.exit_code(strict=strict):
-        raise typer.Exit(code=1)
+        _render_health(report, Console())
 
 
-@app.command("runner")
-def inspect_runner(
+@app.command()
+def runner(
     context: typer.Context,
-    profile: Annotated[
-        ProcessingProfile | None,
-        typer.Option(help="Override the configured processing profile."),
-    ] = None,
     json_output: Annotated[
-        bool, typer.Option("--json", help="Emit a machine-readable runner policy.")
+        bool, typer.Option("--json", help="Emit machine-readable runner resources.")
     ] = False,
 ) -> None:
-    """Inspect effective CPU/memory limits and derive a processing policy."""
+    """Inspect the local compute resources visible to EchoFlow."""
     try:
-        container = _container(context)
-        config = container.config()
-        selected_profile = profile or config.PROCESSING_PROFILE
-        resources = container.runner_inspector().inspect()
-        policy = container.runner_policy_planner().plan(resources, selected_profile)
+        snapshot = _container(context).runner_inspector().inspect()
     except EchoFlowError as exc:
         typer.echo(exc.public_message, err=True)
         raise typer.Exit(code=exc.exit_code) from None
-    except ValidationError:
-        typer.echo("Invalid EchoFlow configuration", err=True)
-        raise typer.Exit(code=1) from None
     except Exception as exc:
         typer.echo(
             f"EchoFlow runner inspection failed internally ({type(exc).__name__})",
@@ -337,40 +272,32 @@ def inspect_runner(
         raise typer.Exit(code=3) from None
 
     if json_output:
-        typer.echo(
-            json.dumps(
-                {"resources": resources.to_dict(), "policy": policy.to_dict()},
-                sort_keys=True,
-            )
-        )
+        typer.echo(json.dumps(snapshot.to_dict(), sort_keys=True))
     else:
-        _render_runner(resources, policy, Console())
+        _render_runner(snapshot, Console())
 
 
-@app.command("strategies")
+@app.command()
 def strategies(
     context: typer.Context,
     profile: Annotated[
         ProcessingProfile | None,
-        typer.Option(help="Profile used to rank currently safe strategies."),
+        typer.Option("--profile", case_sensitive=False, help="Processing intent."),
     ] = None,
     json_output: Annotated[
-        bool, typer.Option("--json", help="Emit machine-readable strategy assessments.")
+        bool, typer.Option("--json", help="Emit machine-readable strategy output.")
     ] = False,
 ) -> None:
-    """Show local transcription strategies and their current memory requirements."""
+    """Show transcription strategies that fit this machine's current policy."""
     try:
         container = _container(context)
         selected_profile = profile or container.config().PROCESSING_PROFILE
-        assessments = container.transcription_planner().assess_strategies(
-            profile=selected_profile
-        )
+        runner_snapshot = container.runner_inspector().inspect()
+        policy = container.runner_policy_planner().plan(runner_snapshot, selected_profile)
+        assessments = container.transcription_planner().evaluate_strategies(policy)
     except EchoFlowError as exc:
         typer.echo(exc.public_message, err=True)
         raise typer.Exit(code=exc.exit_code) from None
-    except ValidationError:
-        typer.echo("Invalid EchoFlow configuration", err=True)
-        raise typer.Exit(code=1) from None
     except Exception as exc:
         typer.echo(
             f"EchoFlow strategy inspection failed internally ({type(exc).__name__})",
@@ -491,6 +418,17 @@ def _execute_transcription(
     diarization_request: SpeakerDiarizationRequest | None,
 ) -> TranscriptionExecutionResult:
     executor = container.transcription_executor()
+    if diarization_request is None:
+        if resume:
+            return executor.execute(
+                plan,
+                allow_model_download=allow_model_download,
+                resume=True,
+            )
+        return executor.execute(
+            plan,
+            allow_model_download=allow_model_download,
+        )
     if resume:
         return executor.execute(
             plan,
@@ -519,74 +457,42 @@ def _publish_exports(
     )
 
 
-def _render_transcription_command_output(
-    plan: TranscriptionJobPlan,
-    result: TranscriptionExecutionResult | None,
-    exports: TranscriptExportResult,
-    *,
-    dry_run: bool,
-    json_output: bool,
-) -> None:
-    if dry_run:
-        if json_output:
-            typer.echo(json.dumps(plan.to_dict(), sort_keys=True))
-        else:
-            _render_transcription_plan(plan, Console())
-        return
-    execution_result = cast("TranscriptionExecutionResult", result)
-    if json_output:
-        document = execution_result.to_dict()
-        document["exports"] = exports.to_dict()
-        typer.echo(json.dumps(document, sort_keys=True))
-    else:
-        _render_transcription_result(execution_result, exports, Console())
-
-
-@app.command("transcribe")
+@app.command()
 def transcribe(
     context: typer.Context,
-    input_path: Annotated[
-        Path,
-        typer.Argument(
-            metavar="INPUT",
-            help="Local audio-bearing recording to transcribe.",
-        ),
-    ],
+    input_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", file_okay=False, help="Public artifact directory."),
+    ] = None,
+    profile: Annotated[
+        ProcessingProfile | None,
+        typer.Option("--profile", case_sensitive=False, help="Processing intent."),
+    ] = None,
+    strategy: Annotated[
+        str | None,
+        typer.Option("--strategy", help="Explicit transcription strategy ID."),
+    ] = None,
+    audio_stream: Annotated[
+        int | None,
+        typer.Option("--audio-stream", min=0, help="Explicit audio stream index."),
+    ] = None,
     dry_run: Annotated[
-        bool,
-        typer.Option("--dry-run", help="Plan without creating files or transcribing."),
+        bool, typer.Option("--dry-run", help="Plan without executing transcription.")
     ] = False,
     allow_model_download: Annotated[
         bool,
         typer.Option(
             "--allow-model-download",
-            help="Authorize network access to obtain the selected model if absent.",
+            help="Allow required local model files to be downloaded.",
         ),
     ] = False,
-    output_dir: Annotated[
-        Path | None,
+    export_formats: Annotated[
+        list[TranscriptExportFormat] | None,
         typer.Option(
-            help="Consumer directory for transcript artifacts.",
-            file_okay=False,
-            resolve_path=True,
-        ),
-    ] = None,
-    profile: Annotated[
-        ProcessingProfile | None,
-        typer.Option(help="Override the configured processing profile."),
-    ] = None,
-    strategy: Annotated[
-        str | None,
-        typer.Option(
-            help="Explicit safe strategy ID from `echoflow strategies`; never silently downgraded."
-        ),
-    ] = None,
-    audio_stream: Annotated[
-        int | None,
-        typer.Option(
-            "--audio-stream",
-            metavar="INDEX",
-            help="FFmpeg stream index for the audio track to transcribe.",
+            "--export",
+            case_sensitive=False,
+            help="Publish a derived transcript view. Repeat for multiple formats.",
         ),
     ] = None,
     diarize: Annotated[
@@ -614,25 +520,13 @@ def transcribe(
     ] = None,
     resume: Annotated[
         str | None,
-        typer.Option(
-            "--resume",
-            metavar="JOB_ID",
-            help="Resume a compatible interrupted job from private local checkpoints.",
-        ),
-    ] = None,
-    export_formats: Annotated[
-        list[TranscriptExportFormat] | None,
-        typer.Option(
-            "--export",
-            help="Derived transcript format to publish; repeat for TXT, SRT, or VTT.",
-        ),
+        typer.Option("--resume", help="Resume a previously interrupted EchoFlow job."),
     ] = None,
     json_output: Annotated[
-        bool,
-        typer.Option("--json", help="Emit the plan or execution result as JSON."),
+        bool, typer.Option("--json", help="Emit machine-readable execution output.")
     ] = False,
 ) -> None:
-    """Transcribe a local recording, optionally resuming validated private state."""
+    """Plan or execute one local transcription job."""
     try:
         _validate_resume_options(
             dry_run=dry_run,
@@ -662,27 +556,28 @@ def transcribe(
             audio_stream=audio_stream,
             resume=resume,
         )
-        result = None
-        exports = TranscriptExportResult(())
-        if not dry_run:
-            if resume is None:
-                typer.echo(f"EchoFlow job ID: {plan.job.job_id.value}", err=True)
-            result = _execute_transcription(
-                container,
-                plan,
-                allow_model_download=allow_model_download,
-                resume=resume is not None,
-                diarization_request=speaker_request,
-            )
-            exports = _publish_exports(container, result, export_formats)
-    except typer.BadParameter:
-        raise
+        if dry_run:
+            if json_output:
+                typer.echo(json.dumps(plan.to_dict(), sort_keys=True))
+            else:
+                _render_transcription_plan(plan, Console())
+            return
+        result = _execute_transcription(
+            container,
+            plan,
+            allow_model_download=allow_model_download,
+            resume=resume is not None,
+            diarization_request=speaker_request,
+        )
+        exports = _publish_exports(container, result, export_formats)
     except EchoFlowError as exc:
         typer.echo(exc.public_message, err=True)
         raise typer.Exit(code=exc.exit_code) from None
     except ValidationError:
         typer.echo("Invalid EchoFlow configuration", err=True)
         raise typer.Exit(code=1) from None
+    except typer.BadParameter:
+        raise
     except Exception as exc:
         typer.echo(
             f"EchoFlow transcription failed internally ({type(exc).__name__})",
@@ -690,14 +585,24 @@ def transcribe(
         )
         raise typer.Exit(code=3) from None
 
-    _render_transcription_command_output(
-        plan,
-        result,
-        exports,
-        dry_run=dry_run,
-        json_output=json_output,
-    )
+    if json_output:
+        typer.echo(
+            json.dumps(
+                {
+                    "result": result.to_dict(),
+                    "exports": exports.to_dict(),
+                },
+                sort_keys=True,
+            )
+        )
+    else:
+        _render_transcription_result(result, exports, Console())
 
 
 def main() -> None:
-    app()
+    container = AppContainer()
+    app(obj=container)
+
+
+if __name__ == "__main__":
+    main()

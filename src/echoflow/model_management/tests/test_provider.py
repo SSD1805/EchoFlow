@@ -84,9 +84,7 @@ def test_provider_revalidation_rejects_wrong_repository_snapshot(
     tmp_path: Path,
 ) -> None:
     cache_root = tmp_path / "cache"
-    snapshot_path = (
-        cache_root / "models--someone--other-model" / "snapshots" / "abc123"
-    )
+    snapshot_path = cache_root / "models--someone--other-model" / "snapshots" / "abc123"
     snapshot_path.mkdir(parents=True)
     for name in _spec().required_files:
         (snapshot_path / name).write_bytes(b"x")

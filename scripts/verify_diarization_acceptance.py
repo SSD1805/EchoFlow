@@ -6,9 +6,10 @@ import sys
 from pathlib import Path
 
 from echoflow.transcription.diarization import PyannoteSpeakerDiarizer
+from echoflow.transcription.speaker_models import SpeakerDiarizationResult
 
 
-def _validate_result(*, audio_path: Path, result) -> None:
+def _validate_result(*, audio_path: Path, result: SpeakerDiarizationResult) -> None:
     if not result.turns:
         raise RuntimeError("real diarization acceptance produced no speaker turns")
     if result.provenance.telemetry_enabled:

@@ -26,6 +26,10 @@ class ModelFileStore(Protocol):
     def delete_file(self, file_path: str | Path) -> None: ...
 
 
+class ModelStorageAdmitter(Protocol):
+    def admit(self, path: Path, required_bytes: int) -> None: ...
+
+
 class ModelManager:
     """Own EchoFlow's local model inventory and provenance manifests."""
 
@@ -36,6 +40,7 @@ class ModelManager:
         provider: ModelProvider,
         file_store: ModelFileStore,
         model_root: Path,
+        storage_admitter: ModelStorageAdmitter | None = None,
     ) -> None:
         self.catalog = catalog
         self.provider = provider
@@ -43,6 +48,7 @@ class ModelManager:
         self.model_root = model_root.expanduser().resolve(strict=False)
         self.cache_root = self.model_root / "faster-whisper"
         self.registry_root = self.model_root / "registry" / "faster-whisper"
+        self.storage_admitter = storage_admitter
 
     def inventory(self) -> tuple[ModelInventoryItem, ...]:
         return tuple(
@@ -56,6 +62,8 @@ class ModelManager:
         spec = self.catalog.require(model_id)
         if revision is not None and not revision.strip():
             raise ValueError("revision cannot be empty")
+        if self.storage_admitter is not None:
+            self.storage_admitter.admit(self.cache_root, spec.estimated_cache_bytes)
         self._prepare_roots()
         try:
             snapshot = self.provider.install(
@@ -114,7 +122,7 @@ class ModelManager:
         return self.resolved_revision(model_id) is not None
 
     def resolved_revision(self, model_id: str) -> str | None:
-        """Return the verified managed revision without touching the network or disk."""
+        """Return the verified managed revision without network access or writes."""
         self.catalog.require(model_id)
         manifest = self._manifest(model_id)
         return None if manifest is None else manifest.resolved_revision

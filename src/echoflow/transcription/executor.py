@@ -14,14 +14,19 @@ from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.audio import DecodedAudio
 from echoflow.transcription.checkpoint import RestoredCheckpoint
 from echoflow.transcription.diarization import project_speaker_refs
+from echoflow.transcription.enhancement_models import (
+    EnhancedAudio,
+    EnhancementConfiguration,
+    EnhancementProvenance,
+)
 from echoflow.transcription.errors import (
+    AudioEnhancementError,
     CheckpointError,
     DiarizationDependencyError,
     ResourceAdmissionError,
 )
 from echoflow.transcription.models import (
     AudioSegmentWindow,
-    AutoLanguageMode,
     CanonicalTranscript,
     CpuEngineConfiguration,
     DecodeConfiguration,
@@ -60,6 +65,17 @@ class AudioDecoder(Protocol):
     def cleanup(self, audio: DecodedAudio) -> None: ...
 
 
+class AudioEnhancer(Protocol):
+    def enhance(
+        self,
+        audio: DecodedAudio,
+        configuration: EnhancementConfiguration,
+        workspace_dir: Path,
+    ) -> EnhancedAudio: ...
+
+    def cleanup(self, audio: EnhancedAudio) -> None: ...
+
+
 class AudioSegmenter(Protocol):
     def plan(
         self,
@@ -89,9 +105,6 @@ class SessionTranscriber(Protocol):
     def open_session(
         self,
         configuration: CpuEngineConfiguration,
-        *,
-        allow_model_download: bool,
-        detected_language: str | None = None,
     ) -> TranscriptionSession: ...
 
 
@@ -194,6 +207,7 @@ class TranscriptionExecutor:
         transcriber: SessionTranscriber,
         transcript_assembler: SegmentTranscriptAssembler,
         logger: ILogger,
+        audio_enhancer: AudioEnhancer | None = None,
         checkpoint_store: SegmentCheckpointStore | None = None,
         storage_admission: StorageAdmissionPolicy | None = None,
         language_attributor: TranscriptLanguageAttributor | None = None,
@@ -206,6 +220,7 @@ class TranscriptionExecutor:
         self.runner_inspector = runner_inspector
         self.policy_planner = policy_planner
         self.audio_decoder = audio_decoder
+        self.audio_enhancer = audio_enhancer
         self.audio_segmenter = audio_segmenter
         self.transcriber = transcriber
         self.transcript_assembler = transcript_assembler
@@ -220,9 +235,9 @@ class TranscriptionExecutor:
         self,
         plan: TranscriptionJobPlan,
         *,
-        allow_model_download: bool = False,
         resume: bool = False,
         diarization_request: SpeakerDiarizationRequest | None = None,
+        allow_diarization_model_download: bool = False,
     ) -> TranscriptionExecutionResult:
         with self.observer.span("admission.initial"):
             self._admit(plan)
@@ -242,14 +257,26 @@ class TranscriptionExecutor:
             )
 
         decoded: DecodedAudio | None = None
+        enhanced: EnhancedAudio | None = None
         try:
             with self.observer.span("decode"):
                 decoded = self.audio_decoder.decode(
                     plan.media, plan.decoder, job.workspace_dir
                 )
+            asr_audio = decoded
+            if plan.enhancement.enabled:
+                if self.audio_enhancer is None:
+                    raise AudioEnhancementError(
+                        "Audio enhancement is not configured"
+                    )
+                with self.observer.span("enhancement.apply"):
+                    enhanced = self.audio_enhancer.enhance(
+                        decoded, plan.enhancement, job.workspace_dir
+                    )
+                asr_audio = DecodedAudio(enhanced.path, temporary=False)
             with self.observer.span("segmentation.plan"):
                 windows = self.audio_segmenter.plan(
-                    decoded.path, plan.decoder, plan.segmentation
+                    asr_audio.path, plan.decoder, plan.segmentation
                 )
             self.observer.record_value("segments.total", len(windows))
             with self.observer.span("checkpoint.prepare"):
@@ -260,11 +287,10 @@ class TranscriptionExecutor:
                 self._admit(plan)
             engine_result = self._transcribe_segments(
                 plan,
-                decoded,
+                asr_audio,
                 windows,
                 job,
                 restored,
-                allow_model_download=allow_model_download,
             )
             speaker_result: SpeakerDiarizationResult | None = None
             if diarization_request is not None:
@@ -275,11 +301,16 @@ class TranscriptionExecutor:
                 with self.observer.span("speaker.diarize"):
                     speaker_result = self.speaker_diarizer.diarize(
                         decoded.path,
-                        allow_model_download=allow_model_download,
+                        allow_model_download=allow_diarization_model_download,
                         request=diarization_request,
                     )
             with self.observer.span("transcript.canonicalize"):
-                transcript = self._transcript(plan, engine_result, speaker_result)
+                transcript = self._transcript(
+                    plan,
+                    engine_result,
+                    speaker_result,
+                    enhancement=(None if enhanced is None else enhanced.provenance),
+                )
                 document = json.dumps(
                     transcript.to_dict(),
                     ensure_ascii=False,
@@ -294,10 +325,24 @@ class TranscriptionExecutor:
             self._release_failed_artifact(artifact)
             raise
         finally:
+            if enhanced is not None:
+                self._cleanup_enhanced(enhanced)
             if decoded is not None:
                 with self.observer.span("decode.cleanup"):
                     self.audio_decoder.cleanup(decoded)
         return TranscriptionExecutionResult(job, artifact, transcript)
+
+    def _cleanup_enhanced(self, enhanced: EnhancedAudio) -> None:
+        if self.audio_enhancer is None:
+            return
+        try:
+            with self.observer.span("enhancement.cleanup"):
+                self.audio_enhancer.cleanup(enhanced)
+        except Exception as exc:
+            self.logger.warning(
+                "transcription_enhancement_cleanup_failed",
+                exception_type=type(exc).__name__,
+            )
 
     def _claim_job(self, plan: TranscriptionJobPlan, *, resume: bool) -> Job:
         if resume:
@@ -322,7 +367,7 @@ class TranscriptionExecutor:
     ) -> RestoredCheckpoint:
         if not resume:
             self.checkpoint_store.initialize(job, plan, windows)
-            return RestoredCheckpoint((), None, None)
+            return RestoredCheckpoint((), None)
         restored = self.checkpoint_store.restore(job, plan, windows)
         self.logger.bind(job_id=job.job_id.value).info(
             "transcription_resume_validated",
@@ -338,8 +383,6 @@ class TranscriptionExecutor:
         windows: tuple[AudioSegmentWindow, ...],
         job: Job,
         restored: RestoredCheckpoint,
-        *,
-        allow_model_download: bool,
     ) -> EngineTranscript:
         completed_count = len(restored.completed)
         results = list(restored.completed)
@@ -351,13 +394,8 @@ class TranscriptionExecutor:
             with self.observer.span("transcript.assemble"):
                 return self.transcript_assembler.assemble(results)
 
-        allowed_download = allow_model_download and completed_count == 0
         with self.observer.span("engine.open"):
-            session = self._open_session(
-                plan,
-                restored,
-                allow_model_download=allowed_download,
-            )
+            session = self.transcriber.open_session(plan.engine)
         if (
             restored.engine_version is not None
             and session.engine_version != restored.engine_version
@@ -400,27 +438,6 @@ class TranscriptionExecutor:
             )
         with self.observer.span("transcript.assemble"):
             return self.transcript_assembler.assemble(results)
-
-    def _open_session(
-        self,
-        plan: TranscriptionJobPlan,
-        restored: RestoredCheckpoint,
-        *,
-        allow_model_download: bool,
-    ) -> TranscriptionSession:
-        if (
-            plan.engine.auto_language_mode is AutoLanguageMode.JOB_LATCHED
-            and restored.detected_language is not None
-        ):
-            return self.transcriber.open_session(
-                plan.engine,
-                allow_model_download=allow_model_download,
-                detected_language=restored.detected_language,
-            )
-        return self.transcriber.open_session(
-            plan.engine,
-            allow_model_download=allow_model_download,
-        )
 
     def _clear_completed_checkpoints(self, job: Job) -> None:
         try:
@@ -475,6 +492,7 @@ class TranscriptionExecutor:
         plan: TranscriptionJobPlan,
         result: EngineTranscript,
         speaker_result: SpeakerDiarizationResult | None = None,
+        enhancement: EnhancementProvenance | None = None,
     ) -> CanonicalTranscript:
         segments, attribution = self._attribute_languages(result.segments)
         if speaker_result is not None:
@@ -496,9 +514,7 @@ class TranscriptionExecutor:
         )
         language_probability = (
             result.language_probability
-            if plan.engine.auto_language_mode is AutoLanguageMode.JOB_LATCHED
-            and detected_language is not None
-            and detected_language == result.language
+            if detected_language is not None and detected_language == result.language
             else None
         )
         return CanonicalTranscript(
@@ -513,9 +529,9 @@ class TranscriptionExecutor:
             detected_languages=tuple(detected_languages),
             language_attribution=attribution,
             segments=segments,
-            schema_version=3 if speaker_result is not None else 2,
             speaker_turns=() if speaker_result is None else speaker_result.turns,
             diarization=None if speaker_result is None else speaker_result.provenance,
+            enhancement=enhancement,
         )
 
     def _attribute_languages(

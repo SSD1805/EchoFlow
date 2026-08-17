@@ -266,9 +266,7 @@ class TranscriptionExecutor:
             asr_audio = decoded
             if plan.enhancement.enabled:
                 if self.audio_enhancer is None:
-                    raise AudioEnhancementError(
-                        "Audio enhancement is not configured"
-                    )
+                    raise AudioEnhancementError("Audio enhancement is not configured")
                 with self.observer.span("enhancement.apply"):
                     enhanced = self.audio_enhancer.enhance(
                         decoded, plan.enhancement, job.workspace_dir
@@ -309,7 +307,7 @@ class TranscriptionExecutor:
                     plan,
                     engine_result,
                     speaker_result,
-                    enhancement=(None if enhanced is None else enhanced.provenance),
+                    enhancement=None if enhanced is None else enhanced.provenance,
                 )
                 document = json.dumps(
                     transcript.to_dict(),
@@ -451,9 +449,7 @@ class TranscriptionExecutor:
 
     def _admit(self, plan: TranscriptionJobPlan) -> None:
         current_resources = self.runner_inspector.inspect()
-        current_policy = self.policy_planner.plan(
-            current_resources, plan.policy.profile
-        )
+        current_policy = self.policy_planner.plan(current_resources, plan.policy.profile)
         if (
             not plan.resources.fits_memory_budget
             or plan.resources.estimated_peak_memory_bytes

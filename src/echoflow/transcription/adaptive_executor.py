@@ -105,9 +105,7 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
             resources=plan.runner,
             accelerators=self.accelerator_probe.inspect(),
         )
-        capabilities = (
-            self.capability_registry.inspect(plan.engine.engine, topology),
-        )
+        capabilities = (self.capability_registry.inspect(plan.engine.engine, topology),)
         assessment = self.strategy_evaluator.assess(
             StrategyCatalog((strategy,), version=self.strategy_catalog.version),
             memory_budget_bytes=plan.resources.memory_budget_bytes,

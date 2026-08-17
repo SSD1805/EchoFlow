@@ -1,0 +1,45 @@
+name: Diarization Integration Patch
+
+on:
+  push:
+    branches:
+      - agent/anonymous-speaker-diarization
+    paths:
+      - .github/workflows/diarization-integration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: contains(github.event.head_commit.message, 'Run diarization integration')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/anonymous-speaker-diarization
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: '0.11.33'
+      - name: Apply integration patch and resolve lock
+        run: |
+          python scripts/integrate_diarization_feature.py
+          uv lock
+          uv sync --locked --all-groups --extra transcription
+      - name: Format and validate focused feature
+        run: |
+          uv run ruff check --fix src/echoflow/cli.py src/echoflow/app/app_container.py src/echoflow/core/config.py src/echoflow/core/errors.py src/echoflow/transcription
+          uv run ruff format src/echoflow/cli.py src/echoflow/app/app_container.py src/echoflow/core/config.py src/echoflow/core/errors.py src/echoflow/transcription
+          uv run ruff check src/echoflow/cli.py src/echoflow/app/app_container.py src/echoflow/core/config.py src/echoflow/core/errors.py src/echoflow/transcription
+          uv run mypy
+          uv run pytest src/echoflow/transcription/tests src/echoflow/core/tests/test_config.py -q
+      - name: Commit validated integration
+        run: |
+          git config user.name 'EchoFlow automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add pyproject.toml uv.lock src/echoflow
+          git commit -m 'Integrate anonymous speaker diarization'
+          git push origin HEAD:agent/anonymous-speaker-diarization

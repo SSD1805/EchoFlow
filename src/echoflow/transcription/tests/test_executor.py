@@ -17,6 +17,8 @@ from echoflow.runner.models import (
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.audio import DecodedAudio
+from echoflow.transcription.enhancement import ffmpeg_afftdn_configuration
+from echoflow.transcription.enhancement_models import EnhancedAudio, EnhancementProvenance
 from echoflow.transcription.errors import ResourceAdmissionError, TranscriptionError
 from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.models import (
@@ -54,7 +56,13 @@ def resources(*, memory=8 * GIB, cpus=4):
     )
 
 
-def plan(tmp_path, *, decode=DecodeStrategy.DIRECT, fits=True):
+def plan(
+    tmp_path,
+    *,
+    decode=DecodeStrategy.DIRECT,
+    fits=True,
+    enhance=False,
+):
     source = tmp_path / "private participant video.mp4"
     source.write_bytes(b"recording")
     paths = WorkspacePaths(
@@ -123,6 +131,9 @@ def plan(tmp_path, *, decode=DecodeStrategy.DIRECT, fits=True):
             decoder,
             estimate,
             ("paths_are_unreserved",),
+            enhancement=(
+                ffmpeg_afftdn_configuration() if enhance else ffmpeg_afftdn_configuration().__class__()
+            ),
             segmentation=SegmentationConfiguration(segment_duration_seconds=1),
         ),
         paths,
@@ -138,7 +149,16 @@ def local_result(text, *, language="en", probability=0.98):
     )
 
 
-def executor(tmp_path, planned, paths, *, available=None):
+def executor(
+    tmp_path,
+    planned,
+    paths,
+    *,
+    available=None,
+    audio_enhancer=None,
+    speaker_diarizer=None,
+):
+    del tmp_path
     facade = FileManagerFacade(LocalFileManager(), Mock(), PerformanceTracker())
     workspace = WorkspaceService(paths, facade, id_factory=lambda: "unused")
     probe = Mock()
@@ -177,10 +197,12 @@ def executor(tmp_path, planned, paths, *, available=None):
         runner_inspector=inspector,
         policy_planner=RunnerPolicyPlanner(memory_budget_fraction=1),
         audio_decoder=decoder,
+        audio_enhancer=audio_enhancer,
         audio_segmenter=segmenter,
         transcriber=transcriber,
         transcript_assembler=TranscriptAssembler(),
         logger=logger,
+        speaker_diarizer=speaker_diarizer,
     )
     return (
         service,
@@ -211,12 +233,12 @@ def test_execution_segments_audio_once_loaded_and_writes_private_safe_json(tmp_p
     normalized = planned.job.workspace_dir / "normalized.wav"
     decoder.decode.return_value = DecodedAudio(normalized, True)
 
-    result = service.execute(planned, allow_model_download=True)
+    result = service.execute(planned)
 
     assert result.job.workspace_dir.is_dir()
     assert result.artifact.path.is_file()
     document = json.loads(result.artifact.path.read_text())
-    assert document["schema_version"] == 2
+    assert document["schema_version"] == 1
     assert document["job_id"] == "job-1"
     assert document["source"]["sha256"] == "0" * 64
     assert "path" not in document["source"]
@@ -231,8 +253,8 @@ def test_execution_segments_audio_once_loaded_and_writes_private_safe_json(tmp_p
         "cpu_threads": 4,
         "beam_size": 5,
         "requested_language": None,
-        "auto_language_mode": "job_latched_v1",
     }
+    assert document["enhancement"] is None
     assert document["detected_language"] is None
     assert document["language_probability"] is None
     assert document["text"] == "Hello world."
@@ -253,9 +275,7 @@ def test_execution_segments_audio_once_loaded_and_writes_private_safe_json(tmp_p
     segmenter.plan.assert_called_once_with(
         normalized, planned.decoder, planned.segmentation
     )
-    transcriber.open_session.assert_called_once_with(
-        planned.engine, allow_model_download=True
-    )
+    transcriber.open_session.assert_called_once_with(planned.engine)
     assert session.transcribe.call_args_list == [
         call(materialized[0].path),
         call(materialized[1].path),
@@ -271,6 +291,66 @@ def test_execution_segments_audio_once_loaded_and_writes_private_safe_json(tmp_p
     assert str(planned.job.input_path) not in event_payload
     assert result.to_dict()["paths_reserved"] is True
     assert result.to_dict()["dry_run"] is False
+
+
+def test_requested_enhancement_feeds_asr_and_persists_provenance(tmp_path):
+    planned, paths = plan(tmp_path, enhance=True)
+    enhancer = Mock()
+    enhanced_path = planned.job.workspace_dir / "enhanced.wav"
+    provenance = EnhancementProvenance(
+        provider="ffmpeg-afftdn",
+        provider_version="ffmpeg version test",
+        operation="noise_suppression",
+        parameters=(
+            ("noise_floor_db", "-50"),
+            ("noise_reduction_db", "12"),
+        ),
+    )
+    enhanced = EnhancedAudio(enhanced_path, provenance)
+    enhancer.enhance.return_value = enhanced
+    service, _, _, decoder, segmenter, _, _, _, _ = executor(
+        tmp_path,
+        planned,
+        paths,
+        audio_enhancer=enhancer,
+    )
+    canonical = planned.job.workspace_dir / "canonical.wav"
+    decoder.decode.return_value = DecodedAudio(canonical, True)
+
+    result = service.execute(planned)
+
+    enhancer.enhance.assert_called_once_with(
+        DecodedAudio(canonical, True),
+        planned.enhancement,
+        result.job.workspace_dir,
+    )
+    segmenter.plan.assert_called_once_with(
+        enhanced_path.resolve(), planned.decoder, planned.segmentation
+    )
+    enhancer.cleanup.assert_called_once_with(enhanced)
+    assert result.transcript.enhancement == provenance
+    document = json.loads(result.artifact.path.read_text())
+    assert document["enhancement"]["provider"] == "ffmpeg-afftdn"
+    assert document["enhancement"]["provider_version"] == "ffmpeg version test"
+
+
+def test_requested_enhancement_failure_never_falls_back_to_raw_asr(tmp_path):
+    planned, paths = plan(tmp_path, enhance=True)
+    enhancer = Mock()
+    enhancer.enhance.side_effect = TranscriptionError("enhancement failed")
+    service, _, _, _, segmenter, transcriber, *_ = executor(
+        tmp_path,
+        planned,
+        paths,
+        audio_enhancer=enhancer,
+    )
+
+    with pytest.raises(TranscriptionError, match="^enhancement failed$"):
+        service.execute(planned)
+
+    segmenter.plan.assert_not_called()
+    transcriber.open_session.assert_not_called()
+    assert not planned.artifact.path.exists()
 
 
 def test_artifact_collision_is_resolved_at_reservation_not_assumed_from_plan(tmp_path):

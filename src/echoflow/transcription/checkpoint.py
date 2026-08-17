@@ -8,6 +8,10 @@ from typing import cast
 
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.runner.models import ProcessingProfile
+from echoflow.transcription.enhancement_models import (
+    EnhancementConfiguration,
+    EnhancementMode,
+)
 from echoflow.transcription.errors import CheckpointError
 from echoflow.transcription.models import (
     AudioSegmentWindow,
@@ -23,6 +27,7 @@ from echoflow.transcription.models import (
 from echoflow.workspace.models import Job
 
 _CHECKPOINT_SCHEMA_VERSION = 1
+_JOB_PLAN_SCHEMA_VERSION = 1
 _MANIFEST_NAME = "manifest.json"
 _MAX_CHECKPOINT_BYTES = 16 * 1024 * 1024
 
@@ -32,7 +37,6 @@ class RestoredCheckpoint:
     """Validated completed work that can be skipped during resume."""
 
     completed: tuple[tuple[AudioSegmentWindow, EngineTranscript], ...]
-    detected_language: str | None
     engine_version: str | None
 
 
@@ -47,7 +51,7 @@ class ResumeEngineSettings:
     cpu_threads: int
     beam_size: int
     language: str | None
-    model_revision: str | None
+    model_revision: str
 
     def configuration(self, model_cache_path: Path) -> CpuEngineConfiguration:
         return CpuEngineConfiguration(
@@ -65,17 +69,17 @@ class ResumeEngineSettings:
 
 @dataclass(frozen=True, slots=True)
 class ResumeSettings:
-    """Typed immutable execution semantics recovered from a valid manifest."""
+    """Typed immutable execution semantics recovered from the current manifest."""
 
     source: TranscriptSource
     profile: ProcessingProfile
     provisional: bool
     engine: ResumeEngineSettings
     decoder: DecodeConfiguration
+    enhancement: EnhancementConfiguration
     segmentation: SegmentationConfiguration
     model_cache_bytes: int
     estimated_peak_memory_bytes: int
-    job_plan_schema_version: int
 
     def __post_init__(self) -> None:
         if self.provisional != (self.profile is ProcessingProfile.SCREENING):
@@ -84,8 +88,6 @@ class ResumeSettings:
             raise ValueError("checkpoint model_cache_bytes cannot be negative")
         if self.estimated_peak_memory_bytes < 1:
             raise ValueError("checkpoint estimated_peak_memory_bytes must be positive")
-        if self.job_plan_schema_version not in (1, 2):
-            raise ValueError("checkpoint job-plan schema version is unsupported")
 
 
 class LocalCheckpointStore:
@@ -184,15 +186,9 @@ class LocalCheckpointStore:
             raise CheckpointError(
                 "Completed private checkpoints use inconsistent engine versions"
             )
-        engine_version = next(iter(versions), None)
-        detected_language = next(
-            (result.language for _, result in restored if result.language is not None),
-            None,
-        )
         return RestoredCheckpoint(
             completed=tuple(restored),
-            detected_language=detected_language,
-            engine_version=engine_version,
+            engine_version=next(iter(versions), None),
         )
 
     def save_segment(
@@ -249,12 +245,13 @@ class LocalCheckpointStore:
         engine.pop("model_cache_path")
         return {
             "checkpoint_schema_version": _CHECKPOINT_SCHEMA_VERSION,
-            "job_plan_schema_version": plan.schema_version,
+            "job_plan_schema_version": _JOB_PLAN_SCHEMA_VERSION,
             "source": TranscriptSource.from_media(plan.media).to_dict(),
             "profile": plan.policy.profile.value,
             "provisional": plan.policy.provisional,
             "engine": engine,
             "decoder": plan.decoder.to_dict(),
+            "enhancement": plan.enhancement.to_dict(),
             "segmentation": plan.segmentation.to_dict(),
             "resources": {
                 "model_cache_bytes": plan.resources.model_cache_bytes,
@@ -296,12 +293,15 @@ class LocalCheckpointStore:
             raise CheckpointError("Private checkpoint manifest integrity check failed")
         return stored_digest, stored_contract
 
-    @staticmethod
-    def _settings_from_contract(contract: dict[str, object]) -> ResumeSettings:
+    @classmethod
+    def _settings_from_contract(cls, contract: dict[str, object]) -> ResumeSettings:
         try:
+            if int(cast("int", contract["job_plan_schema_version"])) != 1:
+                raise ValueError("unsupported job-plan schema version")
             source = cast("dict[str, object]", contract["source"])
             engine = cast("dict[str, object]", contract["engine"])
             decoder = cast("dict[str, object]", contract["decoder"])
+            enhancement = cast("dict[str, object]", contract["enhancement"])
             segmentation = cast("dict[str, object]", contract["segmentation"])
             resources = cast("dict[str, object]", contract["resources"])
             return ResumeSettings(
@@ -327,11 +327,7 @@ class LocalCheckpointStore:
                         if engine.get("language") is None
                         else str(engine["language"])
                     ),
-                    model_revision=(
-                        None
-                        if engine.get("model_revision") is None
-                        else str(engine["model_revision"])
-                    ),
+                    model_revision=str(engine["model_revision"]),
                 ),
                 decoder=DecodeConfiguration(
                     strategy=DecodeStrategy(str(decoder["strategy"])),
@@ -339,6 +335,7 @@ class LocalCheckpointStore:
                     sample_rate_hz=int(cast("int", decoder["sample_rate_hz"])),
                     channels=int(cast("int", decoder["channels"])),
                 ),
+                enhancement=cls._enhancement_from_dict(enhancement),
                 segmentation=SegmentationConfiguration(
                     segment_duration_seconds=int(
                         cast("int", segmentation["segment_duration_seconds"])
@@ -351,12 +348,29 @@ class LocalCheckpointStore:
                 estimated_peak_memory_bytes=int(
                     cast("int", resources["estimated_peak_memory_bytes"])
                 ),
-                job_plan_schema_version=int(
-                    cast("int", contract["job_plan_schema_version"])
-                ),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise CheckpointError("Private checkpoint contract is malformed") from exc
+
+    @staticmethod
+    def _enhancement_from_dict(raw: dict[str, object]) -> EnhancementConfiguration:
+        raw_parameters = cast("dict[str, object]", raw["parameters"])
+        return EnhancementConfiguration(
+            mode=EnhancementMode(str(raw["mode"])),
+            provider=None if raw.get("provider") is None else str(raw["provider"]),
+            parameters=tuple(
+                (str(key), str(value)) for key, value in raw_parameters.items()
+            ),
+            model_id=(
+                None if raw.get("model_id") is None else str(raw["model_id"])
+            ),
+            model_revision=(
+                None
+                if raw.get("model_revision") is None
+                else str(raw["model_revision"])
+            ),
+            schema_version=int(cast("int", raw["schema_version"])),
+        )
 
     def _restore_segment(
         self,
@@ -430,6 +444,16 @@ class LocalCheckpointStore:
                         None
                         if raw.get("no_speech_probability") is None
                         else float(cast("float", raw["no_speech_probability"]))
+                    ),
+                    detected_language=(
+                        None
+                        if raw.get("detected_language") is None
+                        else str(raw["detected_language"])
+                    ),
+                    language_probability=(
+                        None
+                        if raw.get("language_probability") is None
+                        else float(cast("float", raw["language_probability"]))
                     ),
                 )
                 for raw in raw_segments

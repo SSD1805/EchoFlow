@@ -47,8 +47,10 @@ jobs:
           --format requirements-txt
           --output-file ${{ runner.temp }}/echoflow-runtime-requirements.txt
 
-      - name: Audit runtime dependencies
+      - name: Audit locked runtime dependencies
         run: >-
           uvx --from pip-audit==2.10.1 pip-audit
           --requirement ${{ runner.temp }}/echoflow-runtime-requirements.txt
+          --no-deps
+          --disable-pip
           --progress-spinner off

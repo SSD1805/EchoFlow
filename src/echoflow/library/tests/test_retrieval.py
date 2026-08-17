@@ -164,7 +164,19 @@ def test_lexical_response_uses_same_public_result_contract() -> None:
     assert response.results[0].matched_segment_ids == ("s1",)
     assert response.results[0].lexical_rank == 1
     assert response.results[0].semantic_rank is None
+    assert response.results[0].fused_rank is None
     assert response.results[0].canonical_sha256 == "1" * 64
+
+
+def test_timeline_sorted_lexical_results_do_not_claim_bm25_rank() -> None:
+    lexical = Lexical((_match("s1", 3.0, 1),))
+    response = TranscriptSearch(lexical=lexical).search(
+        SearchQuery("housing", sort=SearchSort.TIMELINE),
+        mode=RetrievalMode.LEXICAL,
+    )
+
+    assert response.results[0].lexical_rank is None
+    assert response.results[0].fused_rank is None
 
 
 def test_rrf_promotes_chunk_supported_by_both_independent_retrievers() -> None:
@@ -234,3 +246,4 @@ def test_semantic_only_response_carries_embedding_provenance() -> None:
     assert response.semantic_backend_id == "semantic"
     assert response.semantic_profile == _profile()
     assert response.results[0].semantic_rank == 1
+    assert response.results[0].fused_rank is None

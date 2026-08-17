@@ -361,9 +361,9 @@ def e5_profile(
             "1",
         )
     )
-    profile_id = "embedding-" + hashlib.sha256(
-        identity_material.encode("utf-8")
-    ).hexdigest()
+    profile_id = (
+        "embedding-" + hashlib.sha256(identity_material.encode("utf-8")).hexdigest()
+    )
     return EmbeddingProfile(
         profile_id=profile_id,
         provider="sentence-transformers",
@@ -472,7 +472,9 @@ class SentenceTransformersE5Provider:
     def _vector(self, row: Any) -> EmbeddingVector:
         values = tuple(float(value) for value in row)
         if len(values) != self.profile.dimensions:
-            raise RuntimeError("embedding runtime returned an unexpected vector dimension")
+            raise RuntimeError(
+                "embedding runtime returned an unexpected vector dimension"
+            )
         if any(not math.isfinite(value) for value in values):
             raise RuntimeError("embedding runtime returned a non-finite vector")
         norm = math.sqrt(sum(value * value for value in values))

@@ -26,7 +26,7 @@ def _profile() -> EmbeddingProfile:
         query_prefix="query: ",
         passage_prefix="passage: ",
         chunking_profile_id="chunks",
-        snapshot_path="/tmp/revision",
+        snapshot_path="/private/revision",
     )
 
 

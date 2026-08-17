@@ -181,14 +181,15 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
             )
 
         remaining = windows[completed_count:]
-        self.observer.record_value("segments.prefetch_depth", 1)
+        prefetch_depth = int(plan.policy.cpu_threads > plan.engine.cpu_threads)
+        self.observer.record_value("segments.prefetch_depth", prefetch_depth)
         job_logger = self.logger.bind(job_id=job.job_id.value)
         with OrderedSegmentPrefetcher(
             materialize=lambda window: self._materialize_segment(
                 plan, decoded.path, window, job
             ),
             cleanup=self._cleanup_segment,
-            prefetch_depth=1,
+            prefetch_depth=prefetch_depth,
         ) as pipeline:
             for materialized in pipeline.iterate(remaining):
                 window = materialized.window
@@ -197,7 +198,7 @@ class AdaptiveTranscriptionExecutor(TranscriptionExecutor):
                     segment_id=window.segment_id,
                     segment_index=window.index,
                     segment_count=len(windows),
-                    prefetched=True,
+                    prefetched=bool(prefetch_depth),
                 )
                 try:
                     with self.observer.span("segment.transcribe"):

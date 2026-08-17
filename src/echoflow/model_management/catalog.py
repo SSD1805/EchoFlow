@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from echoflow.model_management.models import ModelSpec
-from echoflow.transcription.strategy import StrategyCatalog
+from echoflow.transcription.strategy import StrategyCatalog, StrategyDefinition
 
 _FAST_WHISPER_REPOSITORIES = {
     "tiny": "Systran/faster-whisper-tiny",
@@ -29,7 +29,7 @@ class ModelCatalog:
 
 
 def faster_whisper_model_catalog(strategies: StrategyCatalog) -> ModelCatalog:
-    grouped: dict[str, list[object]] = {}
+    grouped: dict[str, list[StrategyDefinition]] = {}
     for strategy in strategies.strategies:
         if strategy.engine != "faster-whisper":
             continue

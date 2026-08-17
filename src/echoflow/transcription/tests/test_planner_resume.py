@@ -46,7 +46,6 @@ def resume_settings(media):
         segmentation=SegmentationConfiguration(segment_duration_seconds=300),
         model_cache_bytes=2_500 * MIB,
         estimated_peak_memory_bytes=4_352 * MIB,
-        job_plan_schema_version=1,
     )
 
 

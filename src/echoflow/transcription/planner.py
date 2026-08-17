@@ -124,6 +124,7 @@ class TranscriptionJobPlanner:
             resources=resources,
             warnings=tuple(warnings),
             segmentation=segmentation,
+            schema_version=2,
         )
 
     def plan_resume(

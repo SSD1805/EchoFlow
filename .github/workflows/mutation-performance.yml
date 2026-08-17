@@ -74,6 +74,7 @@ jobs:
       - name: Mutate adaptive decision primitives
         run: >-
           uv run poodle
+          -w 4
           --only src/echoflow/runner/topology.py
           --only src/echoflow/transcription/capabilities.py
           --only src/echoflow/transcription/strategy.py

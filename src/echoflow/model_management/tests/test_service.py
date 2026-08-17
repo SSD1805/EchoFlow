@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from echoflow.model_management.catalog import ModelCatalog
+from echoflow.model_management.errors import ModelManagementError
 from echoflow.model_management.models import InstalledSnapshot, ModelSpec
 from echoflow.model_management.service import ModelManager
 
@@ -40,6 +41,7 @@ class FakeProvider:
         self.snapshot_path = snapshot_path
         self.installs: list[tuple[str, str | None]] = []
         self.removals: list[str] = []
+        self.fail_remove = False
 
     def install(
         self,
@@ -53,6 +55,7 @@ class FakeProvider:
             resolved_revision="resolved-abc",
             snapshot_path=self.snapshot_path,
             size_bytes=1234,
+            verification="fake_verified_v1",
         )
 
     def remove(
@@ -62,6 +65,8 @@ class FakeProvider:
         cache_root: Path,
     ) -> None:
         assert snapshot.snapshot_path.is_relative_to(cache_root)
+        if self.fail_remove:
+            raise RuntimeError("provider failed")
         self.removals.append(snapshot.resolved_revision)
 
 
@@ -74,6 +79,7 @@ def _catalog() -> ModelCatalog:
                 repository_id="Systran/faster-whisper-small",
                 estimated_cache_bytes=750,
                 quality_rank=2,
+                required_files=("model.bin",),
             ),
         )
     )
@@ -109,19 +115,30 @@ def test_inventory_is_offline_and_reports_uninstalled_model(tmp_path: Path) -> N
     assert manager.registry_root in store.directories
 
 
-def test_install_records_requested_and_resolved_revision(tmp_path: Path) -> None:
+def test_install_records_requested_resolved_and_verification(tmp_path: Path) -> None:
     manager, store, provider = _manager(tmp_path)
 
     manifest = manager.install("small", revision="release-v1")
 
     assert manifest.requested_revision == "release-v1"
     assert manifest.resolved_revision == "resolved-abc"
+    assert manifest.verification == "fake_verified_v1"
     assert manifest.size_bytes == 1234
     assert provider.installs == [("small", "release-v1")]
     document = json.loads(store.files[manager._manifest_path("small")])
     assert document["repository_id"] == "Systran/faster-whisper-small"
     assert document["resolved_revision"] == "resolved-abc"
+    assert document["verification"] == "fake_verified_v1"
     assert manager.is_installed("small") is True
+
+
+def test_install_rejects_empty_revision(tmp_path: Path) -> None:
+    manager, _, provider = _manager(tmp_path)
+
+    with pytest.raises(ValueError, match="revision cannot be empty"):
+        manager.install("small", revision=" ")
+
+    assert provider.installs == []
 
 
 def test_remove_deletes_only_registered_snapshot(tmp_path: Path) -> None:
@@ -134,6 +151,17 @@ def test_remove_deletes_only_registered_snapshot(tmp_path: Path) -> None:
     assert provider.removals == ["resolved-abc"]
     assert manager._manifest_path("small") not in store.files
     assert manager.is_installed("small") is False
+
+
+def test_remove_failure_preserves_manifest(tmp_path: Path) -> None:
+    manager, store, provider = _manager(tmp_path)
+    manager.install("small")
+    provider.fail_remove = True
+
+    with pytest.raises(ModelManagementError, match="removed safely"):
+        manager.remove("small")
+
+    assert manager._manifest_path("small") in store.files
 
 
 def test_remove_refuses_unmanaged_model(tmp_path: Path) -> None:
@@ -149,7 +177,7 @@ def test_install_refuses_snapshot_outside_cache(tmp_path: Path) -> None:
     manager, store, provider = _manager(tmp_path)
     provider.snapshot_path = tmp_path / "escaped" / "resolved-abc"
 
-    with pytest.raises(ValueError, match="escapes"):
+    with pytest.raises(ModelManagementError, match="downloaded and verified"):
         manager.install("small")
 
     assert manager._manifest_path("small") not in store.files
@@ -171,10 +199,11 @@ def test_inventory_refuses_manifest_with_wrong_identity(tmp_path: Path) -> None:
                 manager.cache_root / "snapshots" / "resolved-abc"
             ),
             "size_bytes": 1234,
+            "verification": "fake_verified_v1",
         }
     ).encode()
 
-    with pytest.raises(ValueError, match="registry entry is invalid"):
+    with pytest.raises(ModelManagementError, match="registry is invalid"):
         manager.inventory()
 
 

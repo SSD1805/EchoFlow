@@ -23,6 +23,7 @@ from echoflow.transcription.models import (
     TranscriptSource,
 )
 from echoflow.transcription.strategy import (
+    StrategyAssessment,
     StrategyCatalog,
     StrategyDefinition,
     StrategyEvaluator,
@@ -265,7 +266,7 @@ class TranscriptionJobPlanner:
 
     def _assess(
         self, topology: HardwareTopology, policy: ExecutionPolicy
-    ) -> tuple:
+    ) -> tuple[StrategyAssessment, ...]:
         return self.strategy_evaluator.assess(
             self.strategy_catalog,
             memory_budget_bytes=policy.memory_budget_bytes,

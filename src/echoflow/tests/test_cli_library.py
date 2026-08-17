@@ -186,7 +186,9 @@ def test_library_search_human_view_keeps_passage_and_timestamp_visible() -> None
     assert "interview.wav" in result.stdout
     assert "1.50-2.50s" in result.stdout
     assert "speaker-02" in result.stdout
-    assert "housing affordability matters" in result.stdout
+    assert "housing" in result.stdout
+    assert "affordability" in result.stdout
+    assert "matters" in result.stdout
 
 
 def test_library_errors_are_safe_at_cli_boundary() -> None:

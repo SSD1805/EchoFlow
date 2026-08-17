@@ -11,10 +11,12 @@ from echoflow.workspace.models import JobId
 
 
 def _record(status=JobStatus.COMPLETED):
+    fixture_root = Path.cwd() / "test-fixtures"
+    output = fixture_root / "output"
     return JobLifecycleRecord(
         job_id=JobId("job-1"),
-        input_path=Path("/tmp/interview.wav"),
-        output_dir=Path("/tmp/output"),
+        input_path=fixture_root / "interview.wav",
+        output_dir=output,
         status=status,
         started_at="2026-08-17T00:00:00+00:00",
         updated_at="2026-08-17T00:01:00+00:00",
@@ -22,7 +24,7 @@ def _record(status=JobStatus.COMPLETED):
         process_started_at=None,
         total_segments=4,
         completed_segments=4 if status is JobStatus.COMPLETED else 2,
-        artifact_path=Path("/tmp/output/interview.json")
+        artifact_path=output / "interview.json"
         if status is JobStatus.COMPLETED
         else None,
     )

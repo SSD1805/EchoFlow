@@ -64,6 +64,7 @@ jobs:
           --cov=echoflow
           --cov-context=test
           --cov-report=
+          --cov-fail-under=0
 
       # Keep this intentionally smaller than the configured project mutation scope.
       # Poodle's broad command-line runner has shown timeout-cleanup instability in

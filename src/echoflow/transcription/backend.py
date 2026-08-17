@@ -15,7 +15,7 @@ from echoflow.transcription.models import (
     RecognizedSegment,
 )
 
-_LANGUAGE_DETECTION_WINDOW_SECONDS = 10
+_LANGUAGE_DETECTION_WINDOW_SECONDS = 8
 
 
 class FasterWhisperSession:
@@ -68,6 +68,7 @@ class FasterWhisperSession:
                 chunk_length=(
                     _LANGUAGE_DETECTION_WINDOW_SECONDS if multilingual else None
                 ),
+                condition_on_previous_text=not multilingual,
                 vad_filter=False,
                 log_progress=False,
             )

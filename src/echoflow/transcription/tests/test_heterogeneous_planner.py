@@ -150,9 +150,7 @@ def planner(
 
 
 def test_balanced_laptop_uses_cuda_when_runtime_and_safe_vram_are_available(tmp_path):
-    service, source, paths, topology_inspector = planner(
-        tmp_path, accelerator=cuda()
-    )
+    service, source, paths, topology_inspector = planner(tmp_path, accelerator=cuda())
 
     plan = service.plan(source)
 
@@ -172,9 +170,7 @@ def test_balanced_laptop_uses_cuda_when_runtime_and_safe_vram_are_available(tmp_
 
 
 def test_low_vram_falls_back_to_same_quality_cpu_strategy(tmp_path):
-    service, source, _, _ = planner(
-        tmp_path, accelerator=cuda(available=1 * GIB)
-    )
+    service, source, _, _ = planner(tmp_path, accelerator=cuda(available=1 * GIB))
 
     plan = service.plan(source)
 
@@ -221,9 +217,7 @@ def test_explicit_unavailable_accelerator_strategy_never_silently_downgrades(tmp
 
 
 def test_explicit_accelerator_strategy_fails_when_vram_headroom_is_too_small(tmp_path):
-    service, source, _, _ = planner(
-        tmp_path, accelerator=cuda(available=1 * GIB)
-    )
+    service, source, _, _ = planner(tmp_path, accelerator=cuda(available=1 * GIB))
 
     with pytest.raises(ResourceAdmissionError):
         service.plan(source, strategy_id="small-cuda-float16")
@@ -259,9 +253,7 @@ def test_low_system_memory_can_still_use_a_smaller_accelerated_quality_tier(tmp_
 
 
 def test_strategy_listing_exposes_reasons_and_only_one_recommendation(tmp_path):
-    service, _, _, _ = planner(
-        tmp_path, accelerator=cuda(available=1 * GIB)
-    )
+    service, _, _, _ = planner(tmp_path, accelerator=cuda(available=1 * GIB))
 
     assessments = service.assess_strategies(profile=ProcessingProfile.BALANCED)
 

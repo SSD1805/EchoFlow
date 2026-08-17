@@ -60,6 +60,7 @@ class HuggingFaceModelProvider:
                 local_files_only=False,
             )
         ).resolve(strict=False)
+        self._require_contained(snapshot_path, resolved_cache_root)
         resolved_revision = snapshot_path.name
         if not resolved_revision:
             raise ValueError("model provider returned an unidentified snapshot")

@@ -1,5 +1,7 @@
 import pytest
 
+from echoflow.runner.models import RunnerResources
+from echoflow.runner.topology import HardwareTopology
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.tests.test_heterogeneous_planner import MIB, GIB, cuda, planner
 
@@ -13,6 +15,34 @@ def test_accelerated_plan_budgets_two_materialized_segments(tmp_path):
     # may own the current segment plus one prefetched segment simultaneously.
     assert plan.engine.device == "cuda"
     assert plan.resources.private_workspace_bytes == 16 * MIB + 1_920_000
+
+
+def test_one_cpu_accelerated_plan_disables_prefetch_and_uses_one_segment_budget(
+    tmp_path,
+):
+    service, source, _, topology_inspector = planner(tmp_path, accelerator=cuda())
+    constrained = RunnerResources(
+        platform="TestOS",
+        machine="x86_64",
+        logical_cpus=1,
+        physical_cpus=1,
+        affinity_cpus=1,
+        cpu_quota_cores=None,
+        effective_cpus=1,
+        memory_total_bytes=16 * GIB,
+        memory_available_bytes=16 * GIB,
+        memory_limit_bytes=None,
+        effective_memory_available_bytes=16 * GIB,
+    )
+    topology_inspector.inspect.return_value = HardwareTopology(constrained, (cuda(),))
+
+    plan = service.plan(source)
+
+    assert plan.engine.device == "cuda"
+    assert plan.policy.cpu_threads == 1
+    assert plan.engine.cpu_threads == 1
+    assert plan.resources.private_workspace_bytes == 16 * MIB + 960_000
+    assert "accelerator_prefetch_disabled_cpu_headroom" in plan.warnings
 
 
 def test_cpu_fallback_preserves_single_materialized_segment_budget(tmp_path):

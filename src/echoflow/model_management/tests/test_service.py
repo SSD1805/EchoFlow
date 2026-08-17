@@ -232,9 +232,7 @@ def test_inventory_refuses_manifest_with_wrong_identity(tmp_path: Path) -> None:
             "repository_id": "attacker/wrong-model",
             "requested_revision": None,
             "resolved_revision": "resolved-abc",
-            "snapshot_path": str(
-                manager.cache_root / "snapshots" / "resolved-abc"
-            ),
+            "snapshot_path": str(manager.cache_root / "snapshots" / "resolved-abc"),
             "size_bytes": 1234,
             "verification": "fake_verified_v1",
         }

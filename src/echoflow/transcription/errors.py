@@ -23,3 +23,18 @@ class TranscriptionError(EchoFlowError):
 
 class CheckpointError(TranscriptionError):
     """Private resumability state is missing, corrupt, or incompatible."""
+
+
+class DiarizationDependencyError(EchoFlowError):
+    code = ErrorCode.DIARIZATION_DEPENDENCY
+    exit_code = 2
+
+
+class DiarizationModelUnavailableError(EchoFlowError):
+    code = ErrorCode.DIARIZATION_MODEL_UNAVAILABLE
+    exit_code = 2
+
+
+class DiarizationError(EchoFlowError):
+    code = ErrorCode.DIARIZATION
+    exit_code = 2

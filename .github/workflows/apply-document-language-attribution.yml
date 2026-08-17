@@ -1,0 +1,209 @@
+name: Apply document language attribution
+
+on:
+  push:
+    branches: [agent/multilingual-language-attribution]
+    paths:
+      - .github/workflows/apply-document-language-attribution.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: agent/multilingual-language-attribution
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: false
+
+      - name: Apply projection and validate
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          executor_path = Path("src/echoflow/transcription/executor.py")
+          text = executor_path.read_text(encoding="utf-8")
+
+          old_probability = '''        language_probability = (
+              result.language_probability if detected_language is not None else None
+          )
+          '''
+          new_probability = '''        language_probability = (
+              result.language_probability
+              if plan.engine.auto_language_mode is AutoLanguageMode.JOB_LATCHED
+              and detected_language is not None
+              and detected_language == result.language
+              else None
+          )
+          '''
+          if old_probability not in text:
+              raise RuntimeError("language probability block not found")
+          text = text.replace(old_probability, new_probability, 1)
+
+          start = text.index("    def _attribute_languages(\n")
+          replacement = '''    def _attribute_languages(
+              self, segments: tuple[RecognizedSegment, ...]
+          ) -> tuple[tuple[RecognizedSegment, ...], LanguageAttributionProvenance | None]:
+              if self.language_attributor is None or not segments:
+                  return segments, None
+
+              document_text, bounds = self._language_attribution_document(segments)
+              document_spans = self.language_attributor.attribute(document_text)
+              attributed = tuple(
+                  self._project_language_spans(segment, start, end, document_spans)
+                  for segment, (start, end) in zip(segments, bounds, strict=True)
+              )
+              return attributed, self.language_attributor.provenance
+
+          @staticmethod
+          def _language_attribution_document(
+              segments: tuple[RecognizedSegment, ...],
+          ) -> tuple[str, tuple[tuple[int, int], ...]]:
+              parts: list[str] = []
+              bounds: list[tuple[int, int]] = []
+              cursor = 0
+              for index, segment in enumerate(segments):
+                  if index:
+                      parts.append("\\n")
+                      cursor += 1
+                  start = cursor
+                  parts.append(segment.text)
+                  cursor += len(segment.text)
+                  bounds.append((start, cursor))
+              return "".join(parts), tuple(bounds)
+
+          @staticmethod
+          def _project_language_spans(
+              segment: RecognizedSegment,
+              document_start: int,
+              document_end: int,
+              document_spans: tuple[LanguageSpan, ...],
+          ) -> RecognizedSegment:
+              projected: list[LanguageSpan] = []
+              for span in document_spans:
+                  local = TranscriptionExecutor._project_language_span(
+                      segment,
+                      document_start,
+                      document_end,
+                      span,
+                  )
+                  if local is not None:
+                      projected.append(local)
+              languages = {span.language for span in projected}
+              language = next(iter(languages)) if len(languages) == 1 else None
+              return replace(
+                  segment,
+                  language=language,
+                  language_spans=tuple(projected),
+              )
+
+          @staticmethod
+          def _project_language_span(
+              segment: RecognizedSegment,
+              document_start: int,
+              document_end: int,
+              span: LanguageSpan,
+          ) -> LanguageSpan | None:
+              overlap_start = max(span.start_char, document_start)
+              overlap_end = min(span.end_char, document_end)
+              if overlap_start >= overlap_end:
+                  return None
+
+              start = overlap_start - document_start
+              end = overlap_end - document_start
+              while start < end and segment.text[start].isspace():
+                  start += 1
+              while end > start and segment.text[end - 1].isspace():
+                  end -= 1
+              if start >= end:
+                  return None
+              return LanguageSpan(
+                  start_char=start,
+                  end_char=end,
+                  language=span.language,
+                  confidence=span.confidence,
+              )
+          '''
+          executor_path.write_text(text[:start] + replacement, encoding="utf-8")
+
+          test_path = Path("src/echoflow/transcription/tests/test_multilingual_semantics.py")
+          tests = test_path.read_text(encoding="utf-8")
+          addition = '''
+
+          def test_language_attribution_uses_document_context_and_projects_spans_to_segments():
+              class Attributor:
+                  def __init__(self):
+                      self.calls = []
+
+                  @property
+                  def provenance(self):
+                      return LanguageAttributionProvenance("test-lid", "1", "document")
+
+                  def attribute(self, text):
+                      self.calls.append(text)
+                      return (
+                          LanguageSpan(0, 11, "en"),
+                          LanguageSpan(12, 25, "fr"),
+                      )
+
+              attributor = Attributor()
+              executor = object.__new__(TranscriptionExecutor)
+              executor.language_attributor = attributor
+              original = (
+                  RecognizedSegment(0, 0, 1, "hello there"),
+                  RecognizedSegment(1, 1, 2, "bonjour monde"),
+              )
+
+              attributed, _ = executor._attribute_languages(original)
+
+              assert attributor.calls == ["hello there\\nbonjour monde"]
+              assert attributed[0].language == "en"
+              assert attributed[1].language == "fr"
+              assert attributed[0].language_spans == (LanguageSpan(0, 11, "en"),)
+              assert attributed[1].language_spans == (LanguageSpan(0, 13, "fr"),)
+
+
+          def test_projected_document_span_does_not_include_separator_or_segment_whitespace():
+              segment = RecognizedSegment(0, 0, 1, " hello ")
+
+              projected = TranscriptionExecutor._project_language_span(
+                  segment,
+                  4,
+                  11,
+                  LanguageSpan(0, 12, "en"),
+              )
+
+              assert projected == LanguageSpan(1, 6, "en")
+          '''
+          test_path.write_text(tests.rstrip() + addition, encoding="utf-8")
+          PY
+
+          uv sync --locked --extra transcription
+          uv run ruff check --fix src/echoflow/transcription/executor.py src/echoflow/transcription/tests/test_multilingual_semantics.py
+          uv run ruff format src/echoflow/transcription/executor.py src/echoflow/transcription/tests/test_multilingual_semantics.py
+          uv run pytest \
+            src/echoflow/transcription/tests/test_multilingual_semantics.py \
+            src/echoflow/transcription/tests/test_executor.py \
+            src/echoflow/transcription/tests/test_models.py \
+            src/echoflow/transcription/tests/test_language.py
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/echoflow/transcription/executor.py src/echoflow/transcription/tests/test_multilingual_semantics.py
+          git commit -m "Attribute languages with document context"
+          git push origin HEAD:agent/multilingual-language-attribution

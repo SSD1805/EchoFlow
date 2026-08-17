@@ -8,6 +8,7 @@ _FAST_WHISPER_REPOSITORIES = {
     "small": "Systran/faster-whisper-small",
     "medium": "Systran/faster-whisper-medium",
 }
+_FAST_WHISPER_REQUIRED_FILES = ("model.bin", "config.json", "tokenizer.json")
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +51,7 @@ def faster_whisper_model_catalog(strategies: StrategyCatalog) -> ModelCatalog:
                     strategy.model_cache_bytes for strategy in model_strategies
                 ),
                 quality_rank=max(strategy.quality_rank for strategy in model_strategies),
+                required_files=_FAST_WHISPER_REQUIRED_FILES,
             )
         )
     return ModelCatalog(tuple(specs))

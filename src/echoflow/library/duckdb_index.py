@@ -1,4 +1,3 @@
-# ruff: noqa: S608
 import re
 from collections import Counter
 from pathlib import Path
@@ -16,8 +15,64 @@ from echoflow.library.index import (
 )
 
 _TOKEN_PATTERN = re.compile(r"\w+(?:['’]\w+)*", re.UNICODE)
-_BM25_K1 = 1.2
-_BM25_B = 0.75
+
+_SEARCH_SQL_PREFIX = """
+    WITH query_terms AS (
+        SELECT UNNEST(?::VARCHAR[]) AS term
+    ),
+    corpus AS (
+        SELECT COUNT(*)::DOUBLE AS segment_count,
+               COALESCE(AVG(token_count), 0)::DOUBLE AS average_length
+        FROM segments
+    ),
+    document_frequency AS (
+        SELECT t.term, COUNT(*)::DOUBLE AS frequency
+        FROM terms t
+        JOIN query_terms q USING (term)
+        GROUP BY t.term
+    ),
+    scores AS (
+        SELECT t.document_id, t.segment_id,
+               COUNT(DISTINCT t.term) AS matched_terms,
+               SUM(
+                   ln(1.0 + (
+                       (c.segment_count - df.frequency + 0.5) /
+                       (df.frequency + 0.5)
+                   )) * (
+                       (t.term_frequency * 2.2) /
+                       (t.term_frequency + 1.2 * (
+                           0.25 + 0.75 *
+                           s.token_count / NULLIF(c.average_length, 0)
+                       ))
+                   )
+               ) AS score
+        FROM terms t
+        JOIN query_terms q USING (term)
+        JOIN document_frequency df USING (term)
+        JOIN segments s USING (document_id, segment_id)
+        CROSS JOIN corpus c
+        GROUP BY t.document_id, t.segment_id
+    )
+    SELECT s.document_id, d.source_sha256, d.canonical_path, d.source_path,
+           s.segment_id, s.start_seconds, s.end_seconds, s.text,
+           s.language, s.speaker_ref, scores.score
+    FROM scores
+    JOIN segments s USING (document_id, segment_id)
+    JOIN documents d USING (document_id)
+    WHERE scores.matched_terms >= ?
+      AND (? = FALSE OR strpos(s.normalized_text, ?) > 0)
+      AND (? = FALSE OR list_contains(?::VARCHAR[], s.speaker_ref))
+      AND (? = FALSE OR list_contains(?::VARCHAR[], s.language))
+      AND (? = FALSE OR list_contains(?::VARCHAR[], s.document_id))
+"""
+_RELEVANCE_SEARCH_SQL = (
+    _SEARCH_SQL_PREFIX
+    + "ORDER BY score DESC, s.document_id, s.start_seconds, s.segment_id LIMIT ?"
+)
+_TIMELINE_SEARCH_SQL = (
+    _SEARCH_SQL_PREFIX
+    + "ORDER BY s.document_id, s.start_seconds, s.segment_id LIMIT ?"
+)
 
 
 def lexical_tokens(text: str) -> tuple[str, ...]:
@@ -66,6 +121,7 @@ class DuckDbTranscriptIndex:
                 start_seconds DOUBLE NOT NULL,
                 end_seconds DOUBLE NOT NULL,
                 text VARCHAR NOT NULL,
+                normalized_text VARCHAR NOT NULL,
                 language VARCHAR,
                 speaker_ref VARCHAR,
                 token_count INTEGER NOT NULL,
@@ -121,13 +177,14 @@ class DuckDbTranscriptIndex:
         for segment in transcript.segments:
             tokens = lexical_tokens(segment.text)
             self._connection.execute(
-                "INSERT INTO segments VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO segments VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     transcript.document_id,
                     segment.segment_id,
                     segment.start_seconds,
                     segment.end_seconds,
                     segment.text,
+                    segment.text.casefold(),
                     segment.language,
                     segment.speaker_ref,
                     len(tokens),
@@ -204,84 +261,29 @@ class DuckDbTranscriptIndex:
         tokens = tuple(dict.fromkeys(lexical_tokens(query.text)))
         if not tokens:
             raise ValueError("query text must contain at least one searchable token")
-        values = ", ".join("(?)" for _ in tokens)
-        filters, parameters = self._filters(query)
         required_terms = len(tokens) if query.operator is SearchOperator.ALL else 1
-        order = (
-            "s.document_id, s.start_seconds, s.segment_id"
+        sql = (
+            _TIMELINE_SEARCH_SQL
             if query.sort is SearchSort.TIMELINE
-            else "score DESC, s.document_id, s.start_seconds, s.segment_id"
+            else _RELEVANCE_SEARCH_SQL
         )
-        sql = f"""
-            WITH query_terms(term) AS (VALUES {values}),
-            corpus AS (
-                SELECT COUNT(*)::DOUBLE AS segment_count,
-                       COALESCE(AVG(token_count), 0)::DOUBLE AS average_length
-                FROM segments
-            ),
-            document_frequency AS (
-                SELECT t.term, COUNT(*)::DOUBLE AS frequency
-                FROM terms t
-                JOIN query_terms q USING (term)
-                GROUP BY t.term
-            ),
-            scores AS (
-                SELECT t.document_id, t.segment_id,
-                       COUNT(DISTINCT t.term) AS matched_terms,
-                       SUM(
-                           ln(1.0 + (
-                               (c.segment_count - df.frequency + 0.5) /
-                               (df.frequency + 0.5)
-                           )) * (
-                               (t.term_frequency * ({_BM25_K1} + 1.0)) /
-                               (t.term_frequency + {_BM25_K1} * (
-                                   1.0 - {_BM25_B} + {_BM25_B} *
-                                   s.token_count / NULLIF(c.average_length, 0)
-                               ))
-                           )
-                       ) AS score
-                FROM terms t
-                JOIN query_terms q USING (term)
-                JOIN document_frequency df USING (term)
-                JOIN segments s USING (document_id, segment_id)
-                CROSS JOIN corpus c
-                GROUP BY t.document_id, t.segment_id
-            )
-            SELECT s.document_id, d.source_sha256, d.canonical_path, d.source_path,
-                   s.segment_id, s.start_seconds, s.end_seconds, s.text,
-                   s.language, s.speaker_ref, scores.score
-            FROM scores
-            JOIN segments s USING (document_id, segment_id)
-            JOIN documents d USING (document_id)
-            WHERE scores.matched_terms >= ?{filters}
-            ORDER BY {order}
-            LIMIT ?
-        """
         rows = self._connection.execute(
             sql,
-            [*tokens, required_terms, *parameters, query.limit],
+            [
+                list(tokens),
+                required_terms,
+                query.phrase,
+                query.text.strip().casefold(),
+                bool(query.speaker_refs),
+                list(query.speaker_refs),
+                bool(query.languages),
+                list(query.languages),
+                bool(query.document_ids),
+                list(query.document_ids),
+                query.limit,
+            ],
         ).fetchall()
         return tuple(self._match(row) for row in rows)
-
-    @staticmethod
-    def _filters(query: SearchQuery) -> tuple[str, list[object]]:
-        clauses: list[str] = []
-        parameters: list[object] = []
-        if query.phrase:
-            clauses.append("strpos(lower(s.text), lower(?)) > 0")
-            parameters.append(query.text.strip())
-        for column, values in (
-            ("s.speaker_ref", query.speaker_refs),
-            ("s.language", query.languages),
-            ("s.document_id", query.document_ids),
-        ):
-            if values:
-                placeholders = ", ".join("?" for _ in values)
-                clauses.append(f"{column} IN ({placeholders})")
-                parameters.extend(values)
-        if not clauses:
-            return "", parameters
-        return " AND " + " AND ".join(clauses), parameters
 
     @staticmethod
     def _match(row: tuple[object, ...]) -> TranscriptMatch:

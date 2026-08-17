@@ -7,7 +7,8 @@ one.
 For detailed media/timestamp semantics, see
 [media-and-timeline.md](media-and-timeline.md). For model custody, see
 [model-management.md](model-management.md). For preprocessing, see
-[speech-enhancement.md](speech-enhancement.md).
+[speech-enhancement.md](speech-enhancement.md). For corpus retrieval, see
+[corpus-search.md](corpus-search.md).
 
 ## Current transcription path
 
@@ -196,12 +197,25 @@ erasure.
 
 ## Transcript library boundary
 
-`TranscriptIndex` is a database-neutral application port for derived, rebuildable
-transcript search state. It exposes transcript-library behavior rather than generic SQL.
-A future DuckDB or other embedded adapter may implement it.
+`TranscriptIndex` is the database-neutral application port for derived, rebuildable
+transcript search state. The current `DuckDbTranscriptIndex` adapter stores private
+index state under `STATE_DIR/library/transcripts.duckdb` and implements deterministic
+local BM25-style ranking from ordinary document, segment, and term-statistic tables.
 
-The search database is never canonical custody. Deleting/rebuilding it must not mutate
-canonical transcript JSON or source recordings.
+`SearchQuery` keeps text, phrase mode, ANY/ALL semantics, speaker/language/document
+filters, sort order, and result limits above the storage boundary. User input is passed
+as parameterized values rather than SQL fragments. EchoFlow deliberately does not
+install or load DuckDB's FTS extension for this first tranche, so search does not gain a
+surprise network dependency on a fresh machine.
+
+`TranscriptLibraryService` discovers canonical transcripts, validates a narrow searchable
+projection, performs transactional rebuilds, exposes evidence-bearing matches, and can
+verify whether the bytes currently at a known source path still match the SHA-256
+recorded for transcription.
+
+The search database is never canonical custody. Deleting or rebuilding it must not
+mutate canonical transcript JSON or source recordings, and canonical transcript JSON
+remains the authoritative corpus artifact.
 
 ## Capability ownership
 
@@ -224,7 +238,9 @@ canonical transcript JSON or source recordings.
 | `LinguaLanguageAttributor` | Conservative text-language labels | Acoustic decoding |
 | `SpeakerDiarizer` | Anonymous speaker evidence | Biometric identity |
 | `TranscriptExporter` | TXT/SRT/VTT derived publication | Recognition truth |
-| `TranscriptIndex` | Rebuildable search behavior | Canonical custody |
+| `TranscriptIndex` | Database-neutral rebuildable search contract | Canonical custody |
+| `DuckDbTranscriptIndex` | Private lexical index and BM25 execution | Authoritative transcript state |
+| `TranscriptLibraryService` | Discovery, rebuild, search, and source-integrity receipts | SQL or canonical transcript ownership |
 | `WorkspaceService` | Private/public path allocation | Audio semantics |
 
 Protocols are introduced around real substitutable behavior, not pre-emptively for
@@ -246,8 +262,10 @@ EchoFlow does not currently claim:
 - storage durability across sudden power loss;
 - malicious same-user TOCTOU resistance;
 - secure erasure;
-- a production transcript-library backend; or
+- word-level alignment, semantic/vector retrieval, saved collections, tags/notes, or
+  generated corpus answers; or
 - a polished installer or desktop GUI.
 
-The next product work is representative-device and enhancement qualification, followed
-by evidence-first corpus search and a typed query layer.
+The next product work is dogfooding the current execution and library contracts,
+representative-device and enhancement qualification, corpus retrieval UX, and then
+word/timestamp alignment where real use shows the need for finer evidence coordinates.

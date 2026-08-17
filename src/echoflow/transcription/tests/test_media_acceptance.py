@@ -84,16 +84,14 @@ class _AcceptanceSession:
 
 
 class _AcceptanceTranscriber:
-    def open_session(
-        self,
-        _configuration,
-        *,
-        allow_model_download: bool,
-        detected_language: str | None = None,
-    ) -> _AcceptanceSession:
-        assert allow_model_download is False
-        assert detected_language is None
+    def open_session(self, _configuration) -> _AcceptanceSession:
         return _AcceptanceSession()
+
+
+class _ManagedModelRegistry:
+    def resolved_revision(self, model_id: str) -> str:
+        assert model_id == "tiny"
+        return "revision-1"
 
 
 def _acceptance_config(tmp_path: Path) -> AppConfig:
@@ -181,6 +179,7 @@ def test_real_local_pipeline_publishes_and_cleans_up_with_only_asr_faked(tmp_pat
 
     container = AppContainer()
     container.config.override(_acceptance_config(tmp_path))
+    container.model_manager.override(providers.Object(_ManagedModelRegistry()))
     container.transcriber.override(providers.Factory(_AcceptanceTranscriber))
 
     plan = container.transcription_planner().plan(
@@ -195,6 +194,7 @@ def test_real_local_pipeline_publishes_and_cleans_up_with_only_asr_faked(tmp_pat
     assert canonical["job_id"] == result.job.job_id.value
     assert canonical["text"] == "Synthetic segment."
     assert canonical["engine"]["package_version"] == "acceptance-fake-asr-1"
+    assert canonical["engine"]["model_revision"] == "revision-1"
 
     assert not (result.job.workspace_dir / "normalized.wav").exists()
     assert not tuple(result.job.workspace_dir.glob("audio-*.wav"))

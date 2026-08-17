@@ -71,6 +71,7 @@ def test_materialized_segment_count_must_be_positive(tmp_path):
         TranscriptionJobPlanner._resources(
             plan.media,
             plan.decoder,
+            plan.enhancement,
             plan.segmentation,
             plan.resources.model_cache_bytes,
             plan.resources.estimated_peak_memory_bytes,

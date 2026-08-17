@@ -155,13 +155,6 @@ class FileManagerFacade:
             extensions=extensions,
         )
 
-    def list_directories(self, directory_path: str | Path) -> list[Path]:
-        return self._execute(
-            "list_directories",
-            lambda: self.file_manager.list_directories(directory_path),
-            **path_log_context(self.path_disclosure, path=directory_path),
-        )
-
     def sanitize_filename(self, filename: str) -> str:
         return self._execute(
             "sanitize_filename", lambda: self.file_manager.sanitize_filename(filename)

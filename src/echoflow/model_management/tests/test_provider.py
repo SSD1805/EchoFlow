@@ -20,10 +20,7 @@ def _spec() -> ModelSpec:
 
 def _snapshot(cache_root: Path) -> Path:
     snapshot = (
-        cache_root
-        / "models--Systran--faster-whisper-small"
-        / "snapshots"
-        / "abc123"
+        cache_root / "models--Systran--faster-whisper-small" / "snapshots" / "abc123"
     )
     snapshot.mkdir(parents=True)
     for name in _spec().required_files:

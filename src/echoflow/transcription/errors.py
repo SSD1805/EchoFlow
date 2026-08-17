@@ -21,6 +21,10 @@ class TranscriptionError(EchoFlowError):
     exit_code = 2
 
 
+class AudioEnhancementError(TranscriptionError):
+    """Private preprocessing failed or violated the canonical audio contract."""
+
+
 class CheckpointError(TranscriptionError):
     """Private resumability state is missing, corrupt, or incompatible."""
 

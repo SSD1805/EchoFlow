@@ -36,6 +36,9 @@ class ChunkingProfile:
             raise ValueError("max_words must be greater than or equal to target_words")
 
 
+_DEFAULT_CHUNKING_PROFILE = ChunkingProfile()
+
+
 @dataclass(frozen=True, slots=True)
 class SearchChunk:
     """Rebuildable retrieval window anchored to canonical transcript segments."""
@@ -58,46 +61,58 @@ class SearchChunk:
     speaker_refs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        for name in (
-            "chunk_id",
-            "document_id",
-            "canonical_path",
-            "first_segment_id",
-            "last_segment_id",
-            "chunking_profile_id",
+        _validate_chunk_text_fields(self)
+        for name, digest in (
+            ("source_sha256", self.source_sha256),
+            ("canonical_sha256", self.canonical_sha256),
+            ("content_sha256", self.content_sha256),
         ):
-            if not getattr(self, name).strip():
-                raise ValueError(f"{name} cannot be empty")
-        for name in ("source_sha256", "canonical_sha256", "content_sha256"):
-            digest = getattr(self, name)
-            if len(digest) != 64 or any(
-                character not in "0123456789abcdef" for character in digest
-            ):
-                raise ValueError(f"{name} must be a lowercase 64-character digest")
-        if not self.segment_ids:
-            raise ValueError("search chunk must contain at least one segment")
-        if self.first_segment_id != self.segment_ids[0]:
-            raise ValueError("first_segment_id must match the first segment")
-        if self.last_segment_id != self.segment_ids[-1]:
-            raise ValueError("last_segment_id must match the last segment")
-        if len(set(self.segment_ids)) != len(self.segment_ids):
-            raise ValueError("search chunk segment IDs must be unique")
-        if self.start_seconds < 0 or self.end_seconds < self.start_seconds:
-            raise ValueError("search chunk timestamps must be ordered and non-negative")
-        if not self.text.strip():
-            raise ValueError("search chunk text cannot be empty")
-        for name, values in (
-            ("languages", self.languages),
-            ("speaker_refs", self.speaker_refs),
-        ):
-            if any(not value.strip() for value in values):
-                raise ValueError(f"{name} cannot contain empty values")
-            if tuple(sorted(set(values))) != values:
-                raise ValueError(f"{name} must be sorted and deduplicated")
+            _validate_digest(name, digest)
+        _validate_chunk_segments(self)
+        _validate_sorted_values("languages", self.languages)
+        _validate_sorted_values("speaker_refs", self.speaker_refs)
 
-    def contains(self, key: EvidenceKey) -> bool:
-        document_id, segment_id = key
-        return self.document_id == document_id and segment_id in self.segment_ids
+
+def _validate_chunk_text_fields(chunk: SearchChunk) -> None:
+    for name, value in (
+        ("chunk_id", chunk.chunk_id),
+        ("document_id", chunk.document_id),
+        ("canonical_path", chunk.canonical_path),
+        ("first_segment_id", chunk.first_segment_id),
+        ("last_segment_id", chunk.last_segment_id),
+        ("chunking_profile_id", chunk.chunking_profile_id),
+    ):
+        if not value.strip():
+            raise ValueError(f"{name} cannot be empty")
+    if not chunk.text.strip():
+        raise ValueError("search chunk text cannot be empty")
+
+
+def _validate_digest(name: str, digest: str) -> None:
+    if len(digest) != 64 or any(
+        character not in "0123456789abcdef" for character in digest
+    ):
+        raise ValueError(f"{name} must be a lowercase 64-character digest")
+
+
+def _validate_chunk_segments(chunk: SearchChunk) -> None:
+    if not chunk.segment_ids:
+        raise ValueError("search chunk must contain at least one segment")
+    if chunk.first_segment_id != chunk.segment_ids[0]:
+        raise ValueError("first_segment_id must match the first segment")
+    if chunk.last_segment_id != chunk.segment_ids[-1]:
+        raise ValueError("last_segment_id must match the last segment")
+    if len(set(chunk.segment_ids)) != len(chunk.segment_ids):
+        raise ValueError("search chunk segment IDs must be unique")
+    if chunk.start_seconds < 0 or chunk.end_seconds < chunk.start_seconds:
+        raise ValueError("search chunk timestamps must be ordered and non-negative")
+
+
+def _validate_sorted_values(name: str, values: tuple[str, ...]) -> None:
+    if any(not value.strip() for value in values):
+        raise ValueError(f"{name} cannot contain empty values")
+    if tuple(sorted(set(values))) != values:
+        raise ValueError(f"{name} must be sorted and deduplicated")
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,13 +194,7 @@ class SemanticState:
     chunk_count: int
 
     def __post_init__(self) -> None:
-        if len(self.corpus_fingerprint) != 64 or any(
-            character not in "0123456789abcdef"
-            for character in self.corpus_fingerprint
-        ):
-            raise ValueError(
-                "corpus_fingerprint must be a lowercase 64-character digest"
-            )
+        _validate_digest("corpus_fingerprint", self.corpus_fingerprint)
         if self.chunk_count < 0:
             raise ValueError("chunk_count cannot be negative")
 
@@ -250,7 +259,7 @@ def _canonical_digest(transcript: IndexedTranscript) -> str:
 def build_search_chunks(
     transcripts: tuple[IndexedTranscript, ...],
     *,
-    profile: ChunkingProfile = ChunkingProfile(),
+    profile: ChunkingProfile = _DEFAULT_CHUNKING_PROFILE,
 ) -> tuple[SearchChunk, ...]:
     """Combine adjacent ASR segments into deterministic, evidence-anchored windows."""
     chunks: list[SearchChunk] = []
@@ -405,7 +414,7 @@ class SentenceTransformersE5Provider:
         profile: EmbeddingProfile,
         *,
         module_loader: Callable[[str], Any] = import_module,
-    ) -> "SentenceTransformersE5Provider":
+    ) -> SentenceTransformersE5Provider:
         expected = e5_profile(
             snapshot_path=Path(profile.snapshot_path),
             resolved_revision=profile.resolved_revision,

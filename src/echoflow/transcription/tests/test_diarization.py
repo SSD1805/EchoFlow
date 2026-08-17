@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -16,8 +15,12 @@ from echoflow.transcription.speaker_models import (
 )
 
 
-def _segment(index: int, start: float, end: float, text: str = "hello") -> RecognizedSegment:
-    return RecognizedSegment(index=index, start_seconds=start, end_seconds=end, text=text)
+def _segment(
+    index: int, start: float, end: float, text: str = "hello"
+) -> RecognizedSegment:
+    return RecognizedSegment(
+        index=index, start_seconds=start, end_seconds=end, text=text
+    )
 
 
 def test_request_rejects_conflicting_exact_and_bounded_counts():

@@ -78,7 +78,9 @@ class PyannoteSpeakerDiarizer:
         except DiarizationModelUnavailableError:
             raise
         except Exception as exc:
-            raise DiarizationError("Local speaker diarization failed", cause=exc) from exc
+            raise DiarizationError(
+                "Local speaker diarization failed", cause=exc
+            ) from exc
 
         turns = self._normalize_turns(raw_turns)
         return SpeakerDiarizationResult(
@@ -170,9 +172,7 @@ def project_speaker_refs(
         if segment.speaker_ref is not None:
             raise ValueError("speaker projection refuses to overwrite existing labels")
         speakers = {
-            turn.speaker_ref
-            for turn in turns
-            if _overlap_seconds(segment, turn) > 0
+            turn.speaker_ref for turn in turns if _overlap_seconds(segment, turn) > 0
         }
         speaker_ref = next(iter(speakers)) if len(speakers) == 1 else None
         projected.append(replace(segment, speaker_ref=speaker_ref))

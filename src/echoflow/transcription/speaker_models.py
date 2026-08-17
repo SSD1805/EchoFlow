@@ -1,7 +1,7 @@
 """Domain values for anonymous, recording-scoped speaker diarization."""
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +78,9 @@ class SpeakerDiarizationRequest:
         if self.num_speakers is not None and (
             self.min_speakers is not None or self.max_speakers is not None
         ):
-            raise ValueError("num_speakers cannot be combined with speaker-count bounds")
+            raise ValueError(
+                "num_speakers cannot be combined with speaker-count bounds"
+            )
         if (
             self.min_speakers is not None
             and self.max_speakers is not None

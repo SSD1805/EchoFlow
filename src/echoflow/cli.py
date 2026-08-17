@@ -19,6 +19,7 @@ from echoflow.transcription.models import (
     TranscriptionExecutionResult,
     TranscriptionJobPlan,
 )
+from echoflow.transcription.speaker_models import SpeakerDiarizationRequest
 from echoflow.workspace.models import JobId, WorkspacePaths
 
 app = typer.Typer(
@@ -204,6 +205,7 @@ def _render_transcription_result(
         ("Audio stream", str(transcript.source.audio_stream_index)),
         ("Detected language", transcript.detected_language or "unknown"),
         ("Segments", str(len(transcript.segments))),
+        ("Speakers", str(len({turn.speaker_ref for turn in transcript.speaker_turns}))),
     ]
     rows.extend(
         (f"{artifact.kind.value.upper()} export", str(artifact.path))
@@ -390,6 +392,10 @@ def _validate_resume_options(
     strategy: str | None,
     audio_stream: int | None,
     export_formats: list[TranscriptExportFormat] | None,
+    diarize: bool,
+    speakers: int | None,
+    min_speakers: int | None,
+    max_speakers: int | None,
 ) -> None:
     if dry_run and resume is not None:
         raise typer.BadParameter("--resume cannot be combined with --dry-run")
@@ -402,6 +408,31 @@ def _validate_resume_options(
         )
     if dry_run and export_formats:
         raise typer.BadParameter("--export cannot be combined with --dry-run")
+    if dry_run and diarize:
+        raise typer.BadParameter("--diarize cannot be combined with --dry-run")
+    if not diarize and any(
+        value is not None for value in (speakers, min_speakers, max_speakers)
+    ):
+        raise typer.BadParameter("speaker-count options require --diarize")
+
+
+def _diarization_request(
+    *,
+    enabled: bool,
+    speakers: int | None,
+    min_speakers: int | None,
+    max_speakers: int | None,
+) -> SpeakerDiarizationRequest | None:
+    if not enabled:
+        return None
+    try:
+        return SpeakerDiarizationRequest(
+            num_speakers=speakers,
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
 
 def _plan_transcription(
@@ -457,6 +488,7 @@ def _execute_transcription(
     *,
     allow_model_download: bool,
     resume: bool,
+    diarization_request: SpeakerDiarizationRequest | None,
 ) -> TranscriptionExecutionResult:
     executor = container.transcription_executor()
     if resume:
@@ -464,8 +496,13 @@ def _execute_transcription(
             plan,
             allow_model_download=allow_model_download,
             resume=True,
+            diarization_request=diarization_request,
         )
-    return executor.execute(plan, allow_model_download=allow_model_download)
+    return executor.execute(
+        plan,
+        allow_model_download=allow_model_download,
+        diarization_request=diarization_request,
+    )
 
 
 def _publish_exports(
@@ -552,6 +589,29 @@ def transcribe(
             help="FFmpeg stream index for the audio track to transcribe.",
         ),
     ] = None,
+    diarize: Annotated[
+        bool,
+        typer.Option(
+            "--diarize",
+            help="Add anonymous local speaker turns and conservative speaker labels.",
+        ),
+    ] = False,
+    speakers: Annotated[
+        int | None,
+        typer.Option(
+            "--speakers",
+            min=1,
+            help="Known exact speaker count for diarization.",
+        ),
+    ] = None,
+    min_speakers: Annotated[
+        int | None,
+        typer.Option("--min-speakers", min=1, help="Minimum expected speakers."),
+    ] = None,
+    max_speakers: Annotated[
+        int | None,
+        typer.Option("--max-speakers", min=1, help="Maximum expected speakers."),
+    ] = None,
     resume: Annotated[
         str | None,
         typer.Option(
@@ -581,6 +641,16 @@ def transcribe(
             strategy=strategy,
             audio_stream=audio_stream,
             export_formats=export_formats,
+            diarize=diarize,
+            speakers=speakers,
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
+        )
+        speaker_request = _diarization_request(
+            enabled=diarize,
+            speakers=speakers,
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
         )
         container = _container(context)
         plan = _plan_transcription(
@@ -602,6 +672,7 @@ def transcribe(
                 plan,
                 allow_model_download=allow_model_download,
                 resume=resume is not None,
+                diarization_request=speaker_request,
             )
             exports = _publish_exports(container, result, export_formats)
     except typer.BadParameter:

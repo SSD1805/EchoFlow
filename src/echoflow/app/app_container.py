@@ -22,6 +22,7 @@ from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.audio import FfmpegAudioDecoder
 from echoflow.transcription.backend import FasterWhisperTranscriber
 from echoflow.transcription.checkpoint import LocalCheckpointStore
+from echoflow.transcription.diarization import PyannoteSpeakerDiarizer
 from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.export import TranscriptExporter
 from echoflow.transcription.language import LinguaLanguageAttributor
@@ -79,6 +80,14 @@ def _create_audio_decoder(config: AppConfig) -> FfmpegAudioDecoder:
     return FfmpegAudioDecoder(timeout_seconds=config.FFMPEG_PROCESS_TIMEOUT_SECONDS)
 
 
+def _create_speaker_diarizer(config: AppConfig) -> PyannoteSpeakerDiarizer:
+    return PyannoteSpeakerDiarizer(
+        model_cache_path=config.MODEL_DIR / "pyannote",
+        model_id=config.PYANNOTE_MODEL_ID,
+        model_revision=config.PYANNOTE_MODEL_REVISION,
+    )
+
+
 class AppContainer(containers.DeclarativeContainer):
     """
     Dependency Injection container for managing application services.
@@ -129,6 +138,7 @@ class AppContainer(containers.DeclarativeContainer):
     transcriber = providers.Factory(FasterWhisperTranscriber)
     transcript_assembler = providers.Factory(TranscriptAssembler)
     language_attributor = providers.Singleton(LinguaLanguageAttributor)
+    speaker_diarizer = providers.Factory(_create_speaker_diarizer, config=config)
     transcription_executor = providers.Factory(
         TranscriptionExecutor,
         media_probe=media_probe,
@@ -143,6 +153,7 @@ class AppContainer(containers.DeclarativeContainer):
         checkpoint_store=checkpoint_store,
         storage_admission=storage_admission,
         language_attributor=language_attributor,
+        speaker_diarizer=speaker_diarizer,
         logger=logger,
     )
     transcript_exporter = providers.Factory(

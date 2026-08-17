@@ -5,6 +5,10 @@ from pathlib import Path
 
 from echoflow.media.models import MediaInfo
 from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
+from echoflow.transcription.speaker_models import (
+    DiarizationProvenance,
+    SpeakerTurn,
+)
 from echoflow.workspace.models import Artifact, Job
 
 
@@ -555,9 +559,12 @@ class CanonicalTranscript:
     schema_version: int = 2
     detected_languages: tuple[str, ...] = ()
     language_attribution: LanguageAttributionProvenance | None = None
+    speaker_turns: tuple[SpeakerTurn, ...] = ()
+    diarization: DiarizationProvenance | None = None
 
     def __post_init__(self) -> None:
         self._validate_core_contract()
+        self._validate_diarization_contract()
         derived_languages = self._derived_languages()
         if not self.detected_languages:
             object.__setattr__(self, "detected_languages", derived_languages)
@@ -568,7 +575,7 @@ class CanonicalTranscript:
         self._validate_language_summary()
 
     def _validate_core_contract(self) -> None:
-        if self.schema_version != 2:
+        if self.schema_version not in {2, 3}:
             raise ValueError("unsupported transcript schema version")
         if not self.job_id:
             raise ValueError("job_id cannot be empty")
@@ -578,6 +585,28 @@ class CanonicalTranscript:
             range(len(self.segments))
         ):
             raise ValueError("segment indices must be contiguous and zero-based")
+
+    def _validate_diarization_contract(self) -> None:
+        if self.schema_version == 2:
+            if self.diarization is not None or self.speaker_turns:
+                raise ValueError(
+                    "speaker diarization requires transcript schema version 3"
+                )
+            return
+        if self.diarization is None:
+            raise ValueError("schema version 3 requires diarization provenance")
+        if any(
+            turn.end_seconds > self.source.duration_seconds + 1e-6
+            for turn in self.speaker_turns
+        ):
+            raise ValueError("speaker turn exceeds source duration")
+        known_speakers = {turn.speaker_ref for turn in self.speaker_turns}
+        for segment in self.segments:
+            if (
+                segment.speaker_ref is not None
+                and segment.speaker_ref not in known_speakers
+            ):
+                raise ValueError("segment speaker_ref must come from diarization turns")
 
     def _derived_languages(self) -> tuple[str, ...]:
         languages: list[str] = []
@@ -623,7 +652,7 @@ class CanonicalTranscript:
         return " ".join(segment.text.strip() for segment in self.segments)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        document: dict[str, object] = {
             "schema_version": self.schema_version,
             "job_id": self.job_id,
             "source": self.source.to_dict(),
@@ -642,6 +671,12 @@ class CanonicalTranscript:
             "text": self.text,
             "segments": [segment.to_dict() for segment in self.segments],
         }
+        if self.schema_version == 3:
+            document["diarization"] = (
+                self.diarization.to_dict() if self.diarization else None
+            )
+            document["speaker_turns"] = [turn.to_dict() for turn in self.speaker_turns]
+        return document
 
 
 @dataclass(frozen=True, slots=True)

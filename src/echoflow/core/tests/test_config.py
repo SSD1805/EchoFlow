@@ -259,4 +259,8 @@ def test_configuration_field_descriptions_are_stable_public_schema():
         "FASTER_WHISPER_MODEL_REVISION": (
             "Optional immutable model revision requested from the model hub"
         ),
+        "PYANNOTE_MODEL_ID": (
+            "Optional local speaker-diarization model identifier"
+        ),
+        "PYANNOTE_MODEL_REVISION": "Optional immutable pyannote model revision",
     }

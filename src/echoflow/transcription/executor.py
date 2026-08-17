@@ -13,7 +13,12 @@ from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.audio import DecodedAudio
 from echoflow.transcription.checkpoint import RestoredCheckpoint
-from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
+from echoflow.transcription.diarization import project_speaker_refs
+from echoflow.transcription.errors import (
+    CheckpointError,
+    DiarizationDependencyError,
+    ResourceAdmissionError,
+)
 from echoflow.transcription.models import (
     AudioSegmentWindow,
     AutoLanguageMode,
@@ -31,6 +36,10 @@ from echoflow.transcription.models import (
     TranscriptSource,
 )
 from echoflow.transcription.segmentation import MaterializedAudioSegment
+from echoflow.transcription.speaker_models import (
+    SpeakerDiarizationRequest,
+    SpeakerDiarizationResult,
+)
 from echoflow.transcription.storage import StorageAdmissionPolicy, StorageAllocation
 from echoflow.workspace.models import Artifact, ArtifactKind, Job
 from echoflow.workspace.service import WorkspaceService
@@ -127,6 +136,16 @@ class TranscriptLanguageAttributor(Protocol):
     def attribute(self, text: str) -> tuple[LanguageSpan, ...]: ...
 
 
+class SpeakerDiarizer(Protocol):
+    def diarize(
+        self,
+        audio_path: Path,
+        *,
+        allow_model_download: bool,
+        request: SpeakerDiarizationRequest | None = None,
+    ) -> SpeakerDiarizationResult: ...
+
+
 class _NoCheckpointStore:
     def initialize(
         self,
@@ -178,6 +197,7 @@ class TranscriptionExecutor:
         checkpoint_store: SegmentCheckpointStore | None = None,
         storage_admission: StorageAdmissionPolicy | None = None,
         language_attributor: TranscriptLanguageAttributor | None = None,
+        speaker_diarizer: SpeakerDiarizer | None = None,
         observer: ExecutionObserver | None = None,
     ):
         self.media_probe = media_probe
@@ -193,6 +213,7 @@ class TranscriptionExecutor:
         self.checkpoint_store = checkpoint_store or _NoCheckpointStore()
         self.storage_admission = storage_admission
         self.language_attributor = language_attributor
+        self.speaker_diarizer = speaker_diarizer
         self.observer = observer or NoOpExecutionObserver()
 
     def execute(
@@ -201,6 +222,7 @@ class TranscriptionExecutor:
         *,
         allow_model_download: bool = False,
         resume: bool = False,
+        diarization_request: SpeakerDiarizationRequest | None = None,
     ) -> TranscriptionExecutionResult:
         with self.observer.span("admission.initial"):
             self._admit(plan)
@@ -244,8 +266,20 @@ class TranscriptionExecutor:
                 restored,
                 allow_model_download=allow_model_download,
             )
+            speaker_result: SpeakerDiarizationResult | None = None
+            if diarization_request is not None:
+                if self.speaker_diarizer is None:
+                    raise DiarizationDependencyError(
+                        "Speaker diarization is not configured"
+                    )
+                with self.observer.span("speaker.diarize"):
+                    speaker_result = self.speaker_diarizer.diarize(
+                        decoded.path,
+                        allow_model_download=allow_model_download,
+                        request=diarization_request,
+                    )
             with self.observer.span("transcript.canonicalize"):
-                transcript = self._transcript(plan, engine_result)
+                transcript = self._transcript(plan, engine_result, speaker_result)
                 document = json.dumps(
                     transcript.to_dict(),
                     ensure_ascii=False,
@@ -437,9 +471,14 @@ class TranscriptionExecutor:
             self.file_manager.delete_file(artifact.path)
 
     def _transcript(
-        self, plan: TranscriptionJobPlan, result: EngineTranscript
+        self,
+        plan: TranscriptionJobPlan,
+        result: EngineTranscript,
+        speaker_result: SpeakerDiarizationResult | None = None,
     ) -> CanonicalTranscript:
         segments, attribution = self._attribute_languages(result.segments)
+        if speaker_result is not None:
+            segments = project_speaker_refs(segments, speaker_result.turns)
         detected_languages: list[str] = []
         for segment in segments:
             for span in segment.language_spans:
@@ -474,6 +513,9 @@ class TranscriptionExecutor:
             detected_languages=tuple(detected_languages),
             language_attribution=attribution,
             segments=segments,
+            schema_version=3 if speaker_result is not None else 2,
+            speaker_turns=() if speaker_result is None else speaker_result.turns,
+            diarization=None if speaker_result is None else speaker_result.provenance,
         )
 
     def _attribute_languages(

@@ -58,11 +58,7 @@ def test_schema_three_serializes_exact_speaker_turn_evidence(tmp_path):
         engine=_engine(),
         detected_language="en",
         language_probability=None,
-        segments=(
-            RecognizedSegment(
-                0, 0.0, 2.0, "hello", speaker_ref="speaker-01"
-            ),
-        ),
+        segments=(RecognizedSegment(0, 0.0, 2.0, "hello", speaker_ref="speaker-01"),),
         schema_version=3,
         speaker_turns=(SpeakerTurn(0.0, 2.0, "speaker-01"),),
         diarization=_provenance(),

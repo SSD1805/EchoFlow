@@ -119,6 +119,16 @@ class AppConfig(BaseSettings):
         min_length=1,
         description="Optional immutable model revision requested from the model hub",
     )
+    PYANNOTE_MODEL_ID: str = Field(
+        default="pyannote/speaker-diarization-community-1",
+        min_length=1,
+        description="Optional local speaker-diarization model identifier",
+    )
+    PYANNOTE_MODEL_REVISION: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Optional immutable pyannote model revision",
+    )
 
     @field_validator("LOG_LEVEL")
     def validate_log_level(cls, value: str) -> str:

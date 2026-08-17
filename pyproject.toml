@@ -23,6 +23,9 @@ transcription = [
     "faster-whisper>=1.2.1,<2",
     "lingua-language-detector>=2,<3",
 ]
+diarization = [
+    "pyannote-audio>=4,<5",
+]
 
 [dependency-groups]
 dev = [
@@ -126,6 +129,8 @@ only_files = [
     "src/echoflow/transcription/executor.py",
     "src/echoflow/transcription/export.py",
     "src/echoflow/transcription/language.py",
+    "src/echoflow/transcription/diarization.py",
+    "src/echoflow/transcription/speaker_models.py",
     "src/echoflow/transcription/planner.py",
     "src/echoflow/transcription/segmentation.py",
     "src/echoflow/transcription/strategy.py",

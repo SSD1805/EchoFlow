@@ -37,22 +37,16 @@ def _transcript() -> CanonicalTranscript:
         detected_language="en",
         language_probability=None,
         segments=(
-            RecognizedSegment(
-                0, 0.0, 1.0, "Hello", speaker_ref="speaker-01"
-            ),
+            RecognizedSegment(0, 0.0, 1.0, "Hello", speaker_ref="speaker-01"),
             RecognizedSegment(1, 1.0, 2.0, "handoff"),
-            RecognizedSegment(
-                2, 2.0, 3.0, "Hi there", speaker_ref="speaker-02"
-            ),
+            RecognizedSegment(2, 2.0, 3.0, "Hi there", speaker_ref="speaker-02"),
         ),
     )
 
 
 def test_diarized_text_export_labels_only_unambiguous_segments():
     assert render_text(_transcript()).decode() == (
-        "[speaker-01] Hello\n"
-        "handoff\n"
-        "[speaker-02] Hi there\n"
+        "[speaker-01] Hello\nhandoff\n[speaker-02] Hi there\n"
     )
 
 

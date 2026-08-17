@@ -1,0 +1,81 @@
+name: Adaptive Execution Mutation
+
+on:
+  pull_request:
+    paths:
+      - "src/echoflow/runner/topology.py"
+      - "src/echoflow/transcription/capabilities.py"
+      - "src/echoflow/transcription/strategy.py"
+      - "src/echoflow/transcription/pipeline.py"
+      - "src/echoflow/transcription/adaptive_executor.py"
+      - "src/echoflow/transcription/planner.py"
+      - "src/echoflow/**/tests/test_*topology*.py"
+      - "src/echoflow/**/tests/test_*capabilities*.py"
+      - "src/echoflow/**/tests/test_*heterogeneous*.py"
+      - "src/echoflow/**/tests/test_pipeline.py"
+      - "src/echoflow/**/tests/test_adaptive_executor.py"
+      - ".github/workflows/mutation-performance.yml"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adaptive-mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutation:
+    name: Targeted Poodle mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: true
+
+      - name: Install locked development dependencies
+        run: uv sync --locked --all-groups --extra transcription
+
+      - name: Install native media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+
+      - name: Establish mutation baseline
+        run: >-
+          uv run pytest
+          src/echoflow/runner/tests/test_topology.py
+          src/echoflow/transcription/tests/test_capabilities.py
+          src/echoflow/transcription/tests/test_heterogeneous_strategy.py
+          src/echoflow/transcription/tests/test_pipeline.py
+          --cov=echoflow
+          --cov-context=test
+          --cov-report=
+
+      # Keep this intentionally smaller than the configured project mutation scope.
+      # Poodle's broad command-line runner has shown timeout-cleanup instability in
+      # EchoFlow; these four modules contain the new load-bearing decisions and
+      # ownership boundaries. Planner/executor remain in pyproject.toml for deliberate
+      # local follow-up runs without making routine PR qualification hostage to that bug.
+      - name: Mutate adaptive decision primitives
+        run: >-
+          uv run poodle
+          --only src/echoflow/runner/topology.py
+          --only src/echoflow/transcription/capabilities.py
+          --only src/echoflow/transcription/strategy.py
+          --only src/echoflow/transcription/pipeline.py
+          --report summary
+          --report not_found

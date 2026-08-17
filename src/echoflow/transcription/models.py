@@ -5,6 +5,10 @@ from pathlib import Path
 
 from echoflow.media.models import MediaInfo
 from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
+from echoflow.transcription.enhancement_models import (
+    EnhancementConfiguration,
+    EnhancementProvenance,
+)
 from echoflow.transcription.speaker_models import (
     DiarizationProvenance,
     SpeakerTurn,
@@ -233,6 +237,9 @@ class TranscriptionJobPlan:
     decoder: DecodeConfiguration
     resources: ResourceEstimate
     warnings: tuple[str, ...]
+    enhancement: EnhancementConfiguration = field(
+        default_factory=EnhancementConfiguration
+    )
     segmentation: SegmentationConfiguration = field(
         default_factory=SegmentationConfiguration
     )
@@ -240,7 +247,7 @@ class TranscriptionJobPlan:
     paths_reserved: bool = False
 
     def __post_init__(self) -> None:
-        if self.schema_version not in (1, 2):
+        if self.schema_version not in (1, 2, 3):
             raise ValueError("unsupported job-plan schema version")
         if self.paths_reserved:
             raise ValueError("a dry-run plan cannot claim reserved paths")
@@ -258,16 +265,20 @@ class TranscriptionJobPlan:
                 "job-plan schema version 1 requires legacy language latching"
             )
         if (
-            self.schema_version == 2
+            self.schema_version in (2, 3)
             and self.engine.auto_language_mode
             is not AutoLanguageMode.NATIVE_MULTILINGUAL
         ):
             raise ValueError(
-                "job-plan schema version 2 requires per-segment language detection"
+                "job-plan schema version 2+ requires per-segment language detection"
             )
+        if self.schema_version < 3 and self.enhancement.enabled:
+            raise ValueError("audio enhancement requires job-plan schema version 3")
+        if self.schema_version == 3 and not self.enhancement.enabled:
+            raise ValueError("job-plan schema version 3 requires audio enhancement")
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        document: dict[str, object] = {
             "schema_version": self.schema_version,
             "dry_run": True,
             "paths_reserved": self.paths_reserved,
@@ -282,6 +293,9 @@ class TranscriptionJobPlan:
             "resources": self.resources.to_dict(),
             "warnings": list(self.warnings),
         }
+        if self.schema_version == 3:
+            document["enhancement"] = self.enhancement.to_dict()
+        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -561,10 +575,12 @@ class CanonicalTranscript:
     language_attribution: LanguageAttributionProvenance | None = None
     speaker_turns: tuple[SpeakerTurn, ...] = ()
     diarization: DiarizationProvenance | None = None
+    enhancement: EnhancementProvenance | None = None
 
     def __post_init__(self) -> None:
         self._validate_core_contract()
         self._validate_diarization_contract()
+        self._validate_enhancement_contract()
         derived_languages = self._derived_languages()
         if not self.detected_languages:
             object.__setattr__(self, "detected_languages", derived_languages)
@@ -575,7 +591,7 @@ class CanonicalTranscript:
         self._validate_language_summary()
 
     def _validate_core_contract(self) -> None:
-        if self.schema_version not in {2, 3}:
+        if self.schema_version not in {2, 3, 4}:
             raise ValueError("unsupported transcript schema version")
         if not self.job_id:
             raise ValueError("job_id cannot be empty")
@@ -590,11 +606,17 @@ class CanonicalTranscript:
         if self.schema_version == 2:
             if self.diarization is not None or self.speaker_turns:
                 raise ValueError(
-                    "speaker diarization requires transcript schema version 3"
+                    "speaker diarization requires transcript schema version 3+"
                 )
             return
-        if self.diarization is None:
+        if self.schema_version == 3 and self.diarization is None:
             raise ValueError("schema version 3 requires diarization provenance")
+        if self.diarization is None:
+            if self.speaker_turns or any(
+                segment.speaker_ref is not None for segment in self.segments
+            ):
+                raise ValueError("speaker evidence requires diarization provenance")
+            return
         if any(
             turn.end_seconds > self.source.duration_seconds + 1e-6
             for turn in self.speaker_turns
@@ -607,6 +629,12 @@ class CanonicalTranscript:
                 and segment.speaker_ref not in known_speakers
             ):
                 raise ValueError("segment speaker_ref must come from diarization turns")
+
+    def _validate_enhancement_contract(self) -> None:
+        if self.schema_version < 4 and self.enhancement is not None:
+            raise ValueError("enhancement provenance requires transcript schema version 4")
+        if self.schema_version == 4 and self.enhancement is None:
+            raise ValueError("transcript schema version 4 requires enhancement provenance")
 
     def _derived_languages(self) -> tuple[str, ...]:
         languages: list[str] = []
@@ -671,11 +699,15 @@ class CanonicalTranscript:
             "text": self.text,
             "segments": [segment.to_dict() for segment in self.segments],
         }
-        if self.schema_version == 3:
+        if self.schema_version in (3, 4):
             document["diarization"] = (
                 self.diarization.to_dict() if self.diarization else None
             )
             document["speaker_turns"] = [turn.to_dict() for turn in self.speaker_turns]
+        if self.schema_version == 4:
+            document["enhancement"] = (
+                self.enhancement.to_dict() if self.enhancement else None
+            )
         return document
 
 

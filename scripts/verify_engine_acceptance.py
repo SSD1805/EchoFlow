@@ -21,6 +21,7 @@ _FRENCH_PHRASE = (
 _ENGLISH_WORDS = frozenset({"quick", "brown", "fox", "lazy", "dog"})
 _FRENCH_WORDS = frozenset({"bonjour", "musique", "française", "français", "merci"})
 _MIN_EXPECTED_WORDS = 4
+_MIN_ENHANCED_WORDS = 3
 _MIN_MIXED_WORDS = 2
 _TIMESTAMP_TOLERANCE_SECONDS = 0.5
 
@@ -349,10 +350,11 @@ def _validate_english(
     expected_revision: str,
     expected_decode_strategy: str,
     expect_enhancement: bool = False,
+    minimum_expected_words: int = _MIN_EXPECTED_WORDS,
 ) -> set[str]:
     document, raw_document = _load_canonical(output_dir)
     recognized = _words(str(document.get("text", ""))) & _ENGLISH_WORDS
-    if len(recognized) < _MIN_EXPECTED_WORDS:
+    if len(recognized) < minimum_expected_words:
         raise RuntimeError(
             f"known speech recognition too weak: matched {sorted(recognized)}"
         )
@@ -458,6 +460,7 @@ def verify_engine() -> None:
             expected_revision=revision,
             expected_decode_strategy="direct",
             expect_enhancement=True,
+            minimum_expected_words=_MIN_ENHANCED_WORDS,
         )
 
         if not model_dir.is_dir() or not any(model_dir.iterdir()):

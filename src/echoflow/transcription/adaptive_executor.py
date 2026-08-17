@@ -20,8 +20,8 @@ from echoflow.transcription.executor import (
     SegmentTranscriptAssembler,
     SessionTranscriber,
     SpeakerDiarizer,
-    TranscriptLanguageAttributor,
     TranscriptionExecutor,
+    TranscriptLanguageAttributor,
 )
 from echoflow.transcription.models import (
     AudioSegmentWindow,

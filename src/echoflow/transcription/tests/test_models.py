@@ -520,7 +520,7 @@ def test_screening_canonical_transcript_must_remain_provisional(tmp_path):
     ("overrides", "message"),
     [
         ({"job_id": ""}, "job_id cannot be empty"),
-        ({"schema_version": 3}, "unsupported transcript schema version"),
+        ({"schema_version": 4}, "unsupported transcript schema version"),
         ({"detected_language": " "}, "detected_language cannot be empty"),
         (
             {"language_probability": -0.1},

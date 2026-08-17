@@ -62,8 +62,19 @@ def _cue_text(segment: RecognizedSegment) -> str:
     return " ".join(lines)
 
 
+def _speaker_cue_text(segment: RecognizedSegment) -> str:
+    text = _cue_text(segment)
+    if segment.speaker_ref is None:
+        return text
+    return f"[{segment.speaker_ref}] {text}"
+
+
 def render_text(transcript: CanonicalTranscript) -> bytes:
-    return f"{transcript.text}\n".encode()
+    if not any(segment.speaker_ref is not None for segment in transcript.segments):
+        return f"{transcript.text}\n".encode()
+    return (
+        "\n".join(_speaker_cue_text(segment) for segment in transcript.segments) + "\n"
+    ).encode()
 
 
 def render_subrip(transcript: CanonicalTranscript) -> bytes:
@@ -71,7 +82,7 @@ def render_subrip(transcript: CanonicalTranscript) -> bytes:
     for cue_number, segment in enumerate(transcript.segments, start=1):
         start = _timestamp(segment.start_seconds, separator=",", end=False)
         end = _timestamp(segment.end_seconds, separator=",", end=True)
-        blocks.append(f"{cue_number}\n{start} --> {end}\n{_cue_text(segment)}")
+        blocks.append(f"{cue_number}\n{start} --> {end}\n{_speaker_cue_text(segment)}")
     document = "\n\n".join(blocks)
     return (f"{document}\n\n" if document else "").encode()
 
@@ -81,7 +92,9 @@ def render_webvtt(transcript: CanonicalTranscript) -> bytes:
     for segment in transcript.segments:
         start = _timestamp(segment.start_seconds, separator=".", end=False)
         end = _timestamp(segment.end_seconds, separator=".", end=True)
-        blocks.append(f"{segment.segment_id}\n{start} --> {end}\n{_cue_text(segment)}")
+        blocks.append(
+            f"{segment.segment_id}\n{start} --> {end}\n{_speaker_cue_text(segment)}"
+        )
     body = "\n\n".join(blocks)
     return ("WEBVTT\n\n" + (f"{body}\n\n" if body else "")).encode()
 

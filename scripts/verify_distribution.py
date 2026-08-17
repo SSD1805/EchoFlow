@@ -63,12 +63,21 @@ def _inspect_wheel(wheel: Path) -> None:
         requirements = tuple(metadata.get_all("Requires-Dist", []))
         if "transcription" not in extras:
             raise RuntimeError("built wheel does not expose the transcription extra")
+        if "diarization" not in extras:
+            raise RuntimeError("built wheel does not expose the diarization extra")
         if not any(
             requirement.startswith("faster-whisper") and "transcription" in requirement
             for requirement in requirements
         ):
             raise RuntimeError(
                 "built wheel does not bind faster-whisper to the transcription extra"
+            )
+        if not any(
+            requirement.startswith("pyannote-audio") and "diarization" in requirement
+            for requirement in requirements
+        ):
+            raise RuntimeError(
+                "built wheel does not bind pyannote-audio to the diarization extra"
             )
 
         entry_points = archive.read(entry_point_names[0]).decode("utf-8")
@@ -148,6 +157,19 @@ def _verify_clean_install(wheel: Path) -> None:
                     "from importlib.metadata import version; "
                     "print(version('echoflow')); "
                     "print(faster_whisper.__version__)"
+                ),
+            ],
+            cwd=work_dir,
+            env=env,
+        )
+        _run(
+            [
+                str(python),
+                "-c",
+                (
+                    "from importlib.util import find_spec; "
+                    "assert find_spec('pyannote') is None; "
+                    "assert find_spec('torch') is None"
                 ),
             ],
             cwd=work_dir,

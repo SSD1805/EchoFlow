@@ -16,6 +16,9 @@ from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.media.selection import AudioStreamSelector
+from echoflow.model_management.catalog import faster_whisper_model_catalog
+from echoflow.model_management.provider import HuggingFaceModelProvider
+from echoflow.model_management.service import ModelManager
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.runner.topology import (
@@ -125,6 +128,17 @@ class AppContainer(containers.DeclarativeContainer):
     )
     engine_capability_registry = providers.Singleton(_create_capability_registry)
     strategy_catalog = providers.Singleton(faster_whisper_catalog)
+    model_catalog = providers.Singleton(
+        faster_whisper_model_catalog, strategies=strategy_catalog
+    )
+    model_provider = providers.Singleton(HuggingFaceModelProvider)
+    model_manager = providers.Singleton(
+        ModelManager,
+        catalog=model_catalog,
+        provider=model_provider,
+        file_store=file_manager,
+        model_root=config.provided.MODEL_DIR,
+    )
     strategy_evaluator = providers.Singleton(StrategyEvaluator)
     runner_policy_planner = providers.Singleton(
         _create_runner_policy_planner, config=config

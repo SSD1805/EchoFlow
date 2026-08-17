@@ -1,21 +1,8 @@
 name: Adaptive Execution Mutation
 
+# Mutation testing is deliberately a qualification tool, not a routine PR gate.
+# Run it manually for decision-heavy, recovery, security, or release-sensitive changes.
 on:
-  pull_request:
-    paths:
-      - "src/echoflow/runner/topology.py"
-      - "src/echoflow/transcription/capabilities.py"
-      - "src/echoflow/transcription/strategy.py"
-      - "src/echoflow/transcription/pipeline.py"
-      - "src/echoflow/transcription/adaptive_executor.py"
-      - "src/echoflow/transcription/planner.py"
-      - "src/echoflow/**/tests/test_*topology*.py"
-      - "src/echoflow/**/tests/test_*capabilities*.py"
-      - "src/echoflow/**/tests/test_*heterogeneous*.py"
-      - "src/echoflow/**/tests/test_pipeline.py"
-      - "src/echoflow/**/tests/test_adaptive_executor.py"
-      - ".github/workflows/mutation-performance.yml"
-      - "pyproject.toml"
   workflow_dispatch:
 
 permissions:

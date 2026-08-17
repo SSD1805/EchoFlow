@@ -30,7 +30,7 @@ def _engine():
         name="faster-whisper",
         package_version="1.2.1",
         model="tiny",
-        model_revision=None,
+        model_revision="revision-1",
         device="cpu",
         compute_type="int8",
         cpu_threads=2,
@@ -48,7 +48,7 @@ def _provenance():
     )
 
 
-def test_schema_three_serializes_exact_speaker_turn_evidence(tmp_path):
+def test_current_schema_serializes_exact_speaker_turn_evidence(tmp_path):
     transcript = CanonicalTranscript(
         job_id="job-1",
         source=_source(tmp_path),
@@ -59,13 +59,12 @@ def test_schema_three_serializes_exact_speaker_turn_evidence(tmp_path):
         detected_language="en",
         language_probability=None,
         segments=(RecognizedSegment(0, 0.0, 2.0, "hello", speaker_ref="speaker-01"),),
-        schema_version=3,
         speaker_turns=(SpeakerTurn(0.0, 2.0, "speaker-01"),),
         diarization=_provenance(),
     )
 
     document = transcript.to_dict()
-    assert document["schema_version"] == 3
+    assert document["schema_version"] == 1
     assert document["speaker_turns"] == [
         {"start_seconds": 0.0, "end_seconds": 2.0, "speaker_ref": "speaker-01"}
     ]
@@ -73,24 +72,26 @@ def test_schema_three_serializes_exact_speaker_turn_evidence(tmp_path):
     assert document["diarization"]["telemetry_enabled"] is False
 
 
-def test_schema_two_refuses_diarization_evidence(tmp_path):
-    with pytest.raises(ValueError, match="schema version 3"):
-        CanonicalTranscript(
-            job_id="job-1",
-            source=_source(tmp_path),
-            profile=ProcessingProfile.BALANCED,
-            provisional=False,
-            decode_strategy=DecodeStrategy.DIRECT,
-            engine=_engine(),
-            detected_language=None,
-            language_probability=None,
-            segments=(),
-            speaker_turns=(SpeakerTurn(0.0, 1.0, "speaker-01"),),
-            diarization=_provenance(),
-        )
+def test_current_schema_allows_absent_diarization_evidence(tmp_path):
+    transcript = CanonicalTranscript(
+        job_id="job-1",
+        source=_source(tmp_path),
+        profile=ProcessingProfile.BALANCED,
+        provisional=False,
+        decode_strategy=DecodeStrategy.DIRECT,
+        engine=_engine(),
+        detected_language=None,
+        language_probability=None,
+        segments=(),
+    )
+
+    document = transcript.to_dict()
+    assert document["schema_version"] == 1
+    assert document["speaker_turns"] == []
+    assert document["diarization"] is None
 
 
-def test_schema_three_refuses_turns_outside_source_duration(tmp_path):
+def test_current_schema_refuses_turns_outside_source_duration(tmp_path):
     with pytest.raises(ValueError, match="source duration"):
         CanonicalTranscript(
             job_id="job-1",
@@ -102,7 +103,6 @@ def test_schema_three_refuses_turns_outside_source_duration(tmp_path):
             detected_language=None,
             language_probability=None,
             segments=(),
-            schema_version=3,
             speaker_turns=(SpeakerTurn(9.0, 11.0, "speaker-01"),),
             diarization=_provenance(),
         )

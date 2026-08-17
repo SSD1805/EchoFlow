@@ -85,6 +85,7 @@ class HuggingFaceModelProvider:
     ) -> None:
         resolved_cache_root = cache_root.expanduser().resolve(strict=False)
         self._require_contained(snapshot.snapshot_path, resolved_cache_root)
+        self._require_repository_identity(spec, snapshot, resolved_cache_root)
         if snapshot.verification != _VERIFICATION_METHOD:
             raise ValueError("model snapshot verification method is not supported")
         self._verify_required_files(snapshot.snapshot_path, spec.required_files)
@@ -124,3 +125,16 @@ class HuggingFaceModelProvider:
             raise ValueError(
                 "model provider returned a snapshot outside the model cache"
             )
+
+    @staticmethod
+    def _require_repository_identity(
+        spec: ModelSpec,
+        snapshot: InstalledSnapshot,
+        cache_root: Path,
+    ) -> None:
+        repository_cache = cache_root / f"models--{spec.repository_id.replace('/', '--')}"
+        expected_parent = repository_cache / "snapshots"
+        if snapshot.snapshot_path.parent != expected_parent:
+            raise ValueError("model snapshot does not match the declared repository")
+        if snapshot.snapshot_path.name != snapshot.resolved_revision:
+            raise ValueError("model snapshot path does not match the resolved revision")

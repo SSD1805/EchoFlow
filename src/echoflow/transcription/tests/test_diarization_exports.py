@@ -7,7 +7,7 @@ from echoflow.transcription.models import (
     RecognizedSegment,
     TranscriptSource,
 )
-from echoflow.transcription.speaker_models import DiarizationProvenance
+from echoflow.transcription.speaker_models import DiarizationProvenance, SpeakerTurn
 
 
 def _transcript() -> CanonicalTranscript:
@@ -41,6 +41,10 @@ def _transcript() -> CanonicalTranscript:
             RecognizedSegment(0, 0.0, 1.0, "Hello", speaker_ref="speaker-01"),
             RecognizedSegment(1, 1.0, 2.0, "handoff"),
             RecognizedSegment(2, 2.0, 3.0, "Hi there", speaker_ref="speaker-02"),
+        ),
+        speaker_turns=(
+            SpeakerTurn(0.0, 1.0, "speaker-01"),
+            SpeakerTurn(2.0, 3.0, "speaker-02"),
         ),
         diarization=DiarizationProvenance(
             provider="pyannote.audio",

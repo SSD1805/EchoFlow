@@ -35,12 +35,13 @@ jobs:
       - name: Check lockfile
         run: uv lock --check
 
-      - name: Export locked runtime and transcription dependencies
+      - name: Export locked runtime and optional capability dependencies
         run: >-
           uv export
           --locked
           --no-dev
           --extra transcription
+          --extra diarization
           --no-emit-project
           --no-hashes
           --format requirements-txt

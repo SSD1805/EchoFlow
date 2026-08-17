@@ -174,6 +174,7 @@ def transcription_plan() -> TranscriptionJobPlan:
         5,
         None,
         Path("cache/models/faster-whisper/small"),
+        "revision-1",
     )
     return TranscriptionJobPlan(
         job,
@@ -343,7 +344,7 @@ def test_explicit_configuration_file_is_loaded_only_when_selected(tmp_path):
     assert json.loads(result.stdout)["policy"]["profile"] == "screening"
 
 
-def test_transcribe_executes_planned_job_without_download_authorization():
+def test_transcribe_executes_planned_job_with_strict_local_defaults():
     container = FakeContainer(report(OverallStatus.HEALTHY))
     with patch("echoflow.cli.AppContainer", return_value=container):
         result = runner.invoke(app, ["transcribe", "recording.wav"])
@@ -351,21 +352,18 @@ def test_transcribe_executes_planned_job_without_download_authorization():
     assert "transcription complete" in result.output
     container.transcription_executor().execute.assert_called_once_with(
         container.transcription_planner().plan.return_value,
-        allow_model_download=False,
+        resume=False,
+        diarization_request=None,
+        allow_diarization_model_download=False,
     )
 
 
-def test_transcribe_json_emits_execution_result_and_authorizes_download():
+def test_transcribe_json_emits_execution_result_without_asr_download_seam():
     container = FakeContainer(report(OverallStatus.HEALTHY))
     with patch("echoflow.cli.AppContainer", return_value=container):
         result = runner.invoke(
             app,
-            [
-                "transcribe",
-                "recording.mp4",
-                "--allow-model-download",
-                "--json",
-            ],
+            ["transcribe", "recording.mp4", "--json"],
         )
     document = json.loads(result.stdout)
     assert result.exit_code == 0
@@ -374,8 +372,22 @@ def test_transcribe_json_emits_execution_result_and_authorizes_download():
     assert document["transcript"]["text"] == "Test transcript."
     container.transcription_executor().execute.assert_called_once_with(
         container.transcription_planner().plan.return_value,
-        allow_model_download=True,
+        resume=False,
+        diarization_request=None,
+        allow_diarization_model_download=False,
     )
+
+
+def test_transcribe_rejects_removed_asr_download_flag():
+    container = FakeContainer(report(OverallStatus.HEALTHY))
+    with patch("echoflow.cli.AppContainer", return_value=container):
+        result = runner.invoke(
+            app,
+            ["transcribe", "recording.mp4", "--allow-model-download"],
+        )
+    assert result.exit_code == 2
+    container.transcription_planner().plan.assert_not_called()
+    container.transcription_executor().execute.assert_not_called()
 
 
 def test_transcribe_dry_run_json_emits_complete_machine_readable_plan():
@@ -391,6 +403,8 @@ def test_transcribe_dry_run_json_emits_complete_machine_readable_plan():
     assert document["paths_reserved"] is False
     assert document["media"]["streams"][0]["codec"] == "pcm_s16le"
     assert document["engine"]["model"] == "small"
+    assert document["engine"]["model_revision"] == "revision-1"
+    assert document["enhancement"]["mode"] == "off"
     assert document["resources"]["heuristic"] is True
     assert "\x1b[" not in result.stdout
 
@@ -426,6 +440,27 @@ def test_transcribe_overrides_profile_and_output_for_planner(tmp_path):
         Path("recording.wav"),
         output_dir=(tmp_path / "output").resolve(),
         profile=ProcessingProfile.SCREENING,
+        strategy_id=None,
+        audio_stream_index=None,
+        enhance=False,
+    )
+
+
+def test_transcribe_enhancement_reaches_planner():
+    container = FakeContainer(report(OverallStatus.HEALTHY))
+    with patch("echoflow.cli.AppContainer", return_value=container):
+        result = runner.invoke(
+            app,
+            ["transcribe", "recording.wav", "--dry-run", "--enhance", "--json"],
+        )
+    assert result.exit_code == 0
+    container.transcription_planner().plan.assert_called_once_with(
+        Path("recording.wav"),
+        output_dir=None,
+        profile=ProcessingProfile.BALANCED,
+        strategy_id=None,
+        audio_stream_index=None,
+        enhance=True,
     )
 
 

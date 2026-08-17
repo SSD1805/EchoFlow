@@ -5,6 +5,7 @@ import wave
 from pathlib import Path
 
 import pytest
+from dependency_injector import providers
 
 from echoflow.app.app_container import AppContainer
 from echoflow.core.config import AppConfig
@@ -19,6 +20,12 @@ from echoflow.workspace.models import JobId
 _EXIT_AFTER_CHECKPOINT = 73
 _JOB_ID = JobId("crash-acceptance")
 _WINDOW = AudioSegmentWindow(0, 0, 16_000, 16_000)
+
+
+class _ManagedModelRegistry:
+    def resolved_revision(self, model_id: str) -> str:
+        assert model_id == "tiny"
+        return "revision-1"
 
 
 def _config(root: Path) -> AppConfig:
@@ -50,6 +57,7 @@ def _make_wav(path: Path) -> None:
 def _container(root: Path) -> AppContainer:
     container = AppContainer()
     container.config.override(_config(root))
+    container.model_manager.override(providers.Object(_ManagedModelRegistry()))
     return container
 
 
@@ -121,7 +129,7 @@ def test_completed_checkpoint_survives_unceremonious_process_exit(tmp_path):
     window, transcript = restored.completed[0]
     assert window == _WINDOW
     assert transcript.segments[0].text == "Durable checkpoint."
-    assert restored.detected_language == "en"
+    assert transcript.language == "en"
     assert restored.engine_version == "crash-acceptance-engine"
 
     checkpoint = plan.job.workspace_dir / "checkpoints" / "audio-000000.json"

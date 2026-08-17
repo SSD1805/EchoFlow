@@ -168,6 +168,9 @@ def _render_transcription_plan(plan: TranscriptionJobPlan, console: Console) -> 
         for stream in plan.media.streams
         if stream.kind is StreamKind.AUDIO
     )
+    enhancement = (
+        plan.enhancement.provider if plan.enhancement.enabled else "off"
+    )
     table = Table(title="EchoFlow transcription dry run")
     table.add_column("Setting")
     table.add_column("Planned value")
@@ -188,9 +191,11 @@ def _render_transcription_plan(plan: TranscriptionJobPlan, console: Console) -> 
         ("Provisional", str(plan.policy.provisional).lower()),
         ("Engine", plan.engine.engine),
         ("Model", plan.engine.model),
+        ("Model revision", plan.engine.model_revision),
         ("Execution target", f"{plan.engine.device} / {plan.engine.compute_type}"),
         ("CPU threads", str(plan.engine.cpu_threads)),
         ("Decode", plan.decoder.strategy.value),
+        ("Noise suppression", enhancement),
         ("Estimated disk", _format_bytes(plan.resources.total_disk_bytes)),
         (
             "Estimated peak memory",
@@ -210,6 +215,7 @@ def _render_transcription_result(
     console: Console,
 ) -> None:
     transcript = result.transcript
+    enhancement = transcript.enhancement
     table = Table(title="EchoFlow transcription complete")
     table.add_column("Setting")
     table.add_column("Value")
@@ -220,12 +226,17 @@ def _render_transcription_result(
         ("Provisional", str(transcript.provisional).lower()),
         ("Engine", f"{transcript.engine.name} {transcript.engine.package_version}"),
         ("Model", transcript.engine.model),
+        ("Model revision", transcript.engine.model_revision),
         (
             "Execution target",
             f"{transcript.engine.device} / {transcript.engine.compute_type}",
         ),
         ("CPU threads", str(transcript.engine.cpu_threads)),
         ("Decode", transcript.decode_strategy.value),
+        (
+            "Noise suppression",
+            "off" if enhancement is None else enhancement.provider,
+        ),
         ("Audio stream", str(transcript.source.audio_stream_index)),
         ("Detected language", transcript.detected_language or "unknown"),
         ("Segments", str(len(transcript.segments))),
@@ -415,8 +426,10 @@ def _validate_resume_options(
     profile: ProcessingProfile | None,
     strategy: str | None,
     audio_stream: int | None,
+    enhance: bool,
     export_formats: list[TranscriptExportFormat] | None,
     diarize: bool,
+    allow_diarization_model_download: bool,
     speakers: int | None,
     min_speakers: int | None,
     max_speakers: int | None,
@@ -424,16 +437,23 @@ def _validate_resume_options(
     if dry_run and resume is not None:
         raise typer.BadParameter("--resume cannot be combined with --dry-run")
     if resume is not None and (
-        profile is not None or strategy is not None or audio_stream is not None
+        profile is not None
+        or strategy is not None
+        or audio_stream is not None
+        or enhance
     ):
         raise typer.BadParameter(
-            "--resume restores the original profile, strategy, and audio stream; "
-            "do not override them"
+            "--resume restores the original profile, strategy, audio stream, and "
+            "enhancement contract; do not override them"
         )
     if dry_run and export_formats:
         raise typer.BadParameter("--export cannot be combined with --dry-run")
     if dry_run and diarize:
         raise typer.BadParameter("--diarize cannot be combined with --dry-run")
+    if allow_diarization_model_download and not diarize:
+        raise typer.BadParameter(
+            "--allow-diarization-model-download requires --diarize"
+        )
     if not diarize and any(
         value is not None for value in (speakers, min_speakers, max_speakers)
     ):
@@ -467,6 +487,7 @@ def _plan_transcription(
     profile: ProcessingProfile | None,
     strategy: str | None,
     audio_stream: int | None,
+    enhance: bool,
     resume: str | None,
 ) -> TranscriptionJobPlan:
     planner = container.transcription_planner()
@@ -477,32 +498,13 @@ def _plan_transcription(
             job_id=JobId(resume),
         )
     selected_profile = profile or container.config().PROCESSING_PROFILE
-    if strategy is None and audio_stream is None:
-        return planner.plan(
-            input_path,
-            output_dir=output_dir,
-            profile=selected_profile,
-        )
-    if strategy is None:
-        return planner.plan(
-            input_path,
-            output_dir=output_dir,
-            profile=selected_profile,
-            audio_stream_index=audio_stream,
-        )
-    if audio_stream is None:
-        return planner.plan(
-            input_path,
-            output_dir=output_dir,
-            profile=selected_profile,
-            strategy_id=strategy,
-        )
     return planner.plan(
         input_path,
         output_dir=output_dir,
         profile=selected_profile,
         strategy_id=strategy,
         audio_stream_index=audio_stream,
+        enhance=enhance,
     )
 
 
@@ -510,9 +512,9 @@ def _execute_transcription(
     container: AppContainer,
     plan: TranscriptionJobPlan,
     *,
-    allow_model_download: bool,
     resume: bool,
     diarization_request: SpeakerDiarizationRequest | None,
+    allow_diarization_model_download: bool,
     observer: ExecutionObserver | None = None,
 ) -> TranscriptionExecutionResult:
     runner = TranscriptionJobRunner(
@@ -523,9 +525,9 @@ def _execute_transcription(
     )
     return runner.execute(
         plan,
-        allow_model_download=allow_model_download,
         resume=resume,
         diarization_request=diarization_request,
+        allow_diarization_model_download=allow_diarization_model_download,
         observer=observer,
     )
 
@@ -573,9 +575,9 @@ def _execute_cli_plan(
     *,
     dry_run: bool,
     json_output: bool,
-    allow_model_download: bool,
     resume: str | None,
     diarization_request: SpeakerDiarizationRequest | None,
+    allow_diarization_model_download: bool,
     export_formats: list[TranscriptExportFormat] | None,
 ) -> tuple[TranscriptionExecutionResult | None, TranscriptExportResult]:
     if dry_run:
@@ -586,18 +588,18 @@ def _execute_cli_plan(
         result = _execute_transcription(
             container,
             plan,
-            allow_model_download=allow_model_download,
             resume=resume is not None,
             diarization_request=diarization_request,
+            allow_diarization_model_download=allow_diarization_model_download,
         )
     else:
         with RichTranscriptionProgress() as progress:
             result = _execute_transcription(
                 container,
                 plan,
-                allow_model_download=allow_model_download,
                 resume=resume is not None,
                 diarization_request=diarization_request,
+                allow_diarization_model_download=allow_diarization_model_download,
                 observer=progress,
             )
     return result, _publish_exports(container, result, export_formats)
@@ -634,11 +636,11 @@ def transcribe(
         bool,
         typer.Option("--dry-run", help="Plan without creating files or transcribing."),
     ] = False,
-    allow_model_download: Annotated[
+    enhance: Annotated[
         bool,
         typer.Option(
-            "--allow-model-download",
-            help="Authorize network access to obtain the selected model if absent.",
+            "--enhance",
+            help="Apply local deterministic speech noise suppression before ASR.",
         ),
     ] = False,
     diarize: Annotated[
@@ -646,6 +648,13 @@ def transcribe(
         typer.Option(
             "--diarize",
             help="Add anonymous local speaker turns and conservative speaker labels.",
+        ),
+    ] = False,
+    allow_diarization_model_download: Annotated[
+        bool,
+        typer.Option(
+            "--allow-diarization-model-download",
+            help="Authorize network acquisition only for the optional diarization model.",
         ),
     ] = False,
     speakers: Annotated[
@@ -719,8 +728,10 @@ def transcribe(
             profile=profile,
             strategy=strategy,
             audio_stream=audio_stream,
+            enhance=enhance,
             export_formats=export_formats,
             diarize=diarize,
+            allow_diarization_model_download=allow_diarization_model_download,
             speakers=speakers,
             min_speakers=min_speakers,
             max_speakers=max_speakers,
@@ -739,6 +750,7 @@ def transcribe(
             profile=profile,
             strategy=strategy,
             audio_stream=audio_stream,
+            enhance=enhance,
             resume=resume,
         )
         result, exports = _execute_cli_plan(
@@ -746,9 +758,9 @@ def transcribe(
             plan,
             dry_run=dry_run,
             json_output=json_output,
-            allow_model_download=allow_model_download,
             resume=resume,
             diarization_request=speaker_request,
+            allow_diarization_model_download=allow_diarization_model_download,
             export_formats=export_formats,
         )
     except KeyboardInterrupt:

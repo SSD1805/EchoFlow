@@ -56,7 +56,12 @@ def cuda_capabilities(*compute_types):
     )
 
 
-def assess(*, memory=12 * GIB, available=4 * GIB, compute_types=("float16", "int8_float16")):
+def assess(
+    *,
+    memory=12 * GIB,
+    available=4 * GIB,
+    compute_types=("float16", "int8_float16"),
+):
     evaluator = StrategyEvaluator()
     catalog = faster_whisper_catalog()
     assessments = evaluator.assess(
@@ -213,9 +218,7 @@ def test_dedicated_device_memory_boundary_is_exact_after_headroom():
     available = 1000
     safe_budget = int(available * 0.8)
     capabilities = (cuda_capabilities("float16"),)
-    accelerator = (
-        cuda_device(available=available, total=1000),
-    )
+    accelerator = (cuda_device(available=available, total=1000),)
 
     def strategy(required):
         return StrategyDefinition(
@@ -256,7 +259,11 @@ def test_dedicated_device_memory_boundary_is_exact_after_headroom():
 
 @pytest.mark.parametrize(
     ("fraction", "message"),
-    [(0, "device_memory_budget_fraction"), (-0.1, "device_memory_budget_fraction"), (1.01, "device_memory_budget_fraction")],
+    [
+        (0, "device_memory_budget_fraction"),
+        (-0.1, "device_memory_budget_fraction"),
+        (1.01, "device_memory_budget_fraction"),
+    ],
 )
 def test_device_memory_headroom_fraction_has_strict_boundaries(fraction, message):
     with pytest.raises(ValueError, match=message):
@@ -264,7 +271,9 @@ def test_device_memory_headroom_fraction_has_strict_boundaries(fraction, message
 
 
 def test_strategy_validation_rejects_incoherent_cpu_and_accelerator_contracts():
-    with pytest.raises(ValueError, match="CPU strategy cannot require an accelerator backend"):
+    with pytest.raises(
+        ValueError, match="CPU strategy cannot require an accelerator backend"
+    ):
         StrategyDefinition(
             "cpu",
             "model",
@@ -274,10 +283,16 @@ def test_strategy_validation_rejects_incoherent_cpu_and_accelerator_contracts():
             accelerator_backend=AcceleratorBackend.CUDA,
         )
     with pytest.raises(ValueError, match="CPU strategy cannot require device memory"):
-        StrategyDefinition("cpu", "model", 1, 0, 1, estimated_peak_device_memory_bytes=1)
-    with pytest.raises(ValueError, match="accelerated strategy requires an accelerator backend"):
+        StrategyDefinition(
+            "cpu", "model", 1, 0, 1, estimated_peak_device_memory_bytes=1
+        )
+    with pytest.raises(
+        ValueError, match="accelerated strategy requires an accelerator backend"
+    ):
         StrategyDefinition("gpu", "model", 1, 0, 1, device="cuda")
-    with pytest.raises(ValueError, match="accelerated strategy requires positive device memory"):
+    with pytest.raises(
+        ValueError, match="accelerated strategy requires positive device memory"
+    ):
         StrategyDefinition(
             "gpu",
             "model",

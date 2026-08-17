@@ -79,13 +79,24 @@ speculative infrastructure:
 2. **Model management.** Add local model inventory, recommendation, explicit download,
    verification/provenance, and removal. Integrate model-storage requirements with
    disk admission once inventory is authoritative.
-3. **Representative-device qualification.** Collect repeated benchmark evidence from
+3. **Local speech enhancement and noise suppression.** Add optional,
+   provenance-bearing preprocessing for difficult recordings. Preserve the original
+   media as authoritative evidence and treat enhanced audio as private derived
+   processing material by default. Begin with explicit off/on selection and one
+   qualified local provider. Reuse model management, resource admission, download
+   authorization, and execution-observer contracts rather than creating an
+   enhancement-specific model lifecycle. Benchmark end-to-end ASR accuracy and total
+   execution cost before introducing automatic selection. Keep simultaneous-speaker
+   separation, general source separation, and generative restoration out of the
+   initial scope.
+4. **Representative-device qualification.** Collect repeated benchmark evidence from
    8 GB Windows, 16 GB commodity machines, Apple Silicon, discrete-GPU laptops, and
    larger workstations. Measure cold/warm cache behavior, sustained real-time factor,
-   thermal effects, CPU/RAM pressure, and accelerator memory/utilization where the
-   backend exposes reliable counters. Calibrate strategy heuristics from measurements
-   rather than hardware-name guesses.
-4. **Corpus library and evidence-first search.** Implement the existing
+   thermal effects, CPU/RAM pressure, accelerator memory/utilization where the backend
+   exposes reliable counters, and raw-ASR versus enhancement-plus-ASR accuracy and
+   cost on representative noisy recordings. Calibrate strategy and future enhancement
+   heuristics from measurements rather than hardware-name or audio-quality guesses.
+5. **Corpus library and evidence-first search.** Implement the existing
    `TranscriptIndex` port with a rebuildable local backend, initially DuckDB or an
    equivalently replaceable embedded analytical store. The user experience should be
    a search surface, not a database surface: plain text and exact phrase search,
@@ -93,20 +104,20 @@ speculative infrastructure:
    results, saved searches/collections, tags and notes, and exportable result sets.
    Search results must preserve the evidence trail back to the source recording and
    exact transcript passage.
-5. **Typed search grammar and query builder.** Keep SQL below the application boundary.
+6. **Typed search grammar and query builder.** Keep SQL below the application boundary.
    Introduce a stable `SearchQuery`-style intermediate representation for text,
    phrase, speaker, language, date, recording, tag, duration, diarization, and sort
    constraints. CLI syntax, future query chips/dropdowns, and any later local natural-
    language parser should compile into that same typed query contract. DuckDB remains
    a replaceable derived-state adapter rather than user-facing homework.
-6. **Word/timestamp alignment.** Add alignment as a separate enrichment capability so
+7. **Word/timestamp alignment.** Add alignment as a separate enrichment capability so
    speaker projection and result jumping can become more precise without rewriting raw
    ASR or diarization evidence.
-7. **Bounded failure recovery.** Add deterministic audio bisection/retry policy only
+8. **Bounded failure recovery.** Add deterministic audio bisection/retry policy only
    if real long-recording failures justify it.
-8. **Release/install and graphical UI.** Revisit these after the backend, lifecycle,
-   model-management, and search contracts have survived representative dogfooding.
-   The eventual interface should remain replaceable and thin.
+9. **Release/install and graphical UI.** Revisit these after the backend, lifecycle,
+   model-management, enhancement, and search contracts have survived representative
+   dogfooding. The eventual interface should remain replaceable and thin.
 
 ## Corpus-search product principles
 
@@ -220,6 +231,10 @@ must operate over an explicit, inspectable result set.
 - Accelerator memory estimates and performance ranks are conservative heuristics
   pending representative-device qualification. EchoFlow does not yet claim that a
   detected GPU is faster on every workload.
+- Speech enhancement/noise suppression is not implemented yet. Its planned first
+  version is local, explicit, and provenance-bearing; the original recording remains
+  authoritative and enhanced audio remains derived private processing material unless
+  the user explicitly exports it.
 - The transcript index/search backend is not implemented yet. Canonical transcript
   files remain authoritative and any future DuckDB index must be rebuildable derived
   state.
@@ -235,6 +250,10 @@ These are directions to investigate, not committed release promises:
   speaker references;
 - alignment/word timestamps as a separate enrichment capability;
 - original media timecode/capture-time provenance beyond source-relative seconds;
+- evidence-driven automatic enhancement selection only after measured audio-quality
+  evidence predicts an end-to-end ASR benefit reliably enough to justify the cost;
+- later speech/source separation for overlapping speakers, kept distinct from ordinary
+  denoising and speech enhancement;
 - local lexical and metadata search across transcript collections;
 - corpus-statistical related terms before embedding-based relatedness;
 - a constrained deterministic natural-language query grammar;

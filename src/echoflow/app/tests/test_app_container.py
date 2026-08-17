@@ -1,16 +1,25 @@
-from echoflow.app.app_container import AppContainer
+from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
+
+from echoflow.app.app_container import AppContainer, _ModelStorageAdmitter
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.core.health_check import HealthCheck
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.probe import FfprobeMediaProbe
+from echoflow.model_management.errors import ModelManagementError
+from echoflow.model_management.service import ModelManager
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.audio import FfmpegAudioDecoder
 from echoflow.transcription.backend import FasterWhisperTranscriber
+from echoflow.transcription.errors import ResourceAdmissionError
 from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.segmentation import WaveAudioSegmenter
+from echoflow.transcription.storage import StorageAllocation
 from echoflow.workspace.service import WorkspaceService
 
 
@@ -46,6 +55,36 @@ def test_container_resolves_runner_inspection_and_policy_from_config():
         container.runner_policy_planner().memory_budget_fraction
         == container.config().MEMORY_BUDGET_FRACTION
     )
+
+
+def test_container_composes_model_manager_with_planner_registry():
+    container = AppContainer()
+    manager = container.model_manager()
+    planner = container.transcription_planner()
+
+    assert isinstance(manager, ModelManager)
+    assert manager.file_store is container.file_manager()
+    assert manager.storage_admitter is container.model_storage_admitter()
+    assert planner.model_registry is manager
+
+
+def test_model_storage_adapter_reuses_shared_disk_policy():
+    policy = Mock()
+    admitter = _ModelStorageAdmitter(policy)
+    path = Path("models")
+
+    admitter.admit(path, 123)
+
+    policy.admit.assert_called_once_with((StorageAllocation(path, 123),))
+
+
+def test_model_storage_adapter_translates_disk_failure():
+    policy = Mock()
+    policy.admit.side_effect = ResourceAdmissionError("job-oriented detail")
+    admitter = _ModelStorageAdmitter(policy)
+
+    with pytest.raises(ModelManagementError, match="planned model allocation"):
+        admitter.admit(Path("models"), 123)
 
 
 def test_container_composes_media_probe_and_transcription_planner():

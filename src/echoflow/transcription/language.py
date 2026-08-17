@@ -94,10 +94,11 @@ class LinguaLanguageAttributor:
             return self._detector
         module = self._dependency()
         try:
-            builder = module.LanguageDetectorBuilder.from_all_languages()
-            if hasattr(builder, "with_low_accuracy_mode"):
-                builder = builder.with_low_accuracy_mode()
-            self._detector = builder.build()
+            # Mixed-language attribution is intentionally kept in Lingua's default
+            # high-accuracy mode. Code-switched ASR spans are commonly short, and
+            # Lingua documents a significant accuracy drop below ~120 characters
+            # when low-accuracy mode is enabled.
+            self._detector = module.LanguageDetectorBuilder.from_all_languages().build()
         except Exception as exc:
             raise TranscriptionError(
                 "Local language attribution could not be initialized", cause=exc

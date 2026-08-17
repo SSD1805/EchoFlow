@@ -11,6 +11,7 @@ from rich.table import Table
 from echoflow.app.app_container import AppContainer
 from echoflow.app.job_runner import TranscriptionJobRunner
 from echoflow.cli_jobs import register_job_commands
+from echoflow.cli_library import register_library_commands
 from echoflow.cli_models import register_model_commands
 from echoflow.cli_progress import RichTranscriptionProgress
 from echoflow.core.config import AppConfig
@@ -71,6 +72,7 @@ def _container(context: typer.Context) -> AppContainer:
 
 
 register_job_commands(app, _container)
+register_library_commands(app, _container)
 register_model_commands(app, _container)
 
 

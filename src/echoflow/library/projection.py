@@ -92,7 +92,13 @@ def load_indexed_transcript(
         )
     except TranscriptProjectionError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValidationError, ValueError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        ValidationError,
+        ValueError,
+    ) as exc:
         raise TranscriptProjectionError(
             "Canonical transcript could not be validated for local indexing",
             cause=exc,

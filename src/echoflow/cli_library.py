@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import cast
+from typing import Annotated, cast
 
 import typer
 from rich.console import Console
@@ -152,12 +152,16 @@ def _list_library(
     container_factory: ContainerFactory,
 ) -> None:
     try:
-        documents = container_factory(_root_context(context)).transcript_library().documents()
+        documents = (
+            container_factory(_root_context(context)).transcript_library().documents()
+        )
     except Exception as exc:
         _handle_error(exc)
         return
     if json_output:
-        typer.echo(json.dumps([_document_dict(item) for item in documents], sort_keys=True))
+        typer.echo(
+            json.dumps([_document_dict(item) for item in documents], sort_keys=True)
+        )
         return
     _render_documents(documents, Console())
 
@@ -170,7 +174,11 @@ def _rebuild_library(
     container_factory: ContainerFactory,
 ) -> None:
     try:
-        report = container_factory(_root_context(context)).transcript_library().rebuild(paths)
+        report = (
+            container_factory(_root_context(context))
+            .transcript_library()
+            .rebuild(paths)
+        )
     except Exception as exc:
         _handle_error(exc)
         return
@@ -199,8 +207,10 @@ def _show_transcript(
     container_factory: ContainerFactory,
 ) -> None:
     try:
-        receipt = container_factory(_root_context(context)).transcript_library().inspect(
-            document_id
+        receipt = (
+            container_factory(_root_context(context))
+            .transcript_library()
+            .inspect(document_id)
         )
     except Exception as exc:
         _handle_error(exc)
@@ -236,7 +246,9 @@ def _search_library(
             sort=sort,
             limit=limit,
         )
-        matches = container_factory(_root_context(context)).transcript_library().search(query)
+        matches = (
+            container_factory(_root_context(context)).transcript_library().search(query)
+        )
     except Exception as exc:
         _handle_error(exc)
         return
@@ -272,11 +284,13 @@ def register_library_commands(
     @library_app.command("rebuild")
     def rebuild_library(
         context: typer.Context,
-        paths: list[Path] | None = typer.Argument(
-            None,
-            metavar="[PATH]...",
-            help="Optional canonical transcript file(s) or directories to include.",
-        ),
+        paths: Annotated[
+            list[Path] | None,
+            typer.Argument(
+                metavar="[PATH]...",
+                help="Optional canonical transcript file(s) or directories to include.",
+            ),
+        ] = None,
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
         _rebuild_library(
@@ -303,14 +317,16 @@ def register_library_commands(
     def search_library(
         context: typer.Context,
         text: str = typer.Argument(..., metavar="QUERY"),
-        phrase: bool = typer.Option(False, "--phrase", help="Require the exact phrase."),
+        phrase: bool = typer.Option(
+            False, "--phrase", help="Require the exact phrase."
+        ),
         all_terms: bool = typer.Option(
             False, "--all-terms", help="Require every lexical query term."
         ),
-        speakers: list[str] | None = typer.Option(None, "--speaker"),
-        languages: list[str] | None = typer.Option(None, "--language"),
-        documents: list[str] | None = typer.Option(None, "--transcript"),
-        sort: SearchSort = typer.Option(SearchSort.RELEVANCE, "--sort"),
+        speakers: Annotated[list[str] | None, typer.Option("--speaker")] = None,
+        languages: Annotated[list[str] | None, typer.Option("--language")] = None,
+        documents: Annotated[list[str] | None, typer.Option("--transcript")] = None,
+        sort: Annotated[SearchSort, typer.Option("--sort")] = SearchSort.RELEVANCE,
         limit: int = typer.Option(100, "--limit", min=1, max=1_000),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:

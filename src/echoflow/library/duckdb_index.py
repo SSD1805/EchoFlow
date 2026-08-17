@@ -1,3 +1,4 @@
+# ruff: noqa: S608
 import re
 from collections import Counter
 from pathlib import Path
@@ -35,7 +36,9 @@ class DuckDbTranscriptIndex:
     def __init__(self, database_path: Path, file_manager: FileManagerFacade) -> None:
         self.database_path = database_path.expanduser().resolve(strict=False)
         self.file_manager = file_manager
-        self.file_manager.ensure_directory_exists(self.database_path.parent, private=True)
+        self.file_manager.ensure_directory_exists(
+            self.database_path.parent, private=True
+        )
         self._connection = duckdb.connect(str(self.database_path))
         self._closed = False
         self._initialize()
@@ -154,7 +157,9 @@ class DuckDbTranscriptIndex:
             raise
 
     def _delete_document(self, document_id: str) -> None:
-        self._connection.execute("DELETE FROM terms WHERE document_id = ?", [document_id])
+        self._connection.execute(
+            "DELETE FROM terms WHERE document_id = ?", [document_id]
+        )
         self._connection.execute(
             "DELETE FROM segments WHERE document_id = ?", [document_id]
         )
@@ -207,7 +212,7 @@ class DuckDbTranscriptIndex:
             if query.sort is SearchSort.TIMELINE
             else "score DESC, s.document_id, s.start_seconds, s.segment_id"
         )
-        sql = f"""  # noqa: S608
+        sql = f"""
             WITH query_terms(term) AS (VALUES {values}),
             corpus AS (
                 SELECT COUNT(*)::DOUBLE AS segment_count,

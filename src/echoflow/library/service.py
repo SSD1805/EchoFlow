@@ -68,9 +68,7 @@ class TranscriptLibraryService:
         self.paths = paths
         self.file_manager = file_manager
 
-    def rebuild(
-        self, additional_paths: tuple[Path, ...] = ()
-    ) -> LibraryRebuildReport:
+    def rebuild(self, additional_paths: tuple[Path, ...] = ()) -> LibraryRebuildReport:
         candidates = self._discover(additional_paths)
         transcripts: dict[str, IndexedTranscript] = {}
         skipped = 0
@@ -90,7 +88,10 @@ class TranscriptLibraryService:
                 skipped += 1
                 continue
             existing = transcripts.get(transcript.document_id)
-            if existing is not None and existing.canonical_path != transcript.canonical_path:
+            if (
+                existing is not None
+                and existing.canonical_path != transcript.canonical_path
+            ):
                 raise TranscriptLibraryBuildError(
                     "Duplicate canonical transcript job ID found while rebuilding library"
                 )
@@ -111,11 +112,17 @@ class TranscriptLibraryService:
 
     def inspect(self, document_id: str) -> LibraryEvidenceReceipt:
         document = next(
-            (item for item in self.index.documents() if item.document_id == document_id),
+            (
+                item
+                for item in self.index.documents()
+                if item.document_id == document_id
+            ),
             None,
         )
         if document is None:
-            raise TranscriptLibraryError("Transcript is not present in the local library")
+            raise TranscriptLibraryError(
+                "Transcript is not present in the local library"
+            )
         integrity, digest = self._source_integrity(document)
         return LibraryEvidenceReceipt(
             document=document,

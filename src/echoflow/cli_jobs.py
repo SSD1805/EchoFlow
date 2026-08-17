@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from typing import cast
 
 import typer
 from rich.console import Console
@@ -16,9 +17,7 @@ ContainerFactory = Callable[[typer.Context], AppContainer]
 
 
 def _root_context(context: typer.Context) -> typer.Context:
-    while context.parent is not None:
-        context = context.parent
-    return context
+    return cast("typer.Context", context.find_root())
 
 
 def _progress_text(record: JobLifecycleRecord) -> str:

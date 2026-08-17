@@ -70,7 +70,7 @@ def test_cache_only_diarization_disables_telemetry_and_normalizes_labels(tmp_pat
         request=SpeakerDiarizationRequest(num_speakers=2),
     )
 
-    assert os.environ["PYANNOTE_METRICS_ENABLED"] == "false"
+    assert os.environ["PYANNOTE_METRICS_ENABLED"] == "0"
     assert snapshot_calls == [
         {
             "repo_id": "pyannote/speaker-diarization-community-1",

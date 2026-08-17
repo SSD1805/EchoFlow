@@ -99,11 +99,11 @@ def test_context_cannot_be_entered_twice():
         cleanup=lambda _segment: None,
         prefetch_depth=1,
     )
-    with pipeline:
-        with pytest.raises(
-            RuntimeError, match="^segment prefetcher is already active$"
-        ):
-            pipeline.__enter__()
+    with (
+        pipeline,
+        pytest.raises(RuntimeError, match="^segment prefetcher is already active$"),
+    ):
+        pipeline.__enter__()
 
 
 def test_empty_window_set_materializes_nothing():
@@ -123,13 +123,15 @@ def test_materialization_failure_propagates_without_inventing_cleanup():
     def fail(_window):
         raise OSError("materialization failed")
 
-    with OrderedSegmentPrefetcher(
-        materialize=fail,
-        cleanup=cleanup,
-        prefetch_depth=1,
-    ) as pipeline:
-        with pytest.raises(OSError, match="^materialization failed$"):
-            next(pipeline.iterate(windows(1)))
+    with (
+        OrderedSegmentPrefetcher(
+            materialize=fail,
+            cleanup=cleanup,
+            prefetch_depth=1,
+        ) as pipeline,
+        pytest.raises(OSError, match="^materialization failed$"),
+    ):
+        next(pipeline.iterate(windows(1)))
     cleanup.assert_not_called()
 
 
@@ -145,17 +147,19 @@ def test_consumer_failure_cleans_only_prefetched_unconsumed_segment():
         return materialized(window)
 
     first = None
-    with pytest.raises(RuntimeError, match="^consumer failed$"):
-        with OrderedSegmentPrefetcher(
+    with (
+        pytest.raises(RuntimeError, match="^consumer failed$"),
+        OrderedSegmentPrefetcher(
             materialize=make,
             cleanup=cleanup,
             prefetch_depth=1,
-        ) as pipeline:
-            iterator = pipeline.iterate(windows(2))
-            first = next(iterator)
-            assert second_started.wait(timeout=1)
-            permit_second.set()
-            raise RuntimeError("consumer failed")
+        ) as pipeline,
+    ):
+        iterator = pipeline.iterate(windows(2))
+        first = next(iterator)
+        assert second_started.wait(timeout=1)
+        permit_second.set()
+        raise RuntimeError("consumer failed")
 
     assert first is not None
     assert cleanup.call_count == 1
@@ -167,12 +171,14 @@ def test_pending_cleanup_failure_never_masks_primary_consumer_error():
     def cleanup(_segment):
         raise OSError("cleanup failed")
 
-    with pytest.raises(RuntimeError, match="^consumer failed$"):
-        with OrderedSegmentPrefetcher(
+    with (
+        pytest.raises(RuntimeError, match="^consumer failed$"),
+        OrderedSegmentPrefetcher(
             materialize=materialized,
             cleanup=cleanup,
             prefetch_depth=1,
-        ) as pipeline:
-            iterator = pipeline.iterate(windows(2))
-            next(iterator)
-            raise RuntimeError("consumer failed")
+        ) as pipeline,
+    ):
+        iterator = pipeline.iterate(windows(2))
+        next(iterator)
+        raise RuntimeError("consumer failed")

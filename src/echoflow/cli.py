@@ -753,7 +753,7 @@ def transcribe(
         raise typer.Exit(code=3) from None
 
     _render_transcription_command_output(
-        cast("TranscriptionJobPlan", plan),
+        plan,
         result,
         exports,
         dry_run=dry_run,

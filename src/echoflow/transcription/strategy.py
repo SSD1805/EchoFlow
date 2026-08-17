@@ -41,9 +41,16 @@ class StrategyDefinition:
     performance_rank: int = 0
 
     def __post_init__(self) -> None:
+        self._validate_identity()
+        self._validate_numeric_boundaries()
+        self._validate_placement()
+
+    def _validate_identity(self) -> None:
         for name in ("strategy_id", "model", "engine", "device", "compute_type"):
             if not getattr(self, name).strip():
                 raise ValueError(f"{name} cannot be empty")
+
+    def _validate_numeric_boundaries(self) -> None:
         if self.quality_rank < 0:
             raise ValueError("quality_rank cannot be negative")
         if self.model_cache_bytes < 0:
@@ -56,14 +63,17 @@ class StrategyDefinition:
             raise ValueError("estimated_peak_device_memory_bytes cannot be negative")
         if self.performance_rank < 0:
             raise ValueError("performance_rank cannot be negative")
+
+    def _validate_placement(self) -> None:
         if self.device == "cpu":
             if self.accelerator_backend is not None:
                 raise ValueError("CPU strategy cannot require an accelerator backend")
             if self.estimated_peak_device_memory_bytes != 0:
                 raise ValueError("CPU strategy cannot require device memory")
-        elif self.accelerator_backend is None:
+            return
+        if self.accelerator_backend is None:
             raise ValueError("accelerated strategy requires an accelerator backend")
-        elif self.estimated_peak_device_memory_bytes < 1:
+        if self.estimated_peak_device_memory_bytes < 1:
             raise ValueError("accelerated strategy requires positive device memory")
 
     @property

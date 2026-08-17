@@ -70,7 +70,9 @@ def test_provider_rejects_missing_required_file(tmp_path: Path) -> None:
         provider.install(_spec(), cache_root=cache_root, revision=None)
 
 
-def test_provider_rejects_snapshot_outside_cache(tmp_path: Path) -> None:
+def test_provider_rejects_snapshot_outside_cache_before_file_inspection(
+    tmp_path: Path,
+) -> None:
     cache_root = tmp_path / "cache"
     escaped = tmp_path / "escaped" / "abc123"
     escaped.mkdir(parents=True)
@@ -79,6 +81,39 @@ def test_provider_rejects_snapshot_outside_cache(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="outside"):
         provider.install(_spec(), cache_root=cache_root, revision=None)
+
+
+def test_provider_revalidation_rejects_unknown_verification_method(
+    tmp_path: Path,
+) -> None:
+    cache_root = tmp_path / "cache"
+    snapshot_path = _snapshot(cache_root)
+    provider = HuggingFaceModelProvider()
+    snapshot = InstalledSnapshot(
+        resolved_revision="abc123",
+        snapshot_path=snapshot_path,
+        size_bytes=3,
+        verification="unknown_verifier",
+    )
+
+    with pytest.raises(ValueError, match="verification method"):
+        provider.validate(_spec(), snapshot, cache_root=cache_root)
+
+
+def test_provider_revalidation_detects_stale_snapshot(tmp_path: Path) -> None:
+    cache_root = tmp_path / "cache"
+    snapshot_path = _snapshot(cache_root)
+    (snapshot_path / "tokenizer.json").unlink()
+    provider = HuggingFaceModelProvider()
+    snapshot = InstalledSnapshot(
+        resolved_revision="abc123",
+        snapshot_path=snapshot_path,
+        size_bytes=3,
+        verification="huggingface_snapshot_required_files_v1",
+    )
+
+    with pytest.raises(ValueError, match="tokenizer.json"):
+        provider.validate(_spec(), snapshot, cache_root=cache_root)
 
 
 def test_provider_removes_only_resolved_revision(tmp_path: Path) -> None:

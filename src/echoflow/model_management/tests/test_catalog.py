@@ -17,7 +17,9 @@ def _spec(model_id: str) -> ModelSpec:
     )
 
 
-def test_faster_whisper_catalog_derives_unique_models_from_execution_strategies() -> None:
+def test_faster_whisper_catalog_derives_unique_models_from_execution_strategies() -> (
+    None
+):
     catalog = faster_whisper_model_catalog(faster_whisper_catalog())
 
     assert tuple(spec.model_id for spec in catalog.specs) == ("tiny", "small", "medium")
@@ -25,7 +27,9 @@ def test_faster_whisper_catalog_derives_unique_models_from_execution_strategies(
     assert by_id["tiny"].estimated_cache_bytes == 150 * MIB
     assert by_id["small"].estimated_cache_bytes == 750 * MIB
     assert by_id["medium"].estimated_cache_bytes == 2_500 * MIB
-    assert tuple(by_id[model].quality_rank for model in ("tiny", "small", "medium")) == (
+    assert tuple(
+        by_id[model].quality_rank for model in ("tiny", "small", "medium")
+    ) == (
         1,
         2,
         3,

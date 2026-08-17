@@ -72,12 +72,14 @@ def test_cpu_contract_remains_available_when_optional_runtime_is_absent():
 def test_cuda_target_requires_both_runtime_support_and_matching_topology():
     module = SimpleNamespace(
         get_cuda_device_count=lambda: 1,
-        get_supported_compute_types=lambda device, index: {
-            "float16",
-            "int8_float16",
-        }
-        if (device, index) == ("cuda", 0)
-        else set(),
+        get_supported_compute_types=lambda device, index: (
+            {
+                "float16",
+                "int8_float16",
+            }
+            if (device, index) == ("cuda", 0)
+            else set()
+        ),
     )
     probe = FasterWhisperCapabilityProbe(module_loader=lambda _name: module)
 
@@ -85,26 +87,28 @@ def test_cuda_target_requires_both_runtime_support_and_matching_topology():
     without_gpu = probe.inspect(topology())
 
     assert with_gpu.supports(device="cuda", device_index=0, compute_type="float16")
-    assert with_gpu.supports(
-        device="cuda", device_index=0, compute_type="int8_float16"
+    assert with_gpu.supports(device="cuda", device_index=0, compute_type="int8_float16")
+    assert (
+        without_gpu.supports(device="cuda", device_index=0, compute_type="float16")
+        is False
     )
-    assert without_gpu.supports(
-        device="cuda", device_index=0, compute_type="float16"
-    ) is False
 
 
 def test_cuda_probe_never_maps_device_one_onto_device_zero():
     module = SimpleNamespace(
         get_cuda_device_count=lambda: 2,
-        get_supported_compute_types=lambda _device, index: {"float16"}
-        if index == 1
-        else set(),
+        get_supported_compute_types=lambda _device, index: (
+            {"float16"} if index == 1 else set()
+        ),
     )
     capabilities = FasterWhisperCapabilityProbe(
         module_loader=lambda _name: module
     ).inspect(topology(cuda(index=1)))
 
-    assert capabilities.supports(device="cuda", device_index=0, compute_type="float16") is False
+    assert (
+        capabilities.supports(device="cuda", device_index=0, compute_type="float16")
+        is False
+    )
     assert capabilities.supports(device="cuda", device_index=1, compute_type="float16")
 
 
@@ -130,7 +134,9 @@ def test_absurd_cuda_count_is_bounded_before_runtime_queries():
     queried = []
     module = SimpleNamespace(
         get_cuda_device_count=lambda: 10_000,
-        get_supported_compute_types=lambda _device, index: queried.append(index) or {"float16"},
+        get_supported_compute_types=lambda _device, index: (
+            queried.append(index) or {"float16"}
+        ),
     )
     accelerators = tuple(cuda(index=index) for index in range(20))
 
@@ -169,9 +175,11 @@ def test_compute_types_are_trimmed_deduplicated_and_sorted():
             "",
         ],
     )
-    target = FasterWhisperCapabilityProbe(module_loader=lambda _name: module).inspect(
-        topology(cuda())
-    ).targets[1]
+    target = (
+        FasterWhisperCapabilityProbe(module_loader=lambda _name: module)
+        .inspect(topology(cuda()))
+        .targets[1]
+    )
     assert target.compute_types == ("float16", "int8_float16")
 
 
@@ -234,6 +242,7 @@ def test_registry_routes_by_engine_and_returns_empty_unknown_capability():
 @given(compute_type=st.text(min_size=1).filter(lambda value: value != "int8"))
 def test_property_cpu_contract_never_claims_an_unadvertised_compute_type(compute_type):
     target = EngineExecutionTarget("cpu", 0, ("int8",))
-    assert target.supports(
-        device="cpu", device_index=0, compute_type=compute_type
-    ) is False
+    assert (
+        target.supports(device="cpu", device_index=0, compute_type=compute_type)
+        is False
+    )

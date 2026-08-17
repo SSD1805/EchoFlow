@@ -228,9 +228,7 @@ class DuckDbSemanticIndex:
             vector = self._vector_cell(row[16], state.profile.dimensions)
             score = sum(
                 query_value * passage_value
-                for query_value, passage_value in zip(
-                    query_vector, vector, strict=True
-                )
+                for query_value, passage_value in zip(query_vector, vector, strict=True)
             )
             candidates.append(SemanticCandidate(chunk=chunk, score=score))
         candidates.sort(

@@ -70,8 +70,7 @@ _RELEVANCE_SEARCH_SQL = (
     + "ORDER BY score DESC, s.document_id, s.start_seconds, s.segment_id LIMIT ?"
 )
 _TIMELINE_SEARCH_SQL = (
-    _SEARCH_SQL_PREFIX
-    + "ORDER BY s.document_id, s.start_seconds, s.segment_id LIMIT ?"
+    _SEARCH_SQL_PREFIX + "ORDER BY s.document_id, s.start_seconds, s.segment_id LIMIT ?"
 )
 
 

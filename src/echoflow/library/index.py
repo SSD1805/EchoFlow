@@ -3,6 +3,13 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 
+def _validate_sha256(name: str, value: str) -> None:
+    if len(value) != 64 or any(
+        character not in "0123456789abcdef" for character in value
+    ):
+        raise ValueError(f"{name} must be a lowercase 64-character digest")
+
+
 class SearchOperator(StrEnum):
     ANY = "any"
     ALL = "all"
@@ -55,20 +62,9 @@ class IndexedTranscript:
     def __post_init__(self) -> None:
         if not self.document_id.strip():
             raise ValueError("document_id cannot be empty")
-        if len(self.source_sha256) != 64 or any(
-            character not in "0123456789abcdef" for character in self.source_sha256
-        ):
-            raise ValueError("source_sha256 must be a lowercase 64-character digest")
-        if self.canonical_sha256 is not None and (
-            len(self.canonical_sha256) != 64
-            or any(
-                character not in "0123456789abcdef"
-                for character in self.canonical_sha256
-            )
-        ):
-            raise ValueError(
-                "canonical_sha256 must be a lowercase 64-character digest"
-            )
+        _validate_sha256("source_sha256", self.source_sha256)
+        if self.canonical_sha256 is not None:
+            _validate_sha256("canonical_sha256", self.canonical_sha256)
         if self.transcript_schema_version < 1:
             raise ValueError("transcript_schema_version must be positive")
         if self.detected_language is not None and not self.detected_language.strip():

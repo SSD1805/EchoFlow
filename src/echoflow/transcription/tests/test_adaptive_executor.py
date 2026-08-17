@@ -19,11 +19,19 @@ from echoflow.transcription.capabilities import (
     EngineExecutionTarget,
 )
 from echoflow.transcription.checkpoint import RestoredCheckpoint
-from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError, TranscriptionError
+from echoflow.transcription.errors import (
+    CheckpointError,
+    ResourceAdmissionError,
+    TranscriptionError,
+)
 from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.models import AudioSegmentWindow, EngineTranscript
 from echoflow.transcription.segmentation import MaterializedAudioSegment
-from echoflow.transcription.strategy import StrategyCatalog, StrategyDefinition, StrategyEvaluator
+from echoflow.transcription.strategy import (
+    StrategyCatalog,
+    StrategyDefinition,
+    StrategyEvaluator,
+)
 from echoflow.workspace.models import Job, JobId
 
 GIB = 1024**3
@@ -285,10 +293,10 @@ def test_transcription_failure_cleans_current_and_prefetched_segment(tmp_path):
             allow_model_download=False,
         )
 
-    assert set(service.audio_segmenter.cleanup.call_args_list) == {
-        call(materialized[0]),
-        call(materialized[1]),
-    }
+    service.audio_segmenter.cleanup.assert_has_calls(
+        [call(materialized[0]), call(materialized[1])], any_order=True
+    )
+    assert service.audio_segmenter.cleanup.call_count == 2
     service.checkpoint_store.save_segment.assert_not_called()
 
 
@@ -319,10 +327,10 @@ def test_checkpoint_failure_cleans_prefetched_segment_without_committing_it(tmp_
             allow_model_download=False,
         )
 
-    assert set(service.audio_segmenter.cleanup.call_args_list) == {
-        call(materialized[0]),
-        call(materialized[1]),
-    }
+    service.audio_segmenter.cleanup.assert_has_calls(
+        [call(materialized[0]), call(materialized[1])], any_order=True
+    )
+    assert service.audio_segmenter.cleanup.call_count == 2
     assert service.checkpoint_store.save_segment.call_count == 1
 
 

@@ -27,7 +27,7 @@ def _transcript() -> CanonicalTranscript:
             name="faster-whisper",
             package_version="1.2.1",
             model="tiny",
-            model_revision=None,
+            model_revision="revision-1",
             device="cpu",
             compute_type="int8",
             cpu_threads=2,

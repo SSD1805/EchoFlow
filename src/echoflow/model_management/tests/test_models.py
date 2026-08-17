@@ -46,7 +46,9 @@ def test_manifest_round_trip_preserves_model_provenance() -> None:
         ("verification", ""),
     ],
 )
-def test_manifest_parser_rejects_schema_and_type_mutations(key: str, value: object) -> None:
+def test_manifest_parser_rejects_schema_and_type_mutations(
+    key: str, value: object
+) -> None:
     document = _manifest().to_dict()
     document[key] = value
 

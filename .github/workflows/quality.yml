@@ -87,7 +87,16 @@ jobs:
         run: uv run ruff check . --output-format=github
 
       - name: Check formatting
-        run: uv run ruff format --check .
+        shell: bash
+        run: |
+          if uv run ruff format --check .; then
+            exit 0
+          fi
+          uv run ruff format .
+          while IFS= read -r path; do
+            echo "::error file=${path}::Ruff formatting required"
+          done < <(git diff --name-only)
+          exit 1
 
       - name: Type check
         run: uv run mypy

@@ -78,8 +78,8 @@ unsupported GPU as useful acceleration.
 
 ## Strategy admission
 
-`StrategyDefinition` now describes execution placement as well as model quality and
-cache cost. A strategy has an engine, model, device, compute type, optional accelerator
+`StrategyDefinition` describes execution placement as well as model quality and cache
+cost. A strategy has an engine, model, device, compute type, optional accelerator
 backend, system-memory estimate, optional device-memory estimate, quality rank, and
 performance rank.
 
@@ -118,13 +118,29 @@ The first concurrency optimization is therefore bounded pipeline overlap:
 3. the main execution path checkpoints N before it can commit N+1; and
 4. at most one unconsumed materialized segment exists.
 
-The prefetch depth is exactly one for accelerated execution and zero for the existing
-CPU path. There is still one job-scoped inference session and one ordered checkpoint
-writer.
+A prefetch worker is not free. When an accelerated plan has more than one safe CPU
+thread, EchoFlow reserves one thread of headroom for segment preparation and gives the
+remaining threads to the inference engine. If only one effective CPU thread is
+available, accelerated inference may still run, but prefetch depth becomes zero and
+materialization remains sequential. EchoFlow does not oversubscribe a CPU quota merely
+to claim parallelism.
 
-If inference, checkpointing, or the consumer fails while a future segment is being
-prepared, the prefetched-but-unconsumed segment is cleaned during unwinding. Cleanup
-failure does not mask the primary error.
+The same boundedness applies to storage. A CPU plan admits disk for one materialized
+segment. An accelerated plan with prefetch enabled admits disk for the current segment
+plus one future materialized segment. If prefetch is disabled for lack of CPU
+headroom, the storage estimate returns to one segment. Storage admission therefore
+matches the maximum temporary files the scheduler can actually own.
+
+There is still one job-scoped inference session and one ordered checkpoint writer.
+Prefetch depth is a local scheduling decision, not transcript identity. On resume,
+EchoFlow restores the original engine/device/compute contract and can reduce prefetch
+depth if the current runner has less spare CPU capacity without invalidating completed
+checkpoints.
+
+If future work has not started when a failure occurs, it can be canceled without a
+file ever existing. If future materialization has started or completed, its unconsumed
+segment is cleaned during unwinding. Cleanup failure does not mask the primary error.
+The current segment remains owned by the main execution path and is cleaned there.
 
 This preserves the existing resume invariant: completed checkpoints are a contiguous
 prefix of the deterministic segment plan.
@@ -138,7 +154,9 @@ fresh accelerator probe and engine-capability check before model load.
 A GPU that disappears, loses enough free VRAM, or becomes unsupported after planning
 causes a safe refusal. Resume similarly restores the original engine/device/compute
 contract and re-admits it against the current machine rather than silently changing
-execution placement.
+execution placement. Scheduling optimizations such as prefetch can become more
+conservative when current CPU headroom shrinks, provided the immutable engine and
+checkpoint requirements still fit.
 
 ## Benchmarking and calibration
 
@@ -154,20 +172,24 @@ Representative-device qualification should measure at least:
 - stage timings, including materialization and inference;
 - real-time factor over recordings long enough to expose thermal throttling;
 - peak accelerator memory and utilization when the backend exposes those values
-  reliably; and
-- failure/recovery behavior under resource contraction.
+  reliably;
+- whether one reserved CPU preparation thread improves sustained throughput on the
+  target machine; and
+- failure/recovery behavior under CPU, RAM, and device-memory contraction.
 
 Those measurements can later drive private local calibration. The planner should
-prefer observed evidence over hard-coded hardware-name rules.
+prefer observed evidence over hard-coded hardware-name rules. If measurements show
+that overlap is counterproductive on a particular topology, the scheduling layer can
+become more conservative without changing canonical transcript semantics.
 
 ## Privacy and security
 
 Topology and capability detection are local. EchoFlow does not need to upload hardware
 inventory, recordings, transcripts, or benchmark results to choose a strategy.
 
-Accelerator discovery must use fixed argument vectors without a shell. Probe failures
-are not allowed to expose arbitrary driver output in routine user-facing errors.
-Engine capability checks are read-only and do not authorize model downloads.
+Accelerator discovery uses fixed argument vectors without a shell. Probe failures are
+not allowed to expose arbitrary driver output in routine user-facing errors. Engine
+capability checks are read-only and do not authorize model downloads.
 
 The same explicit download authorization and private model-cache boundaries apply to
 CPU and accelerated strategies.

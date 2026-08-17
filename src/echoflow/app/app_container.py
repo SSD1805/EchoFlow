@@ -18,17 +18,26 @@ from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.media.selection import AudioStreamSelector
 from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.policy import RunnerPolicyPlanner
+from echoflow.runner.topology import (
+    HardwareTopologyInspector,
+    NvidiaSmiAcceleratorProbe,
+)
+from echoflow.transcription.adaptive_executor import AdaptiveTranscriptionExecutor
 from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.audio import FfmpegAudioDecoder
 from echoflow.transcription.backend import FasterWhisperTranscriber
+from echoflow.transcription.capabilities import (
+    EngineCapabilityRegistry,
+    FasterWhisperCapabilityProbe,
+)
 from echoflow.transcription.checkpoint import LocalCheckpointStore
 from echoflow.transcription.diarization import PyannoteSpeakerDiarizer
-from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.export import TranscriptExporter
 from echoflow.transcription.language import LinguaLanguageAttributor
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.segmentation import WaveAudioSegmenter
 from echoflow.transcription.storage import StorageAdmissionPolicy
+from echoflow.transcription.strategy import StrategyEvaluator, faster_whisper_catalog
 from echoflow.workspace.lifecycle import JobLifecycleStore
 from echoflow.workspace.models import WorkspacePaths
 from echoflow.workspace.service import WorkspaceService
@@ -89,10 +98,12 @@ def _create_speaker_diarizer(config: AppConfig) -> PyannoteSpeakerDiarizer:
     )
 
 
+def _create_capability_registry() -> EngineCapabilityRegistry:
+    return EngineCapabilityRegistry((FasterWhisperCapabilityProbe(),))
+
+
 class AppContainer(containers.DeclarativeContainer):
-    """
-    Dependency Injection container for managing application services.
-    """
+    """Dependency Injection container for application services."""
 
     config = providers.Singleton(AppConfig)
     logger = providers.Singleton(_create_logger, config=config)
@@ -106,6 +117,15 @@ class AppContainer(containers.DeclarativeContainer):
         path_disclosure=config.provided.LOG_PATHS,
     )
     runner_inspector = providers.Singleton(RunnerInspector)
+    accelerator_probe = providers.Singleton(NvidiaSmiAcceleratorProbe)
+    hardware_topology_inspector = providers.Singleton(
+        HardwareTopologyInspector,
+        runner_inspector=runner_inspector,
+        accelerator_probe=accelerator_probe,
+    )
+    engine_capability_registry = providers.Singleton(_create_capability_registry)
+    strategy_catalog = providers.Singleton(faster_whisper_catalog)
+    strategy_evaluator = providers.Singleton(StrategyEvaluator)
     runner_policy_planner = providers.Singleton(
         _create_runner_policy_planner, config=config
     )
@@ -135,6 +155,10 @@ class AppContainer(containers.DeclarativeContainer):
         workspace_service=workspace_service,
         runner_inspector=runner_inspector,
         policy_planner=runner_policy_planner,
+        topology_inspector=hardware_topology_inspector,
+        capability_registry=engine_capability_registry,
+        strategy_catalog=strategy_catalog,
+        strategy_evaluator=strategy_evaluator,
         audio_stream_selector=audio_stream_selector,
         model_revision=config.provided.FASTER_WHISPER_MODEL_REVISION,
         checkpoint_store=checkpoint_store,
@@ -146,7 +170,7 @@ class AppContainer(containers.DeclarativeContainer):
     language_attributor = providers.Singleton(LinguaLanguageAttributor)
     speaker_diarizer = providers.Factory(_create_speaker_diarizer, config=config)
     transcription_executor = providers.Factory(
-        TranscriptionExecutor,
+        AdaptiveTranscriptionExecutor,
         media_probe=media_probe,
         workspace_service=workspace_service,
         file_manager=file_manager,
@@ -161,6 +185,10 @@ class AppContainer(containers.DeclarativeContainer):
         language_attributor=language_attributor,
         speaker_diarizer=speaker_diarizer,
         logger=logger,
+        accelerator_probe=accelerator_probe,
+        capability_registry=engine_capability_registry,
+        strategy_catalog=strategy_catalog,
+        strategy_evaluator=strategy_evaluator,
     )
     transcript_exporter = providers.Factory(
         TranscriptExporter,

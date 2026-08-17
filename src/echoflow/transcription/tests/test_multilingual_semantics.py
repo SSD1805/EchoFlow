@@ -86,3 +86,49 @@ def test_language_attribution_sets_uniform_segment_language_when_spans_agree():
     )
 
     assert attributed[0].language == "fr"
+
+
+def test_language_attribution_uses_document_context_and_projects_spans_to_segments():
+    class Attributor:
+        def __init__(self):
+            self.calls = []
+
+        @property
+        def provenance(self):
+            return LanguageAttributionProvenance("test-lid", "1", "document")
+
+        def attribute(self, text):
+            self.calls.append(text)
+            return (
+                LanguageSpan(0, 11, "en"),
+                LanguageSpan(12, 25, "fr"),
+            )
+
+    attributor = Attributor()
+    executor = object.__new__(TranscriptionExecutor)
+    executor.language_attributor = attributor
+    original = (
+        RecognizedSegment(0, 0, 1, "hello there"),
+        RecognizedSegment(1, 1, 2, "bonjour monde"),
+    )
+
+    attributed, _ = executor._attribute_languages(original)
+
+    assert attributor.calls == ["hello there\nbonjour monde"]
+    assert attributed[0].language == "en"
+    assert attributed[1].language == "fr"
+    assert attributed[0].language_spans == (LanguageSpan(0, 11, "en"),)
+    assert attributed[1].language_spans == (LanguageSpan(0, 13, "fr"),)
+
+
+def test_projected_document_span_does_not_include_separator_or_segment_whitespace():
+    segment = RecognizedSegment(0, 0, 1, " hello ")
+
+    projected = TranscriptionExecutor._project_language_span(
+        segment,
+        4,
+        11,
+        LanguageSpan(0, 12, "en"),
+    )
+
+    assert projected == LanguageSpan(1, 6, "en")

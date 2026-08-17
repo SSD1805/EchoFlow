@@ -456,7 +456,11 @@ class TranscriptionExecutor:
             detected_languages[0] if len(detected_languages) == 1 else None
         )
         language_probability = (
-            result.language_probability if detected_language is not None else None
+            result.language_probability
+            if plan.engine.auto_language_mode is AutoLanguageMode.JOB_LATCHED
+            and detected_language is not None
+            and detected_language == result.language
+            else None
         )
         return CanonicalTranscript(
             job_id=plan.job.job_id.value,
@@ -475,19 +479,82 @@ class TranscriptionExecutor:
     def _attribute_languages(
         self, segments: tuple[RecognizedSegment, ...]
     ) -> tuple[tuple[RecognizedSegment, ...], LanguageAttributionProvenance | None]:
-        if self.language_attributor is None:
+        if self.language_attributor is None or not segments:
             return segments, None
 
-        attributed: list[RecognizedSegment] = []
-        for segment in segments:
-            spans = self.language_attributor.attribute(segment.text)
-            languages = {span.language for span in spans}
-            language = next(iter(languages)) if len(languages) == 1 else None
-            attributed.append(
-                replace(
-                    segment,
-                    language=language,
-                    language_spans=spans,
-                )
+        document_text, bounds = self._language_attribution_document(segments)
+        document_spans = self.language_attributor.attribute(document_text)
+        attributed = tuple(
+            self._project_language_spans(segment, start, end, document_spans)
+            for segment, (start, end) in zip(segments, bounds, strict=True)
+        )
+        return attributed, self.language_attributor.provenance
+
+    @staticmethod
+    def _language_attribution_document(
+        segments: tuple[RecognizedSegment, ...],
+    ) -> tuple[str, tuple[tuple[int, int], ...]]:
+        parts: list[str] = []
+        bounds: list[tuple[int, int]] = []
+        cursor = 0
+        for index, segment in enumerate(segments):
+            if index:
+                parts.append("\n")
+                cursor += 1
+            start = cursor
+            parts.append(segment.text)
+            cursor += len(segment.text)
+            bounds.append((start, cursor))
+        return "".join(parts), tuple(bounds)
+
+    @staticmethod
+    def _project_language_spans(
+        segment: RecognizedSegment,
+        document_start: int,
+        document_end: int,
+        document_spans: tuple[LanguageSpan, ...],
+    ) -> RecognizedSegment:
+        projected: list[LanguageSpan] = []
+        for span in document_spans:
+            local = TranscriptionExecutor._project_language_span(
+                segment,
+                document_start,
+                document_end,
+                span,
             )
-        return tuple(attributed), self.language_attributor.provenance
+            if local is not None:
+                projected.append(local)
+        languages = {span.language for span in projected}
+        language = next(iter(languages)) if len(languages) == 1 else None
+        return replace(
+            segment,
+            language=language,
+            language_spans=tuple(projected),
+        )
+
+    @staticmethod
+    def _project_language_span(
+        segment: RecognizedSegment,
+        document_start: int,
+        document_end: int,
+        span: LanguageSpan,
+    ) -> LanguageSpan | None:
+        overlap_start = max(span.start_char, document_start)
+        overlap_end = min(span.end_char, document_end)
+        if overlap_start >= overlap_end:
+            return None
+
+        start = overlap_start - document_start
+        end = overlap_end - document_start
+        while start < end and segment.text[start].isspace():
+            start += 1
+        while end > start and segment.text[end - 1].isspace():
+            end -= 1
+        if start >= end:
+            return None
+        return LanguageSpan(
+            start_char=start,
+            end_char=end,
+            language=span.language,
+            confidence=span.confidence,
+        )

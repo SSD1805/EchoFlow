@@ -449,7 +449,9 @@ class TranscriptionExecutor:
 
     def _admit(self, plan: TranscriptionJobPlan) -> None:
         current_resources = self.runner_inspector.inspect()
-        current_policy = self.policy_planner.plan(current_resources, plan.policy.profile)
+        current_policy = self.policy_planner.plan(
+            current_resources, plan.policy.profile
+        )
         if (
             not plan.resources.fits_memory_budget
             or plan.resources.estimated_peak_memory_bytes

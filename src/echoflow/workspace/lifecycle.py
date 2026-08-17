@@ -14,7 +14,7 @@ from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.workspace.errors import JobNotFoundError
 from echoflow.workspace.models import Artifact, Job, JobId, WorkspacePaths
 
-_JOB_MANIFEST_NAME = "job.json"
+_JOB_MANIFEST_SUFFIX = ".json"
 _MAX_JOB_MANIFEST_BYTES = 64 * 1024
 
 
@@ -130,7 +130,7 @@ class JobLifecycleRecord:
 
 
 class JobLifecycleStore:
-    """Persist and inspect private lifecycle state without owning transcript custody."""
+    """Persist private lifecycle metadata independently from transcript custody."""
 
     def __init__(
         self,
@@ -144,6 +144,10 @@ class JobLifecycleStore:
         self.file_manager = file_manager
         self.paths = paths
         self.max_manifest_bytes = max_manifest_bytes
+
+    @property
+    def registry_dir(self) -> Path:
+        return self.paths.state_dir / "job-lifecycle"
 
     def start(self, job: Job) -> JobLifecycleRecord:
         now = self._now()
@@ -159,10 +163,8 @@ class JobLifecycleStore:
             updated_at=now,
             process_id=pid,
             process_started_at=process_started_at,
-            total_segments=(None if existing is None else existing.total_segments),
-            completed_segments=(
-                0 if existing is None else existing.completed_segments
-            ),
+            total_segments=None if existing is None else existing.total_segments,
+            completed_segments=0 if existing is None else existing.completed_segments,
         )
         self._write(record)
         return record
@@ -223,12 +225,13 @@ class JobLifecycleStore:
         return record
 
     def list_records(self) -> tuple[JobLifecycleRecord, ...]:
-        self.file_manager.ensure_directory_exists(self.paths.jobs_dir, private=True)
+        self.file_manager.ensure_directory_exists(self.registry_dir, private=True)
         records: list[JobLifecycleRecord] = []
-        for directory in self.file_manager.list_directories(self.paths.jobs_dir):
+        for path in self.file_manager.list_files(
+            self.registry_dir, (_JOB_MANIFEST_SUFFIX,)
+        ):
             try:
-                job_id = JobId(directory.name)
-                records.append(self.get(job_id))
+                records.append(self.get(JobId(path.stem)))
             except (JobNotFoundError, ValueError):
                 continue
         return tuple(sorted(records, key=lambda item: item.updated_at, reverse=True))
@@ -240,10 +243,16 @@ class JobLifecycleStore:
 
     def discard(self, job_id: JobId) -> None:
         workspace = (self.paths.jobs_dir / job_id.value).resolve()
-        expected_parent = self.paths.jobs_dir.resolve()
-        if workspace.parent != expected_parent or not workspace.is_dir():
+        manifest = self._manifest_path(job_id)
+        found = False
+        if workspace.parent == self.paths.jobs_dir.resolve() and workspace.is_dir():
+            self.file_manager.delete_directory(workspace)
+            found = True
+        if self.file_manager.file_exists(manifest):
+            self.file_manager.delete_file(manifest)
+            found = True
+        if not found:
             raise JobNotFoundError(job_id.value)
-        self.file_manager.delete_directory(workspace)
 
     def _finish(
         self,
@@ -289,6 +298,7 @@ class JobLifecycleStore:
         return record
 
     def _write(self, record: JobLifecycleRecord) -> None:
+        self.file_manager.ensure_directory_exists(self.registry_dir, private=True)
         path = self._manifest_path(record.job_id)
         payload = json.dumps(
             record.to_dict(), sort_keys=True, separators=(",", ":")
@@ -298,7 +308,7 @@ class JobLifecycleStore:
         self.file_manager.save_file(payload + b"\n", path, private=True)
 
     def _manifest_path(self, job_id: JobId) -> Path:
-        return self.paths.jobs_dir / job_id.value / _JOB_MANIFEST_NAME
+        return self.registry_dir / f"{job_id.value}{_JOB_MANIFEST_SUFFIX}"
 
     @staticmethod
     def _now() -> str:

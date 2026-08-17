@@ -80,6 +80,43 @@ def test_provider_rejects_snapshot_outside_cache_before_file_inspection(
         provider.install(_spec(), cache_root=cache_root, revision=None)
 
 
+def test_provider_revalidation_rejects_wrong_repository_snapshot(
+    tmp_path: Path,
+) -> None:
+    cache_root = tmp_path / "cache"
+    snapshot_path = (
+        cache_root / "models--someone--other-model" / "snapshots" / "abc123"
+    )
+    snapshot_path.mkdir(parents=True)
+    for name in _spec().required_files:
+        (snapshot_path / name).write_bytes(b"x")
+    provider = HuggingFaceModelProvider()
+    snapshot = InstalledSnapshot(
+        resolved_revision="abc123",
+        snapshot_path=snapshot_path,
+        size_bytes=3,
+        verification="huggingface_snapshot_required_files_v1",
+    )
+
+    with pytest.raises(ValueError, match="declared repository"):
+        provider.validate(_spec(), snapshot, cache_root=cache_root)
+
+
+def test_provider_revalidation_rejects_revision_path_mismatch(tmp_path: Path) -> None:
+    cache_root = tmp_path / "cache"
+    snapshot_path = _snapshot(cache_root)
+    provider = HuggingFaceModelProvider()
+    snapshot = InstalledSnapshot(
+        resolved_revision="different-revision",
+        snapshot_path=snapshot_path,
+        size_bytes=3,
+        verification="huggingface_snapshot_required_files_v1",
+    )
+
+    with pytest.raises(ValueError, match="resolved revision"):
+        provider.validate(_spec(), snapshot, cache_root=cache_root)
+
+
 def test_provider_revalidation_rejects_unknown_verification_method(
     tmp_path: Path,
 ) -> None:

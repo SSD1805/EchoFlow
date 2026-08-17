@@ -93,6 +93,8 @@ def test_local_cpu_session_uses_exact_plan_and_consumes_generator(tmp_path):
             "beam_size": 1,
             "language": None,
             "word_timestamps": False,
+            "multilingual": False,
+            "chunk_length": None,
             "vad_filter": False,
             "log_progress": False,
         },

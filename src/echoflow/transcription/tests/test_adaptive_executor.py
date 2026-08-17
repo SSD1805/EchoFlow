@@ -1,4 +1,5 @@
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
@@ -232,9 +233,7 @@ def test_accelerated_segments_prefetch_but_checkpoint_strictly_in_order(tmp_path
     planned_job = job(tmp_path)
     segment_windows = windows(3)
     materialized = tuple(
-        MaterializedAudioSegment(
-            window, Path.cwd() / f"test-{window.segment_id}.wav"
-        )
+        MaterializedAudioSegment(window, Path.cwd() / f"test-{window.segment_id}.wav")
         for window in segment_windows
     )
     service.audio_segmenter.materialize.side_effect = materialized
@@ -267,7 +266,17 @@ def test_accelerated_segments_prefetch_but_checkpoint_strictly_in_order(tmp_path
     assert service.observer.values()["segments.completed"] == 3
 
 
-def test_transcription_failure_cleans_current_and_prefetched_segment(tmp_path):
+def _blocking_materializer(service, materialized, started, release):
+    def materialize(_audio_path, window, _decoder, _workspace):
+        if window.index == 1:
+            started.set()
+            assert release.wait(timeout=1)
+        return materialized[window.index]
+
+    service.audio_segmenter.materialize.side_effect = materialize
+
+
+def test_transcription_failure_cleans_started_prefetch_segment(tmp_path):
     service = bare_service()
     planned = execution_plan()
     planned_job = job(tmp_path)
@@ -278,9 +287,17 @@ def test_transcription_failure_cleans_current_and_prefetched_segment(tmp_path):
         )
         for window in segment_windows
     )
-    service.audio_segmenter.materialize.side_effect = materialized
+    second_started = Event()
+    release_second = Event()
+    _blocking_materializer(service, materialized, second_started, release_second)
     session = Mock(engine_version="1.2.1")
-    session.transcribe.side_effect = TranscriptionError("engine failed")
+
+    def fail_transcription(_path):
+        assert second_started.wait(timeout=1)
+        release_second.set()
+        raise TranscriptionError("engine failed")
+
+    session.transcribe.side_effect = fail_transcription
     service._open_session = Mock(return_value=session)
 
     with pytest.raises(TranscriptionError, match="^engine failed$"):
@@ -294,13 +311,13 @@ def test_transcription_failure_cleans_current_and_prefetched_segment(tmp_path):
         )
 
     service.audio_segmenter.cleanup.assert_has_calls(
-        [call(materialized[0]), call(materialized[1])], any_order=True
+        [call(materialized[0]), call(materialized[1])]
     )
     assert service.audio_segmenter.cleanup.call_count == 2
     service.checkpoint_store.save_segment.assert_not_called()
 
 
-def test_checkpoint_failure_cleans_prefetched_segment_without_committing_it(tmp_path):
+def test_checkpoint_failure_cleans_started_prefetch_without_committing_it(tmp_path):
     service = bare_service()
     planned = execution_plan()
     planned_job = job(tmp_path)
@@ -311,9 +328,17 @@ def test_checkpoint_failure_cleans_prefetched_segment_without_committing_it(tmp_
         )
         for window in segment_windows
     )
-    service.audio_segmenter.materialize.side_effect = materialized
+    second_started = Event()
+    release_second = Event()
+    _blocking_materializer(service, materialized, second_started, release_second)
     session = Mock(engine_version="1.2.1")
-    session.transcribe.return_value = engine_result()
+
+    def transcribe(_path):
+        assert second_started.wait(timeout=1)
+        release_second.set()
+        return engine_result()
+
+    session.transcribe.side_effect = transcribe
     service._open_session = Mock(return_value=session)
     service.checkpoint_store.save_segment.side_effect = CheckpointError("write failed")
 
@@ -328,7 +353,7 @@ def test_checkpoint_failure_cleans_prefetched_segment_without_committing_it(tmp_
         )
 
     service.audio_segmenter.cleanup.assert_has_calls(
-        [call(materialized[0]), call(materialized[1])], any_order=True
+        [call(materialized[0]), call(materialized[1])]
     )
     assert service.audio_segmenter.cleanup.call_count == 2
     assert service.checkpoint_store.save_segment.call_count == 1

@@ -1,0 +1,357 @@
+name: Finalize multilingual migration
+
+on:
+  push:
+    branches: [agent/multilingual-language-attribution]
+    paths:
+      - .github/workflows/repair-multilingual-migration-v4.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: agent/multilingual-language-attribution
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: false
+
+      - name: Apply migration, refactor validation, and test
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(path: str) -> str:
+              return Path(path).read_text(encoding="utf-8")
+
+          def write(path: str, text: str) -> None:
+              Path(path).write_text(text, encoding="utf-8")
+
+          def sub_once(path: str, pattern: str, replacement: str, *, flags: int = 0) -> None:
+              text = read(path)
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+              if count != 1:
+                  raise RuntimeError(f"expected one regex replacement in {path}: {pattern!r}; found {count}")
+              write(path, updated)
+
+          for root in (Path("src/echoflow"), Path("scripts")):
+              for path in root.rglob("*.py"):
+                  text = path.read_text(encoding="utf-8")
+                  text = text.replace("AutoLanguageMode.PER_SEGMENT", "AutoLanguageMode.NATIVE_MULTILINGUAL")
+                  text = text.replace('PER_SEGMENT = "per_segment_v1"', 'NATIVE_MULTILINGUAL = "native_multilingual_v1"')
+                  text = text.replace("per_segment_v1", "native_multilingual_v1")
+                  path.write_text(text, encoding="utf-8")
+
+          sub_once(
+              "src/echoflow/transcription/checkpoint.py",
+              r"if self\.job_plan_schema_version != 1:\n\s+raise ValueError\(\"checkpoint job-plan schema version is unsupported\"\)",
+              'if self.job_plan_schema_version not in (1, 2):\n            raise ValueError("checkpoint job-plan schema version is unsupported")',
+          )
+
+          executor = "src/echoflow/transcription/executor.py"
+          text = read(executor)
+          start = text.index("        detected_languages: list[str] = []", text.index("    def _transcript("))
+          end = text.index("        detected_language = (", start)
+          replacement = "\n".join([
+              "        detected_languages: list[str] = []",
+              "        for segment in segments:",
+              "            for span in segment.language_spans:",
+              "                if span.language not in detected_languages:",
+              "                    detected_languages.append(span.language)",
+              "        if not detected_languages:",
+              "            for segment in segments:",
+              "                if (",
+              "                    segment.detected_language is not None",
+              "                    and segment.detected_language not in detected_languages",
+              "                ):",
+              "                    detected_languages.append(segment.detected_language)",
+              "",
+          ])
+          write(executor, text[:start] + replacement + text[end:])
+
+          models = "src/echoflow/transcription/models.py"
+          text = read(models)
+          canonical_start = text.index("class CanonicalTranscript:")
+          start = text.index("        derived_languages: list[str] = []", canonical_start)
+          end = text.index("        if not self.detected_languages:", start)
+          replacement = "\n".join([
+              "        derived_languages: list[str] = []",
+              "        for segment in self.segments:",
+              "            for span in segment.language_spans:",
+              "                if span.language not in derived_languages:",
+              "                    derived_languages.append(span.language)",
+              "        if not derived_languages:",
+              "            for segment in self.segments:",
+              "                if (",
+              "                    segment.detected_language is not None",
+              "                    and segment.detected_language not in derived_languages",
+              "                ):",
+              "                    derived_languages.append(segment.detected_language)",
+              "",
+          ])
+          text = text[:start] + replacement + text[end:]
+          write(models, text)
+
+          # Refactor RecognizedSegment validation into semantic helpers.
+          text = read(models)
+          class_start = text.index("class RecognizedSegment:")
+          start = text.index("    def __post_init__(self) -> None:\n", class_start)
+          end = text.index("    @property\n    def segment_id", start)
+          replacement = "\n".join([
+              "    def __post_init__(self) -> None:",
+              "        self._validate_identity_and_text()",
+              "        self._validate_probabilities()",
+              "        self._validate_language_metadata()",
+              "        self._validate_language_spans()",
+              "",
+              "    def _validate_identity_and_text(self) -> None:",
+              "        if self.index < 0:",
+              "            raise ValueError(\"segment index cannot be negative\")",
+              "        if (",
+              "            not math.isfinite(self.start_seconds)",
+              "            or not math.isfinite(self.end_seconds)",
+              "            or self.start_seconds < 0",
+              "            or self.end_seconds < self.start_seconds",
+              "        ):",
+              "            raise ValueError(\"segment timestamps must be finite and ordered\")",
+              "        if not self.text.strip():",
+              "            raise ValueError(\"segment text cannot be empty\")",
+              "",
+              "    def _validate_probabilities(self) -> None:",
+              "        if self.average_log_probability is not None and not math.isfinite(",
+              "            self.average_log_probability",
+              "        ):",
+              "            raise ValueError(\"average_log_probability must be finite\")",
+              "        if self.no_speech_probability is not None and not (",
+              "            math.isfinite(self.no_speech_probability)",
+              "            and 0 <= self.no_speech_probability <= 1",
+              "        ):",
+              "            raise ValueError(\"no_speech_probability must be between 0 and 1\")",
+              "        if self.language_probability is not None and not (",
+              "            math.isfinite(self.language_probability)",
+              "            and 0 <= self.language_probability <= 1",
+              "        ):",
+              "            raise ValueError(\"language_probability must be between 0 and 1\")",
+              "",
+              "    def _validate_language_metadata(self) -> None:",
+              "        if self.detected_language is not None and not self.detected_language.strip():",
+              "            raise ValueError(\"detected_language cannot be empty\")",
+              "        if self.language is not None and not self.language.strip():",
+              "            raise ValueError(\"language cannot be empty\")",
+              "        if self.speaker_ref is not None and not self.speaker_ref.strip():",
+              "            raise ValueError(\"speaker_ref cannot be empty\")",
+              "",
+              "    def _validate_language_spans(self) -> None:",
+              "        previous_end = 0",
+              "        for span in self.language_spans:",
+              "            if span.end_char > len(self.text):",
+              "                raise ValueError(\"language span exceeds segment text\")",
+              "            if span.start_char < previous_end:",
+              "                raise ValueError(\"language spans cannot overlap\")",
+              "            previous_end = span.end_char",
+              "        languages = {span.language for span in self.language_spans}",
+              "        if self.language is not None and languages and languages != {self.language}:",
+              "            raise ValueError(\"segment language must match uniform language spans\")",
+              "        if len(languages) > 1 and self.language is not None:",
+              "            raise ValueError(\"mixed-language segments cannot have one language label\")",
+              "",
+          ])
+          write(models, text[:start] + replacement + text[end:])
+
+          # Refactor CanonicalTranscript validation into semantic helpers.
+          text = read(models)
+          class_start = text.index("class CanonicalTranscript:")
+          start = text.index("    def __post_init__(self) -> None:\n", class_start)
+          end = text.index("    @property\n    def text", start)
+          replacement = "\n".join([
+              "    def __post_init__(self) -> None:",
+              "        self._validate_core_contract()",
+              "        derived_languages = self._derived_languages()",
+              "        if not self.detected_languages:",
+              "            object.__setattr__(self, \"detected_languages\", derived_languages)",
+              "        elif derived_languages != self.detected_languages:",
+              "            raise ValueError(\"detected_languages must match transcript language evidence\")",
+              "        self._validate_language_summary()",
+              "",
+              "    def _validate_core_contract(self) -> None:",
+              "        if self.schema_version != 2:",
+              "            raise ValueError(\"unsupported transcript schema version\")",
+              "        if not self.job_id:",
+              "            raise ValueError(\"job_id cannot be empty\")",
+              "        if self.provisional != (self.profile is ProcessingProfile.SCREENING):",
+              "            raise ValueError(\"provisional flag must match the processing profile\")",
+              "        if tuple(segment.index for segment in self.segments) != tuple(",
+              "            range(len(self.segments))",
+              "        ):",
+              "            raise ValueError(\"segment indices must be contiguous and zero-based\")",
+              "",
+              "    def _derived_languages(self) -> tuple[str, ...]:",
+              "        languages: list[str] = []",
+              "        for segment in self.segments:",
+              "            for span in segment.language_spans:",
+              "                if span.language not in languages:",
+              "                    languages.append(span.language)",
+              "        if languages:",
+              "            return tuple(languages)",
+              "        for segment in self.segments:",
+              "            if (",
+              "                segment.detected_language is not None",
+              "                and segment.detected_language not in languages",
+              "            ):",
+              "                languages.append(segment.detected_language)",
+              "        return tuple(languages)",
+              "",
+              "    def _validate_language_summary(self) -> None:",
+              "        if self.detected_language is not None and not self.detected_language.strip():",
+              "            raise ValueError(\"detected_language cannot be empty\")",
+              "        if self.language_probability is not None and not (",
+              "            math.isfinite(self.language_probability)",
+              "            and 0 <= self.language_probability <= 1",
+              "        ):",
+              "            raise ValueError(\"language_probability must be between 0 and 1\")",
+              "        if len(self.detected_languages) > 1 and self.detected_language is not None:",
+              "            raise ValueError(\"mixed-language transcripts cannot have one detected_language\")",
+              "        if (",
+              "            self.detected_language is not None",
+              "            and self.detected_languages",
+              "            and self.detected_language != self.detected_languages[0]",
+              "        ):",
+              "            raise ValueError(\"detected_language must match transcript language evidence\")",
+              "        if self.detected_language is None and self.language_probability is not None:",
+              "            raise ValueError(\"language_probability requires detected_language\")",
+              "",
+          ])
+          write(models, text[:start] + replacement + text[end:])
+
+          # Remove production assert from lazy dependency provenance.
+          path = "src/echoflow/transcription/language.py"
+          text = read(path).replace(
+              "        assert self._package_version is not None\n        return LanguageAttributionProvenance(\n            provider=\"lingua\",\n            package_version=self._package_version,\n",
+              "        package_version = self._package_version\n        if package_version is None:\n            raise TranscriptionError(\n                \"Language attribution package version is unavailable\"\n            )\n        return LanguageAttributionProvenance(\n            provider=\"lingua\",\n            package_version=package_version,\n",
+              1,
+          )
+          write(path, text)
+
+          # Intentional schema migration expectations.
+          path = "src/echoflow/transcription/tests/test_models.py"
+          text = read(path)
+          text = text.replace("TranscriptionJobPlan(*arguments, warnings=(), schema_version=2)", "TranscriptionJobPlan(*arguments, warnings=(), schema_version=3)", 1)
+          text = text.replace('({"schema_version": 2}, "unsupported transcript schema version")', '({"schema_version": 3}, "unsupported transcript schema version")', 1)
+          text = text.replace(
+              '            "no_speech_probability": 0.15,\n',
+              '            "no_speech_probability": 0.15,\n            "detected_language": None,\n            "language_probability": None,\n            "language": None,\n            "language_spans": [],\n            "speaker_ref": None,\n',
+              1,
+          )
+          text = text.replace(
+              '            "requested_language": None,\n',
+              '            "requested_language": None,\n            "auto_language_mode": "job_latched_v1",\n',
+              1,
+          )
+          write(path, text)
+
+          path = "src/echoflow/transcription/tests/test_planner.py"
+          write(path, read(path).replace("assert plan.schema_version == 1", "assert plan.schema_version == 2", 1))
+          path = "src/echoflow/transcription/tests/test_executor.py"
+          write(path, read(path).replace('assert document["schema_version"] == 1', 'assert document["schema_version"] == 2', 1))
+
+          path = "src/echoflow/transcription/tests/test_multilingual_semantics.py"
+          text = read(path)
+          text, count = re.subn(
+              r"    assert tuple\(segment\.detected_language for segment in assembled\.segments\) == \(\n\s+\"en\",\n\s+\"fr\",\n\s+\)\n",
+              "    assert all(\n        segment.detected_language is None for segment in assembled.segments\n    )\n",
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise RuntimeError("multilingual assembly expectation was not migrated")
+          write(path, text)
+
+          path = "src/echoflow/transcription/tests/test_backend_session.py"
+          text = read(path)
+          old = '            calls.append(kwargs["language"])\n            return iter(()), next(infos)\n'
+          new = '            calls.append((kwargs["language"], kwargs["multilingual"], kwargs["chunk_length"]))\n            return iter(()), next(infos)\n'
+          if old not in text:
+              raise RuntimeError("backend multilingual call capture was not found")
+          text = text.replace(old, new, 1)
+          text = text.replace("    assert calls == [None, None]\n", "    assert calls == [(None, True, 10), (None, True, 10)]\n", 1)
+          write(path, text)
+
+          path = "scripts/verify_engine_acceptance.py"
+          text = read(path)
+          start = text.index("def _validate_language_contract(document: dict[str, Any]) -> None:\n")
+          end = text.index("def _validate_provenance(\n", start)
+          replacement = "\n".join([
+              "def _validate_language_provenance(document: dict[str, Any]) -> None:",
+              "    if document.get(\"schema_version\") != 2:",
+              "        raise RuntimeError(\"unexpected canonical transcript schema version\")",
+              "    engine = document.get(\"engine\")",
+              "    attribution = document.get(\"language_attribution\")",
+              "    if not isinstance(engine, dict) or not isinstance(attribution, dict):",
+              "        raise RuntimeError(\"canonical language provenance is incomplete\")",
+              "    if engine.get(\"auto_language_mode\") != \"native_multilingual_v1\":",
+              "        raise RuntimeError(\"canonical transcript omitted multilingual language policy\")",
+              "    if attribution.get(\"provider\") != \"lingua\":",
+              "        raise RuntimeError(\"canonical transcript recorded the wrong language provider\")",
+              "    if not str(attribution.get(\"package_version\", \"\")).strip():",
+              "        raise RuntimeError(\"canonical transcript omitted language provider version\")",
+              "",
+              "",
+              "def _validate_language_segments(document: dict[str, Any]) -> None:",
+              "    segments = document.get(\"segments\")",
+              "    if not isinstance(segments, list) or not segments:",
+              "        raise RuntimeError(\"known speech produced no canonical recognition segments\")",
+              "    if any(not isinstance(segment, dict) for segment in segments):",
+              "        raise RuntimeError(\"canonical transcript contains malformed language segments\")",
+              "    if not any(",
+              "        isinstance(segment, dict) and segment.get(\"language_spans\")",
+              "        for segment in segments",
+              "    ):",
+              "        raise RuntimeError(\"canonical transcript contains no language-attributed spans\")",
+              "",
+              "",
+              "def _validate_language_contract(document: dict[str, Any]) -> None:",
+              "    _validate_language_provenance(document)",
+              "    _validate_language_segments(document)",
+              "",
+              "",
+          ])
+          write(path, text[:start] + replacement + text[end:])
+          PY
+
+          uv sync --locked --extra transcription
+          uv run ruff check --fix src/echoflow/transcription scripts/verify_engine_acceptance.py
+          uv run ruff format src/echoflow/transcription scripts/verify_engine_acceptance.py
+          uv run pytest \
+            src/echoflow/transcription/tests/test_models.py \
+            src/echoflow/transcription/tests/test_backend_session.py \
+            src/echoflow/transcription/tests/test_multilingual_semantics.py \
+            src/echoflow/transcription/tests/test_checkpoint_process_acceptance.py \
+            src/echoflow/transcription/tests/test_planner.py \
+            src/echoflow/transcription/tests/test_executor.py
+
+          git rm \
+            .github/workflows/repair-multilingual-migration.yml \
+            .github/workflows/repair-multilingual-migration-v2.yml \
+            .github/workflows/repair-multilingual-migration-v3.yml \
+            .github/workflows/repair-multilingual-migration-v4.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src scripts .github/workflows
+          git commit -m "Finalize multilingual migration"
+          git push origin HEAD:agent/multilingual-language-attribution

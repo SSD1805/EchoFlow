@@ -92,8 +92,7 @@ def test_fresh_benchmark_plans_executes_with_observer_and_emits_json():
     observer = container.transcription_executor.calls[-1]["observer"]
     assert isinstance(observer, NoOpExecutionObserver)
     container.transcription_executor.value.execute.assert_called_once_with(
-        container.transcription_planner().plan.return_value,
-        allow_model_download=False,
+        container.transcription_planner().plan.return_value
     )
 
 
@@ -111,9 +110,18 @@ def test_resume_uses_authoritative_resume_plan_and_explicit_resume_execution():
     container.transcription_planner().plan_resume.assert_called_once()
     container.transcription_executor.value.execute.assert_called_once_with(
         container.transcription_planner().plan_resume.return_value,
-        allow_model_download=False,
         resume=True,
     )
+
+
+def test_legacy_model_download_flag_is_not_exposed():
+    container = FakeContainer()
+
+    with patch("echoflow.benchmarking.cli.AppContainer", return_value=container):
+        result = runner.invoke(app, ["recording.wav", "--allow-model-download"])
+
+    assert result.exit_code == 2
+    container.benchmark_runner().run.assert_not_called()
 
 
 @pytest.mark.parametrize(

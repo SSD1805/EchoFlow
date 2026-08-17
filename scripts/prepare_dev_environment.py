@@ -19,7 +19,7 @@ def main() -> int:
             "uv is required to prepare the EchoFlow development environment"
         )
 
-    subprocess.run(
+    subprocess.run(  # noqa: S603 - executable is resolved locally; argv is fixed
         [
             uv,
             "sync",
@@ -31,7 +31,7 @@ def main() -> int:
         cwd=repo_root,
         check=True,
     )
-    subprocess.run(
+    subprocess.run(  # noqa: S603 - executable is resolved locally; argv is fixed
         [uv, "run", "poodle", "--help"],
         cwd=repo_root,
         check=True,

@@ -14,6 +14,8 @@ from echoflow.transcription.capabilities import (
     EngineCapabilityRegistry,
 )
 from echoflow.transcription.checkpoint import ResumeSettings
+from echoflow.transcription.enhancement import ffmpeg_afftdn_configuration
+from echoflow.transcription.enhancement_models import EnhancementConfiguration
 from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
 from echoflow.transcription.models import (
     AutoLanguageMode,
@@ -94,6 +96,7 @@ class TranscriptionJobPlanner:
         strategy_id: str | None = None,
         audio_stream_index: int | None = None,
         job_id: JobId | None = None,
+        enhance: bool = False,
     ) -> TranscriptionJobPlan:
         job = self.workspace_service.plan_job(
             input_path, output_dir=output_dir, job_id=job_id
@@ -114,6 +117,9 @@ class TranscriptionJobPlanner:
         engine = self._engine(policy, selected.strategy)
         prefetch_depth = self._prefetch_depth(policy, engine)
         decoder = self._decoder(media)
+        enhancement = (
+            ffmpeg_afftdn_configuration() if enhance else EnhancementConfiguration()
+        )
         segmentation = SegmentationConfiguration()
         artifact = self.workspace_service.plan_artifact(
             job, ArtifactKind.CANONICAL_JSON
@@ -121,6 +127,7 @@ class TranscriptionJobPlanner:
         resources = self._resources(
             media,
             decoder,
+            enhancement,
             segmentation,
             selected.strategy.model_cache_bytes,
             selected.peak_system_memory_bytes,
@@ -130,6 +137,8 @@ class TranscriptionJobPlanner:
         warnings = ["paths_are_unreserved"]
         if policy.provisional:
             warnings.append("screening_output_is_provisional")
+        if enhancement.enabled:
+            warnings.append("noise_suppression_enabled")
         if selected.strategy.accelerated:
             warnings.extend(
                 ("accelerator_strategy_selected", "accelerator_estimate_is_heuristic")
@@ -146,8 +155,9 @@ class TranscriptionJobPlanner:
             decoder=decoder,
             resources=resources,
             warnings=tuple(warnings),
+            enhancement=enhancement,
             segmentation=segmentation,
-            schema_version=2,
+            schema_version=3 if enhancement.enabled else 2,
         )
 
     def plan_resume(
@@ -220,6 +230,7 @@ class TranscriptionJobPlanner:
         resources = self._resources(
             media,
             settings.decoder,
+            settings.enhancement,
             settings.segmentation,
             settings.model_cache_bytes,
             settings.estimated_peak_memory_bytes,
@@ -229,6 +240,8 @@ class TranscriptionJobPlanner:
         warnings = ["paths_are_unreserved", "resume_contract_restored"]
         if settings.provisional:
             warnings.append("screening_output_is_provisional")
+        if settings.enhancement.enabled:
+            warnings.append("noise_suppression_restored")
         if engine.device != "cpu":
             warnings.append("accelerator_strategy_restored")
             if prefetch_depth == 0:
@@ -243,6 +256,7 @@ class TranscriptionJobPlanner:
             decoder=settings.decoder,
             resources=resources,
             warnings=tuple(warnings),
+            enhancement=settings.enhancement,
             segmentation=settings.segmentation,
             schema_version=settings.job_plan_schema_version,
         )
@@ -380,6 +394,7 @@ class TranscriptionJobPlanner:
     def _resources(
         media: MediaInfo,
         decoder: DecodeConfiguration,
+        enhancement: EnhancementConfiguration,
         segmentation: SegmentationConfiguration,
         model_cache_bytes: int,
         estimated_peak_memory_bytes: int,
@@ -389,14 +404,18 @@ class TranscriptionJobPlanner:
     ) -> ResourceEstimate:
         if materialized_segment_count < 1:
             raise ValueError("materialized_segment_count must be positive")
-        normalized_audio = 0
-        if decoder.strategy is DecodeStrategy.FFMPEG_NORMALIZE:
-            normalized_audio = math.ceil(
-                media.duration_seconds
-                * decoder.sample_rate_hz
-                * decoder.channels
-                * _TARGET_BYTES_PER_SAMPLE
-            )
+        full_canonical_audio = math.ceil(
+            media.duration_seconds
+            * decoder.sample_rate_hz
+            * decoder.channels
+            * _TARGET_BYTES_PER_SAMPLE
+        )
+        normalized_audio = (
+            full_canonical_audio
+            if decoder.strategy is DecodeStrategy.FFMPEG_NORMALIZE
+            else 0
+        )
+        enhanced_audio = full_canonical_audio if enhancement.enabled else 0
         largest_segment_seconds = min(
             media.duration_seconds, float(segmentation.segment_duration_seconds)
         )
@@ -408,6 +427,7 @@ class TranscriptionJobPlanner:
         )
         private_workspace = (
             normalized_audio
+            + enhanced_audio
             + largest_segment_audio * materialized_segment_count
             + 16 * _MIB
         )

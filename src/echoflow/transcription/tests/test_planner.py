@@ -65,7 +65,14 @@ def media_info(
     )
 
 
-def build_planner(tmp_path, media, resources=None):
+def build_planner(
+    tmp_path,
+    media,
+    resources=None,
+    *,
+    model_registry=None,
+    model_revision=None,
+):
     paths = WorkspacePaths(
         tmp_path / "state",
         tmp_path / "cache",
@@ -83,6 +90,8 @@ def build_planner(tmp_path, media, resources=None):
         workspace_service=workspace,
         runner_inspector=inspector,
         policy_planner=RunnerPolicyPlanner(memory_budget_fraction=1),
+        model_registry=model_registry,
+        model_revision=model_revision,
     )
     return planner, paths, probe, inspector
 
@@ -129,6 +138,43 @@ def test_balanced_plan_composes_real_paths_media_cpu_engine_and_estimates(tmp_pa
     assert not paths.state_dir.exists()
     assert not paths.cache_dir.exists()
     assert not paths.output_dir.exists()
+
+
+def test_managed_model_revision_is_pinned_without_mutating_workspace(tmp_path):
+    source = tmp_path / "managed.wav"
+    source.write_bytes(b"audio")
+    registry = Mock()
+    registry.resolved_revision.return_value = "immutable-abc123"
+    planner, paths, _, _ = build_planner(
+        tmp_path,
+        media_info(source),
+        model_registry=registry,
+    )
+
+    plan = planner.plan(source)
+
+    assert plan.engine.model == "small"
+    assert plan.engine.model_revision == "immutable-abc123"
+    registry.resolved_revision.assert_called_once_with("small")
+    assert not paths.cache_dir.exists()
+
+
+def test_explicit_model_revision_wins_without_registry_substitution(tmp_path):
+    source = tmp_path / "explicit-revision.wav"
+    source.write_bytes(b"audio")
+    registry = Mock()
+    registry.resolved_revision.return_value = "managed-abc123"
+    planner, _, _, _ = build_planner(
+        tmp_path,
+        media_info(source),
+        model_registry=registry,
+        model_revision="operator-requested",
+    )
+
+    plan = planner.plan(source)
+
+    assert plan.engine.model_revision == "operator-requested"
+    registry.resolved_revision.assert_not_called()
 
 
 def test_screening_plan_is_provisional_compact_and_low_beam(tmp_path):

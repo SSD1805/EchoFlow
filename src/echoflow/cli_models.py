@@ -31,9 +31,7 @@ def _format_bytes(value: int) -> str:
     return f"{amount:.1f} {units[-1]}"
 
 
-def _render_inventory(
-    items: tuple[ModelInventoryItem, ...], console: Console
-) -> None:
+def _render_inventory(items: tuple[ModelInventoryItem, ...], console: Console) -> None:
     table = Table(title="EchoFlow managed models")
     table.add_column("Model")
     table.add_column("Engine")
@@ -84,8 +82,10 @@ def _install_model(
     container_factory: ContainerFactory,
 ) -> None:
     try:
-        manifest = container_factory(_root_context(context)).model_manager().install(
-            model_id, revision=revision
+        manifest = (
+            container_factory(_root_context(context))
+            .model_manager()
+            .install(model_id, revision=revision)
         )
     except EchoFlowError as exc:
         typer.echo(exc.public_message, err=True)
@@ -110,7 +110,9 @@ def _remove_model(
         container = container_factory(_root_context(context))
         manager = container.model_manager()
         if not manager.is_installed(model_id):
-            raise typer.BadParameter("model is not managed by EchoFlow", param_hint="MODEL")
+            raise typer.BadParameter(
+                "model is not managed by EchoFlow", param_hint="MODEL"
+            )
         if not yes and not typer.confirm(
             f"Remove EchoFlow's managed {model_id} model revision from local storage?"
         ):
@@ -143,11 +145,7 @@ def _recommend_model(
             profile=selected_profile
         )
         recommended = next(
-            (
-                assessment
-                for assessment in assessments
-                if assessment["recommended"]
-            ),
+            (assessment for assessment in assessments if assessment["recommended"]),
             None,
         )
         if recommended is None:
@@ -235,9 +233,7 @@ def register_model_commands(
         ] = None,
         json_output: Annotated[
             bool,
-            typer.Option(
-                "--json", help="Emit the installed model manifest as JSON."
-            ),
+            typer.Option("--json", help="Emit the installed model manifest as JSON."),
         ] = False,
     ) -> None:
         _install_model(

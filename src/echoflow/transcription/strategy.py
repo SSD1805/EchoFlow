@@ -346,18 +346,14 @@ class StrategyEvaluator:
             quality = min(item.strategy.quality_rank for item in feasible)
             return self._fastest(
                 tuple(
-                    item
-                    for item in feasible
-                    if item.strategy.quality_rank == quality
+                    item for item in feasible if item.strategy.quality_rank == quality
                 )
             )
         if profile is ProcessingProfile.ACCURACY:
             quality = max(item.strategy.quality_rank for item in feasible)
             return self._fastest(
                 tuple(
-                    item
-                    for item in feasible
-                    if item.strategy.quality_rank == quality
+                    item for item in feasible if item.strategy.quality_rank == quality
                 )
             )
 

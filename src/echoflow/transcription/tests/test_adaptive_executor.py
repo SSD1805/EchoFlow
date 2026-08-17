@@ -139,14 +139,22 @@ def engine_result(version="1.2.1"):
     return EngineTranscript((), None, None, version)
 
 
-def execution_plan(*, device="cuda", compute_type="float16"):
+def execution_plan(
+    *,
+    device="cuda",
+    compute_type="float16",
+    policy_threads=4,
+    engine_threads=3,
+):
     return SimpleNamespace(
         engine=SimpleNamespace(
             engine="faster-whisper",
             model="small",
             device=device,
             compute_type=compute_type,
+            cpu_threads=engine_threads,
         ),
+        policy=SimpleNamespace(cpu_threads=policy_threads),
         runner=resources(),
         resources=SimpleNamespace(memory_budget_bytes=8 * GIB),
         decoder=SimpleNamespace(),
@@ -227,11 +235,7 @@ def test_gpu_admission_runs_base_resource_check_before_accelerator_check():
     service._admit_accelerator.assert_called_once_with(plan)
 
 
-def test_accelerated_segments_prefetch_but_checkpoint_strictly_in_order(tmp_path):
-    service = bare_service()
-    planned = execution_plan()
-    planned_job = job(tmp_path)
-    segment_windows = windows(3)
+def _prepared_execution(service, segment_windows):
     materialized = tuple(
         MaterializedAudioSegment(window, Path.cwd() / f"test-{window.segment_id}.wav")
         for window in segment_windows
@@ -241,6 +245,15 @@ def test_accelerated_segments_prefetch_but_checkpoint_strictly_in_order(tmp_path
     session.transcribe.side_effect = tuple(engine_result() for _ in segment_windows)
     service._open_session = Mock(return_value=session)
     service.transcript_assembler.assemble.return_value = engine_result()
+    return materialized, session
+
+
+def test_accelerated_segments_prefetch_but_checkpoint_strictly_in_order(tmp_path):
+    service = bare_service()
+    planned = execution_plan()
+    planned_job = job(tmp_path)
+    segment_windows = windows(3)
+    materialized, session = _prepared_execution(service, segment_windows)
 
     result = service._transcribe_accelerated(
         planned,
@@ -264,6 +277,31 @@ def test_accelerated_segments_prefetch_but_checkpoint_strictly_in_order(tmp_path
     ]
     assert service.observer.values()["segments.prefetch_depth"] == 1
     assert service.observer.values()["segments.completed"] == 3
+
+
+def test_accelerated_segments_stay_sequential_without_cpu_headroom(tmp_path):
+    service = bare_service()
+    planned = execution_plan(policy_threads=1, engine_threads=1)
+    planned_job = job(tmp_path)
+    segment_windows = windows(2)
+    materialized, session = _prepared_execution(service, segment_windows)
+
+    service._transcribe_accelerated(
+        planned,
+        DecodedAudio(Path.cwd() / "decoded.wav", False),
+        segment_windows,
+        planned_job,
+        RestoredCheckpoint((), None, None),
+        allow_model_download=False,
+    )
+
+    assert service.observer.values()["segments.prefetch_depth"] == 0
+    assert session.transcribe.call_args_list == [
+        call(segment.path) for segment in materialized
+    ]
+    assert service.audio_segmenter.cleanup.call_args_list == [
+        call(segment) for segment in materialized
+    ]
 
 
 def _blocking_materializer(service, materialized, started, release):

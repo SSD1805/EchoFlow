@@ -17,6 +17,14 @@ class ModelProvider(Protocol):
         revision: str | None,
     ) -> InstalledSnapshot: ...
 
+    def validate(
+        self,
+        spec: ModelSpec,
+        snapshot: InstalledSnapshot,
+        *,
+        cache_root: Path,
+    ) -> None: ...
+
     def remove(
         self,
         snapshot: InstalledSnapshot,
@@ -52,20 +60,33 @@ class HuggingFaceModelProvider:
                 local_files_only=False,
             )
         ).resolve(strict=False)
-        self._require_contained(snapshot_path, resolved_cache_root)
         resolved_revision = snapshot_path.name
         if not resolved_revision:
             raise ValueError("model provider returned an unidentified snapshot")
-        self._verify_required_files(snapshot_path, spec.required_files)
         size_bytes = sum(
             path.stat().st_size for path in snapshot_path.rglob("*") if path.is_file()
         )
-        return InstalledSnapshot(
+        snapshot = InstalledSnapshot(
             resolved_revision=resolved_revision,
             snapshot_path=snapshot_path,
             size_bytes=size_bytes,
             verification=_VERIFICATION_METHOD,
         )
+        self.validate(spec, snapshot, cache_root=resolved_cache_root)
+        return snapshot
+
+    def validate(
+        self,
+        spec: ModelSpec,
+        snapshot: InstalledSnapshot,
+        *,
+        cache_root: Path,
+    ) -> None:
+        resolved_cache_root = cache_root.expanduser().resolve(strict=False)
+        self._require_contained(snapshot.snapshot_path, resolved_cache_root)
+        if snapshot.verification != _VERIFICATION_METHOD:
+            raise ValueError("model snapshot verification method is not supported")
+        self._verify_required_files(snapshot.snapshot_path, spec.required_files)
 
     def remove(
         self,

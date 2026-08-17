@@ -21,6 +21,9 @@ class ErrorCode(StrEnum):
     TRANSCRIPTION_DEPENDENCY = "transcription_dependency_unavailable"
     MODEL_UNAVAILABLE = "transcription_model_unavailable"
     TRANSCRIPTION = "transcription_failed"
+    DIARIZATION_DEPENDENCY = "diarization_dependency_unavailable"
+    DIARIZATION_MODEL_UNAVAILABLE = "diarization_model_unavailable"
+    DIARIZATION = "diarization_failed"
 
 
 class EchoFlowError(Exception):

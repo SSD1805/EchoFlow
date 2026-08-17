@@ -48,7 +48,9 @@ def _transcript(
 
 def _index(tmp_path: Path) -> tuple[DuckDbTranscriptIndex, DirectoryManager]:
     manager = DirectoryManager()
-    return DuckDbTranscriptIndex(tmp_path / "private" / "library.duckdb", manager), manager  # type: ignore[arg-type]
+    return DuckDbTranscriptIndex(
+        tmp_path / "private" / "library.duckdb", manager
+    ), manager  # type: ignore[arg-type]
 
 
 def test_lexical_tokens_are_casefolded_unicode_aware_and_repeatable() -> None:
@@ -60,7 +62,9 @@ def test_lexical_tokens_are_casefolded_unicode_aware_and_repeatable() -> None:
     )
 
 
-def test_rebuild_indexes_documents_and_bm25_ranks_term_frequency(tmp_path: Path) -> None:
+def test_rebuild_indexes_documents_and_bm25_ranks_term_frequency(
+    tmp_path: Path,
+) -> None:
     index, manager = _index(tmp_path)
     transcript = _transcript(
         tmp_path,
@@ -193,9 +197,7 @@ def test_timeline_sort_limit_upsert_remove_and_clear(tmp_path: Path) -> None:
     )
     index.rebuild((first,))
 
-    timeline = index.search(
-        SearchQuery("housing", sort=SearchSort.TIMELINE, limit=1)
-    )
+    timeline = index.search(SearchQuery("housing", sort=SearchSort.TIMELINE, limit=1))
     assert [match.segment_id for match in timeline] == ["segment-000001"]
 
     replacement = _transcript(

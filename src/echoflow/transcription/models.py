@@ -21,13 +21,6 @@ class DecodeStrategy(StrEnum):
     FFMPEG_NORMALIZE = "ffmpeg_normalize"
 
 
-class AutoLanguageMode(StrEnum):
-    """How an automatically detected ASR language is applied across work units."""
-
-    JOB_LATCHED = "job_latched_v1"
-    NATIVE_MULTILINGUAL = "native_multilingual_v1"
-
-
 @dataclass(frozen=True, slots=True)
 class DecodeConfiguration:
     strategy: DecodeStrategy
@@ -54,12 +47,7 @@ class DecodeConfiguration:
 
 @dataclass(frozen=True, slots=True)
 class SegmentationConfiguration:
-    """Versioned application-owned segmentation policy.
-
-    Version 1 is intentionally sequential and non-overlapping. Overlap requires
-    deterministic reconciliation semantics before it can become a supported
-    execution choice.
-    """
+    """Versioned application-owned segmentation policy."""
 
     segment_duration_seconds: int = 600
     overlap_seconds: int = 0
@@ -146,8 +134,7 @@ class CpuEngineConfiguration:
     beam_size: int
     language: str | None
     model_cache_path: Path
-    model_revision: str | None = None
-    auto_language_mode: AutoLanguageMode = AutoLanguageMode.JOB_LATCHED
+    model_revision: str
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -155,8 +142,8 @@ class CpuEngineConfiguration:
             "model_cache_path",
             self.model_cache_path.expanduser().resolve(strict=False),
         )
-        for name in ("engine", "model", "device", "compute_type"):
-            if not getattr(self, name):
+        for name in ("engine", "model", "device", "compute_type", "model_revision"):
+            if not getattr(self, name).strip():
                 raise ValueError(f"{name} cannot be empty")
         if self.cpu_threads < 1:
             raise ValueError("cpu_threads must be positive")
@@ -164,11 +151,9 @@ class CpuEngineConfiguration:
             raise ValueError("beam_size must be positive")
         if self.language is not None and not self.language.strip():
             raise ValueError("language cannot be empty")
-        if self.model_revision is not None and not self.model_revision.strip():
-            raise ValueError("model_revision cannot be empty")
 
     def to_dict(self) -> dict[str, object]:
-        document: dict[str, object] = {
+        return {
             "engine": self.engine,
             "model": self.model,
             "device": self.device,
@@ -179,9 +164,6 @@ class CpuEngineConfiguration:
             "model_cache_path": str(self.model_cache_path),
             "model_revision": self.model_revision,
         }
-        if self.auto_language_mode is AutoLanguageMode.NATIVE_MULTILINGUAL:
-            document["auto_language_mode"] = self.auto_language_mode.value
-        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,7 +229,7 @@ class TranscriptionJobPlan:
     paths_reserved: bool = False
 
     def __post_init__(self) -> None:
-        if self.schema_version not in (1, 2, 3):
+        if self.schema_version != 1:
             raise ValueError("unsupported job-plan schema version")
         if self.paths_reserved:
             raise ValueError("a dry-run plan cannot claim reserved paths")
@@ -257,28 +239,9 @@ class TranscriptionJobPlan:
             raise ValueError("job and media input paths must match")
         if self.segmentation.concurrency != 1:
             raise ValueError("job plan requires sequential segmentation")
-        if (
-            self.schema_version == 1
-            and self.engine.auto_language_mode is not AutoLanguageMode.JOB_LATCHED
-        ):
-            raise ValueError(
-                "job-plan schema version 1 requires legacy language latching"
-            )
-        if (
-            self.schema_version in (2, 3)
-            and self.engine.auto_language_mode
-            is not AutoLanguageMode.NATIVE_MULTILINGUAL
-        ):
-            raise ValueError(
-                "job-plan schema version 2+ requires per-segment language detection"
-            )
-        if self.schema_version < 3 and self.enhancement.enabled:
-            raise ValueError("audio enhancement requires job-plan schema version 3")
-        if self.schema_version == 3 and not self.enhancement.enabled:
-            raise ValueError("job-plan schema version 3 requires audio enhancement")
 
     def to_dict(self) -> dict[str, object]:
-        document: dict[str, object] = {
+        return {
             "schema_version": self.schema_version,
             "dry_run": True,
             "paths_reserved": self.paths_reserved,
@@ -289,13 +252,11 @@ class TranscriptionJobPlan:
             "policy": self.policy.to_dict(),
             "engine": self.engine.to_dict(),
             "decoder": self.decoder.to_dict(),
+            "enhancement": self.enhancement.to_dict(),
             "segmentation": self.segmentation.to_dict(),
             "resources": self.resources.to_dict(),
             "warnings": list(self.warnings),
         }
-        if self.schema_version == 3:
-            document["enhancement"] = self.enhancement.to_dict()
-        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -508,20 +469,24 @@ class EngineProvenance:
     name: str
     package_version: str
     model: str
-    model_revision: str | None
+    model_revision: str
     device: str
     compute_type: str
     cpu_threads: int
     beam_size: int
     requested_language: str | None
-    auto_language_mode: AutoLanguageMode = AutoLanguageMode.JOB_LATCHED
 
     def __post_init__(self) -> None:
-        for name in ("name", "package_version", "model", "device", "compute_type"):
-            if not getattr(self, name):
+        for name in (
+            "name",
+            "package_version",
+            "model",
+            "model_revision",
+            "device",
+            "compute_type",
+        ):
+            if not getattr(self, name).strip():
                 raise ValueError(f"{name} cannot be empty")
-        if self.model_revision is not None and not self.model_revision.strip():
-            raise ValueError("model_revision cannot be empty")
         if self.cpu_threads < 1:
             raise ValueError("cpu_threads must be positive")
         if self.beam_size < 1:
@@ -541,7 +506,6 @@ class EngineProvenance:
             cpu_threads=configuration.cpu_threads,
             beam_size=configuration.beam_size,
             requested_language=configuration.language,
-            auto_language_mode=configuration.auto_language_mode,
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -555,7 +519,6 @@ class EngineProvenance:
             "cpu_threads": self.cpu_threads,
             "beam_size": self.beam_size,
             "requested_language": self.requested_language,
-            "auto_language_mode": self.auto_language_mode.value,
         }
 
 
@@ -570,7 +533,7 @@ class CanonicalTranscript:
     detected_language: str | None
     language_probability: float | None
     segments: tuple[RecognizedSegment, ...]
-    schema_version: int = 2
+    schema_version: int = 1
     detected_languages: tuple[str, ...] = ()
     language_attribution: LanguageAttributionProvenance | None = None
     speaker_turns: tuple[SpeakerTurn, ...] = ()
@@ -580,7 +543,6 @@ class CanonicalTranscript:
     def __post_init__(self) -> None:
         self._validate_core_contract()
         self._validate_diarization_contract()
-        self._validate_enhancement_contract()
         derived_languages = self._derived_languages()
         if not self.detected_languages:
             object.__setattr__(self, "detected_languages", derived_languages)
@@ -591,7 +553,7 @@ class CanonicalTranscript:
         self._validate_language_summary()
 
     def _validate_core_contract(self) -> None:
-        if self.schema_version not in {2, 3, 4}:
+        if self.schema_version != 1:
             raise ValueError("unsupported transcript schema version")
         if not self.job_id:
             raise ValueError("job_id cannot be empty")
@@ -603,14 +565,6 @@ class CanonicalTranscript:
             raise ValueError("segment indices must be contiguous and zero-based")
 
     def _validate_diarization_contract(self) -> None:
-        if self.schema_version == 2:
-            if self.diarization is not None or self.speaker_turns:
-                raise ValueError(
-                    "speaker diarization requires transcript schema version 3+"
-                )
-            return
-        if self.schema_version == 3 and self.diarization is None:
-            raise ValueError("schema version 3 requires diarization provenance")
         if self.diarization is None:
             if self.speaker_turns or any(
                 segment.speaker_ref is not None for segment in self.segments
@@ -629,12 +583,6 @@ class CanonicalTranscript:
                 and segment.speaker_ref not in known_speakers
             ):
                 raise ValueError("segment speaker_ref must come from diarization turns")
-
-    def _validate_enhancement_contract(self) -> None:
-        if self.schema_version < 4 and self.enhancement is not None:
-            raise ValueError("enhancement provenance requires transcript schema version 4")
-        if self.schema_version == 4 and self.enhancement is None:
-            raise ValueError("transcript schema version 4 requires enhancement provenance")
 
     def _derived_languages(self) -> tuple[str, ...]:
         languages: list[str] = []
@@ -680,7 +628,7 @@ class CanonicalTranscript:
         return " ".join(segment.text.strip() for segment in self.segments)
 
     def to_dict(self) -> dict[str, object]:
-        document: dict[str, object] = {
+        return {
             "schema_version": self.schema_version,
             "job_id": self.job_id,
             "source": self.source.to_dict(),
@@ -698,17 +646,12 @@ class CanonicalTranscript:
             ),
             "text": self.text,
             "segments": [segment.to_dict() for segment in self.segments],
+            "diarization": self.diarization.to_dict() if self.diarization else None,
+            "speaker_turns": [turn.to_dict() for turn in self.speaker_turns],
+            "enhancement": (
+                self.enhancement.to_dict() if self.enhancement is not None else None
+            ),
         }
-        if self.schema_version in (3, 4):
-            document["diarization"] = (
-                self.diarization.to_dict() if self.diarization else None
-            )
-            document["speaker_turns"] = [turn.to_dict() for turn in self.speaker_turns]
-        if self.schema_version == 4:
-            document["enhancement"] = (
-                self.enhancement.to_dict() if self.enhancement else None
-            )
-        return document
 
 
 @dataclass(frozen=True, slots=True)

@@ -5,6 +5,7 @@ import pytest
 
 from echoflow.runner.models import ProcessingProfile
 from echoflow.transcription.checkpoint import ResumeEngineSettings, ResumeSettings
+from echoflow.transcription.enhancement_models import EnhancementConfiguration
 from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
 from echoflow.transcription.models import (
     DecodeConfiguration,
@@ -43,6 +44,7 @@ def resume_settings(media):
             16_000,
             1,
         ),
+        enhancement=EnhancementConfiguration(),
         segmentation=SegmentationConfiguration(segment_duration_seconds=300),
         model_cache_bytes=2_500 * MIB,
         estimated_peak_memory_bytes=4_352 * MIB,
@@ -69,6 +71,7 @@ def test_resume_restores_original_engine_contract_on_a_stronger_machine(tmp_path
     assert plan.engine.cpu_threads == 2
     assert plan.engine.model_revision == "immutable-revision"
     assert plan.engine.model_cache_path == paths.model_dir / "faster-whisper"
+    assert plan.enhancement == EnhancementConfiguration()
     assert plan.segmentation.segment_duration_seconds == 300
     assert plan.resources.model_cache_bytes == 2_500 * MIB
     assert plan.resources.estimated_peak_memory_bytes == 4_352 * MIB

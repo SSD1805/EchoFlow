@@ -15,8 +15,9 @@ multilingual semantics, and anonymous speaker diarization.
 
 The project is now moving from **engine trust** to **product legibility**: the backend
 should remain strict and boring while ordinary users gain clear progress, durable job
-state, intentional recovery, adaptive use of local hardware, corpus search, and
-eventually a graphical shell that does not redefine the application underneath it.
+state, intentional recovery, adaptive use of local hardware, explicit local model
+custody, corpus search, and eventually a graphical shell that does not redefine the
+application underneath it.
 
 The current foundation includes:
 
@@ -34,6 +35,9 @@ The current foundation includes:
   accelerator memory;
 - bounded one-segment CPU preparation overlap for accelerated inference while
   preserving ordered checkpoints and resumability;
+- explicit local faster-whisper model inventory, disk-admitted installation,
+  provider/revision provenance, local revalidation, exact-revision removal, and
+  immutable managed-revision pinning for new transcription plans;
 - cross-platform private-storage enforcement for Windows and POSIX systems;
 - empirical benchmarking instrumentation;
 - native-media, abrupt-process, clean-wheel, known-speech, and diarization evidence
@@ -44,9 +48,10 @@ The current foundation includes:
   transcript library.
 
 Canonical transcript JSON and checkpoint files remain authoritative. Lifecycle
-metadata describes execution state but does not become transcript custody. Any future
-search/index database is derived state and must be rebuildable from canonical
-artifacts.
+metadata describes execution state but does not become transcript custody. Managed
+model manifests describe local execution dependencies but do not become transcript
+custody either. Any future search/index database is derived state and must be
+rebuildable from canonical artifacts.
 
 ## Product and interface direction
 
@@ -60,9 +65,11 @@ pleasant for humans without becoming ambiguous for automation:
   explicit private-state cleanup;
 - hardware selection should happen through typed application services rather than
   CLI-specific GPU switches;
+- local model installation/removal should be explicit application actions rather than
+  hidden side effects of inspecting inventory or recommendations;
 - a future desktop or web UI should be a presentation adapter over the same
-  application services, lifecycle state, and search service, not a second
-  implementation of the transcription pipeline.
+  application services, lifecycle state, model-management service, and search service,
+  not a second implementation of the transcription pipeline.
 
 A graphical UI and polished non-developer installer are therefore intentionally
 deferred until the backend contracts are mature enough that the UI can stay thin.
@@ -88,16 +95,16 @@ signal justify it, but ordinary PR progress must not wait on hundreds of mutants
 ## Near-term direction
 
 The next development sequence should improve user value without front-loading
-speculative infrastructure:
+speculative infrastructure. Model management is now part of the application
+foundation, so later local-model features should reuse its custody, provenance,
+resource-admission, and explicit-download contracts rather than create parallel model
+lifecycles.
 
 1. **Finish adaptive-execution qualification and lifecycle dogfooding.** Exercise
    interruption, resume, stale-process reconciliation, progress rendering, accelerator
    re-admission, bounded prefetch cleanup, and long recordings. Keep published
    artifacts separate from private execution state.
-2. **Model management.** Add local model inventory, recommendation, explicit download,
-   verification/provenance, and removal. Integrate model-storage requirements with
-   disk admission once inventory is authoritative.
-3. **Local speech enhancement and noise suppression.** Add optional,
+2. **Local speech enhancement and noise suppression.** Add optional,
    provenance-bearing preprocessing for difficult recordings. Preserve the original
    media as authoritative evidence and treat enhanced audio as private derived
    processing material by default. Begin with explicit off/on selection and one
@@ -107,14 +114,14 @@ speculative infrastructure:
    execution cost before introducing automatic selection. Keep simultaneous-speaker
    separation, general source separation, and generative restoration out of the
    initial scope.
-4. **Representative-device qualification.** Collect repeated benchmark evidence from
+3. **Representative-device qualification.** Collect repeated benchmark evidence from
    8 GB Windows, 16 GB commodity machines, Apple Silicon, discrete-GPU laptops, and
    larger workstations. Measure cold/warm cache behavior, sustained real-time factor,
    thermal effects, CPU/RAM pressure, accelerator memory/utilization where the backend
    exposes reliable counters, and raw-ASR versus enhancement-plus-ASR accuracy and
    cost on representative noisy recordings. Calibrate strategy and future enhancement
    heuristics from measurements rather than hardware-name or audio-quality guesses.
-5. **Corpus library and evidence-first search.** Implement the existing
+4. **Corpus library and evidence-first search.** Implement the existing
    `TranscriptIndex` port with a rebuildable local backend, initially DuckDB or an
    equivalently replaceable embedded analytical store. The user experience should be
    a search surface, not a database surface: plain text and exact phrase search,
@@ -122,18 +129,18 @@ speculative infrastructure:
    results, saved searches/collections, tags and notes, and exportable result sets.
    Search results must preserve the evidence trail back to the source recording and
    exact transcript passage.
-6. **Typed search grammar and query builder.** Keep SQL below the application boundary.
+5. **Typed search grammar and query builder.** Keep SQL below the application boundary.
    Introduce a stable `SearchQuery`-style intermediate representation for text,
    phrase, speaker, language, date, recording, tag, duration, diarization, and sort
    constraints. CLI syntax, future query chips/dropdowns, and any later local natural-
    language parser should compile into that same typed query contract. DuckDB remains
    a replaceable derived-state adapter rather than user-facing homework.
-7. **Word/timestamp alignment.** Add alignment as a separate enrichment capability so
+6. **Word/timestamp alignment.** Add alignment as a separate enrichment capability so
    speaker projection and result jumping can become more precise without rewriting raw
    ASR or diarization evidence.
-8. **Bounded failure recovery.** Add deterministic audio bisection/retry policy only
+7. **Bounded failure recovery.** Add deterministic audio bisection/retry policy only
    if real long-recording failures justify it.
-9. **Release/install and graphical UI.** Revisit these after the backend, lifecycle,
+8. **Release/install and graphical UI.** Revisit these after the backend, lifecycle,
    model-management, enhancement, and search contracts have survived representative
    dogfooding. The eventual interface should remain replaceable and thin.
 
@@ -249,6 +256,15 @@ must operate over an explicit, inspectable result set.
 - Accelerator memory estimates and performance ranks are conservative heuristics
   pending representative-device qualification. EchoFlow does not yet claim that a
   detected GPU is faster on every workload.
+- Model management v1 is faster-whisper-specific. EchoFlow owns private manifests over
+  the Hugging Face cache, explicitly installs/removes managed revisions, revalidates
+  repository/revision/required-file provenance locally, and pins verified resolved
+  revisions into new plans. Arbitrary existing cache entries are not automatically
+  adopted as managed state, and the existing transcription model-download flag remains
+  a compatibility path for now.
+- Model verification v1 proves expected provider layout, repository/revision identity,
+  and required non-empty files. It does not claim independent cryptographic
+  attestation of upstream model weights.
 - Speech enhancement/noise suppression is not implemented yet. Its planned first
   version is local, explicit, and provenance-bearing; the original recording remains
   authoritative and enhanced audio remains derived private processing material unless

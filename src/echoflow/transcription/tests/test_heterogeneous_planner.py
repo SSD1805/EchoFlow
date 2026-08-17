@@ -157,7 +157,8 @@ def test_balanced_laptop_uses_cuda_when_runtime_and_safe_vram_are_available(tmp_
     assert plan.engine.model == "small"
     assert plan.engine.device == "cuda"
     assert plan.engine.compute_type == "float16"
-    assert plan.engine.cpu_threads == 4
+    assert plan.policy.cpu_threads == 4
+    assert plan.engine.cpu_threads == 3
     assert plan.engine.model_cache_path == paths.model_dir / "faster-whisper"
     assert plan.resources.estimated_peak_memory_bytes == 1_280 * MIB
     assert plan.resources.fits_memory_budget is True
@@ -167,6 +168,28 @@ def test_balanced_laptop_uses_cuda_when_runtime_and_safe_vram_are_available(tmp_
         "accelerator_estimate_is_heuristic",
     )
     topology_inspector.inspect.assert_called_once_with()
+
+
+def test_accelerated_engine_does_not_reserve_prefetch_cpu_when_only_one_thread_exists(
+    tmp_path,
+):
+    service, _, _, _ = planner(tmp_path, accelerator=cuda())
+    strategy = next(
+        item
+        for item in faster_whisper_catalog().strategies
+        if item.strategy_id == "small-cuda-float16"
+    )
+    policy = ExecutionPolicy(
+        profile=ProcessingProfile.BALANCED,
+        provisional=False,
+        cpu_threads=1,
+        memory_budget_bytes=8 * GIB,
+    )
+
+    engine = service._engine(policy, strategy)
+
+    assert engine.cpu_threads == 1
+    assert service._prefetch_depth(policy, engine) == 0
 
 
 def test_low_vram_falls_back_to_same_quality_cpu_strategy(tmp_path):
@@ -278,7 +301,7 @@ def test_accelerator_resume_readmission_succeeds_only_when_current_topology_matc
         model="small",
         device="cuda",
         compute_type="float16",
-        cpu_threads=4,
+        cpu_threads=3,
         beam_size=5,
         language=None,
         model_cache_path=paths.model_dir / "faster-whisper",
@@ -314,7 +337,7 @@ def test_unknown_resume_strategy_is_typed_instead_of_mutated(tmp_path):
         model="large-v3",
         device="cuda",
         compute_type="float16",
-        cpu_threads=4,
+        cpu_threads=3,
         beam_size=5,
         language=None,
         model_cache_path=Path(paths.model_dir / "faster-whisper"),

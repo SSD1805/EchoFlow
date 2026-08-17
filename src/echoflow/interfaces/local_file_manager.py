@@ -149,13 +149,6 @@ class LocalFileManager:
         except Exception as exc:
             raise self._error("list", path, exc) from exc
 
-    def list_directories(self, directory_path: str | Path) -> list[Path]:
-        path = Path(directory_path)
-        try:
-            return sorted(candidate for candidate in path.iterdir() if candidate.is_dir())
-        except Exception as exc:
-            raise self._error("list directories in", path, exc) from exc
-
     def sanitize_filename(self, filename: str) -> str:
         sanitized = "".join(
             character if character.isalnum() or character in " ._-()" else "_"

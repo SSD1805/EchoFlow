@@ -1,5 +1,4 @@
 import math
-from dataclasses import replace
 from pathlib import Path
 from typing import Protocol
 
@@ -16,9 +15,12 @@ from echoflow.transcription.capabilities import (
 from echoflow.transcription.checkpoint import ResumeSettings
 from echoflow.transcription.enhancement import ffmpeg_afftdn_configuration
 from echoflow.transcription.enhancement_models import EnhancementConfiguration
-from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
+from echoflow.transcription.errors import (
+    CheckpointError,
+    ModelUnavailableError,
+    ResourceAdmissionError,
+)
 from echoflow.transcription.models import (
-    AutoLanguageMode,
     CpuEngineConfiguration,
     DecodeConfiguration,
     DecodeStrategy,
@@ -56,7 +58,7 @@ class ManagedModelRegistry(Protocol):
 
 
 class TranscriptionJobPlanner:
-    """Compose media, topology, and engine decisions into one immutable plan."""
+    """Compose media, topology, model custody, and engine decisions into one plan."""
 
     def __init__(
         self,
@@ -70,7 +72,6 @@ class TranscriptionJobPlanner:
         topology_inspector: HardwareTopologyInspector | None = None,
         capability_registry: EngineCapabilityRegistry | None = None,
         audio_stream_selector: AudioStreamSelector | None = None,
-        model_revision: str | None = None,
         model_registry: ManagedModelRegistry | None = None,
         checkpoint_store: ResumeCheckpointStore | None = None,
     ):
@@ -83,7 +84,6 @@ class TranscriptionJobPlanner:
         self.topology_inspector = topology_inspector
         self.capability_registry = capability_registry or EngineCapabilityRegistry()
         self.audio_stream_selector = audio_stream_selector or AudioStreamSelector()
-        self.model_revision = model_revision
         self.model_registry = model_registry
         self.checkpoint_store = checkpoint_store
 
@@ -157,7 +157,6 @@ class TranscriptionJobPlanner:
             warnings=tuple(warnings),
             enhancement=enhancement,
             segmentation=segmentation,
-            schema_version=3 if enhancement.enabled else 2,
         )
 
     def plan_resume(
@@ -167,7 +166,7 @@ class TranscriptionJobPlanner:
         job_id: JobId,
         output_dir: str | Path | None = None,
     ) -> TranscriptionJobPlan:
-        """Restore the original execution contract and re-admit it locally."""
+        """Restore the one current execution contract and re-admit it locally."""
         if self.checkpoint_store is None:
             raise CheckpointError("Checkpoint resume is not configured")
 
@@ -214,14 +213,6 @@ class TranscriptionJobPlanner:
         engine = settings.engine.configuration(
             self.workspace_service.paths.model_dir / "faster-whisper"
         )
-        engine = replace(
-            engine,
-            auto_language_mode=(
-                AutoLanguageMode.JOB_LATCHED
-                if settings.job_plan_schema_version == 1
-                else AutoLanguageMode.NATIVE_MULTILINGUAL
-            ),
-        )
         self._admit_resume_accelerator(engine, topology, policy)
         prefetch_depth = self._prefetch_depth(policy, engine)
         artifact = self.workspace_service.plan_artifact(
@@ -258,7 +249,6 @@ class TranscriptionJobPlanner:
             warnings=tuple(warnings),
             enhancement=settings.enhancement,
             segmentation=settings.segmentation,
-            schema_version=settings.job_plan_schema_version,
         )
 
     def assess_strategies(
@@ -356,16 +346,21 @@ class TranscriptionJobPlanner:
             model_cache_path=(
                 self.workspace_service.paths.model_dir / "faster-whisper"
             ),
-            model_revision=self._planned_model_revision(strategy.model),
-            auto_language_mode=AutoLanguageMode.NATIVE_MULTILINGUAL,
+            model_revision=self._managed_model_revision(strategy.model),
         )
 
-    def _planned_model_revision(self, model_id: str) -> str | None:
-        if self.model_revision is not None:
-            return self.model_revision
+    def _managed_model_revision(self, model_id: str) -> str:
         if self.model_registry is None:
-            return None
-        return self.model_registry.resolved_revision(model_id)
+            raise ModelUnavailableError(
+                "Transcription model management is not configured"
+            )
+        revision = self.model_registry.resolved_revision(model_id)
+        if revision is None:
+            raise ModelUnavailableError(
+                f"Model '{model_id}' is not installed; run "
+                f"`echoflow models install {model_id}` first"
+            )
+        return revision
 
     @staticmethod
     def _prefetch_depth(policy: ExecutionPolicy, engine: CpuEngineConfiguration) -> int:

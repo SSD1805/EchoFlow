@@ -15,6 +15,8 @@ from echoflow.transcription.models import (
     RecognizedSegment,
 )
 
+_LANGUAGE_DETECTION_WINDOW_SECONDS = 10
+
 
 class FasterWhisperSession:
     """One loaded faster-whisper model reused for a single EchoFlow job."""
@@ -51,11 +53,19 @@ class FasterWhisperSession:
                 and self.configuration.auto_language_mode is AutoLanguageMode.JOB_LATCHED
             ):
                 requested_language = self._detected_language
+            multilingual = (
+                requested_language is None
+                and self.configuration.auto_language_mode is AutoLanguageMode.PER_SEGMENT
+            )
             raw_segments, info = self.model.transcribe(
                 str(audio_path),
                 beam_size=self.configuration.beam_size,
                 language=requested_language,
                 word_timestamps=False,
+                multilingual=multilingual,
+                chunk_length=(
+                    _LANGUAGE_DETECTION_WINDOW_SECONDS if multilingual else None
+                ),
                 vad_filter=False,
                 log_progress=False,
             )
@@ -67,8 +77,8 @@ class FasterWhisperSession:
             )
             segments = FasterWhisperTranscriber._segments(
                 raw_segments,
-                detected_language=language,
-                language_probability=language_probability,
+                detected_language=None if multilingual else language,
+                language_probability=None if multilingual else language_probability,
             )
             if (
                 self.configuration.language is None

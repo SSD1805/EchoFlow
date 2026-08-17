@@ -36,6 +36,26 @@ Community-1 model conditions and authenticated through Hugging Face's supported
 credential mechanism. EchoFlow does not put access tokens in `.env` or canonical
 artifacts.
 
+## Temporary upstream security gate
+
+As of August 2026, pyannote 4.0.7 requires Lightning and the current lock resolves
+Lightning 2.6.5. Lightning 2.6.5 is affected by CVE-2026-58659 /
+PYSEC-2026-3624, a checkpoint-loading remote-code-execution vulnerability. Pyannote
+subclasses `lightning.LightningModule` and loads pretrained model checkpoints through
+Lightning, so this advisory intersects EchoFlow's actual diarization path rather than
+being an unrelated transitive dependency.
+
+Upstream merged the fix in July 2026, but no patched normal 2.x Lightning release is
+available yet. EchoFlow therefore fails closed: before importing pyannote or resolving
+or downloading any diarization model, it inspects the installed Lightning release.
+Known-affected releases and versions whose safety cannot be established are rejected.
+The current locked 2.6.5 runtime is consequently **not executable for diarization**.
+
+Dependency auditing carries a single documented exception for PYSEC-2026-3624 while
+that compensating control is in place. All other advisories still fail the audit.
+The exception and runtime gate should be removed once a compatible upstream release
+containing the merged fix is available and qualified.
+
 ## CLI contract
 
 Diarization is opt-in:
@@ -58,6 +78,10 @@ uv run echoflow transcribe meeting.wav --diarize --min-speakers 2 --max-speakers
 
 Exact and bounded speaker-count options are mutually exclusive. Speaker-count
 options are invalid without `--diarize`.
+
+While the temporary Lightning security gate above is active, these diarization
+commands fail before pyannote import or model acquisition rather than executing the
+known-vulnerable checkpoint-loading path.
 
 ## Evidence model
 
@@ -119,24 +143,25 @@ appropriate for an 8 GB machine.
 
 The adapter, cache-only/download policy, telemetry-disable behavior, deterministic
 label normalization, canonical schema, executor integration, conservative fusion,
-and derived exports are covered by deterministic tests.
+derived exports, and fail-closed Lightning security gate are covered by deterministic
+tests.
 
 The locked diarization dependency graph is included in normal and scheduled
 vulnerability auditing. A separate distribution lane installs `echoflow[diarization]`
 from the built wheel outside the source checkout and imports the real pyannote and
-PyTorch runtimes. This proves packaging/runtime compatibility without requiring a
-gated model download.
+PyTorch runtimes. This proves packaging/runtime compatibility without authorizing
+model execution.
 
-A dedicated real-model acceptance workflow is available but manual and
-credential-gated. When deliberately dispatched with an authenticated Hugging Face
-token after the upstream Community-1 conditions have been accepted, it generates a
-non-sensitive local speech fixture, runs real Community-1 inference, and then reopens
-the same cache with model downloads disabled. Ordinary pull-request CI remains free
-of gated credentials and model downloads.
+A dedicated real-model acceptance workflow exists but remains intentionally blocked
+by the Lightning security gate until a patched compatible release is available. Once
+unblocked, that lane is manual and credential-gated: it generates a non-sensitive
+local speech fixture, runs real Community-1 inference, and then reopens the same cache
+with model downloads disabled. Ordinary pull-request CI remains free of gated
+credentials and model downloads.
 
-Until that real-model lane has completed successfully on representative hardware,
-EchoFlow should describe Community-1 inference as integrated but not yet
-representative-device qualified.
+Until both the upstream security gate is cleared and the real-model lane has
+completed successfully on representative hardware, EchoFlow should describe
+Community-1 diarization as integrated but not operationally qualified.
 
 This capability does not provide:
 

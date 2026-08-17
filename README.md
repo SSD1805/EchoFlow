@@ -7,8 +7,9 @@ recordings on the user's machine.
 The product target is a privacy-by-default, resource-aware, reproducible and
 resumable workflow for sensitive recordings rather than a model-specific
 transcription GUI. EchoFlow keeps the orchestration core small, treats engines
-and model payloads as optional capabilities, and derives plans from the CPU and
-memory actually available to a laptop, workstation, container, or CI runner.
+and model payloads as optional capabilities, and derives plans from the CPU,
+system memory, and execution-capable accelerators actually available to a laptop,
+workstation, container, or CI runner.
 
 EchoFlow is intended to remain useful without mandatory hosted transcription
 fees or a cloud account. Durability, reliability, performance on ordinary
@@ -32,16 +33,24 @@ EchoFlow currently provides a tested application foundation:
 - Path-redacted routine logs and platform-specific private-storage enforcement.
 - Namespaced, explicit configuration that does not consume ambient `.env` files.
 - CPU-, affinity-, cgroup-, and memory-aware runner policy inspection.
-- A deterministic local strategy evaluator that lists feasible faster-whisper
-  CPU/int8 choices, recommends one by processing profile, and refuses unsafe
-  explicit selections rather than silently downgrading them.
+- Separate accelerator-topology discovery and engine capability negotiation so a
+  physically visible GPU is not mistaken for a runtime-supported execution target.
+- A deterministic local strategy evaluator that admits faster-whisper CPU/int8 and
+  CUDA candidates against system-memory, device-memory, runtime-capability, and
+  processing-profile constraints, and refuses unsafe explicit selections rather
+  than silently replacing them.
+- Conservative handling of dedicated, shared, unified, and unknown accelerator
+  memory so shared capacity is not double-counted as extra RAM.
 - Local FFprobe inspection with protocol restriction, bounded output, timeout,
   full input fingerprinting, and typed media metadata.
 - An immutable `transcribe INPUT --dry-run` plan covering paths, streams, codec,
   duration, selected local strategy, decoding strategy, deterministic segmentation,
   and resource estimates.
-- One executable CPU/int8 faster-whisper path that rechecks resource admission,
-  claims its workspace and output atomically, and writes canonical transcript JSON.
+- Local faster-whisper execution that rechecks resource admission, claims its
+  workspace and output atomically, and writes canonical transcript JSON.
+- Bounded accelerated pipeline overlap: while an accelerator transcribes the current
+  segment, one CPU worker may prepare the next segment, while checkpoint commits
+  remain strictly ordered and resumable.
 - Audio extraction from audio-bearing containers, including video files, by mapping
   only the selected audio stream into a private canonical WAV.
 - Deterministic source-relative PCM frame segmentation with bounded temporary
@@ -63,8 +72,10 @@ EchoFlow currently provides a tested application foundation:
   the packaged CLI and transcription extra outside the source checkout on Linux,
   macOS, and Windows CI.
 
-Calibrated performance estimates, GPU strategies, and standalone end-user
-installers are not implemented yet.
+Accelerator memory estimates and relative performance ranks are conservative
+heuristics until representative-device qualification is complete. EchoFlow does not
+claim that every detected GPU is supported or faster. Standalone end-user installers
+are not implemented yet.
 
 ## Requirements and installation
 
@@ -81,11 +92,16 @@ uv sync --locked
 ```
 
 The small default installation can inspect and plan recordings. Install the
-optional CPU engine for transcription execution:
+optional transcription engine for local transcription execution:
 
 ```bash
 uv sync --locked --extra transcription
 ```
+
+CUDA acceleration is not a separate cloud service or account. EchoFlow only selects a
+CUDA strategy when a physical CUDA device is visible, CTranslate2 reports support for
+the exact device and compute type, and current system/VRAM budgets are safe. Otherwise
+the normal CPU/int8 path remains available.
 
 Run the CLI and diagnostics:
 
@@ -124,10 +140,11 @@ recording.
 
 An interrupted job retains completed transcript segments in EchoFlow's private
 local job state. Resume requires the original input plus the job ID shown when the
-job started. EchoFlow restores the original profile, model, revision, CPU thread
-count, decode settings, and segmentation contract automatically; `--profile` and
-`--strategy` cannot override them during resume. The input is fingerprinted again,
-and the restored contract must still fit current CPU and memory limits before work
+job started. EchoFlow restores the original profile, model, revision, execution
+device/compute type, CPU thread count, decode settings, and segmentation contract
+automatically; `--profile` and `--strategy` cannot override them during resume. The
+input is fingerprinted again, and the restored contract must still fit current CPU,
+system-memory, and, when applicable, accelerator runtime/VRAM limits before work
 continues. Successfully published jobs remove checkpoint payloads on a best-effort
 basis. Checkpoint deletion is not secure erasure.
 
@@ -193,8 +210,9 @@ The enforced budgets are:
 Radon reports complexity and maintainability trends; Ruff provides the hard
 complexity gate. Targeted Poodle mutation runs are used for changed decision
 logic because its broad runner currently has a process-timeout cleanup defect.
-The segmentation, assembly, checkpoint, and transcript-export modules are included
-in that targeted mutation scope.
+Topology, capability negotiation, heterogeneous strategy admission, adaptive
+execution, and bounded prefetch are included in the targeted mutation scope along
+with the existing transcription decision modules.
 
 The full feedback ladder and Git bisect procedure are documented in
 [`docs/development/testing-and-bisect.md`](docs/development/testing-and-bisect.md).
@@ -208,29 +226,47 @@ overwritten by default. Durable checkpoint state is stored as private per-job
 files; a future local job index, if added, should contain metadata rather than
 audio or transcript blobs.
 
-`echoflow runner` derives an engine-neutral CPU and memory budget from resources
-actually visible to the process, including common container limits and explicit
-user ceilings. It does not select a model. Transcription evaluates concrete
-faster-whisper strategies against that budget. `echoflow strategies` exposes all
-current CPU/int8 choices with their estimated model-cache and peak-memory costs,
-marks infeasible choices with typed reasons, and recommends a feasible strategy
-according to `screening`, `balanced`, or `accuracy` intent. An explicit
-`transcribe --strategy` choice is honored when feasible and refused otherwise;
-it is never silently replaced. Screening remains explicitly provisional.
+`echoflow runner` derives an engine-neutral CPU and system-memory budget from
+resources actually visible to the process, including common container limits and
+explicit user ceilings. Accelerator topology is discovered separately so a broken or
+unsupported GPU runtime cannot make ordinary CPU execution unusable. Engine-specific
+capability providers then advertise only execution targets their installed runtimes
+can actually consume.
 
-Execution consumes the selected plan rather than detecting a second, unrelated
-machine configuration inside the engine. It checks process-visible memory and CPU
-capacity before claiming paths and again after decode/segmentation planning,
-immediately before model initialization. A video is not treated as visual input:
-FFmpeg discards video, subtitle, and data streams and emits only the selected audio
-stream to the private job workspace.
+Transcription evaluates concrete faster-whisper strategies against that evidence.
+`echoflow strategies` exposes current CPU/int8 and feasible CUDA candidates with their
+estimated model-cache, system-memory, and device-memory costs, marks infeasible choices
+with typed reasons, and recommends a feasible strategy according to `screening`,
+`balanced`, or `accuracy` intent. An explicit `transcribe --strategy` choice is honored
+when feasible and refused otherwise; it is never silently replaced. Screening remains
+explicitly provisional.
 
-After decode, EchoFlow owns segmentation. Segmentation schema version 1 uses exact
-PCM frame offsets, 600-second maximum windows, zero overlap, and concurrency one.
-Only one segment is materialized at a time with bounded reads. A faster-whisper
-model is initialized once for the job and reused across each segment. Engine-local
-timestamps are then rebased onto one source-relative timeline and validated before
-the canonical transcript is written.
+Dedicated device memory is budgeted separately from system RAM. Shared and unified
+accelerator memory is also charged against the system-memory budget so EchoFlow never
+counts the same physical bytes twice. Unknown device-memory capacity is not guessed for
+an accelerated strategy.
+
+Execution consumes the selected plan rather than allowing the engine to make a second,
+unrelated placement decision. It checks process-visible CPU and system-memory capacity
+before claiming paths and again before model initialization. Accelerated execution also
+rechecks physical accelerator visibility, current safe device memory, and exact runtime
+support before loading the model. A video is not treated as visual input: FFmpeg
+discards video, subtitle, and data streams and emits only the selected audio stream to
+the private job workspace.
+
+After decode, EchoFlow owns segmentation. Segment windows remain exact source-relative
+PCM frame ranges. The CPU path preserves the original strictly sequential
+materialize/transcribe/checkpoint loop. Accelerated execution may pre-materialize at
+most one future segment on a CPU worker while the current segment is being transcribed.
+There is still one job-scoped faster-whisper session and one ordered checkpoint writer.
+A result becomes resumable only after its checkpoint is written, so completed work
+remains a contiguous prefix even when preparation overlaps inference.
+
+EchoFlow intentionally uses pipeline overlap before attempting model/tensor sharding.
+The application owns decode, materialization, checkpoints, assembly, and publication,
+but it does not own every speech engine's tensor graph or host/device transfer policy.
+That keeps heterogeneous scheduling portable across future engine adapters and avoids
+binding recovery semantics to one backend's partitioning implementation.
 
 TXT, SRT, and WebVTT publication occurs only after canonical transcript completion.
 The renderers consume canonical source-relative segment times; application-owned
@@ -239,15 +275,10 @@ before path reservation and published through the same atomic local-file boundar
 If derived publication fails, EchoFlow rolls back that derived set while preserving
 the already-completed canonical JSON artifact.
 
-This sequential contract is intentionally conservative. It creates a stable,
-reproducible unit of completed work without assuming that parallelism improves
-throughput or that overlap can be reconciled safely. Those optimizations require
-measurement and explicit deterministic semantics first.
-
-Resource estimates are deliberately conservative heuristics until real engine
-benchmarks and privacy-safe local calibration are added. Dry-run workspace and
-artifact paths are candidates, not reservations; execution must claim them
-atomically before writing.
+Resource estimates and accelerator performance ranks are deliberately conservative
+heuristics until representative-machine benchmarks and privacy-safe local calibration
+exist. Dry-run workspace and artifact paths are candidates, not reservations;
+execution must claim them atomically before writing.
 
 Checkpoint schema version 1 persists a manifest plus one atomic JSON result for
 each completed segment under the private local job directory. The manifest omits
@@ -261,8 +292,11 @@ fragments are intentionally not masked because exact recovery requires exact tex
 they are sensitive local plaintext state and are never routine log fields or public
 artifacts.
 
-The processing boundaries, resumability model, and bounded audio bisection policy
-are documented in
+Adaptive placement and bounded overlap are documented in
+[`docs/architecture/adaptive-heterogeneous-execution.md`](docs/architecture/adaptive-heterogeneous-execution.md).
+The planned evidence-first corpus-search architecture is documented in
+[`docs/architecture/corpus-search.md`](docs/architecture/corpus-search.md).
+The broader processing boundaries and resumability model are documented in
 [`docs/architecture/processing-capabilities.md`](docs/architecture/processing-capabilities.md).
 
 Security boundaries, residual risks, and disclosure instructions are in

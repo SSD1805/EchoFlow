@@ -1,180 +1,230 @@
 # Processing capabilities
 
-EchoFlow composes small local capabilities into one reproducible transcription job.
-It deliberately avoids a generic pipeline/plugin framework until multiple real
-implementations require one.
+EchoFlow composes small local capabilities into one reproducible transcription job. It
+avoids a generic pipeline/plugin framework until multiple real implementations require
+one.
 
-For the detailed media normalization and timestamp contract, see
-[media-and-timeline.md](media-and-timeline.md).
+For detailed media/timestamp semantics, see
+[media-and-timeline.md](media-and-timeline.md). For model custody, see
+[model-management.md](model-management.md). For preprocessing, see
+[speech-enhancement.md](speech-enhancement.md).
 
 ## Current transcription path
 
 ```text
 local recording
     ↓
-FFprobe inspection + source fingerprint
+FFprobe inspection + complete source fingerprint
     ↓
 deterministic audio-stream selection
     ↓
-process-visible CPU/memory inspection
+process-visible CPU/RAM + accelerator topology
     ↓
-resource policy + faster-whisper strategy selection
+engine capability negotiation + safe strategy selection
     ↓
-canonical-audio plan
+verified managed faster-whisper revision
+    ↓
+canonical audio plan
     ↓
 DIRECT or FFmpeg normalization
     ↓
+optional private FFmpeg noise suppression
+    ↓
 exact PCM frame windows
     ↓
-job-scoped faster-whisper CPU/int8 session
+job-scoped managed local faster-whisper session
     ↓
-private per-window checkpoint
+ordered private per-window checkpoints
     ↓
 source-relative transcript assembly
     ↓
-local language attribution
+local language attribution + optional anonymous diarization
     ↓
 canonical JSON
     ↓
 TXT / SRT / WebVTT derived views
 ```
 
-The current implementation has executed through real FFmpeg/FFprobe on Linux,
-macOS, and Windows CI and through real faster-whisper/CTranslate2 known-speech
-acceptance. Hosted CI proves contracts and portability; it is not representative
-performance calibration.
+The implementation exercises real FFprobe/FFmpeg on Linux, macOS, and Windows CI and
+has a faster-whisper/CTranslate2 known-speech acceptance path. Hosted CI proves
+contracts and portability, not representative machine performance.
 
-## Media inspection
+## Media inspection and canonical audio
 
-`FfprobeMediaProbe` owns source facts, not transcoding. It resolves one local input,
-reads container/stream metadata with a file-only FFprobe protocol, fingerprints the
-source, and refuses a file that changes during inspection. `AudioStreamSelector`
-then chooses one discovered audio stream, using the first audio stream by default or
-an explicit `--audio-stream INDEX`.
+`FfprobeMediaProbe` owns source facts, not transcoding. It reads container/stream
+metadata with file-only protocol access, fingerprints the complete source, and refuses
+a file that changes during inspection. `AudioStreamSelector` chooses one discovered
+audio stream, using the first audio stream by default or explicit
+`--audio-stream INDEX`.
 
-The selected stream index is part of source/checkpoint provenance. Resume re-probes
-the original source and restores the checkpointed stream choice rather than silently
-selecting a different track.
+The selected stream is part of checkpoint provenance. Resume re-probes the source and
+restores the original stream choice rather than silently selecting another track.
 
-## Canonical audio
-
-The planner records one immutable `DecodeConfiguration`. The current canonical
-segmentation format is:
-
-- WAV container;
-- `pcm_s16le` audio;
-- 16,000 Hz sample rate;
-- mono.
-
-Already-canonical WAV may use `DIRECT`. Other supported audio-bearing media uses
+The current canonical processing format is WAV, `pcm_s16le`, 16 kHz, mono. An
+already-canonical WAV may use `DIRECT`; other supported audio-bearing media uses
 `FFMPEG_NORMALIZE`. FFmpeg maps exactly the selected audio stream and discards video,
-subtitle, attachment, and data streams. Temporary normalized audio stays inside the
-private job workspace.
+subtitle, attachment, and data streams.
 
-Normalization is representation conversion, not a new public timeline. Exact PCM
-frame offsets define application work windows; assembly rebases engine-local
-recognition timestamps onto one continuous source-relative timeline.
+Normalization changes representation, not the public timeline. Exact PCM frame offsets
+define work windows and assembly rebases engine-local timestamps onto one continuous
+source-relative timeline.
+
+## Optional local noise suppression
+
+When the immutable plan enables enhancement, `FfmpegAfftdnEnhancer` consumes the
+canonical decoded audio and creates a private `enhanced.wav` using the fixed current
+`afftdn=nf=-50:nr=12` contract.
+
+The provider validates that channel count, sample width, sample rate, and frame count
+are unchanged. A mismatch fails closed because preprocessing must not shift EchoFlow's
+source-relative timeline.
+
+ASR segmentation consumes the enhanced derivative. Anonymous diarization continues to
+consume the unmodified canonical decode in the first version. The transcript records
+enhancement provider/version/operation/parameters when ASR input was transformed.
+
+The extra full-recording derivative is included in private storage admission.
+Enhancement is explicit with `--enhance`; there is no automatic selector yet.
 
 ## Compute and strategy policy
 
-The `runner` package means the process-visible execution environment, not a workflow
-runner. `RunnerInspector` observes effective CPU and memory, including relevant
-process/container limits. `RunnerPolicyPlanner` converts those facts and a processing
-profile into a CPU-thread and memory budget. The faster-whisper strategy evaluator
-then chooses a concrete CPU/int8 model strategy that fits that budget.
+`RunnerInspector` observes CPU and memory actually visible to the process, including
+relevant container limits. `HardwareTopologyInspector` adds physical accelerator
+evidence without claiming the ASR runtime can use it. Engine capability probes then
+report the concrete device/compute targets the installed runtime can execute.
 
-Current strategies remain conservative heuristics pending representative-device
-calibration. EchoFlow does not interpret hosted-runner timing as physical-device
-performance truth.
+`RunnerPolicyPlanner` derives a CPU-thread and system-memory budget from the processing
+profile. `StrategyEvaluator` admits concrete faster-whisper CPU/int8 and CUDA
+candidates against system RAM, device memory, runtime capabilities, and profile intent.
+An explicit infeasible strategy is refused instead of silently downgraded.
+
+Shared/unified accelerator memory is charged to system RAM rather than counted as extra
+capacity. Unknown accelerator memory is not guessed safe.
+
+Current performance ranks and memory estimates remain conservative heuristics until
+representative-device qualification.
+
+## Managed ASR model custody
+
+A safe strategy is not executable until its selected faster-whisper model has a verified
+managed revision.
+
+`ModelManager` is the only ASR acquisition/custody path. A plan asks the manager for the
+locally revalidated immutable revision. If none exists, planning fails with an
+install-first error.
+
+The faster-whisper backend then executes with `local_files_only=True` and that exact
+revision. It never downloads ASR weights as a transcription side effect and never falls
+back to an arbitrary ambient Hugging Face cache entry or configuration revision.
 
 ## Segmentation and checkpointing
 
-EchoFlow owns durable application segmentation so an interrupted job can prove what
-work completed. Segmentation schema v1 is intentionally sequential and
-non-overlapping:
+EchoFlow owns durable segmentation so interrupted work has deterministic identity:
 
 - exact integer PCM frame boundaries;
 - stable zero-based `audio-XXXXXX` work IDs;
-- 600-second maximum durable work windows;
-- concurrency one;
-- overlap zero;
-- one materialized private segment at a time;
-- one loaded faster-whisper model session reused across the job.
+- 600-second maximum work windows;
+- no overlap;
+- one job-scoped model session;
+- strictly ordered checkpoint commits; and
+- at most one future CPU materialization while accelerated inference handles the
+  current segment.
 
-Each completed work result is atomically checkpointed beneath the private job state
-before the executor advances. Resume validates source identity, stream choice,
-engine/model/revision, decoder, segmentation, resource requirements, and checkpoint
-integrity before reusing completed work.
+Every completed result is atomically checkpointed before it becomes resumable. The
+completed set must remain a contiguous prefix.
 
-Schema-1 checkpoint plans retain their legacy job-latched automatic language
-semantics. New schema-2 plans use faster-whisper native multilingual decoding and do
-not silently rewrite old interrupted jobs under new language behavior.
+The current pre-production checkpoint contract binds source identity, stream choice,
+profile, engine/model/revision, execution target, decode settings, enhancement state,
+segmentation, resource requirements, and exact frame windows. Resume restores that one
+current contract and re-admits current CPU/RAM/accelerator capacity.
+
+EchoFlow does not carry legacy job-plan or language-mode migration branches for
+unreleased behavior. A real migration layer should be introduced when a released or
+dogfooded contract creates an actual compatibility obligation.
 
 ## Multilingual behavior
 
-New jobs use faster-whisper's native multilingual mode with the versioned
-`native_multilingual_v1` policy. The currently qualified contract uses an 8-second
-internal multilingual window and disables previous-text conditioning so a prior
-language prompt is not carried across a detected language change.
+Automatic faster-whisper decoding uses the current native multilingual behavior for
+each durable work unit. With no explicit language, the backend uses an 8-second
+multilingual window and disables previous-text conditioning so a prior work unit does
+not force a language prompt across a detected change.
 
-Published text-language labels come from the local `LinguaLanguageAttributor`, not
-from a fabricated per-ASR-segment acoustic label. Attribution uses deterministic
-clause/utterance-sized text units plus an uncertainty floor. Ambiguous short text may
-remain unlabeled rather than receive false precision.
+Published text-language labels come from the local `LinguaLanguageAttributor`, not from
+fabricated per-word acoustic labels. Attribution uses deterministic text units and an
+uncertainty floor. Ambiguous short text may remain unlabeled.
 
-This is useful for language changes such as English/French. It is not a claim of
+This supports language changes better than a job-latched language but is not a claim of
 perfect arbitrary word-level or romanized Hinglish attribution.
+
+## Anonymous speaker diarization
+
+Diarization is optional local enrichment with recording-scoped anonymous speaker refs.
+It does not perform biometric identity or cross-recording linking.
+
+Its pyannote dependency path is security-gated. The current locked Lightning dependency
+is affected by CVE-2026-58659, so EchoFlow blocks diarization before pyannote import or
+model acquisition until a compatible patched dependency is available.
+
+Diarization model download authorization remains narrowly separate from ASR model
+management for now. This does not reopen a general transcription-time ASR download
+path.
 
 ## Canonical transcript and exports
 
-Canonical JSON is authoritative. It records source provenance, execution profile,
-engine provenance, language evidence, timestamped recognized segments, and optional
-language spans. `speaker_ref` is currently nullable semantic space for future
-anonymous diarization.
+Canonical JSON is authoritative. The one current transcript contract records:
+
+- source provenance and selected stream;
+- profile/provisional state;
+- managed engine/model/revision and execution target;
+- language evidence;
+- optional enhancement provenance;
+- optional diarization provenance/speaker turns; and
+- timestamped recognized segments.
 
 TXT, SRT, and WebVTT are deterministic derived views. They can be deleted and
-regenerated without changing recognition/checkpoint truth. Subtitle timestamps come
-from the canonical source-relative segment timeline.
+regenerated without changing recognition/checkpoint truth.
 
 ## Privacy and observability
 
-Structured logging is implemented with Structlog behind the narrow `ILogger`
-capability. `echoflow.core.observability` is the canonical home for logging setup and
-path-disclosure policy. Routine logs omit local paths unless the user explicitly
-selects full path disclosure.
+Structured logging uses Structlog behind `ILogger`. Routine logs redact local paths by
+default. Private job/checkpoint state, model caches, normalized audio, enhanced audio,
+and segment materializations are distinct from user-visible transcript artifacts.
 
-Private job/checkpoint state is distinct from public transcript artifacts. POSIX
-systems enforce owner-only mode bits; Windows uses a current-user DACL policy. These
-controls are filesystem access restrictions, not application-level encryption or
-secure erasure.
+POSIX systems enforce owner-only mode bits; Windows uses current-user DACL policy.
+These are filesystem access controls, not application-level encryption or secure
+erasure.
 
 ## Transcript library boundary
 
-`TranscriptIndex` is a database-neutral application port for **derived, rebuildable**
-transcript search state. It deliberately exposes transcript-library behavior instead
-of generic SQL. Future DuckDB, SQLite, PostgreSQL, or other adapters can implement the
-same port when there is a real product need.
+`TranscriptIndex` is a database-neutral application port for derived, rebuildable
+transcript search state. It exposes transcript-library behavior rather than generic SQL.
+A future DuckDB or other embedded adapter may implement it.
 
-The database is never canonical custody of research recordings or transcripts.
-Deleting the index must not delete canonical JSON or checkpoint truth.
+The search database is never canonical custody. Deleting/rebuilding it must not mutate
+canonical transcript JSON or source recordings.
 
 ## Capability ownership
 
 | Capability | Owns | Does not own |
 |---|---|---|
-| `FfprobeMediaProbe` | Source identity, container/stream metadata | Transcoding |
-| `AudioStreamSelector` | Deterministic chosen audio stream | FFprobe discovery |
-| `RunnerInspector` | Process-visible CPU/memory facts | Model choice |
-| `RunnerPolicyPlanner` | CPU/memory job budget | ASR execution |
+| `FfprobeMediaProbe` | Source identity and stream metadata | Transcoding |
+| `AudioStreamSelector` | Deterministic selected audio stream | FFprobe discovery |
+| `RunnerInspector` | Process-visible CPU/RAM facts | Model choice |
+| `HardwareTopologyInspector` | Physical accelerator evidence | Runtime support claims |
+| `EngineCapabilityRegistry` | Engine/device/compute support | Strategy ranking |
+| `StrategyEvaluator` | Safe strategy admission/ranking | Model acquisition |
+| `ModelManager` | Managed model custody and revision identity | ASR execution |
 | `TranscriptionJobPlanner` | Immutable combined execution plan | Performing work |
-| `FfmpegAudioDecoder` | Selected-stream extraction and canonical normalization | Segmentation policy |
-| `WaveAudioSegmenter` | Exact frame windows/materialization | Speech recognition |
-| `FasterWhisperSession` | Loaded ASR engine/model and recognition | Final file formats |
-| `CheckpointStore` | Private durable resumable state | Public artifacts |
-| `TranscriptAssembler` | Source-relative timestamp assembly | Filesystem policy |
-| `LinguaLanguageAttributor` | Conservative local text-language labels | Acoustic decoding |
+| `FfmpegAudioDecoder` | Selected-stream canonicalization | Acoustic enhancement |
+| `FfmpegAfftdnEnhancer` | Optional deterministic noise suppression | Source authority |
+| `WaveAudioSegmenter` | Exact work windows/materialization | Speech recognition |
+| `FasterWhisperSession` | Managed local ASR recognition | Model download |
+| `LocalCheckpointStore` | Private resumable evidence | Public artifacts |
+| `TranscriptAssembler` | Source-relative assembly | Filesystem policy |
+| `LinguaLanguageAttributor` | Conservative text-language labels | Acoustic decoding |
+| `SpeakerDiarizer` | Anonymous speaker evidence | Biometric identity |
 | `TranscriptExporter` | TXT/SRT/VTT derived publication | Recognition truth |
-| `TranscriptIndex` | Rebuildable transcript-search behavior | Canonical custody |
+| `TranscriptIndex` | Rebuildable search behavior | Canonical custody |
 | `WorkspaceService` | Private/public path allocation | Audio semantics |
 
 Protocols are introduced around real substitutable behavior, not pre-emptively for
@@ -184,18 +234,20 @@ every class.
 
 EchoFlow does not currently claim:
 
-- calibrated speed/memory performance across representative physical devices;
-- GPU strategy support;
+- calibrated speed/memory/thermal performance across representative devices;
+- that every detected accelerator is usable or faster;
 - alternate ASR engines;
-- anonymous speaker diarization;
 - arbitrary word-level code-switch attribution;
+- biometric speaker identity;
+- simultaneous-speaker/source separation;
+- generative audio restoration;
+- automatic enhancement selection;
 - original SMPTE/container/capture-time provenance beyond source-relative seconds;
 - storage durability across sudden power loss;
 - malicious same-user TOCTOU resistance;
-- biometric speaker identity;
-- a production transcript-library database backend;
-- a desktop GUI or consumer installer.
+- secure erasure;
+- a production transcript-library backend; or
+- a polished installer or desktop GUI.
 
-The next roadmap priority is product-facing lifecycle/progress UX, followed by model
-management, installation/release ergonomics, canonical enrichment semantics, and
-anonymous diarization.
+The next product work is representative-device and enhancement qualification, followed
+by evidence-first corpus search and a typed query layer.

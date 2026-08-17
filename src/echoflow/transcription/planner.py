@@ -180,7 +180,7 @@ class TranscriptionJobPlanner:
             auto_language_mode=(
                 AutoLanguageMode.JOB_LATCHED
                 if settings.job_plan_schema_version == 1
-                else AutoLanguageMode.PER_SEGMENT
+                else AutoLanguageMode.NATIVE_MULTILINGUAL
             ),
         )
         artifact = self.workspace_service.plan_artifact(
@@ -254,7 +254,7 @@ class TranscriptionJobPlanner:
                 self.workspace_service.paths.model_dir / "faster-whisper"
             ),
             model_revision=self.model_revision,
-            auto_language_mode=AutoLanguageMode.PER_SEGMENT,
+            auto_language_mode=AutoLanguageMode.NATIVE_MULTILINGUAL,
         )
 
     @staticmethod

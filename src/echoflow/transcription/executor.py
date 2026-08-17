@@ -442,11 +442,16 @@ class TranscriptionExecutor:
         segments, attribution = self._attribute_languages(result.segments)
         detected_languages: list[str] = []
         for segment in segments:
-            if (
-                segment.detected_language is not None
-                and segment.detected_language not in detected_languages
-            ):
-                detected_languages.append(segment.detected_language)
+            for span in segment.language_spans:
+                if span.language not in detected_languages:
+                    detected_languages.append(span.language)
+        if not detected_languages:
+            for segment in segments:
+                if (
+                    segment.detected_language is not None
+                    and segment.detected_language not in detected_languages
+                ):
+                    detected_languages.append(segment.detected_language)
         detected_language = (
             detected_languages[0] if len(detected_languages) == 1 else None
         )

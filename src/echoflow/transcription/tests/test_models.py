@@ -265,7 +265,7 @@ def test_job_plan_rejects_reserved_wrong_version_or_inconsistent_values(tmp_path
     ):
         TranscriptionJobPlan(*arguments, warnings=(), paths_reserved=True)
     with pytest.raises(ValueError, match="^unsupported job-plan schema version$"):
-        TranscriptionJobPlan(*arguments, warnings=(), schema_version=2)
+        TranscriptionJobPlan(*arguments, warnings=(), schema_version=3)
 
     job, artifact, media, runner, policy, engine, decoder, resources = arguments
     wrong_artifact = Artifact(
@@ -315,6 +315,11 @@ def test_recognized_segment_is_stable_slotted_and_json_safe():
         "text": "spoken words",
         "average_log_probability": -0.4,
         "no_speech_probability": 0.15,
+        "detected_language": None,
+        "language_probability": None,
+        "language": None,
+        "language_spans": [],
+        "speaker_ref": None,
     }
     assert not hasattr(segment, "__dict__")
     with pytest.raises(FrozenInstanceError):
@@ -425,6 +430,7 @@ def test_engine_provenance_records_plan_without_cache_path(tmp_path):
         "cpu_threads": 4,
         "beam_size": 5,
         "requested_language": None,
+        "auto_language_mode": "job_latched_v1",
     }
     assert "cache" not in provenance.to_dict()
 
@@ -482,7 +488,7 @@ def canonical(tmp_path, **overrides):
 def test_canonical_transcript_is_complete_and_does_not_embed_private_paths(tmp_path):
     transcript = canonical(tmp_path)
     document = transcript.to_dict()
-    assert document["schema_version"] == 1
+    assert document["schema_version"] == 2
     assert document["job_id"] == "job-1"
     assert document["profile"] == "balanced"
     assert document["provisional"] is False
@@ -514,7 +520,7 @@ def test_screening_canonical_transcript_must_remain_provisional(tmp_path):
     ("overrides", "message"),
     [
         ({"job_id": ""}, "job_id cannot be empty"),
-        ({"schema_version": 2}, "unsupported transcript schema version"),
+        ({"schema_version": 3}, "unsupported transcript schema version"),
         ({"detected_language": " "}, "detected_language cannot be empty"),
         (
             {"language_probability": -0.1},

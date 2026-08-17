@@ -33,7 +33,7 @@ class FasterWhisperSession:
             raise ValueError("detected_language cannot be empty")
         if (
             detected_language is not None
-            and configuration.auto_language_mode is AutoLanguageMode.PER_SEGMENT
+            and configuration.auto_language_mode is AutoLanguageMode.NATIVE_MULTILINGUAL
         ):
             raise ValueError(
                 "detected_language cannot seed a per-segment language session"
@@ -50,12 +50,14 @@ class FasterWhisperSession:
             requested_language = self.configuration.language
             if (
                 requested_language is None
-                and self.configuration.auto_language_mode is AutoLanguageMode.JOB_LATCHED
+                and self.configuration.auto_language_mode
+                is AutoLanguageMode.JOB_LATCHED
             ):
                 requested_language = self._detected_language
             multilingual = (
                 requested_language is None
-                and self.configuration.auto_language_mode is AutoLanguageMode.PER_SEGMENT
+                and self.configuration.auto_language_mode
+                is AutoLanguageMode.NATIVE_MULTILINGUAL
             )
             raw_segments, info = self.model.transcribe(
                 str(audio_path),
@@ -82,7 +84,8 @@ class FasterWhisperSession:
             )
             if (
                 self.configuration.language is None
-                and self.configuration.auto_language_mode is AutoLanguageMode.JOB_LATCHED
+                and self.configuration.auto_language_mode
+                is AutoLanguageMode.JOB_LATCHED
                 and self._detected_language is None
                 and language is not None
             ):

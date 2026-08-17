@@ -2,10 +2,10 @@ from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.executor import TranscriptionExecutor
 from echoflow.transcription.models import (
     AudioSegmentWindow,
+    EngineTranscript,
     LanguageAttributionProvenance,
     LanguageSpan,
     RecognizedSegment,
-    EngineTranscript,
 )
 
 
@@ -39,10 +39,7 @@ def test_assembly_preserves_language_changes_on_source_relative_segments():
 
     assert assembled.language is None
     assert assembled.language_probability is None
-    assert tuple(segment.detected_language for segment in assembled.segments) == (
-        "en",
-        "fr",
-    )
+    assert all(segment.detected_language is None for segment in assembled.segments)
     assert tuple(segment.start_seconds for segment in assembled.segments) == (0.0, 1.0)
 
 

@@ -17,7 +17,7 @@ class AutoLanguageMode(StrEnum):
     """How an automatically detected ASR language is applied across work units."""
 
     JOB_LATCHED = "job_latched_v1"
-    PER_SEGMENT = "per_segment_v1"
+    NATIVE_MULTILINGUAL = "native_multilingual_v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,7 +171,7 @@ class CpuEngineConfiguration:
             "model_cache_path": str(self.model_cache_path),
             "model_revision": self.model_revision,
         }
-        if self.auto_language_mode is AutoLanguageMode.PER_SEGMENT:
+        if self.auto_language_mode is AutoLanguageMode.NATIVE_MULTILINGUAL:
             document["auto_language_mode"] = self.auto_language_mode.value
         return document
 
@@ -250,12 +250,17 @@ class TranscriptionJobPlan:
             self.schema_version == 1
             and self.engine.auto_language_mode is not AutoLanguageMode.JOB_LATCHED
         ):
-            raise ValueError("job-plan schema version 1 requires legacy language latching")
+            raise ValueError(
+                "job-plan schema version 1 requires legacy language latching"
+            )
         if (
             self.schema_version == 2
-            and self.engine.auto_language_mode is not AutoLanguageMode.PER_SEGMENT
+            and self.engine.auto_language_mode
+            is not AutoLanguageMode.NATIVE_MULTILINGUAL
         ):
-            raise ValueError("job-plan schema version 2 requires per-segment language detection")
+            raise ValueError(
+                "job-plan schema version 2 requires per-segment language detection"
+            )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -337,6 +342,12 @@ class RecognizedSegment:
     speaker_ref: str | None = None
 
     def __post_init__(self) -> None:
+        self._validate_identity_and_text()
+        self._validate_probabilities()
+        self._validate_language_metadata()
+        self._validate_language_spans()
+
+    def _validate_identity_and_text(self) -> None:
         if self.index < 0:
             raise ValueError("segment index cannot be negative")
         if (
@@ -348,6 +359,8 @@ class RecognizedSegment:
             raise ValueError("segment timestamps must be finite and ordered")
         if not self.text.strip():
             raise ValueError("segment text cannot be empty")
+
+    def _validate_probabilities(self) -> None:
         if self.average_log_probability is not None and not math.isfinite(
             self.average_log_probability
         ):
@@ -357,18 +370,21 @@ class RecognizedSegment:
             and 0 <= self.no_speech_probability <= 1
         ):
             raise ValueError("no_speech_probability must be between 0 and 1")
-        if self.detected_language is not None and not self.detected_language.strip():
-            raise ValueError("detected_language cannot be empty")
         if self.language_probability is not None and not (
             math.isfinite(self.language_probability)
             and 0 <= self.language_probability <= 1
         ):
             raise ValueError("language_probability must be between 0 and 1")
+
+    def _validate_language_metadata(self) -> None:
+        if self.detected_language is not None and not self.detected_language.strip():
+            raise ValueError("detected_language cannot be empty")
         if self.language is not None and not self.language.strip():
             raise ValueError("language cannot be empty")
         if self.speaker_ref is not None and not self.speaker_ref.strip():
             raise ValueError("speaker_ref cannot be empty")
 
+    def _validate_language_spans(self) -> None:
         previous_end = 0
         for span in self.language_spans:
             if span.end_char > len(self.text):
@@ -541,12 +557,45 @@ class CanonicalTranscript:
     language_attribution: LanguageAttributionProvenance | None = None
 
     def __post_init__(self) -> None:
+        self._validate_core_contract()
+        derived_languages = self._derived_languages()
+        if not self.detected_languages:
+            object.__setattr__(self, "detected_languages", derived_languages)
+        elif derived_languages != self.detected_languages:
+            raise ValueError(
+                "detected_languages must match transcript language evidence"
+            )
+        self._validate_language_summary()
+
+    def _validate_core_contract(self) -> None:
         if self.schema_version != 2:
             raise ValueError("unsupported transcript schema version")
         if not self.job_id:
             raise ValueError("job_id cannot be empty")
         if self.provisional != (self.profile is ProcessingProfile.SCREENING):
             raise ValueError("provisional flag must match the processing profile")
+        if tuple(segment.index for segment in self.segments) != tuple(
+            range(len(self.segments))
+        ):
+            raise ValueError("segment indices must be contiguous and zero-based")
+
+    def _derived_languages(self) -> tuple[str, ...]:
+        languages: list[str] = []
+        for segment in self.segments:
+            for span in segment.language_spans:
+                if span.language not in languages:
+                    languages.append(span.language)
+        if languages:
+            return tuple(languages)
+        for segment in self.segments:
+            if (
+                segment.detected_language is not None
+                and segment.detected_language not in languages
+            ):
+                languages.append(segment.detected_language)
+        return tuple(languages)
+
+    def _validate_language_summary(self) -> None:
         if self.detected_language is not None and not self.detected_language.strip():
             raise ValueError("detected_language cannot be empty")
         if self.language_probability is not None and not (
@@ -554,30 +603,18 @@ class CanonicalTranscript:
             and 0 <= self.language_probability <= 1
         ):
             raise ValueError("language_probability must be between 0 and 1")
-        if tuple(segment.index for segment in self.segments) != tuple(
-            range(len(self.segments))
-        ):
-            raise ValueError("segment indices must be contiguous and zero-based")
-
-        derived_languages: list[str] = []
-        for segment in self.segments:
-            if (
-                segment.detected_language is not None
-                and segment.detected_language not in derived_languages
-            ):
-                derived_languages.append(segment.detected_language)
-        if not self.detected_languages:
-            object.__setattr__(self, "detected_languages", tuple(derived_languages))
-        elif tuple(derived_languages) != self.detected_languages:
-            raise ValueError("detected_languages must match segment language evidence")
         if len(self.detected_languages) > 1 and self.detected_language is not None:
-            raise ValueError("mixed-language transcripts cannot have one detected_language")
+            raise ValueError(
+                "mixed-language transcripts cannot have one detected_language"
+            )
         if (
             self.detected_language is not None
             and self.detected_languages
             and self.detected_language != self.detected_languages[0]
         ):
-            raise ValueError("detected_language must match segment language evidence")
+            raise ValueError(
+                "detected_language must match transcript language evidence"
+            )
         if self.detected_language is None and self.language_probability is not None:
             raise ValueError("language_probability requires detected_language")
 

@@ -35,7 +35,10 @@ class TranscriptAssembler:
         detected_languages: list[str] = []
         probabilities: list[float] = []
         for window, result in results:
-            if result.language is not None and result.language not in detected_languages:
+            if (
+                result.language is not None
+                and result.language not in detected_languages
+            ):
                 detected_languages.append(result.language)
             if result.language_probability is not None:
                 probabilities.append(result.language_probability)
@@ -45,7 +48,9 @@ class TranscriptAssembler:
             detected_languages[0] if len(detected_languages) == 1 else None
         )
         uniform_probability = (
-            min(probabilities) if uniform_language is not None and probabilities else None
+            min(probabilities)
+            if uniform_language is not None and probabilities
+            else None
         )
         return EngineTranscript(
             segments=tuple(recognized),

@@ -62,14 +62,16 @@ def test_per_segment_session_redetects_language_for_each_work_unit(tmp_path):
 
     class Model:
         def transcribe(self, _path, **kwargs):
-            calls.append(kwargs["language"])
+            calls.append(
+                (kwargs["language"], kwargs["multilingual"], kwargs["chunk_length"])
+            )
             return iter(()), next(infos)
 
     session = FasterWhisperSession(
         model=Model(),
         configuration=configuration(
             tmp_path,
-            auto_language_mode=AutoLanguageMode.PER_SEGMENT,
+            auto_language_mode=AutoLanguageMode.NATIVE_MULTILINGUAL,
         ),
         engine_version="1.2.1",
     )
@@ -77,7 +79,7 @@ def test_per_segment_session_redetects_language_for_each_work_unit(tmp_path):
     first = session.transcribe(tmp_path / "audio-000000.wav")
     second = session.transcribe(tmp_path / "audio-000001.wav")
 
-    assert calls == [None, None]
+    assert calls == [(None, True, 10), (None, True, 10)]
     assert first.language == "en"
     assert second.language == "fr"
 
@@ -111,7 +113,7 @@ def test_per_segment_session_rejects_resume_language_seed(tmp_path):
             model=object(),
             configuration=configuration(
                 tmp_path,
-                auto_language_mode=AutoLanguageMode.PER_SEGMENT,
+                auto_language_mode=AutoLanguageMode.NATIVE_MULTILINGUAL,
             ),
             engine_version="1.2.1",
             detected_language="de",

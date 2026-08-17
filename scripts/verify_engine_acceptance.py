@@ -248,29 +248,37 @@ def _validate_known_speech(document: dict[str, Any]) -> set[str]:
     return recognized_expected
 
 
-def _validate_language_contract(document: dict[str, Any]) -> None:
+def _validate_language_provenance(document: dict[str, Any]) -> None:
     if document.get("schema_version") != 2:
         raise RuntimeError("unexpected canonical transcript schema version")
     engine = document.get("engine")
     attribution = document.get("language_attribution")
     if not isinstance(engine, dict) or not isinstance(attribution, dict):
         raise RuntimeError("canonical language provenance is incomplete")
-    if engine.get("auto_language_mode") != "per_segment_v1":
-        raise RuntimeError("canonical transcript omitted per-segment language policy")
+    if engine.get("auto_language_mode") != "native_multilingual_v1":
+        raise RuntimeError("canonical transcript omitted multilingual language policy")
     if attribution.get("provider") != "lingua":
         raise RuntimeError("canonical transcript recorded the wrong language provider")
     if not str(attribution.get("package_version", "")).strip():
         raise RuntimeError("canonical transcript omitted language provider version")
 
+
+def _validate_language_segments(document: dict[str, Any]) -> None:
     segments = document.get("segments")
     if not isinstance(segments, list) or not segments:
         raise RuntimeError("known speech produced no canonical recognition segments")
     if any(not isinstance(segment, dict) for segment in segments):
         raise RuntimeError("canonical transcript contains malformed language segments")
-    for segment in segments:
-        assert isinstance(segment, dict)
-        if "detected_language" not in segment or "language_spans" not in segment:
-            raise RuntimeError("canonical segment omitted language evidence")
+    if not any(
+        isinstance(segment, dict) and segment.get("language_spans")
+        for segment in segments
+    ):
+        raise RuntimeError("canonical transcript contains no language-attributed spans")
+
+
+def _validate_language_contract(document: dict[str, Any]) -> None:
+    _validate_language_provenance(document)
+    _validate_language_segments(document)
 
 
 def _validate_provenance(
@@ -282,7 +290,9 @@ def _validate_provenance(
     if document.get("detected_language") != "en":
         raise RuntimeError("known English speech was not detected as English")
     if document.get("detected_languages") != ["en"]:
-        raise RuntimeError("known English speech recorded unexpected acoustic languages")
+        raise RuntimeError(
+            "known English speech recorded unexpected acoustic languages"
+        )
 
     source = document.get("source")
     engine = document.get("engine")

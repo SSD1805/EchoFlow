@@ -27,10 +27,14 @@ class LinguaLanguageAttributor:
     @property
     def provenance(self) -> LanguageAttributionProvenance:
         self._dependency()
-        assert self._package_version is not None
+        package_version = self._package_version
+        if package_version is None:
+            raise TranscriptionError(
+                "Language attribution package version is unavailable"
+            )
         return LanguageAttributionProvenance(
             provider="lingua",
-            package_version=self._package_version,
+            package_version=package_version,
             mode="mixed_text_sections",
         )
 

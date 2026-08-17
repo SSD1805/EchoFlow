@@ -148,9 +148,7 @@ class ModelManager:
                 "The local model registry is invalid", cause=exc
             ) from exc
 
-    def _validate_manifest(
-        self, model_id: str, manifest: ManagedModelManifest
-    ) -> None:
+    def _validate_manifest(self, model_id: str, manifest: ManagedModelManifest) -> None:
         spec = self.catalog.require(model_id)
         if (
             manifest.model_id != spec.model_id

@@ -45,7 +45,6 @@ class ModelManager:
         self.registry_root = self.model_root / "registry" / "faster-whisper"
 
     def inventory(self) -> tuple[ModelInventoryItem, ...]:
-        self._prepare_roots()
         return tuple(
             ModelInventoryItem(spec=spec, manifest=self._manifest(spec.model_id))
             for spec in self.catalog.specs
@@ -91,7 +90,6 @@ class ModelManager:
 
     def remove(self, model_id: str) -> ManagedModelManifest:
         spec = self.catalog.require(model_id)
-        self._prepare_roots()
         manifest = self._manifest(spec.model_id)
         if manifest is None:
             raise ValueError(f"model is not managed by EchoFlow: {model_id}")
@@ -116,9 +114,8 @@ class ModelManager:
         return self.resolved_revision(model_id) is not None
 
     def resolved_revision(self, model_id: str) -> str | None:
-        """Return the verified managed revision without touching the network."""
+        """Return the verified managed revision without touching the network or disk."""
         self.catalog.require(model_id)
-        self._prepare_roots()
         manifest = self._manifest(model_id)
         return None if manifest is None else manifest.resolved_revision
 

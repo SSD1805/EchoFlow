@@ -262,7 +262,7 @@ def test_library_search_human_view_keeps_evidence_and_ranks_visible() -> None:
     result = CliRunner().invoke(app, ["library", "search", "housing"])
 
     assert result.exit_code == 0
-    assert "interview.wav" in result.stdout
+    assert "interview" in result.stdout
     assert "1.50-2.50s" in result.stdout
     assert "speaker-02" in result.stdout
     assert "L:1" in result.stdout

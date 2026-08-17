@@ -56,7 +56,7 @@ def test_real_init_json_keeps_logs_on_standard_error(tmp_path) -> None:
 
 
 @pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe is unavailable")
-def test_real_transcription_dry_run_probes_audio_without_creating_paths(
+def test_real_dry_run_probes_media_then_refuses_unmanaged_model_without_writes(
     tmp_path,
 ) -> None:
     source = tmp_path / "incoming" / "participant-001.wav"
@@ -95,19 +95,11 @@ def test_real_transcription_dry_run_probes_audio_without_creating_paths(
         env=environment,
     )
 
-    document = json.loads(result.stdout)
-    assert result.returncode == 0
-    assert document["dry_run"] is True
-    assert document["paths_reserved"] is False
-    assert document["media"]["duration_seconds"] == 0.25
-    assert document["media"]["streams"][0]["codec"] == "pcm_s16le"
-    assert document["media"]["input"]["size_bytes"] == source.stat().st_size
-    assert len(document["media"]["input"]["sha256"]) == 64
-    assert document["policy"]["profile"] == "screening"
-    assert document["policy"]["provisional"] is True
-    assert document["engine"]["model"] == "tiny"
-    assert document["decoder"]["strategy"] == "direct"
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "echoflow models install tiny" in result.stderr
+    assert "participant-001" not in result.stderr
+    assert str(tmp_path) not in result.stderr
     assert not state.exists()
     assert not cache.exists()
     assert not output.exists()
-    assert str(tmp_path) not in result.stderr

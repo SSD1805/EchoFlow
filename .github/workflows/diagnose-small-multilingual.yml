@@ -1,4 +1,4 @@
-name: Diagnose multilingual windows
+name: Diagnose tiny multilingual windows
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - name: Check out branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -38,7 +38,7 @@ jobs:
       - name: Install locked transcription stack
         run: uv sync --locked --extra transcription
 
-      - name: Sweep small-model multilingual windows on exact EN-FR fixture
+      - name: Qualify tiny at 8 and 9 seconds
         run: |
           uv run python <<'PY'
           import json
@@ -62,11 +62,11 @@ jobs:
               def __getattr__(self, name):
                   return getattr(self._real, name)
 
-          with tempfile.TemporaryDirectory(prefix="echoflow-window-sweep-") as temporary:
+          with tempfile.TemporaryDirectory(prefix="echoflow-tiny-window-") as temporary:
               root = Path(temporary).resolve()
               _direct, _container, mixed = acceptance._generate_media(root)
               model = WhisperModel(
-                  "small",
+                  "tiny",
                   device="cpu",
                   compute_type="int8",
                   cpu_threads=2,
@@ -75,11 +75,11 @@ jobs:
               )
               original_model = model.model
               results = {}
-              for chunk_length in (6, 7, 8, 9, 10, 12, 15, 30):
+              for chunk_length in (8, 9):
                   proxy = LanguageLogProxy(original_model)
                   model.model = proxy
                   try:
-                      segments, info = model.transcribe(
+                      segments, _info = model.transcribe(
                           str(mixed),
                           beam_size=1,
                           language=None,
@@ -100,14 +100,6 @@ jobs:
                       "text": text,
                       "english_anchors": sorted(words & acceptance._ENGLISH_WORDS),
                       "french_anchors": sorted(words & acceptance._FRENCH_WORDS),
-                      "segments": [
-                          [
-                              round(float(segment.start), 2),
-                              round(float(segment.end), 2),
-                              segment.text.strip(),
-                          ]
-                          for segment in materialized
-                      ],
                   }
               print(json.dumps(results, ensure_ascii=False, indent=2))
               passing = [
@@ -119,5 +111,5 @@ jobs:
               ]
               print("passing_windows=" + ",".join(passing))
               if not passing:
-                  raise RuntimeError("no tested window preserved enough bilingual content")
+                  raise RuntimeError("tiny did not preserve enough bilingual content")
           PY

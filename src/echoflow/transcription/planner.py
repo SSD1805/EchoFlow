@@ -9,7 +9,10 @@ from echoflow.runner.inspector import RunnerInspector
 from echoflow.runner.models import ExecutionPolicy, ModelTier, ProcessingProfile
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.runner.topology import HardwareTopology, HardwareTopologyInspector
-from echoflow.transcription.capabilities import EngineCapabilities, EngineCapabilityRegistry
+from echoflow.transcription.capabilities import (
+    EngineCapabilities,
+    EngineCapabilityRegistry,
+)
 from echoflow.transcription.checkpoint import ResumeSettings
 from echoflow.transcription.errors import CheckpointError, ResourceAdmissionError
 from echoflow.transcription.models import (

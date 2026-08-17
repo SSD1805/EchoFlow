@@ -115,16 +115,28 @@ Windows/Linux/macOS installation size, peak RAM, and real-time factor still requ
 physical-device qualification before EchoFlow should advertise diarization as
 appropriate for an 8 GB machine.
 
-## Current evidence and deliberate limits
+## Evidence ladder and deliberate limits
 
 The adapter, cache-only/download policy, telemetry-disable behavior, deterministic
 label normalization, canonical schema, executor integration, conservative fusion,
 and derived exports are covered by deterministic tests.
 
-A real pyannote Community-1 model inference acceptance is **not yet automated**
-because the model is gated by upstream conditions/authentication. Until that lane is
-qualified, EchoFlow should not claim that real pyannote inference has been proven in
-CI.
+The locked diarization dependency graph is included in normal and scheduled
+vulnerability auditing. A separate distribution lane installs `echoflow[diarization]`
+from the built wheel outside the source checkout and imports the real pyannote and
+PyTorch runtimes. This proves packaging/runtime compatibility without requiring a
+gated model download.
+
+A dedicated real-model acceptance workflow is available but manual and
+credential-gated. When deliberately dispatched with an authenticated Hugging Face
+token after the upstream Community-1 conditions have been accepted, it generates a
+non-sensitive local speech fixture, runs real Community-1 inference, and then reopens
+the same cache with model downloads disabled. Ordinary pull-request CI remains free
+of gated credentials and model downloads.
+
+Until that real-model lane has completed successfully on representative hardware,
+EchoFlow should describe Community-1 inference as integrated but not yet
+representative-device qualified.
 
 This capability does not provide:
 

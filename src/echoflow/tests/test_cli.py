@@ -68,7 +68,8 @@ class Provider:
     def __init__(self, value):
         self.value = value
 
-    def __call__(self):
+    def __call__(self, *args, **kwargs):
+        del args, kwargs
         return self.value
 
     def override(self, value):
@@ -127,6 +128,7 @@ class FakeContainer:
             transcription_planner.plan.return_value
         )
         self.transcription_executor = Provider(transcription_executor)
+        self.job_lifecycle_store = Provider(Mock())
 
 
 def transcription_plan() -> TranscriptionJobPlan:

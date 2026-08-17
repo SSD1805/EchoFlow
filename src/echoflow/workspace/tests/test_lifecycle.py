@@ -32,9 +32,7 @@ def test_lifecycle_tracks_progress_completion_and_listing(lifecycle_setup):
     store, workspace, job, paths = lifecycle_setup
 
     started = store.start(job)
-    progressed = store.record_progress(
-        job, completed_segments=2, total_segments=5
-    )
+    progressed = store.record_progress(job, completed_segments=2, total_segments=5)
     artifact = workspace.reserve_artifact(job, ArtifactKind.CANONICAL_JSON)
     artifact.path.write_text("{}")
     completed = store.complete(job, artifact)
@@ -50,7 +48,9 @@ def test_lifecycle_tracks_progress_completion_and_listing(lifecycle_setup):
     assert not store.is_resumable(job.job_id)
 
 
-def test_lifecycle_marks_interrupt_failure_and_stale_process(lifecycle_setup, monkeypatch):
+def test_lifecycle_marks_interrupt_failure_and_stale_process(
+    lifecycle_setup, monkeypatch
+):
     store, _, job, _ = lifecycle_setup
 
     store.start(job)

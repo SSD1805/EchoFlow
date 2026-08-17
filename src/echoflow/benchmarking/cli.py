@@ -78,17 +78,12 @@ def _execute(
     plan: TranscriptionJobPlan,
     observer: ExecutionObserver,
     *,
-    allow_model_download: bool,
     resume: bool,
 ) -> TranscriptionExecutionResult:
     executor = container.transcription_executor(observer=observer)
     if resume:
-        return executor.execute(
-            plan,
-            allow_model_download=allow_model_download,
-            resume=True,
-        )
-    return executor.execute(plan, allow_model_download=allow_model_download)
+        return executor.execute(plan, resume=True)
+    return executor.execute(plan)
 
 
 def _format_bytes(value: int) -> str:
@@ -144,13 +139,6 @@ def benchmark(
             help="Explicit EchoFlow dotenv configuration file.",
         ),
     ] = None,
-    allow_model_download: Annotated[
-        bool,
-        typer.Option(
-            "--allow-model-download",
-            help="Authorize retrieval of the selected model if absent.",
-        ),
-    ] = False,
     output_dir: Annotated[
         Path | None,
         typer.Option(
@@ -201,7 +189,6 @@ def benchmark(
                 container,
                 plan,
                 observer,
-                allow_model_download=allow_model_download,
                 resume=resume is not None,
             ),
             resume=resume is not None,

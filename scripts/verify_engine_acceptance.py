@@ -250,18 +250,9 @@ def _load_canonical(output_dir: Path) -> tuple[dict[str, Any], str]:
     return document, raw_document
 
 
-def _validate_contract(
-    document: dict[str, Any],
-    *,
-    expected_decode_strategy: str,
-    expected_revision: str,
-    expect_enhancement: bool,
+def _validate_engine_contract(
+    document: dict[str, Any], *, expected_revision: str
 ) -> None:
-    if document.get("schema_version") != 1:
-        raise RuntimeError("unexpected canonical transcript schema version")
-    if document.get("decode_strategy") != expected_decode_strategy:
-        raise RuntimeError("canonical transcript recorded wrong decode strategy")
-
     engine = document.get("engine")
     if not isinstance(engine, dict):
         raise RuntimeError("canonical engine provenance is malformed")
@@ -274,22 +265,45 @@ def _validate_contract(
     if "auto_language_mode" in engine:
         raise RuntimeError("legacy language-mode compatibility field survived")
 
+
+def _validate_language_contract(document: dict[str, Any]) -> None:
     attribution = document.get("language_attribution")
     if not isinstance(attribution, dict) or attribution.get("provider") != "lingua":
         raise RuntimeError("canonical transcript omitted local language provenance")
 
+
+def _validate_enhancement_contract(
+    document: dict[str, Any], *, expect_enhancement: bool
+) -> None:
     enhancement = document.get("enhancement")
-    if expect_enhancement:
-        if not isinstance(enhancement, dict):
-            raise RuntimeError("enhanced run omitted enhancement provenance")
-        if enhancement.get("provider") != "ffmpeg-afftdn":
-            raise RuntimeError("enhanced run recorded wrong provider")
-        if enhancement.get("operation") != "noise_suppression":
-            raise RuntimeError("enhanced run recorded wrong operation")
-        if not str(enhancement.get("provider_version", "")).strip():
-            raise RuntimeError("enhanced run omitted FFmpeg version")
-    elif enhancement is not None:
-        raise RuntimeError("raw run unexpectedly recorded enhancement provenance")
+    if not expect_enhancement:
+        if enhancement is not None:
+            raise RuntimeError("raw run unexpectedly recorded enhancement provenance")
+        return
+    if not isinstance(enhancement, dict):
+        raise RuntimeError("enhanced run omitted enhancement provenance")
+    if enhancement.get("provider") != "ffmpeg-afftdn":
+        raise RuntimeError("enhanced run recorded wrong provider")
+    if enhancement.get("operation") != "noise_suppression":
+        raise RuntimeError("enhanced run recorded wrong operation")
+    if not str(enhancement.get("provider_version", "")).strip():
+        raise RuntimeError("enhanced run omitted FFmpeg version")
+
+
+def _validate_contract(
+    document: dict[str, Any],
+    *,
+    expected_decode_strategy: str,
+    expected_revision: str,
+    expect_enhancement: bool,
+) -> None:
+    if document.get("schema_version") != 1:
+        raise RuntimeError("unexpected canonical transcript schema version")
+    if document.get("decode_strategy") != expected_decode_strategy:
+        raise RuntimeError("canonical transcript recorded wrong decode strategy")
+    _validate_engine_contract(document, expected_revision=expected_revision)
+    _validate_language_contract(document)
+    _validate_enhancement_contract(document, expect_enhancement=expect_enhancement)
 
 
 def _validate_timestamps(document: dict[str, Any]) -> None:

@@ -88,8 +88,8 @@ def build_planner(
     registry = model_registry
     if registry is _DEFAULT_REGISTRY:
         registry = Mock()
-        registry.resolved_revision.side_effect = (
-            lambda model_id: f"{model_id}-managed-revision"
+        registry.resolved_revision.side_effect = lambda model_id: (
+            f"{model_id}-managed-revision"
         )
     planner = TranscriptionJobPlanner(
         media_probe=probe,
@@ -174,7 +174,9 @@ def test_missing_model_registry_fails_closed(tmp_path):
         model_registry=None,
     )
 
-    with pytest.raises(ModelUnavailableError, match="model management is not configured"):
+    with pytest.raises(
+        ModelUnavailableError, match="model management is not configured"
+    ):
         planner.plan(source)
 
 
@@ -248,7 +250,11 @@ def test_enhancement_adds_full_private_derivative_and_provenance_contract(tmp_pa
     assert raw.enhancement.enabled is False
     assert enhanced.enhancement.enabled is True
     assert enhanced.enhancement.provider == "ffmpeg-afftdn"
-    assert enhanced.resources.private_workspace_bytes - raw.resources.private_workspace_bytes == 320_000
+    assert (
+        enhanced.resources.private_workspace_bytes
+        - raw.resources.private_workspace_bytes
+        == 320_000
+    )
     assert "noise_suppression_enabled" in enhanced.warnings
 
 

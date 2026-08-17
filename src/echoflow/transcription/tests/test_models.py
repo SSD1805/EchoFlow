@@ -84,6 +84,7 @@ def values(tmp_path):
         5,
         None,
         tmp_path / "cache/models/faster-whisper/nested/../small",
+        "revision-1",
     )
     decoder = DecodeConfiguration(DecodeStrategy.DIRECT, "pcm_s16le", 16_000, 1)
     resources = ResourceEstimate(10, 20, 30, 40, 50, True)
@@ -129,7 +130,7 @@ def test_decode_and_engine_configuration_serialize_stable_wire_values(tmp_path):
         "model_cache_path": str(
             (tmp_path / "cache/models/faster-whisper/small").resolve()
         ),
-        "model_revision": None,
+        "model_revision": "revision-1",
     }
     assert [strategy.value for strategy in DecodeStrategy] == [
         "direct",
@@ -146,13 +147,21 @@ def test_decode_and_engine_configuration_serialize_stable_wire_values(tmp_path):
 def test_execution_configuration_positive_lower_boundaries_are_valid(tmp_path):
     decoder = DecodeConfiguration(DecodeStrategy.DIRECT, "pcm", 1, 1)
     engine = CpuEngineConfiguration(
-        "engine", "model", "cpu", "int8", 1, 1, None, tmp_path / "model"
+        "engine",
+        "model",
+        "cpu",
+        "int8",
+        1,
+        1,
+        None,
+        tmp_path / "model",
+        "revision-1",
     )
     assert decoder.sample_rate_hz == 1
     assert decoder.channels == 1
     assert engine.cpu_threads == 1
     assert engine.beam_size == 1
-    assert engine.model_revision is None
+    assert engine.model_revision == "revision-1"
 
 
 @pytest.mark.parametrize(
@@ -175,32 +184,32 @@ def test_execution_configuration_positive_lower_boundaries_are_valid(tmp_path):
         ),
         (
             CpuEngineConfiguration,
-            ("", "small", "cpu", "int8", 1, 1, None, Path(".")),
+            ("", "small", "cpu", "int8", 1, 1, None, Path("."), "revision-1"),
             "engine cannot be empty",
         ),
         (
             CpuEngineConfiguration,
-            ("fw", "", "cpu", "int8", 1, 1, None, Path(".")),
+            ("fw", "", "cpu", "int8", 1, 1, None, Path("."), "revision-1"),
             "model cannot be empty",
         ),
         (
             CpuEngineConfiguration,
-            ("fw", "small", "", "int8", 1, 1, None, Path(".")),
+            ("fw", "small", "", "int8", 1, 1, None, Path("."), "revision-1"),
             "device cannot be empty",
         ),
         (
             CpuEngineConfiguration,
-            ("fw", "small", "cpu", "", 1, 1, None, Path(".")),
+            ("fw", "small", "cpu", "", 1, 1, None, Path("."), "revision-1"),
             "compute_type cannot be empty",
         ),
         (
             CpuEngineConfiguration,
-            ("fw", "small", "cpu", "int8", 0, 1, None, Path(".")),
+            ("fw", "small", "cpu", "int8", 0, 1, None, Path("."), "revision-1"),
             "cpu_threads must be positive",
         ),
         (
             CpuEngineConfiguration,
-            ("fw", "small", "cpu", "int8", 1, 0, None, Path(".")),
+            ("fw", "small", "cpu", "int8", 1, 0, None, Path("."), "revision-1"),
             "beam_size must be positive",
         ),
     ],
@@ -424,13 +433,12 @@ def test_engine_provenance_records_plan_without_cache_path(tmp_path):
         "name": "faster-whisper",
         "package_version": "1.2.1",
         "model": "small",
-        "model_revision": None,
+        "model_revision": "revision-1",
         "device": "cpu",
         "compute_type": "int8",
         "cpu_threads": 4,
         "beam_size": 5,
         "requested_language": None,
-        "auto_language_mode": "job_latched_v1",
     }
     assert "cache" not in provenance.to_dict()
 
@@ -453,7 +461,7 @@ def test_engine_provenance_rejects_invalid_values(overrides, message):
         "name": "engine",
         "package_version": "1",
         "model": "tiny",
-        "model_revision": None,
+        "model_revision": "revision-1",
         "device": "cpu",
         "compute_type": "int8",
         "cpu_threads": 1,
@@ -488,7 +496,7 @@ def canonical(tmp_path, **overrides):
 def test_canonical_transcript_is_complete_and_does_not_embed_private_paths(tmp_path):
     transcript = canonical(tmp_path)
     document = transcript.to_dict()
-    assert document["schema_version"] == 2
+    assert document["schema_version"] == 1
     assert document["job_id"] == "job-1"
     assert document["profile"] == "balanced"
     assert document["provisional"] is False

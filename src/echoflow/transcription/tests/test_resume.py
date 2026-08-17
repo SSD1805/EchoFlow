@@ -32,7 +32,7 @@ def test_interrupted_job_resumes_from_completed_prefix_and_clears_checkpoints(tm
     )
 
     with pytest.raises(TranscriptionError, match="^simulated crash$"):
-        service.execute(planned, allow_model_download=True)
+        service.execute(planned)
 
     checkpoint_dir = planned.job.workspace_dir / "checkpoints"
     assert (checkpoint_dir / "manifest.json").is_file()
@@ -49,20 +49,12 @@ def test_interrupted_job_resumes_from_completed_prefix_and_clears_checkpoints(tm
     session.transcribe.side_effect = (local_result("world."),)
     segmenter.materialize.side_effect = (materialized[1],)
 
-    resumed = service.execute(
-        planned,
-        resume=True,
-        allow_model_download=True,
-    )
+    resumed = service.execute(planned, resume=True)
 
     assert resumed.transcript.text == "Hello world."
     assert session.transcribe.call_args_list == [call(materialized[1].path)]
     assert segmenter.materialize.call_count == 1
-    transcriber.open_session.assert_called_once_with(
-        planned.engine,
-        allow_model_download=False,
-        detected_language="en",
-    )
+    transcriber.open_session.assert_called_once_with(planned.engine)
     assert list(checkpoint_dir.iterdir()) == []
     log_text = " ".join(str(item) for item in logger.info.call_args_list)
     assert "transcription_resume_validated" in log_text
@@ -88,7 +80,7 @@ def test_fully_checkpointed_job_publishes_without_loading_model_again(tmp_path):
     store.save_segment(job, planned, windows, windows[0], local_result("Hello"))
     store.save_segment(job, planned, windows, windows[1], local_result("world."))
 
-    result = service.execute(planned, resume=True, allow_model_download=True)
+    result = service.execute(planned, resume=True)
 
     assert result.transcript.text == "Hello world."
     transcriber.open_session.assert_not_called()

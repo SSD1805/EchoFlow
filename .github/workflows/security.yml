@@ -50,7 +50,13 @@ jobs:
       # Lightning 2.6.5 is currently pulled by pyannote and is affected by
       # CVE-2026-58659 / PYSEC-2026-3624. EchoFlow blocks affected/unproven
       # Lightning releases before pyannote import or checkpoint/model loading.
-      # Remove this single compensated exception when upstream publishes its fix.
+      # The exact-version assertion makes this exception expire on dependency drift.
+      - name: Verify compensated Lightning advisory scope
+        shell: bash
+        run: >-
+          grep -Eq '^lightning==2\.6\.5([ ;]|$)'
+          "${{ runner.temp }}/echoflow-runtime-requirements.txt"
+
       - name: Audit locked runtime dependencies
         run: >-
           uvx --from pip-audit==2.10.1 pip-audit

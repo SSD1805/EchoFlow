@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from dependency_injector import containers, providers
 
 from echoflow.benchmarking.runner import BenchmarkRunner
@@ -17,6 +19,7 @@ from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.media.selection import AudioStreamSelector
 from echoflow.model_management.catalog import faster_whisper_model_catalog
+from echoflow.model_management.errors import ModelManagementError
 from echoflow.model_management.provider import HuggingFaceModelProvider
 from echoflow.model_management.service import ModelManager
 from echoflow.runner.inspector import RunnerInspector
@@ -35,11 +38,12 @@ from echoflow.transcription.capabilities import (
 )
 from echoflow.transcription.checkpoint import LocalCheckpointStore
 from echoflow.transcription.diarization import PyannoteSpeakerDiarizer
+from echoflow.transcription.errors import ResourceAdmissionError
 from echoflow.transcription.export import TranscriptExporter
 from echoflow.transcription.language import LinguaLanguageAttributor
 from echoflow.transcription.planner import TranscriptionJobPlanner
 from echoflow.transcription.segmentation import WaveAudioSegmenter
-from echoflow.transcription.storage import StorageAdmissionPolicy
+from echoflow.transcription.storage import StorageAdmissionPolicy, StorageAllocation
 from echoflow.transcription.strategy import StrategyEvaluator, faster_whisper_catalog
 from echoflow.workspace.lifecycle import JobLifecycleStore
 from echoflow.workspace.models import WorkspacePaths
@@ -105,6 +109,22 @@ def _create_capability_registry() -> EngineCapabilityRegistry:
     return EngineCapabilityRegistry((FasterWhisperCapabilityProbe(),))
 
 
+class _ModelStorageAdmitter:
+    """Adapt the shared disk policy without coupling model management to ASR."""
+
+    def __init__(self, policy: StorageAdmissionPolicy) -> None:
+        self.policy = policy
+
+    def admit(self, path: Path, required_bytes: int) -> None:
+        try:
+            self.policy.admit((StorageAllocation(path, required_bytes),))
+        except ResourceAdmissionError as exc:
+            raise ModelManagementError(
+                "Available disk space is below the planned model allocation",
+                cause=exc,
+            ) from exc
+
+
 class AppContainer(containers.DeclarativeContainer):
     """Dependency Injection container for application services."""
 
@@ -128,20 +148,28 @@ class AppContainer(containers.DeclarativeContainer):
     )
     engine_capability_registry = providers.Singleton(_create_capability_registry)
     strategy_catalog = providers.Singleton(faster_whisper_catalog)
+    strategy_evaluator = providers.Singleton(StrategyEvaluator)
+    runner_policy_planner = providers.Singleton(
+        _create_runner_policy_planner, config=config
+    )
+    storage_admission = providers.Singleton(
+        StorageAdmissionPolicy,
+        minimum_free_bytes=config.provided.MIN_FREE_DISK_BYTES,
+    )
     model_catalog = providers.Singleton(
         faster_whisper_model_catalog, strategies=strategy_catalog
     )
     model_provider = providers.Singleton(HuggingFaceModelProvider)
+    model_storage_admitter = providers.Singleton(
+        _ModelStorageAdmitter, policy=storage_admission
+    )
     model_manager = providers.Singleton(
         ModelManager,
         catalog=model_catalog,
         provider=model_provider,
         file_store=file_manager,
         model_root=config.provided.MODEL_DIR,
-    )
-    strategy_evaluator = providers.Singleton(StrategyEvaluator)
-    runner_policy_planner = providers.Singleton(
-        _create_runner_policy_planner, config=config
+        storage_admitter=model_storage_admitter,
     )
     media_probe = providers.Singleton(_create_media_probe, config=config)
     audio_stream_selector = providers.Singleton(AudioStreamSelector)
@@ -155,10 +183,6 @@ class AppContainer(containers.DeclarativeContainer):
         JobLifecycleStore,
         file_manager=file_manager,
         paths=workspace_paths,
-    )
-    storage_admission = providers.Singleton(
-        StorageAdmissionPolicy,
-        minimum_free_bytes=config.provided.MIN_FREE_DISK_BYTES,
     )
     checkpoint_store = providers.Factory(
         LocalCheckpointStore, file_manager=file_manager

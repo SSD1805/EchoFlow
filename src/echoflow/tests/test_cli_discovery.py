@@ -6,7 +6,11 @@ import typer
 from typer.testing import CliRunner
 
 from echoflow.cli_library import register_library_commands
-from echoflow.library.evidence import EvidenceAnchor, EvidenceContextSegment, EvidenceLocation
+from echoflow.library.evidence import (
+    EvidenceAnchor,
+    EvidenceContextSegment,
+    EvidenceLocation,
+)
 from echoflow.library.index import SearchQuery
 from echoflow.library.research import (
     LocatedSearchPassage,

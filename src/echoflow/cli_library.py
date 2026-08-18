@@ -308,7 +308,7 @@ def _render_response(response: WorkspaceSearchResponse, console: Console) -> Non
     )
     table.add_column("Recording", min_width=13, no_wrap=True)
     table.add_column("Evidence time", min_width=12, no_wrap=True)
-    table.add_column("Speaker")
+    table.add_column("Speaker", min_width=10, no_wrap=True)
     table.add_column("Research")
     table.add_column("Ranks")
     table.add_column("Passage + context")

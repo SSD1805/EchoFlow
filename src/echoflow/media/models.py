@@ -147,6 +147,13 @@ class MediaInfo:
         ]
         if len(selected) != 1:
             raise ValueError("primary_audio_stream_index must select one audio stream")
+        stream_indices = {stream.index for stream in self.streams}
+        if any(
+            tag.source is TemporalTagSource.STREAM
+            and tag.stream_index not in stream_indices
+            for tag in self.temporal_tags
+        ):
+            raise ValueError("stream temporal tag must reference a discovered stream")
 
     @property
     def primary_audio_stream(self) -> MediaStream:

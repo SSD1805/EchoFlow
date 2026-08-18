@@ -158,10 +158,12 @@ class DuckDbResearchProjection:
         if parameters is None:
             return ()
         try:
-            rows = self._connection.execute(
-                f"WITH {_MATCHED_NOTES_CTE} SELECT note_id FROM matched_notes ORDER BY note_id",
-                parameters,
-            ).fetchall()
+            # Only the module-owned static CTE is interpolated. User values remain bound.
+            query = (  # noqa: S608
+                f"WITH {_MATCHED_NOTES_CTE} "
+                "SELECT note_id FROM matched_notes ORDER BY note_id"
+            )
+            rows = self._connection.execute(query, parameters).fetchall()
         except duckdb.Error as exc:
             raise ResearchProjectionError(
                 "Research note filter could not be evaluated", cause=exc
@@ -176,16 +178,15 @@ class DuckDbResearchProjection:
         if parameters is None:
             return ()
         try:
-            rows = self._connection.execute(
-                f"""
+            # Only the module-owned static CTE is interpolated. User values remain bound.
+            query = f"""  # noqa: S608
                 WITH {_MATCHED_NOTES_CTE}
                 SELECT DISTINCT m.document_id, m.canonical_sha256, s.segment_id
                 FROM matched_notes m
                 JOIN projected_note_segments s USING (note_id)
                 ORDER BY m.document_id, m.canonical_sha256, s.segment_id
-                """,
-                parameters,
-            ).fetchall()
+                """
+            rows = self._connection.execute(query, parameters).fetchall()
         except duckdb.Error as exc:
             raise ResearchProjectionError(
                 "Research evidence filter could not be evaluated", cause=exc

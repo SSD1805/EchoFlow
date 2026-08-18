@@ -113,10 +113,7 @@ def _workspace(
     return factory(_root_context(context)).research_workspace()
 
 
-def register_research_commands(
-    library_app: typer.Typer,
-    container_factory: ContainerFactory,
-) -> None:
+def _build_notes_app(container_factory: ContainerFactory) -> typer.Typer:
     notes_app = typer.Typer(
         help="Write and revisit durable notes anchored to canonical evidence.",
         invoke_without_command=True,
@@ -275,6 +272,10 @@ def register_research_commands(
             return
         typer.echo(f"Updated collections for {note_id}.")
 
+    return notes_app
+
+
+def _build_projection_app(container_factory: ContainerFactory) -> typer.Typer:
     research_app = typer.Typer(
         help="Inspect or repair the rebuildable research query projection.",
         invoke_without_command=True,
@@ -342,5 +343,12 @@ def register_research_commands(
             f"Rebuilt research projection through sequence {report.after_sequence}."
         )
 
-    library_app.add_typer(notes_app, name="notes")
-    library_app.add_typer(research_app, name="research")
+    return research_app
+
+
+def register_research_commands(
+    library_app: typer.Typer,
+    container_factory: ContainerFactory,
+) -> None:
+    library_app.add_typer(_build_notes_app(container_factory), name="notes")
+    library_app.add_typer(_build_projection_app(container_factory), name="research")

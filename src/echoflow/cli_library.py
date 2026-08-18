@@ -306,21 +306,21 @@ def _render_response(response: WorkspaceSearchResponse, console: Console) -> Non
             f"{len(response.results)} result(s)"
         )
     )
-    table.add_column("Recording")
+    table.add_column("Recording", min_width=13, no_wrap=True)
     table.add_column("Evidence time", min_width=12, no_wrap=True)
     table.add_column("Speaker")
     table.add_column("Research")
-    table.add_column("Language")
     table.add_column("Ranks")
     table.add_column("Passage + context")
     for workspace_result in response.results:
         result = workspace_result.located
         passage = result.passage
-        recording = (
+        recording_name = (
             passage.document_id
             if passage.source_path is None
             else Path(passage.source_path).name
         )
+        recording = f"{recording_name}\n{passage.document_id}"
         ranks = (
             f"L:{passage.lexical_rank or '-'} "
             f"S:{passage.semantic_rank or '-'} "
@@ -340,7 +340,6 @@ def _render_response(response: WorkspaceSearchResponse, console: Console) -> Non
             time_range,
             ", ".join(item.display_name for item in result.speakers) or "unknown",
             _research_summary(workspace_result),
-            ", ".join(passage.languages) or "unknown",
             ranks,
             _render_context(result),
         )

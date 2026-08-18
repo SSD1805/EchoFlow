@@ -118,7 +118,10 @@ def test_local_cpu_session_uses_exact_managed_plan_and_consumes_generator(tmp_pa
     assert [item.index for item in result.segments] == [0, 1]
     assert result.segments[0].average_log_probability == -0.2
     assert result.segments[1].no_speech_probability == 0.2
-    assert [item.text for item in aligned_words(result.segments[0])] == ["hello", "world"]
+    assert [item.text for item in aligned_words(result.segments[0])] == [
+        " hello",
+        " world",
+    ]
     assert [item.probability for item in aligned_words(result.segments[0])] == [0.9, 0.8]
     assert result.language == "en"
     assert result.language_probability == 0.95

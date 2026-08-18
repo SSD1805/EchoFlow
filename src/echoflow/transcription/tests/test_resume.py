@@ -2,9 +2,30 @@ from unittest.mock import call
 
 import pytest
 
+from echoflow.transcription.alignment import AlignedRecognizedSegment, AlignedWord
 from echoflow.transcription.checkpoint import LocalCheckpointStore
 from echoflow.transcription.errors import CheckpointError, TranscriptionError
-from echoflow.transcription.tests.test_executor import executor, local_result, plan
+from echoflow.transcription.models import EngineTranscript
+from echoflow.transcription.tests.test_executor import executor, plan
+
+
+def local_result(text, *, language="en", probability=0.98):
+    return EngineTranscript(
+        (
+            AlignedRecognizedSegment(
+                0,
+                0.0,
+                1.0,
+                text,
+                -0.2,
+                0.1,
+                words=(AlignedWord(0.0, 1.0, text, 0.9),),
+            ),
+        ),
+        language,
+        probability,
+        "1.2.1",
+    )
 
 
 def _with_real_checkpoints(service):

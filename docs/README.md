@@ -42,6 +42,7 @@ evidence corpus with durable user-authored research state.
 | Keep durable research notes | stores notes, tags, and collections in authoritative private SQLite state anchored to exact canonical evidence |
 | Query your notebook quickly | projects only query-relevant research relationships and lexical terms into rebuildable DuckDB state |
 | Search transcript evidence through your notes | applies tag/collection/note-text constraints before lexical ranking or semantic scoring |
+| Find related things across the whole workspace | returns grouped transcript evidence, notes, tags, and collections through one discovery query without inventing a cross-type score |
 
 The point is not to make users operate the machinery. The point is to make sensitive local
 transcription and research feel boringly dependable.
@@ -54,6 +55,14 @@ Start with **[Getting started](getting-started.md)**.
 
 It walks through installation, model setup, transcription, resume, exports, search, and
 the current command-line research notebook.
+
+### 🔎 I want one search box for the whole library
+
+Read **[Find things across the whole local library](library-discovery.md)**.
+
+It explains `echoflow library find QUERY`, why transcript evidence/notes/tags/collections
+stay in separate result groups, what semantic mode does and does not affect, and how this
+same application response is intended to feed the first GUI.
 
 ### 📝 I want to keep notes beside the evidence
 
@@ -118,13 +127,16 @@ flowchart LR
     D --> E[Verified evidence navigation]
     E --> F[Research notebook]
     F --> D
-    F --> G[Future unified discovery and GUI]
+    D --> G[Unified library discovery]
+    F --> G
+    G --> H[Future saved views and GUI]
 ```
 
 Text fallback: canonical evidence feeds rebuildable search; search resolves back to
 verified evidence; durable notes/tags/collections attach to that evidence and can constrain
-later retrieval; the next user-facing layer unifies those capabilities rather than
-reimplementing them.
+later retrieval; unified discovery now composes transcript evidence and research objects
+into one grouped human doorway. Saved views and the GUI can build on that response instead
+of reimplementing the backend.
 
 The shared rule is simple:
 
@@ -155,21 +167,21 @@ something has gone very wrong.
 
 The research-navigation sequence that used to live here as future work is now foundation:
 word timing, human/source time semantics, speaker display labels, overlap-aware speaker
-presentation, verified search navigation, and durable notes/tags/collections are all
-implemented.
+presentation, verified search navigation, durable notes/tags/collections, and unified
+library discovery are implemented.
 
 The next layers are intentionally more human-facing:
 
-1. **Unified library discovery** across transcript evidence, notes, tags, collections, and
-   later saved searches.
-2. **Saved searches and useful derived navigation**, including frequent/recent tags and
+1. **Saved searches and useful derived navigation**, including frequent/recent tags and
    facets where they reduce hunting without creating new authoritative counters.
-3. **A thin graphical shell** that can browse/search transcripts, select evidence, create
+2. **A thin graphical shell** that can browse/find transcripts, select evidence, create
    notes, apply tags/collections, and seek local media using existing application services.
-4. **Portable research export and incremental library refresh** so ownership and larger
+3. **Portable research export and incremental library refresh** so ownership and larger
    corpora remain pleasant rather than merely correct.
-5. **Productization** through semantic-install qualification, representative-device
-   dogfooding, installers, and polished recovery/error language.
+4. **Corpus-scale and representative-device qualification** so latency/resource decisions
+   are measured on real workloads rather than guessed.
+5. **Productization** through semantic-install qualification, installers, and polished
+   recovery/error language.
 
 The GUI should be a presentation adapter, not a second implementation of transcription,
 search, time mapping, speaker policy, evidence anchoring, or research-state custody.

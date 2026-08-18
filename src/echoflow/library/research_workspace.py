@@ -31,6 +31,7 @@ from echoflow.library.research_state import (
 )
 from echoflow.library.retrieval import RetrievalMode
 from echoflow.library.service import TranscriptLibraryService
+from echoflow.library.text import lexical_tokens
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +103,32 @@ class ResearchNoteView:
     collections: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class WorkspaceDiscoveryResponse:
+    """One query returned as typed groups without cross-type score fabrication."""
+
+    query: str
+    transcripts: WorkspaceSearchResponse
+    notes: tuple[ResearchNoteView, ...]
+    tags: tuple[ResearchTag, ...]
+    collections: tuple[ResearchCollection, ...]
+
+    def __post_init__(self) -> None:
+        if not self.query.strip():
+            raise ValueError("discovery query cannot be empty")
+        if self.transcripts.navigation.retrieval.query.text != self.query:
+            raise ValueError("discovery transcript query must preserve discovery text")
+
+    @property
+    def total_count(self) -> int:
+        return (
+            len(self.transcripts.results)
+            + len(self.notes)
+            + len(self.tags)
+            + len(self.collections)
+        )
+
+
 class ResearchWorkspaceService:
     """Present one research workspace across evidence, SQLite, and DuckDB projections."""
 
@@ -167,6 +194,42 @@ class ResearchWorkspaceService:
             navigation=navigation,
             filters=resolved_filters,
             results=results,
+        )
+
+    def discover(
+        self,
+        text: str,
+        *,
+        mode: RetrievalMode = RetrievalMode.LEXICAL,
+        limit: int = 20,
+        context_segments: int = 0,
+    ) -> WorkspaceDiscoveryResponse:
+        """Find evidence and durable research objects through one grouped doorway."""
+        query_text = text.strip()
+        if not query_text:
+            raise ValueError("discovery query cannot be empty")
+        if limit < 1 or limit > 100:
+            raise ValueError("discovery limit must be between 1 and 100")
+        if context_segments < 0 or context_segments > 10:
+            raise ValueError("context_segments must be between 0 and 10")
+
+        transcripts = self.search(
+            SearchQuery(query_text, limit=limit),
+            mode=mode,
+            context_segments=context_segments,
+        )
+        notes = self.notes(
+            filters=ResearchQueryFilters(note_text=query_text),
+            limit=limit,
+        )
+        tags = self._matching_tags(query_text, limit=limit)
+        collections = self._matching_collections(query_text, limit=limit)
+        return WorkspaceDiscoveryResponse(
+            query=query_text,
+            transcripts=transcripts,
+            notes=notes,
+            tags=tags,
+            collections=collections,
         )
 
     def add_note(
@@ -347,6 +410,44 @@ class ResearchWorkspaceService:
             )
             for note in notes
         )
+
+    def _matching_tags(self, text: str, *, limit: int) -> tuple[ResearchTag, ...]:
+        ranked: list[tuple[tuple[int, int, str], str, ResearchTag]] = []
+        for tag in self.state.tags():
+            key = self._name_match_key(tag.name, text)
+            if key is not None:
+                ranked.append((key, tag.tag_id, tag))
+        ranked.sort(key=lambda item: (item[0], item[1]))
+        return tuple(item[2] for item in ranked[:limit])
+
+    def _matching_collections(
+        self, text: str, *, limit: int
+    ) -> tuple[ResearchCollection, ...]:
+        ranked: list[tuple[tuple[int, int, str], str, ResearchCollection]] = []
+        for collection in self.state.collections():
+            key = self._name_match_key(collection.name, text)
+            if key is not None:
+                ranked.append((key, collection.collection_id, collection))
+        ranked.sort(key=lambda item: (item[0], item[1]))
+        return tuple(item[2] for item in ranked[:limit])
+
+    @staticmethod
+    def _name_match_key(name: str, text: str) -> tuple[int, int, str] | None:
+        normalized_name = " ".join(name.casefold().split())
+        normalized_query = " ".join(text.casefold().split())
+        if normalized_name == normalized_query:
+            return (0, 0, normalized_name)
+        if normalized_name.startswith(normalized_query):
+            return (1, 0, normalized_name)
+        if normalized_query in normalized_name:
+            return (2, 0, normalized_name)
+
+        query_tokens = tuple(dict.fromkeys(lexical_tokens(text)))
+        name_tokens = set(lexical_tokens(name))
+        overlap = sum(token in name_tokens for token in query_tokens)
+        if overlap == 0:
+            return None
+        return (3, -overlap, normalized_name)
 
     @staticmethod
     def _note_view_with_maps(

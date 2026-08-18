@@ -10,8 +10,9 @@ It does more than run a speech model. EchoFlow inspects the machine it is runnin
 chooses a safe execution strategy, manages local model custody, survives interrupted
 work, preserves source provenance, publishes portable transcripts, keeps word-level
 timing evidence, handles anonymous speaker evidence conservatively, searches a private
-local corpus, navigates results back to verified canonical evidence, and stores durable
-notes/tags/collections separately from rebuildable search machinery.
+local corpus, navigates results back to verified canonical evidence, stores durable
+notes/tags/collections separately from rebuildable search machinery, and now gives those
+capabilities one grouped library-discovery doorway.
 
 The original recording remains read-only source evidence. Canonical transcript JSON is
 the authoritative transcript artifact. Human-authored research state is authoritative
@@ -47,6 +48,7 @@ recording-to-research lifecycle.
 | Evidence navigation | canonical-hash verification, aligned lexical highlights, bounded context expansion, speaker display integration, and deterministic source seek coordinates |
 | Research workspace | authoritative SQLite notes/tags/collections anchored to exact canonical evidence, plus a rebuildable DuckDB research projection |
 | Research-aware search | tag, collection, note-text, and with-notes constraints applied before lexical ranking or semantic scoring |
+| Unified discovery | one grouped query across transcript evidence, notes, tags, and collections with no fabricated cross-type relevance score |
 | Quality | Linux/macOS/Windows CI, strict typing, lint/format/security rules, complexity/dead-code checks, branch coverage, dependency audit, package build, and clean-wheel verification |
 
 The point is not that users should learn every subsystem. It is that most of the annoying
@@ -67,11 +69,14 @@ flowchart LR
     H --> I[Context highlights and seek]
     I --> J[Durable notes tags collections]
     J --> G
+    G --> K[Unified library discovery]
+    J --> K
 ```
 
 Text fallback: the original recording produces a canonical transcript; rebuildable search
 ranks passages; canonical navigation verifies those passages; durable research state is
-attached to exact evidence and can constrain later searches.
+attached to exact evidence and can constrain later searches; unified discovery composes
+transcript evidence and research objects into one grouped human-facing query.
 
 Search ranking is intentionally not source truth. A ranked result points back to canonical
 transcript coordinates, and the navigation layer verifies that canonical generation
@@ -142,19 +147,33 @@ Build the private lexical library:
 uv run echoflow library rebuild
 ```
 
-Search it:
+Search transcript evidence directly:
 
 ```bash
 uv run echoflow library search "housing insecurity"
 ```
 
-Add neighboring canonical context without changing ranking:
+Or use the one-box grouped library doorway:
 
 ```bash
-uv run echoflow library search "housing insecurity" --context-segments 1
+uv run echoflow library find "housing insecurity"
 ```
 
-Research metadata can constrain transcript retrieval before scoring:
+`library find` returns separate transcript-evidence, note, tag, and collection groups.
+Transcript evidence keeps its own lexical/semantic/hybrid ranking provenance. Notes and
+labels remain their own object types rather than receiving a made-up universal score.
+
+Add neighboring canonical context without changing transcript ranking:
+
+```bash
+uv run echoflow library find "housing insecurity" --context-segments 1
+```
+
+If local semantic state is available, `--mode semantic` or `--mode hybrid` changes only
+the transcript-evidence group. Note, tag, and collection lookup remains deterministic
+local text lookup.
+
+Research metadata can also constrain transcript retrieval before scoring:
 
 ```bash
 uv run echoflow library search \
@@ -179,7 +198,8 @@ The CLI currently exposes canonical segment IDs because it needs a real evidence
 A future graphical shell can turn transcript selection into the same verified
 `EvidenceAnchor` without asking a normal person to type IDs.
 
-Read **[Your notes should survive the machinery](docs/research-notes.md)** and
+Read **[Find things across the whole local library](docs/library-discovery.md)**,
+**[Your notes should survive the machinery](docs/research-notes.md)**, and
 **[From search result to the exact evidence](docs/evidence-navigation.md)** for the human
 versions of those contracts.
 
@@ -210,7 +230,7 @@ Read **[Semantic search, without the mystery box](docs/semantic-search.md)**.
 | Lexical search database | private search projection | Yes |
 | Semantic chunks/vectors | private search projection | Yes |
 | Research query projection | derived relationships/terms over durable research state | Yes |
-| Evidence-navigation views | derived presentation over canonical evidence | Yes |
+| Evidence-navigation/discovery views | derived presentation over canonical evidence and durable user state | Yes |
 
 A database is allowed to make evidence useful. It is not allowed to become the only place
 unique evidence or human research exists.
@@ -237,21 +257,22 @@ Poodle is reserved for load-bearing decision logic rather than routine per-commi
 
 ## Where the project goes next
 
-The backend research-state foundation is built. The highest-value next work is no longer
-another database.
+The backend research-state foundation and unified library doorway are built. The
+highest-value next work is now **remembering useful views and reducing navigation
+friction**, not adding another storage engine.
 
 The sequence is now:
 
-1. **Unified library discovery**: one human-facing doorway across transcript evidence,
-   notes, tags, collections, and later saved searches without exposing storage topology.
-2. **Saved searches and useful derived navigation**: durable saved query intent plus
-   derived frequent/recent tags, facets, and citable/selected result sets where they help.
-3. **First thin GUI**: browse/search transcripts, select evidence, add/edit notes and tags,
+1. **Saved searches and useful derived navigation**: durable saved query intent plus
+   derived frequent/recent tags, facets, and selected/citable result sets where they help.
+2. **First thin GUI**: browse/find transcripts, select evidence, add/edit notes and tags,
    and jump to source media by reusing existing application services and evidence anchors.
-4. **Research portability and corpus-scale ergonomics**: durable research export,
+3. **Research portability and corpus-scale ergonomics**: durable research export,
    incremental library refresh, and measured performance on realistic corpora.
-5. **Productization**: qualify semantic installation/model custody, representative
-   consumer hardware, installers, and polished recovery language.
+4. **Representative-device qualification**: verify interaction and processing behavior on
+   ordinary 8/16 GB systems, Apple Silicon, discrete-GPU machines, and larger workstations.
+5. **Productization**: qualify semantic installation/model custody, installers, and
+   polished recovery language.
 
 Source separation for genuinely overlapping speech remains later. It should earn its
 model/compute/provenance cost with measured benefit on real recordings.

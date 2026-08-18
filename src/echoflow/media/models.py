@@ -16,6 +16,50 @@ class StreamKind(StrEnum):
     UNKNOWN = "unknown"
 
 
+class TemporalTagKind(StrEnum):
+    """Kinds of original-container temporal metadata EchoFlow preserves verbatim."""
+
+    TIMECODE = "timecode"
+    CREATION_TIME = "creation_time"
+
+
+class TemporalTagSource(StrEnum):
+    """Where FFprobe reported one original-media temporal tag."""
+
+    FORMAT = "format"
+    STREAM = "stream"
+
+
+@dataclass(frozen=True, slots=True)
+class MediaTemporalTag:
+    """One source-declared temporal fact, preserved without claiming it is true."""
+
+    kind: TemporalTagKind
+    value: str
+    source: TemporalTagSource
+    stream_index: int | None = None
+
+    def __post_init__(self) -> None:
+        normalized = self.value.strip()
+        if not normalized:
+            raise ValueError("temporal tag value cannot be empty")
+        object.__setattr__(self, "value", normalized)
+        if self.source is TemporalTagSource.FORMAT and self.stream_index is not None:
+            raise ValueError("format temporal tags cannot have a stream index")
+        if self.source is TemporalTagSource.STREAM and (
+            self.stream_index is None or self.stream_index < 0
+        ):
+            raise ValueError("stream temporal tags require a nonnegative stream index")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "kind": self.kind.value,
+            "value": self.value,
+            "source": self.source.value,
+            "stream_index": self.stream_index,
+        }
+
+
 @dataclass(frozen=True, slots=True)
 class InputIdentity:
     path: Path
@@ -86,6 +130,7 @@ class MediaInfo:
     duration_seconds: float
     streams: tuple[MediaStream, ...]
     primary_audio_stream_index: int
+    temporal_tags: tuple[MediaTemporalTag, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.container_format:
@@ -118,4 +163,5 @@ class MediaInfo:
             "duration_seconds": self.duration_seconds,
             "streams": [stream.to_dict() for stream in self.streams],
             "primary_audio_stream_index": self.primary_audio_stream_index,
+            "temporal_tags": [tag.to_dict() for tag in self.temporal_tags],
         }

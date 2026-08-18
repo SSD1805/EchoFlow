@@ -1,136 +1,166 @@
-# Media normalization and transcript timeline
+# Media normalization and transcript timeline 🎙️🕰️
 
-EchoFlow treats every supported recording as an **audio-bearing local media source**.
-Audio files and videos enter through the same inspection boundary. Video is not a
-separate downstream pipeline: EchoFlow selects one audio stream and discards video,
-subtitle, attachment, and data streams before transcription work begins.
+EchoFlow has to answer two deceptively simple questions before it can produce a useful
+transcript:
 
-## Pipeline
+1. **What exactly did we transcribe?**
+2. **What does a timestamp in the transcript actually mean?**
 
-```text
-local recording
-    ↓
-FFprobe media inspection
-    ↓
-MediaInfo + complete source fingerprint
-    ↓
-AudioStreamSelector
-  first audio stream by default
-  or explicit --audio-stream INDEX
-    ↓
-TranscriptionJobPlanner
-  runner/resource policy
-  managed ASR strategy + immutable model revision
-  canonical-audio plan
-  optional enhancement contract
-    ↓
-DIRECT if already canonical
-or
-FFmpeg extraction + normalization
-    ↓
-canonical PCM16 mono 16 kHz WAV
-    ↓
-optional private FFmpeg noise suppression
-    ↓
-exact integer-frame windows
-    ↓
-managed local faster-whisper ASR
-    ↓
-source-relative transcript assembly
-    ↓
-canonical JSON → TXT/SRT/VTT views
+Those questions get complicated quickly when the input is a video with multiple audio
+streams, a container with a non-zero presentation timestamp, or a camera file carrying
+capture-time metadata.
+
+The current implementation solves the first layer rigorously: deterministic stream
+selection, source fingerprinting, canonical audio, exact frame windows, and one
+source-relative elapsed-time transcript.
+
+The next provenance step is to preserve **original-media timecode/capture-time evidence**
+without overloading that existing source-relative timeline.
+
+## The human version
+
+Today, if EchoFlow says a passage begins at `4221.7` seconds, it means:
+
+> **4221.7 seconds after the beginning of the selected recording audio.**
+
+That timeline survives normalization, segmentation, checkpoints, enhancement, and
+assembly.
+
+It does **not yet** mean “camera wall-clock time 14:32:08,” “SMPTE 01:10:21:17,” or “the
+container's original PTS value.” Those are distinct pieces of provenance and should stay
+distinct.
+
+```mermaid
+flowchart LR
+    A[Local media file] --> B[FFprobe inspection + fingerprint]
+    B --> C[Choose one audio stream]
+    C --> D[Canonical PCM timeline]
+    D --> E[Optional enhancement]
+    E --> F[Exact frame windows]
+    F --> G[Local ASR]
+    G --> H[Source-relative canonical transcript]
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+
+    class A source
+    class B,C inspect
+    class D,E,F,G process
+    class H evidence
 ```
 
-When enhancement is enabled, ASR reads the private enhanced derivative. Anonymous
-speaker diarization deliberately continues to read the unmodified canonical decoded
-audio in the first enhancement version.
+## One input boundary for audio and video
 
-## What the media probe does
+EchoFlow treats every supported input as **audio-bearing local media**.
 
-`FfprobeMediaProbe` is read-only inspection. It does not transcode media, install
-models, choose preprocessing, or choose a transcription strategy. For one local file
-it:
+Video is not a second downstream pipeline. FFprobe discovers the streams, EchoFlow
+selects one audio stream, and later processing discards video/subtitle/attachment/data
+streams.
+
+That means `interview.m4a`, `lecture.wav`, and `meeting.mp4` all converge on the same
+transcription contract once one audio stream has been selected.
+
+## What media inspection owns
+
+`FfprobeMediaProbe` performs read-only inspection. It does not transcode, install models,
+choose enhancement, or choose a transcription strategy.
+
+For one local source it:
 
 - snapshots filesystem identity before inspection;
-- runs FFprobe with a file-only protocol whitelist;
-- reads container duration and stream metadata;
+- invokes FFprobe with a file-only protocol whitelist;
+- reads bounded container/stream metadata;
 - validates that at least one audio stream exists;
 - fingerprints the complete source with SHA-256;
-- snapshots filesystem identity again and refuses the input if it changed during
-  inspection; and
-- returns immutable `MediaInfo` metadata.
+- snapshots filesystem identity again; and
+- refuses the input if the source changed during inspection.
 
-The source path is required locally to perform work, but routine logs omit paths by
-default.
+The result is immutable `MediaInfo` evidence.
 
-## Stream selection
+Routine logs omit local paths by default because recording names and directory layouts
+may themselves be sensitive.
 
-`AudioStreamSelector` makes one deterministic choice from streams returned by the
-probe. Without an override, the first discovered audio stream is selected. With
-`--audio-stream INDEX`, EchoFlow validates that the requested index is audio and records
-it in the job/source contract. Resume restores the same stream index and refuses a
-changed source contract.
+## Deterministic audio-stream selection
 
-Selection does not mutate FFprobe's discovered metadata. It returns a new `MediaInfo`
-whose `primary_audio_stream_index` identifies the chosen stream.
+`AudioStreamSelector` chooses exactly one discovered audio stream.
 
-## Canonical audio format
+Without an override, the first audio stream is selected. With:
 
-The current segmentation representation is:
+```bash
+uv run echoflow transcribe meeting.mp4 --audio-stream 2
+```
+
+EchoFlow validates that stream index `2` is actually audio and records that choice in
+the job/source contract.
+
+Resume restores the same selected stream. It does not decide that a different track is
+close enough.
+
+Selection returns new immutable metadata rather than mutating the FFprobe discovery
+record.
+
+## Canonical working audio
+
+The current deterministic processing representation is:
 
 | Property | Value |
 |---|---|
 | container | WAV |
-| audio codec | signed 16-bit little-endian PCM (`pcm_s16le`) |
+| codec | signed 16-bit little-endian PCM (`pcm_s16le`) |
 | sample rate | 16,000 Hz |
 | channels | 1 (mono) |
 
-If a source WAV already satisfies this contract, the planner chooses `DIRECT` and no
-normalization copy is produced. Other supported audio-bearing media uses
-`FFMPEG_NORMALIZE`.
+If a source WAV already satisfies the contract, planning can choose `DIRECT`.
 
-Normalization maps exactly the selected audio stream, drops video/subtitle/data
-streams, sets the planned channel count/sample rate/codec, and writes `normalized.wav`
-inside the private job workspace. The canonical WAV is an execution artifact, not a
-public artifact and not another source of truth.
+Other supported audio-bearing media uses `FFMPEG_NORMALIZE`, mapping exactly the selected
+audio stream and dropping unrelated streams.
+
+The resulting `normalized.wav` lives inside the private job workspace.
+
+It is **not a second source of truth**. It is a deterministic working representation that
+can be discarded after the job lifecycle no longer needs it.
 
 ## Optional enhanced derivative
 
-With `--enhance`, EchoFlow applies its current deterministic FFmpeg noise-suppression
-contract after canonical decode and before ASR segmentation. The output is
-`enhanced.wav` inside the private job workspace.
+With `--enhance`, EchoFlow creates a private `enhanced.wav` after canonical decode and
+before ASR segmentation.
 
-The enhanced WAV is derived processing material only. It does not replace the original
-recording, is not automatically exported, and does not change source custody.
+The enhanced file may change sample values. It may not silently change the timeline
+shape.
 
-Enhancement is permitted to alter sample values but not the canonical timeline shape.
-Before accepting the derivative, EchoFlow compares input and output for:
+EchoFlow checks:
 
 - channel count;
 - sample width;
 - sample rate; and
 - frame count.
 
-Any mismatch fails closed and the derived file is removed. This protects downstream
-frame-window and timestamp assumptions from a preprocessing provider that silently
-resamples, trims, pads, or changes channel structure.
+Any mismatch fails closed and the derived output is removed where possible.
 
-See [speech enhancement](speech-enhancement.md) for provider/provenance details.
+Why so fussy? Because if preprocessing trims, pads, resamples, or changes the channel
+structure without telling anyone, every downstream timestamp becomes suspicious.
 
-## Timestamp basis
+Anonymous diarization intentionally continues to consume the unmodified canonical
+decode in the first enhancement version. See
+**[speech-enhancement.md](speech-enhancement.md)** for that provider boundary.
 
-Public transcript timestamps are **elapsed seconds from the start of the selected
-recording audio**, with zero as the source-relative origin.
+## Source-relative timestamps
 
-Neither normalization nor enhancement creates a new public timeline. Canonical and
-enhanced WAV files exist so deterministic local processing can operate on a known frame
-representation. Each application-owned segment is represented by integer `start_frame`
-and `end_frame` offsets; seconds are derived from those frames and the canonical sample
-rate.
+Canonical transcript timestamps are elapsed seconds from the start of the selected audio
+origin.
 
-faster-whisper returns timestamps local to the materialized work interval. Assembly
-adds the work interval's source-relative offset and produces one continuous timeline.
-For example:
+Application-owned work units are represented by integer PCM frame intervals:
+
+```text
+[start_frame, end_frame)
+```
+
+Seconds are derived from those exact frames and the canonical sample rate.
+
+Faster-whisper returns timestamps relative to the materialized work interval. Assembly
+adds the interval's source-relative offset:
 
 ```text
 work interval 0 starts at 0 s
@@ -140,44 +170,136 @@ work interval 7 starts at 4200 s
 engine timestamp 21.7 s   → canonical timestamp 4221.7 s
 ```
 
-SRT and WebVTT are rendered from canonical timestamps, so segmentation/checkpoint
-boundaries never reset subtitle time to zero.
+SRT and WebVTT render from canonical timestamps. Segment/checkpoint boundaries therefore
+do not reset subtitle time to zero.
 
-## Source authority and provenance
+💃 The timeline survives the choreography.
 
-The original local media file remains authoritative. EchoFlow separately records:
+## Current source/provenance record
 
-- source fingerprint and media identity;
+The original local media file remains authoritative.
+
+EchoFlow separately records enough execution context to explain how canonical text was
+produced, including:
+
+- source fingerprint/media identity;
 - selected audio stream;
 - decode strategy;
 - managed ASR engine/model/revision and execution target;
 - enhancement provider/version/operation/parameters when used;
-- language and optional diarization evidence; and
+- language and optional speaker evidence; and
 - source-relative segment timestamps.
 
-Derived audio can therefore be discarded without losing the description of how the
-canonical transcript was produced.
+Derived audio can therefore disappear without erasing the description of the path from
+source to transcript.
 
-## What is not currently preserved
+## ✨ Next provenance layer: original media timecode and capture time
 
-The source-relative timeline is not every possible media timebase. EchoFlow does not
-currently claim to preserve or expose:
+Source-relative seconds are useful but incomplete for some research, documentary,
+forensic, archival, and multi-device recordings.
 
-- arbitrary non-zero container/stream presentation timestamp origins;
-- SMPTE timecode tracks;
-- camera/device wall-clock capture time; or
-- synchronization offsets between independently recorded devices.
+A future timeline provenance model should be able to preserve **additional clocks** when
+the media exposes them, without redefining the canonical elapsed-time coordinate.
 
-Those are legitimate future provenance capabilities. They should be represented by a
-dedicated timeline/timecode model rather than overloaded onto elapsed seconds.
+Potential evidence includes:
+
+- non-zero container or stream PTS/DTS origins;
+- SMPTE timecode tracks or tags;
+- camera/device creation or capture timestamps;
+- timezone/offset information when it is actually encoded and trustworthy;
+- stream start-time offsets; and
+- synchronization relationships between independently recorded sources when explicitly
+  known.
+
+The key design rule is **parallel provenance, not timeline mutation**.
+
+Conceptually:
+
+```mermaid
+flowchart TD
+    S[Selected audio stream] --> R[Canonical source-relative timeline]
+    S --> P[Original presentation-time evidence]
+    S --> T[SMPTE / embedded timecode evidence]
+    S --> C[Capture-time metadata]
+    R --> X[Canonical transcript segments]
+    P --> X
+    T --> X
+    C --> X
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef canonical fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef provenance fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+
+    class S source
+    class R,X canonical
+    class P,T,C provenance
+```
+
+A transcript segment could then say, in effect:
+
+> This passage begins 4221.7 seconds into the selected audio **and**, where trustworthy
+> source metadata exists, corresponds to original media timecode/capture coordinates X.
+
+Those values should be typed and qualified, not collapsed into a single ambiguous
+`timestamp` field.
+
+## Why this should be its own model
+
+Container/media time is messy.
+
+A creation timestamp may represent file creation rather than acoustic capture. A stream
+can begin at a non-zero presentation timestamp. Timecode may have frame-rate/drop-frame
+semantics. Device clocks may be wrong. Some metadata may be missing, malformed, or
+contradictory.
+
+EchoFlow should therefore preserve:
+
+- the **kind** of time evidence;
+- its raw/normalized representation;
+- the stream/container it came from;
+- confidence/qualification rules where needed; and
+- whether it can be deterministically mapped to source-relative seconds.
+
+It should not pretend every media timestamp is interchangeable.
+
+## Relationship to word/timestamp alignment
+
+Original-media timecode and word alignment solve different problems.
+
+**Word/timestamp alignment** gives finer coordinates *within the canonical source-relative
+timeline*.
+
+**Original-media timecode/capture provenance** gives additional clocks or source metadata
+that can be mapped alongside that timeline.
+
+Together they eventually make very precise evidence receipts possible:
+
+```text
+word "budget"
+  canonical elapsed time: 01:10:21.700
+  original media timecode: 02:14:03:17   (if available/qualified)
+  capture timestamp: 2026-07-04T14:32:08-04:00   (if present/qualified)
+```
+
+Neither should be invented when the source does not provide trustworthy evidence.
 
 ## Why the stages remain separate
 
-Inspection answers **what is this source?** Selection answers **which audio stream are
-we using?** Normalization answers **what deterministic representation will local
-processing consume?** Enhancement answers **did the user request a provenance-bearing
-acoustic transform before ASR?**
+Inspection answers **what source and streams exist?**
 
-Keeping those responsibilities separate leaves metadata discovery side-effect free,
-keeps source authority explicit, and lets future preprocessing providers change without
-rewriting media inspection or transcript timeline semantics.
+Selection answers **which audio stream are we using?**
+
+Normalization answers **what deterministic representation will local processing use?**
+
+Enhancement answers **did the user request a provenance-bearing acoustic transform?**
+
+Alignment will answer **where do finer text units sit on the canonical timeline?**
+
+Original timecode/capture provenance will answer **what other source clocks can be
+preserved alongside that timeline?**
+
+Keeping these responsibilities separate makes metadata discovery side-effect free,
+keeps source authority explicit, and leaves room for richer evidence without rewriting
+the meaning of timestamps that already exist.
+
+🧜‍♀️ Multiple clocks. One transcript. No temporal soup.

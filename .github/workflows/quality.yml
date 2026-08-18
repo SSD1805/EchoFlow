@@ -38,10 +38,17 @@ jobs:
       - name: Import optional CPU engine
         run: uv run python -c "import faster_whisper; print(faster_whisper.__version__)"
 
+      # Package mirrors are external CI dependencies. Bound retries and network waits so
+      # an unavailable mirror fails this step instead of consuming the entire quality job.
       - name: Install native media tools
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes ffmpeg
+          APT_OPTIONS=(
+            -o Acquire::Retries=3
+            -o Acquire::http::Timeout=15
+            -o Acquire::https::Timeout=15
+          )
+          timeout 120s sudo apt-get "${APT_OPTIONS[@]}" update
+          timeout 180s sudo apt-get "${APT_OPTIONS[@]}" install --yes --no-install-recommends ffmpeg
 
       - name: Verify native media tools
         run: >-

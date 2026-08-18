@@ -8,8 +8,8 @@ import duckdb
 
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.library.errors import ResearchProjectionError
-from echoflow.library.index import EvidenceScopeKey
 from echoflow.library.research_projection import (
+    EvidenceScopeKey,
     ProjectedEvidenceSummary,
     ResearchProjectionFilter,
 )

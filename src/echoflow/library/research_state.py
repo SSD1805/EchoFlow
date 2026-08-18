@@ -76,6 +76,7 @@ class ResearchProjectionRecord:
     anchor: EvidenceAnchor
     tag_ids: tuple[str, ...]
     collection_ids: tuple[str, ...]
+    updated_at: str
 
     def __post_init__(self) -> None:
         if not self.note_id.strip() or not self.body.strip():
@@ -84,6 +85,8 @@ class ResearchProjectionRecord:
             raise ValueError("projected tag IDs must be sorted and deduplicated")
         if tuple(sorted(set(self.collection_ids))) != self.collection_ids:
             raise ValueError("projected collection IDs must be sorted and deduplicated")
+        if not self.updated_at.strip():
+            raise ValueError("projected note updated_at cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)

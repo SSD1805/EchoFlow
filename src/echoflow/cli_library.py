@@ -16,9 +16,14 @@ from echoflow.library.index import (
     SearchOperator,
     SearchQuery,
     SearchSort,
-    TranscriptMatch,
 )
-from echoflow.library.service import LibraryEvidenceReceipt, LibraryRebuildReport
+from echoflow.library.retrieval import RetrievalMode, SearchPassage, SearchResponse
+from echoflow.library.semantic import EmbeddingProfile, SemanticState
+from echoflow.library.service import (
+    LibraryEvidenceReceipt,
+    LibraryRebuildReport,
+    SemanticRebuildReport,
+)
 
 ContainerFactory = Callable[[typer.Context], AppContainer]
 
@@ -31,6 +36,7 @@ def _document_dict(document: IndexedDocument) -> dict[str, object]:
     return {
         "document_id": document.document_id,
         "source_sha256": document.source_sha256,
+        "canonical_sha256": document.canonical_sha256,
         "detected_language": document.detected_language,
         "canonical_path": document.canonical_path,
         "source_path": document.source_path,
@@ -38,19 +44,79 @@ def _document_dict(document: IndexedDocument) -> dict[str, object]:
     }
 
 
-def _match_dict(match: TranscriptMatch) -> dict[str, object]:
+def _profile_dict(profile: EmbeddingProfile) -> dict[str, object]:
     return {
-        "document_id": match.document_id,
-        "source_sha256": match.source_sha256,
-        "canonical_path": match.canonical_path,
-        "source_path": match.source_path,
-        "segment_id": match.segment_id,
-        "start_seconds": match.start_seconds,
-        "end_seconds": match.end_seconds,
-        "text": match.text,
-        "language": match.language,
-        "speaker_ref": match.speaker_ref,
-        "score": match.score,
+        "profile_id": profile.profile_id,
+        "provider": profile.provider,
+        "model_id": profile.model_id,
+        "resolved_revision": profile.resolved_revision,
+        "dimensions": profile.dimensions,
+        "normalization": profile.normalization,
+        "pooling": profile.pooling,
+        "distance_metric": profile.distance_metric,
+        "query_prefix": profile.query_prefix,
+        "passage_prefix": profile.passage_prefix,
+        "chunking_profile_id": profile.chunking_profile_id,
+        "embedding_schema_version": profile.embedding_schema_version,
+    }
+
+
+def _state_dict(state: SemanticState) -> dict[str, object]:
+    return {
+        "semantic_ready": True,
+        "corpus_fingerprint": state.corpus_fingerprint,
+        "chunk_count": state.chunk_count,
+        "profile": _profile_dict(state.profile),
+    }
+
+
+def _passage_dict(passage: SearchPassage) -> dict[str, object]:
+    return {
+        "document_id": passage.document_id,
+        "source_sha256": passage.source_sha256,
+        "canonical_sha256": passage.canonical_sha256,
+        "canonical_path": passage.canonical_path,
+        "source_path": passage.source_path,
+        "chunk_id": passage.chunk_id,
+        "segment_ids": list(passage.segment_ids),
+        "matched_segment_ids": list(passage.matched_segment_ids),
+        "start_seconds": passage.start_seconds,
+        "end_seconds": passage.end_seconds,
+        "text": passage.text,
+        "languages": list(passage.languages),
+        "speaker_refs": list(passage.speaker_refs),
+        "lexical_rank": passage.lexical_rank,
+        "semantic_rank": passage.semantic_rank,
+        "fused_rank": passage.fused_rank,
+    }
+
+
+def _response_dict(response: SearchResponse) -> dict[str, object]:
+    query = response.query
+    return {
+        "query": {
+            "text": query.text,
+            "phrase": query.phrase,
+            "operator": query.operator.value,
+            "speaker_refs": list(query.speaker_refs),
+            "languages": list(query.languages),
+            "document_ids": list(query.document_ids),
+            "sort": query.sort.value,
+            "limit": query.limit,
+        },
+        "retrieval": {
+            "mode": response.mode.value,
+            "lexical_backend_id": response.lexical_backend_id,
+            "semantic_backend_id": response.semantic_backend_id,
+            "semantic_profile": (
+                None
+                if response.semantic_profile is None
+                else _profile_dict(response.semantic_profile)
+            ),
+            "fusion_profile": response.fusion_profile,
+        },
+        "result_count": len(response.results),
+        "results": [_passage_dict(item) for item in response.results],
     }
 
 
@@ -96,6 +162,7 @@ def _render_receipt(receipt: LibraryEvidenceReceipt, console: Console) -> None:
         ("Original recording", document.source_path or "path unavailable"),
         ("EchoFlow source handling", receipt.source_handling),
         ("Recorded source SHA-256", document.source_sha256),
+        ("Canonical SHA-256", document.canonical_sha256 or "rebuild library to record"),
         ("Current source integrity", receipt.source_integrity.value),
         ("Current source SHA-256", receipt.current_source_sha256 or "not available"),
         ("Canonical transcript", document.canonical_path),
@@ -107,27 +174,37 @@ def _render_receipt(receipt: LibraryEvidenceReceipt, console: Console) -> None:
     console.print(table)
 
 
-def _render_matches(matches: tuple[TranscriptMatch, ...], console: Console) -> None:
-    table = Table(title=f"EchoFlow evidence search: {len(matches)} result(s)")
+def _render_response(response: SearchResponse, console: Console) -> None:
+    table = Table(
+        title=(
+            f"EchoFlow {response.mode.value} evidence search: "
+            f"{len(response.results)} result(s)"
+        )
+    )
     table.add_column("Recording")
     table.add_column("Time")
     table.add_column("Speaker")
     table.add_column("Language")
-    table.add_column("Score")
+    table.add_column("Ranks")
     table.add_column("Passage")
-    for match in matches:
+    for result in response.results:
         recording = (
-            match.document_id
-            if match.source_path is None
-            else Path(match.source_path).name
+            result.document_id
+            if result.source_path is None
+            else Path(result.source_path).name
+        )
+        ranks = (
+            f"L:{result.lexical_rank or '-'} "
+            f"S:{result.semantic_rank or '-'} "
+            f"F:{result.fused_rank}"
         )
         table.add_row(
             recording,
-            f"{match.start_seconds:.2f}-{match.end_seconds:.2f}s",
-            match.speaker_ref or "unknown",
-            match.language or "unknown",
-            f"{match.score:.3f}",
-            match.text,
+            f"{result.start_seconds:.2f}-{result.end_seconds:.2f}s",
+            ", ".join(result.speaker_refs) or "unknown",
+            ", ".join(result.languages) or "unknown",
+            ranks,
+            result.text,
         )
     console.print(table)
 
@@ -136,7 +213,7 @@ def _handle_error(exc: Exception) -> None:
     if isinstance(exc, EchoFlowError):
         typer.echo(exc.public_message, err=True)
         raise typer.Exit(code=exc.exit_code) from None
-    if isinstance(exc, ValueError):
+    if isinstance(exc, (ValueError, ModuleNotFoundError)):
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(
         f"EchoFlow transcript library failed internally ({type(exc).__name__})",
@@ -199,6 +276,20 @@ def _report_dict(report: LibraryRebuildReport) -> dict[str, object]:
     }
 
 
+def _semantic_report_dict(report: SemanticRebuildReport) -> dict[str, object]:
+    return {
+        "lexical_backend_id": report.lexical_backend_id,
+        "semantic_backend_id": report.semantic_backend_id,
+        "embedding_profile_id": report.embedding_profile_id,
+        "model_id": report.model_id,
+        "resolved_revision": report.resolved_revision,
+        "corpus_fingerprint": report.corpus_fingerprint,
+        "indexed_documents": report.indexed_documents,
+        "indexed_chunks": report.indexed_chunks,
+        "skipped_files": report.skipped_files,
+    }
+
+
 def _show_transcript(
     context: typer.Context,
     document_id: str,
@@ -231,6 +322,7 @@ def _search_library(
     languages: tuple[str, ...],
     documents: tuple[str, ...],
     sort: SearchSort,
+    mode: RetrievalMode,
     limit: int,
     json_output: bool,
     container_factory: ContainerFactory,
@@ -246,16 +338,86 @@ def _search_library(
             sort=sort,
             limit=limit,
         )
-        matches = (
-            container_factory(_root_context(context)).transcript_library().search(query)
+        response = (
+            container_factory(_root_context(context))
+            .transcript_library()
+            .retrieve(query, mode=mode)
         )
     except Exception as exc:
         _handle_error(exc)
         return
     if json_output:
-        typer.echo(json.dumps([_match_dict(item) for item in matches], sort_keys=True))
+        typer.echo(json.dumps(_response_dict(response), sort_keys=True))
         return
-    _render_matches(matches, Console())
+    _render_response(response, Console())
+
+
+def _build_embeddings(
+    context: typer.Context,
+    model_path: Path,
+    revision: str,
+    paths: tuple[Path, ...],
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        container = container_factory(_root_context(context))
+        provider = container.semantic_embedding_provider(
+            snapshot_path=model_path,
+            resolved_revision=revision,
+        )
+        report = container.transcript_library().rebuild_semantic(provider, paths)
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_semantic_report_dict(report), sort_keys=True))
+        return
+    typer.echo(
+        f"Built {report.indexed_chunks} semantic chunk(s) across "
+        f"{report.indexed_documents} transcript(s) with {report.model_id} "
+        f"at revision {report.resolved_revision}."
+    )
+
+
+def _embedding_status(
+    context: typer.Context,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        state = (
+            container_factory(_root_context(context))
+            .transcript_library()
+            .semantic_state()
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        document: dict[str, object] = (
+            {"semantic_ready": False} if state is None else _state_dict(state)
+        )
+        typer.echo(json.dumps(document, sort_keys=True))
+        return
+    if state is None:
+        typer.echo("Semantic embeddings have not been built.")
+        return
+    table = Table(title="EchoFlow semantic index")
+    table.add_column("Setting")
+    table.add_column("Value")
+    table.add_row("Model", state.profile.model_id)
+    table.add_row("Resolved revision", state.profile.resolved_revision)
+    table.add_row("Dimensions", str(state.profile.dimensions))
+    table.add_row("Normalization", state.profile.normalization)
+    table.add_row("Pooling", state.profile.pooling)
+    table.add_row("Distance metric", state.profile.distance_metric)
+    table.add_row("Chunking", state.profile.chunking_profile_id)
+    table.add_row("Chunks", str(state.chunk_count))
+    table.add_row("Corpus fingerprint", state.corpus_fingerprint)
+    Console().print(table)
 
 
 def register_library_commands(
@@ -327,6 +489,13 @@ def register_library_commands(
         languages: Annotated[list[str] | None, typer.Option("--language")] = None,
         documents: Annotated[list[str] | None, typer.Option("--transcript")] = None,
         sort: Annotated[SearchSort, typer.Option("--sort")] = SearchSort.RELEVANCE,
+        mode: Annotated[
+            RetrievalMode,
+            typer.Option(
+                "--mode",
+                help="Use lexical, semantic, or local hybrid retrieval.",
+            ),
+        ] = RetrievalMode.LEXICAL,
         limit: int = typer.Option(100, "--limit", min=1, max=1_000),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
@@ -339,9 +508,64 @@ def register_library_commands(
             languages=tuple(languages or ()),
             documents=tuple(documents or ()),
             sort=sort,
+            mode=mode,
             limit=limit,
             json_output=json_output,
             container_factory=container_factory,
         )
 
+    embeddings_app = typer.Typer(
+        help="Build and inspect private rebuildable semantic embedding state.",
+        invoke_without_command=True,
+        no_args_is_help=False,
+    )
+
+    @embeddings_app.callback()
+    def embeddings_root(
+        context: typer.Context,
+        json_output: bool = typer.Option(False, "--json"),
+    ) -> None:
+        if context.invoked_subcommand is None:
+            _embedding_status(
+                context,
+                json_output=json_output,
+                container_factory=container_factory,
+            )
+
+    @embeddings_app.command("build")
+    def build_embeddings(
+        context: typer.Context,
+        model_path: Annotated[
+            Path,
+            typer.Argument(
+                metavar="MODEL_SNAPSHOT",
+                help="Local immutable multilingual-e5-small snapshot directory.",
+            ),
+        ],
+        revision: Annotated[
+            str,
+            typer.Option(
+                "--revision",
+                help="Immutable resolved model revision; must match snapshot dirname.",
+            ),
+        ],
+        paths: Annotated[
+            list[Path] | None,
+            typer.Argument(
+                metavar="[PATH]...",
+                help="Optional canonical transcript file(s) or directories to include.",
+            ),
+        ] = None,
+        json_output: bool = typer.Option(False, "--json"),
+    ) -> None:
+        _build_embeddings(
+            context,
+            model_path,
+            revision,
+            tuple(paths or ()),
+            json_output=json_output,
+            container_factory=container_factory,
+        )
+
+    library_app.add_typer(embeddings_app, name="embeddings")
     app.add_typer(library_app, name="library")

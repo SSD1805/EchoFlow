@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -82,6 +83,7 @@ def load_indexed_transcript(
         return IndexedTranscript(
             document_id=document.job_id,
             source_sha256=document.source.sha256,
+            canonical_sha256=hashlib.sha256(payload).hexdigest(),
             transcript_schema_version=document.schema_version,
             detected_language=document.detected_language,
             canonical_path=str(canonical),

@@ -113,6 +113,7 @@ class DuckDbTranscriptIndex:
             CREATE TABLE IF NOT EXISTS documents (
                 document_id VARCHAR PRIMARY KEY,
                 source_sha256 VARCHAR NOT NULL,
+                canonical_sha256 VARCHAR,
                 transcript_schema_version INTEGER NOT NULL,
                 detected_language VARCHAR,
                 canonical_path VARCHAR NOT NULL,
@@ -141,6 +142,9 @@ class DuckDbTranscriptIndex:
             );
             """
         )
+        self._connection.execute(
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS canonical_sha256 VARCHAR"
+        )
 
     def rebuild(self, transcripts: tuple[IndexedTranscript, ...]) -> None:
         self._require_open()
@@ -167,10 +171,23 @@ class DuckDbTranscriptIndex:
 
     def _insert_transcript(self, transcript: IndexedTranscript) -> None:
         self._connection.execute(
-            "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            """
+            INSERT INTO documents (
+                document_id,
+                source_sha256,
+                canonical_sha256,
+                transcript_schema_version,
+                detected_language,
+                canonical_path,
+                source_path,
+                source_size_bytes,
+                source_modified_ns
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
             [
                 transcript.document_id,
                 transcript.source_sha256,
+                transcript.canonical_sha256,
                 transcript.transcript_schema_version,
                 transcript.detected_language,
                 transcript.canonical_path,
@@ -240,12 +257,13 @@ class DuckDbTranscriptIndex:
         self._require_open()
         rows = self._connection.execute(
             """
-            SELECT d.document_id, d.source_sha256, d.detected_language,
-                   d.canonical_path, d.source_path, COUNT(s.segment_id)
+            SELECT d.document_id, d.source_sha256, d.canonical_sha256,
+                   d.detected_language, d.canonical_path, d.source_path,
+                   COUNT(s.segment_id)
             FROM documents d
             LEFT JOIN segments s USING (document_id)
-            GROUP BY d.document_id, d.source_sha256, d.detected_language,
-                     d.canonical_path, d.source_path
+            GROUP BY d.document_id, d.source_sha256, d.canonical_sha256,
+                     d.detected_language, d.canonical_path, d.source_path
             ORDER BY d.document_id
             """
         ).fetchall()
@@ -253,10 +271,11 @@ class DuckDbTranscriptIndex:
             IndexedDocument(
                 document_id=str(row[0]),
                 source_sha256=str(row[1]),
-                detected_language=None if row[2] is None else str(row[2]),
-                canonical_path=str(row[3]),
-                source_path=None if row[4] is None else str(row[4]),
-                segment_count=int(row[5]),
+                canonical_sha256=None if row[2] is None else str(row[2]),
+                detected_language=None if row[3] is None else str(row[3]),
+                canonical_path=str(row[4]),
+                source_path=None if row[5] is None else str(row[5]),
+                segment_count=int(row[6]),
             )
             for row in rows
         )

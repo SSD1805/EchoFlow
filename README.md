@@ -13,8 +13,9 @@ local search across completed transcripts.
 
 EchoFlow does not require a hosted transcription account. Durability, reliability,
 performance on ordinary hardware, local storage awareness, and portable user-owned
-artifacts are first-class constraints. See [`ROADMAP.md`](ROADMAP.md) for current work
-and research candidates.
+artifacts are first-class constraints. See [`docs/getting-started.md`](docs/getting-started.md)
+for the short user path and [`ROADMAP.md`](ROADMAP.md) for current work and research
+candidates.
 
 ## Project status
 
@@ -42,11 +43,26 @@ EchoFlow is pre-production. Its current tested foundation includes:
   audio, timeline-preservation checks, and transcript provenance;
 - a database-neutral transcript-index port with a private rebuildable DuckDB backend,
   deterministic offline BM25-style lexical ranking, and typed evidence search;
+- canonical transcript SHA-256 projection and semantic corpus-fingerprint stale-state
+  detection;
+- deterministic segment-anchored search chunks and a separate rebuildable semantic
+  DuckDB index using numeric `FLOAT[]` vectors;
+- a strict-local multilingual-E5 embedding adapter with explicit query/passage
+  semantics and immutable profile provenance;
+- exact local semantic similarity plus BM25+dense reciprocal-rank hybrid retrieval;
+- one evidence-bearing retrieval response contract with lexical, semantic, and fused
+  ranks;
 - human-readable transcript evidence receipts with canonical/source locations,
   recorded source SHA-256, and current source-integrity verification;
 - storage preflight for normalization, enhancement, segment materialization, model
   acquisition, and published artifacts;
 - cross-platform private-storage enforcement and Linux/macOS/Windows CI.
+
+The Sentence Transformers runtime is intentionally not added to the locked dependency
+graph in the semantic-foundation tranche. Semantic search therefore remains an optional
+capability for environments that already provide a compatible local runtime and an
+immutable local `intfloat/multilingual-e5-small` snapshot. Lexical BM25 search remains
+fully available without it.
 
 Accelerator memory estimates and performance ranks remain conservative heuristics until
 representative-device qualification is complete. Standalone end-user installers and a
@@ -161,11 +177,11 @@ See
 
 ## Search the local transcript library
 
-Completed canonical transcripts can be projected into a private rebuildable local
-library. Canonical JSON remains authoritative; the DuckDB search database is disposable
-derived state and contains no unique user information.
+Completed canonical transcripts can be projected into private rebuildable local search
+state. Canonical JSON remains authoritative. Search databases are disposable derived
+state and may not contain the only copy of user-authored information.
 
-Build or rebuild the library from EchoFlow's known completed transcripts:
+Build or rebuild the lexical library from EchoFlow's known completed transcripts:
 
 ```bash
 uv run echoflow library rebuild
@@ -178,19 +194,85 @@ Additional canonical transcript files or directories can be included explicitly:
 uv run echoflow library rebuild /path/to/transcripts
 ```
 
-Search uses deterministic local BM25-style lexical ranking. DuckDB is an implementation
-detail below the application boundary; users do not provide SQL, and the first search
-tranche does not install or load a network-fetched DuckDB FTS extension.
+Lexical search uses deterministic local BM25-style ranking. DuckDB is an implementation
+detail below the application boundary; users do not provide SQL, and EchoFlow does not
+install or load a network-fetched DuckDB FTS extension.
 
 ```bash
 uv run echoflow library search "housing insecurity"
 uv run echoflow library search "housing insecurity" --phrase
-uv run echoflow library search "rent increase" --all-terms --speaker speaker-02 --language en
+uv run echoflow library search \
+  "rent increase" \
+  --all-terms \
+  --speaker speaker-02 \
+  --language en
 ```
 
-Results preserve evidence context including the canonical transcript, source recording
-path when known, source SHA-256, source-relative timestamps, speaker/language evidence,
-and the matching passage.
+Search results preserve evidence context including the canonical transcript, source
+recording path when known, source and canonical SHA-256 evidence, source-relative
+timestamps, speaker/language evidence, and retrieval ranks.
+
+### Optional semantic and hybrid retrieval
+
+Semantic state is separate, private, and rebuildable. EchoFlow combines adjacent ASR
+segments into deterministic search windows, embeds those windows with one coherent
+profile, stores numeric vectors in a separate DuckDB projection, and binds the
+generation to the exact canonical corpus fingerprint.
+
+The current real embedding adapter targets `intfloat/multilingual-e5-small` with:
+
+- 384 dimensions;
+- L2 normalization;
+- mean pooling provenance;
+- dot-product retrieval;
+- explicit `query: ` and `passage: ` transforms;
+- immutable model revision;
+- `search-chunk-v1` chunking provenance.
+
+The adapter requires a local immutable model snapshot and loads it with local-only model
+resolution and remote code disabled. The project does not yet declare a locked
+Sentence Transformers dependency extra, so this path is intended for environments that
+already provide a compatible runtime.
+
+Build semantic state:
+
+```bash
+uv run echoflow library embeddings build \
+  /path/to/models--intfloat--multilingual-e5-small/snapshots/<revision> \
+  --revision <revision>
+```
+
+Inspect semantic provenance:
+
+```bash
+uv run echoflow library embeddings
+uv run echoflow library embeddings --json
+```
+
+Exact dense retrieval:
+
+```bash
+uv run echoflow library search \
+  "people struggling to make rent" \
+  --mode semantic
+```
+
+Hybrid BM25 + dense retrieval uses reciprocal rank fusion rather than pretending BM25
+scores and dense similarity scores share a scale:
+
+```bash
+uv run echoflow library search \
+  "people struggling to make rent" \
+  --mode hybrid
+```
+
+Hard transcript/language/speaker constraints are applied before semantic top-K ranking.
+ANN/HNSW is intentionally absent until measured corpus scale demonstrates that exact
+local search misses an interactive latency target.
+
+If canonical JSON changes after embeddings were built, semantic/hybrid search refuses
+the stale generation and requires a rebuild rather than silently comparing against old
+vectors.
 
 Inspect one transcript's custody and source-integrity evidence:
 
@@ -199,10 +281,11 @@ uv run echoflow library show JOB_ID
 ```
 
 The evidence receipt distinguishes the original recording, canonical transcript, and
-private search index. It reports the SHA-256 recorded for transcription and can re-hash
-the file currently at the recorded source path to show whether those bytes still match.
-A match proves current byte identity with the recorded fingerprint; it does not claim
-that no external process ever modified and later restored the file.
+private search indexes. It reports the SHA-256 recorded for transcription, the canonical
+artifact SHA-256 recorded during projection, and can re-hash the file currently at the
+recorded source path to show whether those bytes still match. A match proves current
+byte identity with the recorded fingerprint; it does not claim that no external process
+ever modified and later restored the file.
 
 EchoFlow treats the supplied source recording as read-only input. Canonicalization,
 segmentation, enhancement, checkpoints, exports, and search data are written separately

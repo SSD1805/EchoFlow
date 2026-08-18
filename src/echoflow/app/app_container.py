@@ -17,6 +17,8 @@ from echoflow.core.logger import configure_logging
 from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.library.duckdb_index import DuckDbTranscriptIndex
+from echoflow.library.duckdb_semantic import DuckDbSemanticIndex
+from echoflow.library.semantic import EmbeddingProfile, SentenceTransformersE5Provider
 from echoflow.library.service import TranscriptLibraryService
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.media.selection import AudioStreamSelector
@@ -125,6 +127,21 @@ def _create_transcript_index(
     )
 
 
+def _create_semantic_index(
+    config: AppConfig, file_manager: FileManagerFacade
+) -> DuckDbSemanticIndex:
+    return DuckDbSemanticIndex(
+        config.STATE_DIR / "library" / "semantic.duckdb",
+        file_manager,
+    )
+
+
+def _restore_embedding_provider(
+    profile: EmbeddingProfile,
+) -> SentenceTransformersE5Provider:
+    return SentenceTransformersE5Provider.from_profile(profile)
+
+
 class _ModelStorageAdmitter:
     """Adapt the shared disk policy without coupling model management to ASR."""
 
@@ -205,12 +222,21 @@ class AppContainer(containers.DeclarativeContainer):
         config=config,
         file_manager=file_manager,
     )
+    semantic_index = providers.Singleton(
+        _create_semantic_index,
+        config=config,
+        file_manager=file_manager,
+    )
+    semantic_embedding_provider = providers.Factory(SentenceTransformersE5Provider)
+    embedding_provider_factory = providers.Object(_restore_embedding_provider)
     transcript_library = providers.Singleton(
         TranscriptLibraryService,
         index=transcript_index,
         lifecycle_store=job_lifecycle_store,
         paths=workspace_paths,
         file_manager=file_manager,
+        semantic_index=semantic_index,
+        embedding_provider_factory=embedding_provider_factory,
     )
     checkpoint_store = providers.Factory(
         LocalCheckpointStore, file_manager=file_manager

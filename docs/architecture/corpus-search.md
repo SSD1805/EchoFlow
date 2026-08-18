@@ -1,75 +1,100 @@
 # Evidence-first corpus search
 
-Status: first lexical library tranche implemented  
+Status: lexical retrieval implemented; semantic/hybrid foundation implemented with a strict-local optional E5 adapter  
 Last updated: August 17, 2026
 
 ## Product intent
 
-EchoFlow makes a local transcript corpus searchable without exposing its storage engine
-as the user experience. A researcher should not need to know that DuckDB or BM25 exists.
-The database is infrastructure. The product is evidence retrieval.
+EchoFlow makes a local transcript corpus searchable without turning a database, a vector
+store, or a chat model into the product. A researcher should be able to retrieve a
+passage, inspect its timestamps and speaker/language evidence, and trace it back to the
+canonical transcript that produced it.
 
-The first implemented interaction is ordinary lexical search:
+The core ownership rule is:
 
-```text
-echoflow library rebuild
-echoflow library search "housing insecurity"
+> canonical transcript JSON is evidence; database state is a projection.
+
+The original recording is treated as read-only input. Canonical JSON is the durable,
+portable transcript artifact. DuckDB exists to make that evidence searchable and may be
+deleted and rebuilt.
+
+```mermaid
+flowchart TD
+    A[Original recording] -->|read only| B[Canonical transcript JSON]
+    B --> C[Lexical projection]
+    B --> D[Deterministic search chunks]
+    C --> E[BM25]
+    D --> F[Dense embeddings]
+    E --> G[TranscriptSearch]
+    F --> G
+    G --> H[Evidence-bearing SearchResponse]
+    H --> I[CLI]
+    H --> J[Future GUI]
+    H --> K[Future Python/MCP adapters]
 ```
 
-Results carry the evidence needed to inspect the hit rather than only returning text:
-recording path when EchoFlow still knows it, canonical transcript path, source SHA-256,
-segment identity, source-relative timestamps, speaker reference when available,
-language evidence, passage text, and relevance score.
+## Three durability classes
 
-Canonical transcript JSON remains authoritative. The DuckDB database is private,
-disposable derived state and can be rebuilt from canonical artifacts.
+EchoFlow deliberately separates data by whether it can be reconstructed.
 
-## Current architecture
+### Authoritative
 
-The current path is:
+- original recording supplied by the user;
+- canonical transcript JSON.
+
+### User-authored
+
+Future notes, tags, collections, annotations, and saved searches belong here. They are
+not retrieval cache and must never be discarded by an index rebuild. When annotation
+work is added, it must anchor to durable transcript evidence coordinates rather than
+only to a derived chunk ID.
+
+### Rebuildable
+
+- document projection;
+- segment projection;
+- lexical term statistics;
+- deterministic search chunks;
+- dense embeddings;
+- retrieval statistics.
+
+Removing rebuildable state must not destroy unique user information.
+
+## Canonical hashing and stale-index detection
+
+The lexical document projection now records two distinct digests:
+
+- `source_sha256`: the source recording digest recorded when transcription was planned;
+- `canonical_sha256`: the SHA-256 of the exact canonical transcript JSON bytes indexed
+  by the library.
+
+These answer different questions. A source recording can remain byte-identical while a
+canonical transcript changes because the transcript was regenerated, enriched, or
+replaced.
+
+Every semantic generation records a `corpus_fingerprint` derived from sorted
+`(document_id, canonical_sha256)` pairs. Semantic or hybrid search refuses to run when
+the current lexical projection no longer matches that fingerprint.
+
+The failure mode is therefore explicit:
 
 ```text
-canonical transcript JSON
-  -> validated searchable projection
-  -> database-neutral TranscriptIndex port
-  -> private DuckDB tables
-  -> deterministic local BM25 ranking
-  -> evidence-bearing TranscriptMatch
-  -> CLI now / future UI later
+canonical JSON changes
+    -> lexical rebuild sees new canonical_sha256
+    -> semantic corpus fingerprint no longer matches
+    -> semantic/hybrid retrieval refuses
+    -> embeddings must be rebuilt
 ```
 
-The implementation has three primary layers:
+EchoFlow does not quietly search stale vectors.
 
-1. **Corpus index**: `DuckDbTranscriptIndex` stores rebuildable document, segment, and
-   lexical term statistics. It owns no authoritative transcript state.
-2. **Library/search service**: `TranscriptLibraryService` discovers canonical artifacts,
-   validates projections, performs transactional rebuilds, exposes search, and produces
-   source-integrity evidence receipts.
-3. **Presentation adapters**: `echoflow library` is the current adapter. A later GUI can
-   consume the same service and query contract rather than implementing another search
-   pipeline.
+## Lexical retrieval
 
-The DuckDB file lives under EchoFlow private state at
-`STATE_DIR/library/transcripts.duckdb`. Removing that file must never destroy unique
-user information.
+`DuckDbTranscriptIndex` remains the lexical adapter. It stores ordinary document,
+segment, and term-statistic tables and computes deterministic BM25-style ranking without
+installing DuckDB's FTS extension.
 
-## Offline BM25
-
-The first ranking strategy is BM25-style lexical ranking over deterministic local token
-statistics. EchoFlow stores per-segment token counts and term frequencies in ordinary
-DuckDB tables and computes ranking from those statistics.
-
-EchoFlow deliberately does **not** `INSTALL` or `LOAD` DuckDB's FTS extension in this
-tranche. Extension installation can introduce an unexpected network dependency on a
-fresh machine. Search must remain available offline once EchoFlow itself is installed.
-
-This also makes ranking behavior explicit and replaceable. DuckDB is an adapter, not
-the query API.
-
-## Typed query boundary
-
-The CLI, future UI, and storage backend exchange a stable application-level query
-representation instead of handwritten SQL:
+The public query contract remains `SearchQuery`:
 
 ```text
 SearchQuery
@@ -83,156 +108,328 @@ SearchQuery
   limit = 100
 ```
 
-The DuckDB adapter compiles this representation using bounded application-owned SQL
-structure and parameterized user values. Users never provide SQL fragments.
+User values remain parameterized. The storage adapter owns its SQL.
 
-The initial query contract supports:
+## Deterministic semantic chunks
 
-- ordinary lexical search;
-- exact phrase requirements;
-- ANY or ALL lexical-term semantics;
-- speaker filters;
-- language filters;
-- transcript/document filters;
-- relevance or source-timeline ordering; and
-- bounded result limits.
+ASR segments are evidence coordinates, not necessarily good embedding units. A segment
+may contain only `"Yeah."` or `"And then we moved."`.
 
-Date/tag/duration/enrichment filters, facets, exclusions, saved searches, and
-collections remain later extensions of the typed contract.
+EchoFlow therefore creates deterministic windows over adjacent canonical segments.
 
-## Rebuild semantics
+`search-chunk-v1` currently uses:
 
-`echoflow library rebuild` discovers completed canonical artifacts from EchoFlow job
-lifecycle metadata and the normal EchoFlow output directory. Additional canonical files
-or directories may be supplied explicitly.
+- target size: 220 whitespace-delimited words;
+- maximum target size: 300 words;
+- no synthetic splitting inside one source segment;
+- no overlap in v1;
+- stable document/segment ordering;
+- content SHA-256;
+- first/last segment IDs and the complete ordered segment-ID tuple;
+- exact source-relative start/end timestamps;
+- sorted language and anonymous speaker references observed in the window.
 
-A rebuild validates the complete searchable projection before replacing index state.
-The DuckDB replacement itself is transactional. If a known canonical transcript is
-malformed, a duplicate canonical job identity is found, or the database replacement
-fails, EchoFlow does not silently publish a partial new library.
+A source segment larger than the target remains one chunk. EchoFlow does not cut a
+canonical segment into invented evidence coordinates merely to satisfy a retrieval
+heuristic.
 
-Directory discovery may encounter unrelated JSON files. Those are skipped only when
-they were found opportunistically during directory scanning. A lifecycle-known or
-explicitly requested canonical artifact is strict and fails closed if it cannot be
-validated.
+A chunk is never canonical evidence. It is a disposable retrieval window that points
+back to canonical segments.
+
+## Embedding profile
+
+One semantic index generation has exactly one coherent embedding profile. EchoFlow will
+not mix English E5 vectors with multilingual E5 vectors in the same space.
+
+The first real adapter is designed for:
+
+```text
+model_id             intfloat/multilingual-e5-small
+dimensions           384
+normalization        l2
+distance_metric      dot
+query_transform      "query: {text}"
+passage_transform    "passage: {text}"
+chunking_profile     search-chunk-v1
+resolved_revision    immutable snapshot revision
+```
+
+`EmbeddingProvider` exposes two separate methods:
+
+```python
+embed_queries(texts)
+embed_passages(texts)
+```
+
+That distinction is intentional. E5 retrieval uses different query-side and
+passage-side text transforms. EchoFlow does not flatten this into a misleading generic
+`embed(text)` contract.
+
+The stored profile records model identity, immutable resolved revision, dimensions,
+normalization, metric, transforms, chunking profile, and the local snapshot path needed
+to restore the same provider.
+
+## Strict-local model boundary
+
+`SentenceTransformersE5Provider` accepts a local snapshot directory and requires the
+directory name to equal the recorded immutable revision. It loads
+`SentenceTransformer` from that local path and never passes a repository ID to the
+runtime.
+
+The provider validates:
+
+- non-empty input;
+- one output vector per input;
+- exactly 384 dimensions;
+- finite numeric values;
+- L2-normalized output.
+
+The adapter lazy-imports `sentence_transformers`. EchoFlow's locked dependency graph
+does **not yet** declare a semantic extra in this tranche. That is deliberate: the
+repository's CI requires `pyproject.toml` and `uv.lock` to remain coherent, and this
+change does not claim an unqualified dependency lock that was not actually resolved and
+audited.
+
+Consequently, semantic build/search is an implemented optional capability for an
+environment that already has a compatible Sentence Transformers runtime and a local
+immutable multilingual-E5 snapshot. Base EchoFlow and lexical search remain unchanged.
+A later dependency-qualification tranche can add a locked `semantic` extra and managed
+model acquisition without changing the retrieval contracts introduced here.
+
+## Numeric vector storage
+
+`DuckDbSemanticIndex` stores vectors as DuckDB `FLOAT[]`.
+
+Vectors are not serialized to opaque BLOBs. The application boundary remains
+`tuple[float, ...]`, so another adapter may later choose a fixed-length vector type,
+compressed representation, or different backend without changing domain contracts.
+
+The semantic database is private rebuildable state at:
+
+```text
+STATE_DIR/library/semantic.duckdb
+```
+
+It is intentionally separate from the lexical database in this tranche. This keeps
+semantic rebuild/storage evolution independent from the already-working BM25 index and
+makes deletion semantics obvious. Both databases remain disposable projections of
+canonical JSON.
+
+## Exact local similarity first
+
+The first semantic retrieval implementation performs an exact scan over the filtered
+local chunk set.
+
+Hard filters are applied before top-K ranking:
+
+- transcript/document;
+- language;
+- speaker;
+- exact phrase when requested;
+- `ALL` lexical terms when requested.
+
+This avoids filter starvation. A query for one speaker must not search the global top
+100 vectors and only then discover that all 100 belonged to someone else.
+
+No ANN/HNSW structure is introduced yet. Approximate nearest-neighbor indexing is an
+execution optimization, not a product requirement. It should be added only if measured
+corpus size and latency demonstrate that exact local search misses an interactive
+target.
+
+## Hybrid retrieval and RRF
+
+`TranscriptSearch` composes narrow capabilities:
+
+```mermaid
+flowchart TD
+    Q[SearchQuery] --> L[LexicalRetriever / BM25]
+    Q --> S[SemanticIndex / exact dense search]
+    L --> LR[Lexical chunk ranks]
+    S --> SR[Semantic chunk ranks]
+    LR --> R[Reciprocal Rank Fusion]
+    SR --> R
+    R --> E[Evidence-bearing SearchResponse]
+```
+
+Hybrid ranking uses reciprocal rank fusion with `k=60`:
+
+```text
+RRF(d) = Σ 1 / (60 + rank_i(d))
+```
+
+RRF avoids pretending BM25 scores and cosine/dot similarities are directly comparable.
+EchoFlow exposes ranks rather than converting unlike scores into a fake universal
+"relevance probability."
+
+The public result includes:
+
+- canonical/source identity;
+- chunk ID when a derived chunk was used;
+- complete segment evidence coordinates;
+- lexical-matched segment IDs;
+- source-relative timestamps;
+- language and speaker evidence;
+- lexical rank when applicable;
+- semantic rank when applicable;
+- fused rank;
+- retrieval provenance.
+
+Timeline sorting changes presentation order but does not erase the recorded relevance
+ranks.
+
+## Unified retrieval response
+
+`TranscriptLibraryService.retrieve()` returns one `SearchResponse` shape for lexical,
+semantic, and hybrid modes.
+
+```text
+SearchResponse
+  query
+  retrieval mode
+  lexical backend ID
+  semantic backend ID
+  embedding profile
+  fusion profile
+  results[]
+    evidence coordinates
+    passage
+    timestamps
+    speakers
+    languages
+    lexical rank
+    semantic rank
+    fused rank
+```
+
+`TranscriptLibraryService.search()` remains as a compatibility path for direct lexical
+segment results. New presentation adapters should prefer `retrieve()`.
+
+This lets future CLI, GUI, Python, and MCP surfaces share behavior rather than each
+inventing retrieval semantics.
+
+## CLI
+
+Lexical retrieval remains the default and requires no semantic runtime:
+
+```bash
+uv run echoflow library rebuild
+uv run echoflow library search "housing insecurity"
+```
+
+Build semantic state from a local immutable multilingual-E5 snapshot:
+
+```bash
+uv run echoflow library embeddings build \
+  /path/to/models--intfloat--multilingual-e5-small/snapshots/<revision> \
+  --revision <revision>
+```
+
+Inspect semantic provenance:
+
+```bash
+uv run echoflow library embeddings
+uv run echoflow library embeddings --json
+```
+
+Run exact semantic search:
+
+```bash
+uv run echoflow library search \
+  "people struggling to make rent" \
+  --mode semantic
+```
+
+Run hybrid BM25 + dense retrieval:
+
+```bash
+uv run echoflow library search \
+  "people struggling to make rent" \
+  --mode hybrid
+```
+
+Filters are shared:
+
+```bash
+uv run echoflow library search \
+  "housing insecurity" \
+  --mode hybrid \
+  --speaker speaker-02 \
+  --language en \
+  --limit 20
+```
+
+`--json` emits query, retrieval provenance, result count, and evidence-bearing results.
+
+## Rebuild behavior
+
+A lexical rebuild validates the complete searchable projection before replacing the
+BM25 index transactionally.
+
+A semantic rebuild:
+
+1. discovers and validates canonical transcripts;
+2. computes deterministic chunks;
+3. embeds passages using one explicit profile;
+4. rebuilds the lexical projection from the same validated corpus;
+5. replaces semantic state transactionally;
+6. records the exact corpus fingerprint and profile.
+
+If embedding fails, the semantic database is not partially replaced. If canonical state
+later changes, fingerprint validation prevents reuse of stale semantic vectors.
 
 ## Source-integrity evidence
 
-The library also exposes a human-readable evidence receipt:
+`echoflow library show TRANSCRIPT_ID` remains the source/custody inspection surface.
+
+It distinguishes:
+
+- original recording path when known;
+- recorded source SHA-256;
+- canonical transcript SHA-256;
+- current source-integrity recheck;
+- canonical transcript path;
+- private rebuildable index custody.
+
+These are separate claims. EchoFlow does not collapse them into a vague trust badge.
+
+## User-authored state boundary
+
+Tags, notes, collections, saved searches, and annotations are intentionally not
+implemented in the semantic database.
+
+When added, they must live in a non-rebuildable user-state layer and anchor to canonical
+evidence coordinates such as:
 
 ```text
-echoflow library show TRANSCRIPT_ID
+document_id
+first_segment_id
+last_segment_id
+start_seconds (optional)
+end_seconds (optional)
 ```
 
-The receipt separates several facts that should not be collapsed into one vague
-"trusted" badge:
+A chunk ID may be cached as convenience, but may not be the only durable anchor because
+chunking policy is versionable and disposable.
 
-- **Original recording path**: where the input was located when EchoFlow recorded the
-  lifecycle relationship, if that relationship is still available.
-- **Recorded source SHA-256**: the digest stored in canonical transcript provenance when
-  the recording was inspected for transcription.
-- **Current source integrity**: whether the bytes currently at that source path hash to
-  the same digest.
-- **Canonical transcript path**: the user-visible authoritative transcript artifact.
-- **Search-index custody**: explicitly described as private, rebuildable derived state.
+## Deliberate exclusions
 
-Integrity states are explicit:
+This tranche does not add:
 
-- `matches-recorded-source`
-- `changed-since-transcription`
-- `source-file-missing`
-- `source-path-unavailable`
+- ANN/HNSW;
+- a learned reranker;
+- ColBERT/late interaction;
+- SPLADE/learned sparse retrieval;
+- LLM query expansion;
+- generated corpus answers;
+- a GUI;
+- user-authored notes/tags/collections;
+- a stable public Python package API;
+- a declared/locked Sentence Transformers dependency extra.
 
-EchoFlow re-hashes the source only when integrity inspection is requested. It snapshots
-file identity before and after hashing and fails closed if the file changes during the
-verification pass.
+Those are separate product decisions. The retrieval contract no longer depends on them.
 
-This proves whether the current source bytes match the bytes EchoFlow fingerprinted for
-the transcript. It is not a claim that software can prove the file was never touched by
-any process at any point in history.
+## Stable rule
 
-EchoFlow's transcription pipeline treats the supplied source as read-only input. Decode,
-normalization, segmentation, enhancement, checkpoints, and search-index data are written
-as separate derived material rather than overwriting the supplied recording.
-
-## CLI surface
-
-Current commands are:
-
-```text
-# Inspect the existing local library
-echoflow library
-
-# Rebuild from known/default canonical artifacts
-echoflow library rebuild
-
-# Include an additional canonical file or directory
-echoflow library rebuild ~/Research/Transcripts
-
-# Lexical BM25-style evidence search
-echoflow library search "housing insecurity"
-
-# Require the literal phrase
-echoflow library search "housing insecurity" --phrase
-
-# Require every lexical term and filter evidence
-echoflow library search "rent increase" \
-  --all-terms \
-  --speaker speaker-02 \
-  --language en
-
-# Inspect source/canonical/index custody for one transcript
-echoflow library show JOB_ID
-```
-
-Every command supports or preserves a deterministic machine-readable path through
-`--json` where appropriate.
-
-## Alignment boundary
-
-Current search results are segment-level evidence. Their timestamps are the canonical
-source-relative segment timestamps already produced by transcription. This makes the
-result contract ready for later word/timestamp alignment without pretending word-level
-precision exists today.
-
-Alignment should remain a separate enrichment capability. When implemented, it may
-make result highlighting, speaker projection, and jump-to-audio behavior more precise
-without changing the authoritative raw ASR or diarization evidence.
-
-## Natural language without giving away the corpus
-
-Natural-language convenience must not require sending transcripts to a hosted model.
-A later deterministic grammar may compile common sentences into `SearchQuery`. A small
-optional local model may eventually translate a user sentence into the same typed
-contract, but should not need the transcript corpus to perform that translation and
-should show the interpreted query back to the user.
-
-The probabilistic component must never silently control corpus retrieval.
-
-## Why chat is not the default
-
-"Chat with your transcripts" is not the primary research interface. A generated answer
-can conceal omitted interviews, disagreement, minority evidence, and the distinction
-between source language and model interpretation.
-
-The default response to a question such as "what did people say about rent?" should
-therefore be inspectable passages across recordings rather than a polished paragraph
-with uncertain coverage. Optional local summarization may later operate over an
-explicitly selected evidence set, with the underlying passages still visible.
-
-## Later retrieval layers
-
-High-value deterministic additions include facets, highlighted snippets, saved searches,
-collections, user tags/notes, exportable result sets, and direct jump-to-timestamp UX.
-Semantic retrieval remains optional and later.
-
-If embeddings are introduced, embedding state is also disposable derived state and
-must record model/revision, chunking, dimensions, normalization, metric, and index
-schema. Exact similarity should precede ANN. HNSW or another approximate structure is
-an execution strategy only when measured corpus scale demonstrates that exact search
-misses an interactive latency target.
-
-The stable rule remains:
-
-> local evidence first, typed queries in the middle, replaceable database underneath,
-> optional interpretation only above a visible result set.
+> Local evidence first. Canonical JSON owns transcript truth. User-authored state is
+> durable. Retrieval state is rebuildable. Ranking remains inspectable. Model and
+> chunking provenance are explicit.

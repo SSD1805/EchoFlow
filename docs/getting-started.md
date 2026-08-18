@@ -24,6 +24,7 @@ flowchart LR
     D --> E[Canonical transcript]
     E --> F[Exports]
     E --> G[Private local search]
+    G --> H[Verified evidence navigation]
 
     classDef evidence fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef compute fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
@@ -35,11 +36,11 @@ flowchart LR
     class B,C compute
     class D process
     class E,F publish
-    class G result
+    class G,H result
 ```
 
 The original recording is treated as read-only input. EchoFlow writes working files,
-checkpoints, transcripts, exports, and search state separately.
+checkpoints, transcripts, exports, user-authored state, and search state separately.
 
 ## 1. Install the source build
 
@@ -70,7 +71,7 @@ CUDA device zero, and model X.” That is application work.
 
 ## 2. Install a transcription model
 
-Ask EchoFlow which managed model currently fits the machine and processing policy:
+Ask EchoFlow which managed model fits the machine and processing policy:
 
 ```bash
 uv run echoflow models recommend
@@ -82,16 +83,12 @@ Then install the model you intend to use. For example:
 uv run echoflow models install small
 ```
 
-### Why is installation a separate step?
-
-Because downloading model weights is a network-bearing action.
-
-EchoFlow makes that boundary explicit instead of quietly reaching out to the internet
-when you start transcription. Once a verified managed model is present locally,
-transcription uses that local immutable revision.
+Downloading model weights is a network-bearing action, so EchoFlow makes installation
+explicit. Once a verified managed model is local, transcription uses that immutable
+revision instead of silently reaching out to the network.
 
 🦝 **Raccoon translation:** downloading the toolbox and using the toolbox are different
-things. EchoFlow does not pretend otherwise.
+things.
 
 ## 3. Inspect a recording before doing the work
 
@@ -101,9 +98,6 @@ starting recognition:
 ```bash
 uv run echoflow transcribe interview.m4a --dry-run
 ```
-
-This is useful when you want to see which strategy, model, stream, storage estimate, and
-resource budget would be used before committing to a long run.
 
 For machine-readable output:
 
@@ -121,6 +115,10 @@ EchoFlow may need to decode or normalize the selected audio stream into a determ
 working format. That working audio is private derived state. Your original recording is
 not overwritten.
 
+The current faster-whisper path also asks for native word timing. Those word intervals
+are validated and rebased onto one source-relative timeline so internal work chunks do
+not reset the published clock.
+
 The durable transcript is canonical JSON. If you also want ordinary reading/subtitle
 formats:
 
@@ -135,7 +133,7 @@ without running speech recognition again.
 
 Long recordings and laptops occasionally have opinions.
 
-When a job has durable checkpoints, resume it with the original input and the job ID:
+When a job has durable checkpoints, resume it with the original input and job ID:
 
 ```bash
 uv run echoflow transcribe interview.m4a --resume JOB_ID
@@ -143,22 +141,17 @@ uv run echoflow transcribe interview.m4a --resume JOB_ID
 
 Resume is deliberately conservative. EchoFlow rechecks source identity and current
 resources and restores the original execution contract rather than silently switching
-models, streams, or preprocessing halfway through the evidence trail.
+models, streams, preprocessing, or alignment halfway through the evidence trail.
 
 ## 6. Optional: clean up a noisy recording
-
-You can explicitly ask EchoFlow to apply its current deterministic local FFmpeg noise
-suppression before ASR:
 
 ```bash
 uv run echoflow transcribe noisy-interview.wav --enhance
 ```
 
 Enhancement is off by default. The processed audio remains private working material and
-does not replace the source recording.
-
-EchoFlow also verifies that preprocessing did not alter the frame count/sample rate or
-otherwise shift the timeline it uses for transcript timestamps.
+does not replace the source recording. EchoFlow verifies that preprocessing did not
+shift the timeline used for transcript evidence.
 
 For the engineering contract, see
 **[Local speech enhancement](architecture/speech-enhancement.md)**.
@@ -179,10 +172,28 @@ recordings.
 gate while the locked Lightning version is affected by a compensated advisory. While
 that gate is active, EchoFlow refuses diarization before model execution/acquisition.
 
-See **[Anonymous speaker diarization](architecture/diarization.md)** and
-**[SECURITY.md](../SECURITY.md)** for the exact boundary.
+Once speaker evidence exists in a canonical transcript and the library has been rebuilt,
+you can give one anonymous ref a durable human-facing name:
 
-## 8. Build your local transcript library 🔎
+```bash
+uv run echoflow library speakers list JOB_ID
+uv run echoflow library speakers name JOB_ID speaker-02 "Dr. Chen"
+```
+
+You name `speaker-02` once for that canonical transcript generation. You do not edit each
+occurrence by hand.
+
+For a handoff/overlap-aware transcript view:
+
+```bash
+uv run echoflow library speakers transcript JOB_ID
+```
+
+See **[Give the anonymous speakers names](speaker-names.md)**,
+**[Anonymous speaker diarization](architecture/diarization.md)**, and
+**[SECURITY.md](../SECURITY.md)** for the exact boundaries.
+
+## 8. Build and search your local transcript library 🔎
 
 Once you have completed canonical transcripts, build the private lexical library:
 
@@ -196,7 +207,13 @@ Search it:
 uv run echoflow library search "housing insecurity"
 ```
 
-Filter by evidence when you know more about what you want:
+Ask for one neighboring canonical segment on each side:
+
+```bash
+uv run echoflow library search "housing insecurity" --context-segments 1
+```
+
+Filter by anonymous evidence refs or language when useful:
 
 ```bash
 uv run echoflow library search \
@@ -205,14 +222,25 @@ uv run echoflow library search \
   --language en
 ```
 
+If `speaker-02` has a current user label, the human result can show
+`Dr. Chen (speaker-02)` while JSON keeps the raw anonymous ref and exposes the friendly
+label separately.
+
+Lexical results with aligned word evidence can highlight the exact canonical words that
+matched and expose the first match as a source seek coordinate. Semantic-only results
+stay passage-level rather than inventing an exact word.
+
 Inspect one transcript's evidence receipt:
 
 ```bash
 uv run echoflow library show JOB_ID
 ```
 
-The search database is a rebuildable projection. The canonical transcript remains the
-authoritative artifact.
+The search databases are rebuildable projections. The navigation layer re-verifies the
+canonical transcript before presenting precise evidence coordinates.
+
+Read **[From search result to the exact evidence](evidence-navigation.md)** for the
+human explanation.
 
 ## 9. Optional: search by meaning, not only matching words ✨
 
@@ -234,15 +262,14 @@ I was spending almost seventy percent of my pay on the apartment.
 Those sentences share little vocabulary, but they express a related idea.
 
 EchoFlow's current semantic foundation uses a local sentence-embedding model and private
-rebuildable vectors. Search results still return original transcript passages with their
-evidence coordinates.
+rebuildable vectors. Search results still point back to original canonical transcript
+evidence.
 
 ### Is this sent to a hosted AI service?
 
-Not during semantic indexing or search in the current implementation.
-
-The embedding provider loads from a local immutable model snapshot. Acquiring model
-weights is a separate network-bearing action.
+Not during semantic indexing or search in the current implementation. The embedding
+provider loads from a local immutable model snapshot. Acquiring model weights is a
+separate network-bearing action.
 
 ### Is semantic search part of the normal install yet?
 
@@ -252,8 +279,8 @@ The locked project dependency graph does not yet include Sentence Transformers, 
 semantic path currently expects an environment that already supplies a compatible local
 runtime and Multilingual E5 Small snapshot. Lexical search works without any of this.
 
-If you want the full explanation without being thrown into vector-storage internals,
-read **[Semantic search, without the mystery box](semantic-search.md)**.
+Read **[Semantic search, without the mystery box](semantic-search.md)** for the full
+plain-language explanation.
 
 ## What EchoFlow stores 🦝
 
@@ -263,15 +290,19 @@ flowchart LR
     B --> C[TXT / SRT / VTT]
     B --> D[Lexical search state]
     B --> E[Optional semantic search state]
+    B --> N[Verified navigation views]
     A --> F[Private working audio + checkpoints]
+    U[User speaker labels] --> N
 
     classDef evidence fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef derived fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
     classDef work fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef user fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
 
     class A,B evidence
-    class C,D,E derived
+    class C,D,E,N derived
     class F work
+    class U user
 ```
 
 The useful distinction is not “database versus file.” It is **can this be reconstructed
@@ -279,13 +310,14 @@ without losing something the user authored or relied on as evidence?**
 
 - The original recording is source evidence.
 - Canonical transcript JSON is the authoritative transcript artifact.
-- Future notes/tags/annotations are user-authored state and must not be treated as cache.
-- TXT/SRT/VTT and search indexes are derived and rebuildable.
+- Speaker display labels are durable user-authored state.
+- Future notes/tags/annotations/collections belong to that same durable class.
+- TXT/SRT/VTT, search indexes, and navigation views are derived and rebuildable.
 - Working audio and most execution material are private processing state.
 
 Delete a search index? Rebuild her.
 
-Delete the only canonical transcript or a future annotation? That is data loss.
+Delete the only canonical transcript or somebody's annotation? That is data loss.
 
 ## Where do I go when I want more detail?
 
@@ -293,8 +325,8 @@ Delete the only canonical transcript or a future annotation? That is data loss.
 
 The **[architecture index](architecture/README.md)** is the maintenance hatch for
 contributors and technically curious readers. It covers resource admission, media and
-timeline semantics, model custody, diarization, enhancement, checkpoints, and search in
-exact terms.
+timeline semantics, model custody, diarization, enhancement, checkpoints, search, and
+canonical evidence navigation in exact terms.
 
 The **[security policy](../SECURITY.md)** defines what “local-first” protects and what it
 does not claim.

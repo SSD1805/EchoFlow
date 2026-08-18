@@ -2,6 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from echoflow.runner.models import ProcessingProfile
 from echoflow.transcription.alignment import (
     AlignedRecognizedSegment,
     AlignedWord,
@@ -9,7 +10,14 @@ from echoflow.transcription.alignment import (
 )
 from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.diarization import project_speaker_refs
-from echoflow.transcription.models import AudioSegmentWindow, EngineTranscript
+from echoflow.transcription.models import (
+    AudioSegmentWindow,
+    CanonicalTranscript,
+    DecodeStrategy,
+    EngineProvenance,
+    EngineTranscript,
+    TranscriptSource,
+)
 from echoflow.transcription.speaker_models import SpeakerTurn
 
 
@@ -77,6 +85,58 @@ def test_aligned_segment_serializes_words_without_changing_base_segment_contract
     assert aligned_words(segment) == segment.words
 
 
+def test_canonical_transcript_serializes_source_relative_word_evidence():
+    segment = aligned_segment(
+        start=12.4,
+        end=14.4,
+        words=(
+            AlignedWord(12.4, 13.1, " hello", 0.91),
+            AlignedWord(13.1, 14.4, " world", 0.87),
+        ),
+    )
+    transcript = CanonicalTranscript(
+        job_id="job-aligned",
+        source=TranscriptSource("0" * 64, 1, 0, "wav", 20.0, 0),
+        profile=ProcessingProfile.BALANCED,
+        provisional=False,
+        decode_strategy=DecodeStrategy.DIRECT,
+        engine=EngineProvenance(
+            name="faster-whisper",
+            package_version="1.2.1",
+            model="small",
+            model_revision="revision-1",
+            device="cpu",
+            compute_type="int8",
+            cpu_threads=2,
+            beam_size=5,
+            requested_language=None,
+        ),
+        detected_language="en",
+        language_probability=0.9,
+        segments=(segment,),
+    )
+
+    document = transcript.to_dict()
+
+    words = document["segments"][0]["words"]
+    assert words == [
+        {
+            "start_seconds": 12.4,
+            "end_seconds": 13.1,
+            "text": " hello",
+            "probability": 0.91,
+            "speaker_ref": None,
+        },
+        {
+            "start_seconds": 13.1,
+            "end_seconds": 14.4,
+            "text": " world",
+            "probability": 0.87,
+            "speaker_ref": None,
+        },
+    ]
+
+
 @pytest.mark.parametrize(
     ("words", "message"),
     [
@@ -90,6 +150,24 @@ def test_aligned_segment_serializes_words_without_changing_base_segment_contract
 def test_aligned_segment_rejects_words_outside_or_crossing_each_other(words, message):
     with pytest.raises(ValueError, match=f"^{message}$"):
         aligned_segment(end=1.0, text="one two", words=words)
+
+
+def test_segment_level_speaker_requires_uniform_word_attribution():
+    with pytest.raises(
+        ValueError,
+        match="^segment speaker_ref requires uniformly attributed aligned words$",
+    ):
+        AlignedRecognizedSegment(
+            index=0,
+            start_seconds=0.0,
+            end_seconds=2.0,
+            text="hello world",
+            speaker_ref="speaker-01",
+            words=(
+                AlignedWord(0.0, 1.0, "hello", speaker_ref="speaker-01"),
+                AlignedWord(1.0, 2.0, "world", speaker_ref="speaker-02"),
+            ),
+        )
 
 
 def test_assembler_rebases_aligned_words_to_source_relative_timeline():

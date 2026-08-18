@@ -34,6 +34,7 @@ searchable evidence corpus.
 | Clean up a noisy recording | optionally applies deterministic local noise suppression with provenance and timeline checks |
 | Work with multiple languages | supports multilingual decoding plus conservative local language attribution |
 | Distinguish speakers | has optional anonymous recording-scoped diarization, currently held behind a dependency security gate |
+| Give anonymous speakers useful names | stores user-assigned display labels separately from canonical diarization evidence and rebuildable search state |
 | Publish useful transcript formats | produces canonical JSON plus rebuildable TXT, SRT, and WebVTT views |
 | Find an exact phrase later | builds a private local lexical/BM25 transcript library |
 | Find an idea even when the wording changed | supports optional local semantic retrieval |
@@ -61,6 +62,14 @@ Read **[Transcript time without calculator gymnastics](time-navigation.md)**.
 It explains what word timestamps buy you, why `4788.37` seconds becomes
 `01:19:48.370`, how future click-to-seek and notes should anchor to evidence, and why a
 camera's embedded timecode is a different clock.
+
+### 👥 I want `speaker-02` to have a human name
+
+Read **[Give the anonymous speakers names](speaker-names.md)**.
+
+It explains why `speaker-02` remains evidence while `Dr. Chen` is your durable display
+label, how to name or un-name a speaker, and why labels do not silently jump across a
+changed transcript generation.
 
 ### 🔎 I want to search my transcripts
 
@@ -126,7 +135,8 @@ EchoFlow uses different custody rules for different kinds of data.
 |---|---|---|
 | Original recording | source evidence | **No** |
 | Canonical transcript JSON | authoritative transcript artifact | **No** |
-| Future notes, tags, labels, annotations | user-authored knowledge | **No** |
+| Speaker display labels | user-authored knowledge | **No** |
+| Future notes, tags, annotations | user-authored knowledge | **No** |
 | TXT / SRT / WebVTT | publication views | Yes |
 | Normalized/enhanced working audio | private processing material | Yes |
 | Checkpoint machinery after successful publication | execution/recovery state | Usually disposable after completion |
@@ -159,15 +169,14 @@ easier to enter.
 
 The evidence-navigation sequence has advanced:
 
-1. **word/timestamp alignment** is now in the foundation, so canonical evidence has
-   finer word coordinates;
-2. **human elapsed time + original-media temporal provenance** now makes those
-   coordinates readable and preserves source-declared time clues without conflating
-   clocks;
-3. **better speaker UX** is next, including user-assigned display labels for anonymous
-   speakers and better presentation of overlap;
-4. **aligned research-navigation UX** can then exploit the same coordinates for
-   highlighting, click-to-audio, durable notes, and annotations; and
+1. **word/timestamp alignment** is in the foundation, so canonical evidence has finer
+   word coordinates;
+2. **human elapsed time + original-media temporal provenance** makes those coordinates
+   readable and preserves source-declared time clues without conflating clocks;
+3. **user-assigned speaker display labels** now keep human naming separate from anonymous
+   diarization evidence and rebuildable indexes;
+4. **better overlap presentation and aligned research-navigation UX** can exploit the
+   same coordinates for highlighting, click-to-audio, durable notes, and annotations;
 5. **later, source separation for overlapping speech** remains a measured capability,
    not a premature checkbox.
 

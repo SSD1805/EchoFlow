@@ -8,6 +8,7 @@ from importlib import import_module, metadata
 from pathlib import Path
 from typing import Any, cast
 
+from echoflow.transcription.alignment import aligned_words
 from echoflow.transcription.errors import (
     DiarizationDependencyError,
     DiarizationError,
@@ -71,9 +72,6 @@ class PyannoteSpeakerDiarizer:
         request: SpeakerDiarizationRequest | None = None,
     ) -> SpeakerDiarizationResult:
         """Return deterministic anonymous turns for one canonical local audio file."""
-        # Prove the optional runtime is safe and installed before model resolution.
-        # This prevents both needless gated downloads and execution of a known
-        # vulnerable Lightning checkpoint loader.
         pyannote = self._load_pyannote()
         local_model = self._resolve_model(allow_model_download=allow_model_download)
         try:
@@ -133,8 +131,6 @@ class PyannoteSpeakerDiarizer:
             ) from exc
 
     def _load_pyannote(self) -> Any:
-        # Set the upstream-documented disable value before importing pyannote so
-        # EchoFlow never emits pyannote usage metrics by default.
         os.environ["PYANNOTE_METRICS_ENABLED"] = "0"
         self._require_safe_lightning()
         try:
@@ -193,27 +189,68 @@ def project_speaker_refs(
     segments: tuple[RecognizedSegment, ...],
     turns: tuple[SpeakerTurn, ...],
 ) -> tuple[RecognizedSegment, ...]:
-    """Attach a speaker only when one unique diarized speaker overlaps a segment.
+    """Project diarization onto the finest trustworthy timing evidence available.
 
-    The exact speaker-turn timeline remains the primary diarization evidence. A text
-    segment that crosses a speaker change or overlapping speech stays unattributed
-    until a finer alignment capability can split the text defensibly.
+    With aligned words, each word receives a speaker only when exactly one diarized
+    speaker overlaps that word. The enclosing ASR segment receives a speaker only when
+    every aligned word is attributed to the same speaker. Without word evidence, the
+    original conservative whole-segment behavior remains in place.
     """
     projected: list[RecognizedSegment] = []
     for segment in segments:
-        if segment.speaker_ref is not None:
+        words = aligned_words(segment)
+        if segment.speaker_ref is not None or any(
+            word.speaker_ref is not None for word in words
+        ):
             raise ValueError("speaker projection refuses to overwrite existing labels")
-        speakers = {
-            turn.speaker_ref for turn in turns if _overlap_seconds(segment, turn) > 0
-        }
-        speaker_ref = next(iter(speakers)) if len(speakers) == 1 else None
+
+        if words:
+            projected_words = tuple(
+                replace(
+                    word,
+                    speaker_ref=_speaker_for_interval(
+                        word.start_seconds, word.end_seconds, turns
+                    ),
+                )
+                for word in words
+            )
+            speaker_refs = {word.speaker_ref for word in projected_words}
+            speaker_ref = (
+                next(iter(speaker_refs))
+                if len(speaker_refs) == 1 and None not in speaker_refs
+                else None
+            )
+            projected.append(
+                replace(segment, words=projected_words, speaker_ref=speaker_ref)
+            )
+            continue
+
+        speaker_ref = _speaker_for_interval(
+            segment.start_seconds, segment.end_seconds, turns
+        )
         projected.append(replace(segment, speaker_ref=speaker_ref))
     return tuple(projected)
 
 
-def _overlap_seconds(segment: RecognizedSegment, turn: SpeakerTurn) -> float:
+def _speaker_for_interval(
+    start_seconds: float,
+    end_seconds: float,
+    turns: tuple[SpeakerTurn, ...],
+) -> str | None:
+    speakers = {
+        turn.speaker_ref
+        for turn in turns
+        if _overlap_seconds(start_seconds, end_seconds, turn) > 0
+    }
+    return next(iter(speakers)) if len(speakers) == 1 else None
+
+
+def _overlap_seconds(
+    start_seconds: float,
+    end_seconds: float,
+    turn: SpeakerTurn,
+) -> float:
     return max(
         0.0,
-        min(segment.end_seconds, turn.end_seconds)
-        - max(segment.start_seconds, turn.start_seconds),
+        min(end_seconds, turn.end_seconds) - max(start_seconds, turn.start_seconds),
     )

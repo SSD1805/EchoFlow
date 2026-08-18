@@ -11,6 +11,7 @@ from rich.table import Table
 from rich.text import Text
 
 from echoflow.app.app_container import AppContainer
+from echoflow.cli_research import register_research_commands
 from echoflow.cli_speakers import register_speaker_commands
 from echoflow.core.errors import EchoFlowError
 from echoflow.library.evidence import (
@@ -24,7 +25,12 @@ from echoflow.library.index import (
     SearchQuery,
     SearchSort,
 )
-from echoflow.library.research import LocatedSearchPassage, ResearchSearchResponse
+from echoflow.library.research import LocatedSearchPassage
+from echoflow.library.research_workspace import (
+    ResearchQueryFilters,
+    WorkspaceSearchPassage,
+    WorkspaceSearchResponse,
+)
 from echoflow.library.retrieval import RetrievalMode
 from echoflow.library.semantic import EmbeddingProfile, SemanticState
 from echoflow.library.service import (
@@ -158,8 +164,20 @@ def _located_dict(result: LocatedSearchPassage) -> dict[str, object]:
     }
 
 
-def _response_dict(response: ResearchSearchResponse) -> dict[str, object]:
-    retrieval = response.retrieval
+def _workspace_result_dict(result: WorkspaceSearchPassage) -> dict[str, object]:
+    return {
+        **_located_dict(result.located),
+        "research_state": {
+            "note_ids": list(result.research.note_ids),
+            "note_count": result.research.note_count,
+            "tags": list(result.research.tags),
+            "collections": list(result.research.collections),
+        },
+    }
+
+
+def _response_dict(response: WorkspaceSearchResponse) -> dict[str, object]:
+    retrieval = response.navigation.retrieval
     query = retrieval.query
     return {
         "query": {
@@ -171,6 +189,12 @@ def _response_dict(response: ResearchSearchResponse) -> dict[str, object]:
             "document_ids": list(query.document_ids),
             "sort": query.sort.value,
             "limit": query.limit,
+        },
+        "research_filter": {
+            "tags": list(response.filters.tags),
+            "collections": list(response.filters.collections),
+            "note_text": response.filters.note_text,
+            "with_notes": response.filters.with_notes,
         },
         "retrieval": {
             "mode": retrieval.mode.value,
@@ -184,7 +208,7 @@ def _response_dict(response: ResearchSearchResponse) -> dict[str, object]:
             "fusion_profile": retrieval.fusion_profile,
         },
         "result_count": len(response.results),
-        "results": [_located_dict(item) for item in response.results],
+        "results": [_workspace_result_dict(item) for item in response.results],
     }
 
 
@@ -262,32 +286,40 @@ def _render_context(result: LocatedSearchPassage) -> Text:
     return rendered
 
 
-def _render_response(response: ResearchSearchResponse, console: Console) -> None:
-    retrieval = response.retrieval
+def _research_summary(result: WorkspaceSearchPassage) -> str:
+    lines: list[str] = []
+    if result.research.note_count:
+        suffix = "note" if result.research.note_count == 1 else "notes"
+        lines.append(f"{result.research.note_count} {suffix}")
+    if result.research.tags:
+        lines.append("# " + ", ".join(result.research.tags))
+    if result.research.collections:
+        lines.append("in " + ", ".join(result.research.collections))
+    return "\n".join(lines) or "—"
+
+
+def _render_response(response: WorkspaceSearchResponse, console: Console) -> None:
+    retrieval = response.navigation.retrieval
     table = Table(
         title=(
             f"EchoFlow {retrieval.mode.value} evidence search: "
             f"{len(response.results)} result(s)"
         )
     )
-    table.add_column("Recording")
+    table.add_column("Recording", min_width=13, no_wrap=True)
     table.add_column("Evidence time", min_width=12, no_wrap=True)
-    table.add_column("Speaker")
-    table.add_column("Language")
-    table.add_column("Ranks")
+    table.add_column("Speaker", min_width=10, no_wrap=True)
+    table.add_column("Research", min_width=11)
     table.add_column("Passage + context")
-    for result in response.results:
+    for workspace_result in response.results:
+        result = workspace_result.located
         passage = result.passage
-        recording = (
+        recording_name = (
             passage.document_id
             if passage.source_path is None
             else Path(passage.source_path).name
         )
-        ranks = (
-            f"L:{passage.lexical_rank or '-'} "
-            f"S:{passage.semantic_rank or '-'} "
-            f"F:{passage.fused_rank or '-'}"
-        )
+        recording = f"{recording_name}\n{passage.document_id}"
         if result.evidence.matched_words:
             start = result.evidence.matched_words[0].start_seconds
             end = result.evidence.matched_words[-1].end_seconds
@@ -301,8 +333,7 @@ def _render_response(response: ResearchSearchResponse, console: Console) -> None
             recording,
             time_range,
             ", ".join(item.display_name for item in result.speakers) or "unknown",
-            ", ".join(passage.languages) or "unknown",
-            ranks,
+            _research_summary(workspace_result),
             _render_context(result),
         )
     console.print(table)
@@ -420,6 +451,10 @@ def _search_library(
     speakers: tuple[str, ...],
     languages: tuple[str, ...],
     documents: tuple[str, ...],
+    tags: tuple[str, ...],
+    collections: tuple[str, ...],
+    note_text: str | None,
+    with_notes: bool,
     sort: SearchSort,
     mode: RetrievalMode,
     limit: int,
@@ -438,10 +473,21 @@ def _search_library(
             sort=sort,
             limit=limit,
         )
+        filters = ResearchQueryFilters(
+            tags=tags,
+            collections=collections,
+            note_text=note_text,
+            with_notes=with_notes,
+        )
         response = (
             container_factory(_root_context(context))
-            .research_navigation()
-            .search(query, mode=mode, context_segments=context_segments)
+            .research_workspace()
+            .search(
+                query,
+                filters=filters,
+                mode=mode,
+                context_segments=context_segments,
+            )
         )
     except Exception as exc:
         _handle_error(exc)
@@ -524,7 +570,7 @@ def register_library_commands(
     app: typer.Typer, container_factory: ContainerFactory
 ) -> None:
     library_app = typer.Typer(
-        help="Search and inspect the rebuildable local transcript library.",
+        help="Search and inspect the local transcript research library.",
         invoke_without_command=True,
         no_args_is_help=False,
     )
@@ -588,6 +634,14 @@ def register_library_commands(
         speakers: Annotated[list[str] | None, typer.Option("--speaker")] = None,
         languages: Annotated[list[str] | None, typer.Option("--language")] = None,
         documents: Annotated[list[str] | None, typer.Option("--transcript")] = None,
+        tags: Annotated[list[str] | None, typer.Option("--tag")] = None,
+        collections: Annotated[list[str] | None, typer.Option("--collection")] = None,
+        note_text: str | None = typer.Option(
+            None, "--note-text", help="Require all lexical terms in your notes."
+        ),
+        with_notes: bool = typer.Option(
+            False, "--with-notes", help="Only return evidence with durable notes."
+        ),
         sort: Annotated[SearchSort, typer.Option("--sort")] = SearchSort.RELEVANCE,
         mode: Annotated[
             RetrievalMode,
@@ -614,6 +668,10 @@ def register_library_commands(
             speakers=tuple(speakers or ()),
             languages=tuple(languages or ()),
             documents=tuple(documents or ()),
+            tags=tuple(tags or ()),
+            collections=tuple(collections or ()),
+            note_text=note_text,
+            with_notes=with_notes,
             sort=sort,
             mode=mode,
             limit=limit,
@@ -677,4 +735,5 @@ def register_library_commands(
 
     library_app.add_typer(embeddings_app, name="embeddings")
     register_speaker_commands(library_app, container_factory)
+    register_research_commands(library_app, container_factory)
     app.add_typer(library_app, name="library")

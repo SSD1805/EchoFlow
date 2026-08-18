@@ -38,10 +38,16 @@ jobs:
       - name: Import optional CPU engine
         run: uv run python -c "import faster_whisper; print(faster_whisper.__version__)"
 
+      # ubuntu-latest ships Linuxbrew, while the Azure apt mirror has repeatedly
+      # timed out while fetching ffmpeg's dependency set. Use the runner-provided
+      # package manager and keep the install bounded; the next step still verifies
+      # that both required executables are actually available.
       - name: Install native media tools
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes ffmpeg
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          timeout 240s brew install ffmpeg
+          echo "/home/linuxbrew/.linuxbrew/bin" >> "$GITHUB_PATH"
 
       - name: Verify native media tools
         run: >-

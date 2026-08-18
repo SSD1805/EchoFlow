@@ -18,6 +18,11 @@ _SEARCH_SQL_PREFIX = """
     WITH query_terms AS (
         SELECT UNNEST(?::VARCHAR[]) AS term
     ),
+    evidence_scope AS (
+        SELECT UNNEST(?::VARCHAR[]) AS document_id,
+               UNNEST(?::VARCHAR[]) AS canonical_sha256,
+               UNNEST(?::VARCHAR[]) AS segment_id
+    ),
     corpus AS (
         SELECT COUNT(*)::DOUBLE AS segment_count,
                COALESCE(AVG(token_count), 0)::DOUBLE AS average_length
@@ -62,6 +67,14 @@ _SEARCH_SQL_PREFIX = """
       AND (? = FALSE OR list_contains(?::VARCHAR[], s.speaker_ref))
       AND (? = FALSE OR list_contains(?::VARCHAR[], s.language))
       AND (? = FALSE OR list_contains(?::VARCHAR[], s.document_id))
+      AND (
+          ? = FALSE OR EXISTS (
+              SELECT 1 FROM evidence_scope requested
+              WHERE requested.document_id = s.document_id
+                AND requested.canonical_sha256 = d.canonical_sha256
+                AND requested.segment_id = s.segment_id
+          )
+      )
 """
 _RELEVANCE_SEARCH_SQL = (
     _SEARCH_SQL_PREFIX
@@ -284,10 +297,17 @@ class DuckDbTranscriptIndex:
             if query.sort is SearchSort.TIMELINE
             else _RELEVANCE_SEARCH_SQL
         )
+        scope = query.evidence_scope
+        scope_documents = [] if scope is None else [key[0] for key in scope]
+        scope_hashes = [] if scope is None else [key[1] for key in scope]
+        scope_segments = [] if scope is None else [key[2] for key in scope]
         rows = self._connection.execute(
             sql,
             [
                 list(tokens),
+                scope_documents,
+                scope_hashes,
+                scope_segments,
                 required_terms,
                 query.phrase,
                 query.text.strip().casefold(),
@@ -297,6 +317,7 @@ class DuckDbTranscriptIndex:
                 list(query.languages),
                 bool(query.document_ids),
                 list(query.document_ids),
+                scope is not None,
                 query.limit,
             ],
         ).fetchall()

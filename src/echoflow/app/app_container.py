@@ -17,13 +17,17 @@ from echoflow.core.logger import configure_logging
 from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.library.duckdb_index import DuckDbTranscriptIndex
+from echoflow.library.duckdb_research_projection import DuckDbResearchProjection
 from echoflow.library.duckdb_semantic import DuckDbSemanticIndex
 from echoflow.library.evidence import EvidenceLocator
 from echoflow.library.research import ResearchNavigationService
+from echoflow.library.research_projector import ResearchStateProjector
+from echoflow.library.research_workspace import ResearchWorkspaceService
 from echoflow.library.semantic import EmbeddingProfile, SentenceTransformersE5Provider
 from echoflow.library.service import TranscriptLibraryService
 from echoflow.library.speaker_label_service import SpeakerLabelService
 from echoflow.library.speaker_labels import SpeakerLabelStore
+from echoflow.library.sqlite_research_state import SqliteResearchStateStore
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.media.selection import AudioStreamSelector
 from echoflow.model_management.catalog import faster_whisper_model_catalog
@@ -149,6 +153,24 @@ def _create_speaker_label_store(
     )
 
 
+def _create_research_state_store(
+    config: AppConfig, file_manager: FileManagerFacade
+) -> SqliteResearchStateStore:
+    return SqliteResearchStateStore(
+        config.STATE_DIR / "library" / "user-state" / "research.sqlite3",
+        file_manager,
+    )
+
+
+def _create_research_projection(
+    config: AppConfig, file_manager: FileManagerFacade
+) -> DuckDbResearchProjection:
+    return DuckDbResearchProjection(
+        config.STATE_DIR / "library" / "projections" / "research.duckdb",
+        file_manager,
+    )
+
+
 def _restore_embedding_provider(
     profile: EmbeddingProfile,
 ) -> SentenceTransformersE5Provider:
@@ -251,6 +273,21 @@ class AppContainer(containers.DeclarativeContainer):
         store=speaker_label_store,
         file_manager=file_manager,
     )
+    research_state_store = providers.Singleton(
+        _create_research_state_store,
+        config=config,
+        file_manager=file_manager,
+    )
+    research_projection = providers.Singleton(
+        _create_research_projection,
+        config=config,
+        file_manager=file_manager,
+    )
+    research_projector = providers.Singleton(
+        ResearchStateProjector,
+        store=research_state_store,
+        projection=research_projection,
+    )
     semantic_embedding_provider = providers.Factory(SentenceTransformersE5Provider)
     embedding_provider_factory = providers.Object(_restore_embedding_provider)
     transcript_library = providers.Singleton(
@@ -268,6 +305,15 @@ class AppContainer(containers.DeclarativeContainer):
         transcript_library=transcript_library,
         evidence_locator=evidence_locator,
         speaker_labels=speaker_labels,
+    )
+    research_workspace = providers.Singleton(
+        ResearchWorkspaceService,
+        transcript_library=transcript_library,
+        evidence_locator=evidence_locator,
+        navigation=research_navigation,
+        state=research_state_store,
+        projection=research_projection,
+        projector=research_projector,
     )
     checkpoint_store = providers.Factory(
         LocalCheckpointStore, file_manager=file_manager

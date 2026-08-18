@@ -105,6 +105,7 @@ class SearchQuery:
     document_ids: tuple[str, ...] = ()
     sort: SearchSort = SearchSort.RELEVANCE
     limit: int = 100
+    evidence_scope: tuple[tuple[str, str, str], ...] | None = None
 
     def __post_init__(self) -> None:
         if not self.text.strip():
@@ -120,6 +121,17 @@ class SearchQuery:
                 raise ValueError(f"{name} cannot contain empty values")
             if len(values) != len(set(values)):
                 raise ValueError(f"{name} cannot contain duplicates")
+        self._validate_evidence_scope()
+
+    def _validate_evidence_scope(self) -> None:
+        if self.evidence_scope is None:
+            return
+        if len(self.evidence_scope) != len(set(self.evidence_scope)):
+            raise ValueError("evidence_scope cannot contain duplicates")
+        for document_id, canonical_sha256, segment_id in self.evidence_scope:
+            if not document_id.strip() or not segment_id.strip():
+                raise ValueError("evidence_scope identities cannot be empty")
+            _validate_sha256("evidence_scope canonical_sha256", canonical_sha256)
 
 
 @dataclass(frozen=True, slots=True)

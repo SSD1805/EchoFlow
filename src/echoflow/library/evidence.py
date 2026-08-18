@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.library.errors import EvidenceNavigationError
+from echoflow.library.index import IndexedDocument
 from echoflow.library.retrieval import SearchPassage, SearchResponse
 from echoflow.library.text import lexical_tokens
 
@@ -126,11 +127,109 @@ class EvidenceLocation:
             raise ValueError("seek coordinate must remain inside result evidence")
 
 
+@dataclass(frozen=True, slots=True)
+class EvidenceAnchor:
+    """Durable user-state reference to one contiguous canonical evidence span."""
+
+    document_id: str
+    source_sha256: str
+    canonical_sha256: str
+    canonical_path: str
+    source_path: str | None
+    segment_ids: tuple[str, ...]
+    start_seconds: float
+    end_seconds: float
+
+    def __post_init__(self) -> None:
+        if not self.document_id.strip():
+            raise ValueError("evidence anchor document_id cannot be empty")
+        if not self.segment_ids or any(not item.strip() for item in self.segment_ids):
+            raise ValueError("evidence anchor requires non-empty segment IDs")
+        if len(self.segment_ids) != len(set(self.segment_ids)):
+            raise ValueError("evidence anchor segment IDs cannot repeat")
+        for name, digest in (
+            ("source_sha256", self.source_sha256),
+            ("canonical_sha256", self.canonical_sha256),
+        ):
+            if len(digest) != 64 or any(
+                character not in "0123456789abcdef" for character in digest
+            ):
+                raise ValueError(f"{name} must be a lowercase 64-character digest")
+        if not self.canonical_path.strip():
+            raise ValueError("evidence anchor canonical path cannot be empty")
+        if self.start_seconds < 0 or self.end_seconds < self.start_seconds:
+            raise ValueError(
+                "evidence anchor timestamps must be ordered and non-negative"
+            )
+
+
 class EvidenceLocator:
     """Verify canonical custody, expand context, and resolve justified word highlights."""
 
     def __init__(self, file_manager: FileManagerFacade) -> None:
         self.file_manager = file_manager
+
+    def resolve_anchor(
+        self,
+        document: IndexedDocument,
+        segment_ids: tuple[str, ...],
+        *,
+        start_seconds: float | None = None,
+        end_seconds: float | None = None,
+    ) -> EvidenceAnchor:
+        """Resolve user-selected segment IDs to one verified canonical evidence anchor."""
+        if not segment_ids:
+            raise ValueError("an evidence anchor requires at least one segment")
+        if len(segment_ids) != len(set(segment_ids)):
+            raise ValueError("evidence anchor segment IDs cannot repeat")
+        canonical_sha256 = document.canonical_sha256
+        if canonical_sha256 is None:
+            raise EvidenceNavigationError(
+                "Transcript index predates canonical hashing; rebuild the library before annotating evidence"
+            )
+        canonical = self._load_canonical_identity(
+            canonical_path=document.canonical_path,
+            canonical_sha256=canonical_sha256,
+            document_id=document.document_id,
+            source_sha256=document.source_sha256,
+        )
+        by_id = {
+            segment.segment_id: index
+            for index, segment in enumerate(canonical.segments)
+        }
+        try:
+            indices = tuple(by_id[item] for item in segment_ids)
+        except KeyError as exc:
+            raise EvidenceNavigationError(
+                "Annotation references canonical evidence that no longer exists"
+            ) from exc
+        if indices != tuple(range(indices[0], indices[0] + len(indices))):
+            raise EvidenceNavigationError(
+                "Annotation evidence segments must be contiguous and in canonical order"
+            )
+        segments = tuple(canonical.segments[index] for index in indices)
+        evidence_start = segments[0].start_seconds
+        evidence_end = segments[-1].end_seconds
+        resolved_start = evidence_start if start_seconds is None else start_seconds
+        resolved_end = evidence_end if end_seconds is None else end_seconds
+        if (
+            resolved_start < evidence_start - 1e-6
+            or resolved_end > evidence_end + 1e-6
+            or resolved_end < resolved_start
+        ):
+            raise EvidenceNavigationError(
+                "Annotation timing must remain inside its canonical evidence segments"
+            )
+        return EvidenceAnchor(
+            document_id=document.document_id,
+            source_sha256=document.source_sha256,
+            canonical_sha256=canonical_sha256,
+            canonical_path=document.canonical_path,
+            source_path=document.source_path,
+            segment_ids=segment_ids,
+            start_seconds=resolved_start,
+            end_seconds=resolved_end,
+        )
 
     def locate_response(
         self,
@@ -343,8 +442,23 @@ class EvidenceLocator:
         passage: SearchPassage,
         canonical_sha256: str,
     ) -> _CanonicalTranscript:
+        return self._load_canonical_identity(
+            canonical_path=passage.canonical_path,
+            canonical_sha256=canonical_sha256,
+            document_id=passage.document_id,
+            source_sha256=passage.source_sha256,
+        )
+
+    def _load_canonical_identity(
+        self,
+        *,
+        canonical_path: str,
+        canonical_sha256: str,
+        document_id: str,
+        source_sha256: str,
+    ) -> _CanonicalTranscript:
         try:
-            payload = self.file_manager.read_file(Path(passage.canonical_path))
+            payload = self.file_manager.read_file(Path(canonical_path))
             if len(payload) > _MAX_CANONICAL_BYTES:
                 raise EvidenceNavigationError(
                     "Canonical transcript is too large to navigate safely"
@@ -358,11 +472,11 @@ class EvidenceLocator:
                 raise EvidenceNavigationError(
                     "Canonical transcript schema is unsupported by this EchoFlow build"
                 )
-            if canonical.job_id != passage.document_id:
+            if canonical.job_id != document_id:
                 raise EvidenceNavigationError(
                     "Canonical transcript identity does not match the search result"
                 )
-            if canonical.source.sha256 != passage.source_sha256:
+            if canonical.source.sha256 != source_sha256:
                 raise EvidenceNavigationError(
                     "Canonical source identity does not match the search result"
                 )

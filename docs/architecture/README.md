@@ -26,6 +26,10 @@ flowchart LR
     X --> C[Canonical transcript]
     C --> E[Derived exports]
     C --> L[Rebuildable search projections]
+    L --> S[Ranked search passages]
+    C --> N[Verified evidence navigation]
+    S --> N
+    U[User-authored state] --> N
 
     classDef evidence fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef compute fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
@@ -36,26 +40,26 @@ flowchart LR
     class A,C evidence
     class M,R,P compute
     class X process
-    class E publish
-    class L result
+    class E,U publish
+    class L,S,N result
 ```
 
 The architectural through-line is custody: source evidence and canonical transcript
-truth remain distinguishable from temporary execution state, model dependencies, and
-rebuildable search infrastructure.
+truth remain distinguishable from temporary execution state, model dependencies,
+rebuildable search infrastructure, and durable user-authored knowledge.
 
 ## Where to look
 
 | Page | What question it answers |
 |---|---|
-| [Processing capabilities](processing-capabilities.md) | How does the whole local transcription system fit together? |
+| [Processing capabilities](processing-capabilities.md) | How does the whole local transcription/research system fit together? |
 | [Adaptive heterogeneous execution](adaptive-heterogeneous-execution.md) | How does EchoFlow decide what this machine can safely run? |
 | [Media and timeline](media-and-timeline.md) | What source did we inspect, which audio stream did we use, and what do timestamps mean? |
 | [Word-level timestamp alignment](word-alignment.md) | How do engine-produced word timings become source-relative evidence and improve speaker handoffs? |
 | [Local model management](model-management.md) | Which model revision is allowed to execute, and how did it get here? |
 | [Speech enhancement](speech-enhancement.md) | How can preprocessing affect ASR without becoming source truth? |
 | [Anonymous speaker diarization](diarization.md) | How are speaker turns represented without pretending anonymous labels are identities? |
-| [Corpus search](corpus-search.md) | How does canonical evidence become lexical/semantic/hybrid retrieval without becoming database-owned? |
+| [Corpus search](corpus-search.md) | How do lexical/semantic/hybrid ranking and verified canonical navigation stay separate? |
 | [ROADMAP](../../ROADMAP.md) | What is implemented, what is next, and what remains research? |
 | [SECURITY](../../SECURITY.md) | What does the security boundary actually claim? |
 
@@ -74,7 +78,7 @@ rebuildable search infrastructure.
 | `transcription` | Planning, normalization, enhancement, segmentation, ASR, checkpoints, language attribution, word alignment, diarization, assembly, exports |
 | `workspace` | Private job paths and public artifact allocation |
 | `benchmarking` | Privacy-minimized local execution measurement |
-| `library` | Evidence-first lexical/semantic retrieval over rebuildable transcript projections |
+| `library` | Lexical/semantic retrieval, canonical evidence navigation, speaker presentation, and durable library-side user state |
 
 A couple of names are easy to misread. `runner` means the local compute environment
 available to the process; it is not a distributed task runner. `media.probe` performs
@@ -90,6 +94,15 @@ serialization are valuable. Small internal immutable values generally use frozen
 dataclasses. Services use narrow `Protocol` capabilities when substitution is real and
 useful for testing or multiple implementations.
 
+The search/research area now has three deliberately separate authorities:
+
+1. retrieval services rank rebuildable passages;
+2. canonical evidence navigation verifies and locates those passages; and
+3. user-state services provide durable human-authored labels without rewriting evidence.
+
+That split should survive the GUI. Presentation convenience is not permission to merge
+custody boundaries.
+
 Structlog remains behind `core.observability.ILogger`; application services should not
 need to import Structlog directly.
 
@@ -101,12 +114,13 @@ These rules are load-bearing:
 2. **Canonical transcript/checkpoint artifacts carry execution truth.**
 3. **Managed model manifests describe verified local execution dependencies.**
 4. **Lexical and semantic databases are derived, private, and rebuildable.**
-5. **Future user-authored notes, labels, tags, collections, and annotations must not
+5. **User-authored speaker labels, and future notes/tags/collections/annotations, do not
    share deletion semantics with rebuildable indexes.**
-6. **A convenience layer may not quietly become the only place unique evidence lives.**
+6. **Precise navigation must resolve back to verified canonical evidence rather than
+   trusting a stale search projection.**
+7. **A convenience layer may not quietly become the only place unique evidence lives.**
 
-That fifth rule matters more as the product becomes a research library. Search
-infrastructure is allowed to disappear. User-authored knowledge is not.
+Search infrastructure is allowed to disappear. User-authored knowledge is not.
 
 ## New abstraction test
 

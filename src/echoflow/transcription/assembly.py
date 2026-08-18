@@ -2,7 +2,11 @@ import math
 from collections.abc import Sequence
 from dataclasses import replace
 
-from echoflow.transcription.alignment import AlignedWord, aligned_words
+from echoflow.transcription.alignment import (
+    AlignedRecognizedSegment,
+    AlignedWord,
+    aligned_words,
+)
 from echoflow.transcription.errors import TranscriptionError
 from echoflow.transcription.models import (
     AudioSegmentWindow,
@@ -118,25 +122,27 @@ class TranscriptAssembler:
             else:
                 end_seconds = window.start_seconds + segment.end_seconds
 
-            words = tuple(
-                cls._rebase_word(word, window) for word in aligned_words(segment)
+            if isinstance(segment, AlignedRecognizedSegment):
+                aligned_rebased = replace(
+                    segment,
+                    index=len(output),
+                    start_seconds=start_seconds,
+                    end_seconds=end_seconds,
+                    words=tuple(
+                        cls._rebase_word(word, window)
+                        for word in aligned_words(segment)
+                    ),
+                )
+                output.append(aligned_rebased)
+                continue
+
+            base_rebased = replace(
+                segment,
+                index=len(output),
+                start_seconds=start_seconds,
+                end_seconds=end_seconds,
             )
-            if words:
-                rebased = replace(
-                    segment,
-                    index=len(output),
-                    start_seconds=start_seconds,
-                    end_seconds=end_seconds,
-                    words=words,
-                )
-            else:
-                rebased = replace(
-                    segment,
-                    index=len(output),
-                    start_seconds=start_seconds,
-                    end_seconds=end_seconds,
-                )
-            output.append(rebased)
+            output.append(base_rebased)
 
     @staticmethod
     def _rebase_word(word: AlignedWord, window: AudioSegmentWindow) -> AlignedWord:

@@ -38,6 +38,8 @@ searchable evidence corpus.
 | Find an exact phrase later | builds a private local lexical/BM25 transcript library |
 | Find an idea even when the wording changed | supports optional local semantic retrieval |
 | Get the best of both search styles | combines lexical and semantic results with inspectable reciprocal-rank fusion |
+| Stop calculating giant second counts | renders source-relative evidence as human `HH:MM:SS.mmm` coordinates while keeping numeric seconds authoritative |
+| Preserve camera/container time clues | records source-declared `timecode` and `creation_time` tags with format/stream provenance when present |
 | Verify where a result came from | carries timestamps, speakers/languages, hashes, canonical coordinates, and retrieval provenance |
 
 That is a lot of machinery. The point is not to make you operate the machinery. The
@@ -51,6 +53,14 @@ Start with **[Getting started](getting-started.md)**.
 
 It walks through installation, model setup, transcription, resume, exports, and search
 without requiring an architecture degree.
+
+### 🕰️ I want to understand transcript time and jumping around
+
+Read **[Transcript time without calculator gymnastics](time-navigation.md)**.
+
+It explains what word timestamps buy you, why `4788.37` seconds becomes
+`01:19:48.370`, how future click-to-seek and notes should anchor to evidence, and why a
+camera's embedded timecode is a different clock.
 
 ### 🔎 I want to search my transcripts
 
@@ -147,16 +157,19 @@ The backend is now broad enough that the next work is less about inventing a
 transcription engine and more about making evidence easier to navigate and the product
 easier to enter.
 
-The likely evidence-navigation sequence is:
+The evidence-navigation sequence has advanced:
 
-1. **word/timestamp alignment**, so highlighting, speaker attribution, annotations, and
-   jump-to-audio can use finer coordinates;
-2. **original-media timecode and capture-time provenance**, so source-relative seconds
-   can coexist with container/SMPTE/device time when the source provides it;
-3. **better speaker UX**, including user-assigned display labels for anonymous speakers
-   and better presentation of overlap; and
-4. **later, source separation for overlapping speech**, only after the simpler temporal
-   evidence model is strong enough to justify the additional compute and uncertainty.
+1. **word/timestamp alignment** is now in the foundation, so canonical evidence has
+   finer word coordinates;
+2. **human elapsed time + original-media temporal provenance** now makes those
+   coordinates readable and preserves source-declared time clues without conflating
+   clocks;
+3. **better speaker UX** is next, including user-assigned display labels for anonymous
+   speakers and better presentation of overlap;
+4. **aligned research-navigation UX** can then exploit the same coordinates for
+   highlighting, click-to-audio, durable notes, and annotations; and
+5. **later, source separation for overlapping speech** remains a measured capability,
+   not a premature checkbox.
 
 Packaging, installers, and a thin graphical interface remain important for ordinary
 non-developer use. The architecture is already intentionally arranged so those can sit

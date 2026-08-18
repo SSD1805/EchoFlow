@@ -63,6 +63,12 @@ The current media foundation includes:
 - exact integer-frame work windows and source-relative segment timestamps;
 - faster-whisper native per-word timestamp evidence rebased onto that same source
   timeline;
+- deterministic human elapsed presentation as unwrapped `HH:MM:SS.mmm` while numeric
+  source-relative seconds remain authoritative;
+- preservation of source-declared `timecode` and `creation_time` metadata at format and
+  stream scope when FFprobe reports it;
+- explicit provenance for conflicting source time declarations instead of silently
+  choosing one;
 - optional deterministic FFmpeg noise suppression;
 - timeline-preservation checks around enhanced audio; and
 - provenance recording for preprocessing that affected ASR input.
@@ -70,6 +76,15 @@ The current media foundation includes:
 Word alignment is part of the current faster-whisper execution/checkpoint contract. It
 preserves engine-produced timing rather than claiming an independent forced-alignment
 pass.
+
+Human elapsed strings are derived views, not durable evidence anchors. Source-declared
+timecode/capture metadata is parallel provenance, not a replacement for canonical
+elapsed time and not part of checkpoint source identity.
+
+The current time-provenance implementation deliberately does **not** perform SMPTE frame
+arithmetic, resolve drop-frame semantics, preserve every PTS/DTS origin, or infer
+cross-device synchronization. Those require qualified source semantics rather than
+optimistic string arithmetic.
 
 The original recording remains read-only evidence. Normalized/enhanced WAV files remain
 private derived processing material.
@@ -123,13 +138,13 @@ EchoFlow fails closed before pyannote execution/acquisition while that gate is a
 Canonical JSON is authoritative transcript evidence.
 
 It carries source and execution provenance, source-relative segment and word timestamps,
-language evidence, optional enhancement provenance, and optional speaker-turn/word
-speaker evidence.
+source-declared temporal tags when present, language evidence, optional enhancement
+provenance, and optional speaker-turn/word speaker evidence.
 
 TXT, SRT, and WebVTT remain deterministic segment-oriented publication views that can be
 regenerated without rerunning recognition. More expressive intra-segment speaker
-presentation belongs to the later speaker-UX tranche rather than being smuggled into the
-alignment work.
+presentation belongs to the speaker-UX tranche rather than being smuggled into timing
+work.
 
 ### Transcript library and retrieval
 
@@ -147,7 +162,9 @@ The local library now includes:
 - private numeric semantic vectors;
 - exact local dense similarity with hard filters before top-K;
 - reciprocal-rank hybrid BM25 + dense retrieval;
-- one evidence-bearing `SearchResponse` with lexical/semantic/fused ranks; and
+- one evidence-bearing `SearchResponse` with lexical/semantic/fused ranks;
+- human search-result time ranges such as `01:19:48.370–01:19:51.125` while JSON keeps
+  numeric seconds and exposes derived timestamp conveniences; and
 - corpus-fingerprint stale-vector refusal when canonical transcript bytes change.
 
 Nested word timing is additional canonical evidence. Current lexical/semantic projection
@@ -193,37 +210,12 @@ into a research library.
 
 # Near-term product sequence
 
-Word timing now gives EchoFlow a finer canonical evidence coordinate below the ASR
-segment. The next features should **add source clocks, improve how humans see speaker
-evidence, and then exploit those coordinates in the research workspace** before heavier
-source-separation machinery arrives.
+Word timing and human/source time provenance now give EchoFlow a finer canonical evidence
+coordinate and a sane way to present it. The next work should make speaker evidence
+legible to humans, then exploit the same coordinates in the research workspace before
+heavier source-separation machinery arrives.
 
-## 1. Original-media timecode and capture-time provenance
-
-EchoFlow currently exposes one clear canonical clock: elapsed source-relative seconds
-from the selected audio origin.
-
-That should remain stable.
-
-The next provenance layer should preserve additional clocks when the input actually
-contains them:
-
-- non-zero container/stream presentation origins;
-- SMPTE timecode;
-- stream start-time offsets;
-- camera/device capture timestamps;
-- timezone/offset metadata when trustworthy; and
-- explicit synchronization relationships between sources when known.
-
-These should be typed parallel provenance, not collapsed into an ambiguous `timestamp`
-field.
-
-The design should distinguish “metadata exists” from “metadata is trustworthy enough to
-map onto the transcript.” Word timing should remain expressed in canonical elapsed time,
-with additional media clocks providing mappings rather than replacing that coordinate
-system.
-
-## 2. Better speaker UX: overlap + user-assigned display labels
+## 1. Better speaker UX: overlap + user-assigned display labels
 
 Anonymous diarization evidence should remain anonymous-by-default and recording-scoped.
 
@@ -248,24 +240,29 @@ to a human:
 - let users assign display labels over stable anonymous refs; and
 - keep those labels durable and separate from rebuildable indexes.
 
-## 3. Search/research workspace UX over aligned coordinates
+## 2. Search/research workspace UX over aligned coordinates
 
-The retrieval engine now supports lexical, semantic, and hybrid ranking, while canonical
-transcripts now have finer word timing coordinates. Real corpus use should drive the next
-interface layer:
+The retrieval engine supports lexical, semantic, and hybrid ranking, while canonical
+transcripts now have word timing and human elapsed coordinates. Real corpus use should
+drive the next interface layer:
 
 - exact phrase/word highlighting inside a retrieved passage;
 - result-context expansion;
 - facets;
 - exportable result sets;
-- precise jump-to-audio;
+- precise jump-to-audio/video using numeric source-relative seconds;
 - saved searches/collections; and
-- durable tags, notes, and annotations anchored to durable evidence coordinates.
+- durable tags, notes, and annotations anchored to source identity plus durable canonical
+  evidence coordinates.
 
 The ownership rule is non-negotiable: user-authored state does not share deletion
 semantics with rebuildable indexes.
 
-## 4. Qualify semantic dependency and managed embedding custody
+A display string such as `01:19:48.370` is a convenience, not the annotation anchor.
+Likewise, a semantic chunk ID is rebuildable and must not become the only location of a
+user note.
+
+## 3. Qualify semantic dependency and managed embedding custody
 
 Before semantic search is advertised as a normal source install, qualify a locked
 optional semantic dependency set.
@@ -283,7 +280,7 @@ Target direction:
 
 Do not bypass `uv.lock` coherence to make the feature look more finished.
 
-## 5. Representative-device and enhancement qualification
+## 4. Representative-device and enhancement qualification
 
 Collect repeated benchmark evidence from at least:
 
@@ -299,18 +296,36 @@ embedding build cost, and semantic-query latency.
 
 Calibrate from measurements, not hardware marketing names.
 
+## 5. Deeper original-media clock qualification only when needed
+
+The current implementation preserves source-declared format/stream `timecode` and
+`creation_time` tags and keeps them distinct from canonical elapsed seconds.
+
+If real recordings require deterministic mapping to production/media clocks, extend that
+foundation with qualified evidence rather than guessing. Candidate work includes:
+
+- non-zero stream/container start-time or PTS/DTS origins;
+- exact rational frame rates and nominal timecode rates;
+- drop-frame/non-drop-frame semantics;
+- deterministic SMPTE-to-elapsed mappings;
+- timezone/offset normalization only when actually encoded; and
+- explicit synchronization relationships between independently recorded sources.
+
+“Metadata exists” and “metadata is trustworthy enough to map onto transcript evidence”
+remain different states.
+
 # Beginner-ready milestone
 
 The backend is already beginner-oriented in many internal decisions: resource discovery,
-model custody, recovery, provenance, alignment, and search are designed so the user does
-**not** need to manually operate those systems.
+model custody, recovery, provenance, alignment, time navigation, and search are designed
+so the user does **not** need to manually operate those systems.
 
 But a beginner-friendly product also needs a beginner-friendly delivery surface.
 
 A reasonable pre-1.0 usability milestone is:
 
-1. richer original-media time provenance;
-2. clearer speaker labels/overlap behavior over aligned evidence;
+1. clearer speaker labels/overlap behavior over aligned evidence;
+2. precise transcript navigation and durable note/annotation anchors;
 3. semantic dependency/model setup that no longer requires advanced manual environment
    preparation;
 4. representative qualification on ordinary hardware;
@@ -319,7 +334,7 @@ A reasonable pre-1.0 usability milestone is:
 7. a thin graphical shell over the existing application services.
 
 The GUI should be a presentation adapter, not a second implementation of transcription,
-search, or model policy.
+search, time mapping, or model policy.
 
 # Later capability: speech/source separation for overlapping speakers
 
@@ -350,6 +365,8 @@ but unqualified checkbox.
 Use real multi-recording corpora to exercise:
 
 - interruption/resume with aligned word evidence;
+- long-duration human time rendering across hour and 24-hour boundaries;
+- conflicting or absent source temporal metadata;
 - stale-process reconciliation;
 - progress rendering;
 - accelerator re-admission;
@@ -402,6 +419,7 @@ Interesting later investigations include:
   insufficient for a real use case;
 - finer intra-clause/romanized language attribution;
 - improved overlap rendering and source separation;
+- richer PTS/SMPTE synchronization only when real media requires it;
 - alternative qualified multilingual embedding models;
 - character n-gram/fuzzy retrieval for ASR names/acronyms/misspellings;
 - a small local cross-encoder reranker if measured benefit justifies it;

@@ -1,54 +1,72 @@
 # Media normalization and transcript timeline 🎙️🕰️
 
-EchoFlow has to answer two deceptively simple questions before it can produce a useful
-transcript:
+EchoFlow has to answer three deceptively simple questions before recorded evidence is
+useful:
 
 1. **What exactly did we transcribe?**
-2. **What does a timestamp in the transcript actually mean?**
+2. **Where is a transcript span inside that recording?**
+3. **What other clocks did the original media claim to have?**
 
-Those questions get complicated quickly when the input is a video with multiple audio
-streams, a container with a non-zero presentation timestamp, or a camera file carrying
-capture-time metadata.
+Those are different questions. The architecture now keeps their answers separate.
 
-The current implementation solves the first layer rigorously: deterministic stream
-selection, source fingerprinting, canonical audio, exact frame windows, and one
-source-relative elapsed-time transcript.
+The canonical transcript timeline is always **elapsed source-relative seconds from the
+selected audio origin**. Humans can view that coordinate as `HH:MM:SS.mmm`. Original
+container/stream `timecode` and `creation_time` tags are preserved in parallel as
+source-declared provenance when FFprobe reports them.
 
-The next provenance step is to preserve **original-media timecode/capture-time evidence**
-without overloading that existing source-relative timeline.
+Nothing rewrites the meaning of the canonical elapsed coordinate.
+
+For the plain-language navigation guide, see
+**[Transcript time without calculator gymnastics](../time-navigation.md)**.
 
 ## The human version
 
-Today, if EchoFlow says a passage begins at `4221.7` seconds, it means:
+If EchoFlow says a passage begins at `4788.37` seconds, it means:
 
-> **4221.7 seconds after the beginning of the selected recording audio.**
+> **4788.37 seconds after the beginning of the selected recording audio.**
 
-That timeline survives normalization, segmentation, checkpoints, enhancement, and
-assembly.
+The human presentation is:
 
-It does **not yet** mean “camera wall-clock time 14:32:08,” “SMPTE 01:10:21:17,” or “the
-container's original PTS value.” Those are distinct pieces of provenance and should stay
-distinct.
+```text
+01:19:48.370
+```
+
+That timeline survives normalization, segmentation, checkpoints, enhancement, word
+alignment, and assembly.
+
+A file may also declare something like:
+
+```text
+timecode:      10:00:00:00
+creation_time: 2026-04-05T12:34:56Z
+```
+
+EchoFlow preserves those declarations with their format/stream origin. It does not treat
+them as interchangeable with `4788.37` seconds, and it does not claim that a device clock
+was historically correct merely because a tag exists.
 
 ```mermaid
 flowchart LR
-    A[Local media file] --> B[FFprobe inspection + fingerprint]
-    B --> C[Choose one audio stream]
-    C --> D[Canonical PCM timeline]
-    D --> E[Optional enhancement]
-    E --> F[Exact frame windows]
-    F --> G[Local ASR]
-    G --> H[Source-relative canonical transcript]
+    A[🎙️ Local media file] --> B[FFprobe + SHA-256]
+    B --> R[Canonical elapsed timeline<br/>0.000 s → ...]
+    B --> T[Declared timecode tags]
+    B --> C[Declared creation-time tags]
+    R --> W[Word + segment evidence]
+    W --> H[✨ Human display<br/>HH:MM:SS.mmm]
+    T --> P[Canonical source provenance]
+    C --> P
+    W --> X[📜 Canonical transcript]
+    P --> X
 
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
-    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
-    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef canonical fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef provenance fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
 
     class A source
-    class B,C inspect
-    class D,E,F,G process
-    class H evidence
+    class R,W,X canonical
+    class B,T,C,P provenance
+    class H view
 ```
 
 ## One input boundary for audio and video
@@ -56,11 +74,14 @@ flowchart LR
 EchoFlow treats every supported input as **audio-bearing local media**.
 
 Video is not a second downstream pipeline. FFprobe discovers the streams, EchoFlow
-selects one audio stream, and later processing discards video/subtitle/attachment/data
-streams.
+selects one audio stream, and transcription later discards unrelated video/subtitle/
+attachment/data streams from the working audio path.
 
 That means `interview.m4a`, `lecture.wav`, and `meeting.mp4` all converge on the same
 transcription contract once one audio stream has been selected.
+
+Temporal metadata discovery remains attached to the original media evidence, not to a
+normalized WAV derivative.
 
 ## What media inspection owns
 
@@ -72,6 +93,7 @@ For one local source it:
 - snapshots filesystem identity before inspection;
 - invokes FFprobe with a file-only protocol whitelist;
 - reads bounded container/stream metadata;
+- requests format/stream `timecode` and `creation_time` tags;
 - validates that at least one audio stream exists;
 - fingerprints the complete source with SHA-256;
 - snapshots filesystem identity again; and
@@ -81,6 +103,42 @@ The result is immutable `MediaInfo` evidence.
 
 Routine logs omit local paths by default because recording names and directory layouts
 may themselves be sensitive.
+
+## Source-declared temporal tags
+
+`MediaTemporalTag` records four things:
+
+| Field | Meaning |
+|---|---|
+| `kind` | currently `timecode` or `creation_time` |
+| `value` | the source-declared string |
+| `source` | `format` or `stream` |
+| `stream_index` | required for stream-scoped declarations, absent for format scope |
+
+A stream-scoped tag must reference a stream that FFprobe actually discovered.
+
+Conflicting values are intentionally preserved rather than silently resolved. For
+example, a format-level timecode and a video-stream timecode may disagree. EchoFlow's
+current job is to retain that evidence with enough provenance for a later qualified
+mapping decision.
+
+```mermaid
+flowchart TD
+    M[Original MOV file] --> F[Format tags]
+    M --> V[Video stream 0 tags]
+    M --> A[Audio stream 1 tags]
+    F --> E[Temporal provenance tuple]
+    V --> E
+    A --> E
+    E --> C[Canonical transcript source provenance]
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    class M source
+    class F,V,A,E,C evidence
+```
+
+The values are *declarations*, not trusted wall-clock facts.
 
 ## Deterministic audio-stream selection
 
@@ -98,8 +156,9 @@ the job/source contract.
 Resume restores the same selected stream. It does not decide that a different track is
 close enough.
 
-Selection returns new immutable metadata rather than mutating the FFprobe discovery
-record.
+Selection uses `dataclasses.replace`, so temporal provenance discovered from the original
+container survives a user-selected audio-stream change without being rediscovered or
+mutated.
 
 ## Canonical working audio
 
@@ -159,133 +218,148 @@ Application-owned work units are represented by integer PCM frame intervals:
 
 Seconds are derived from those exact frames and the canonical sample rate.
 
-Faster-whisper returns timestamps relative to the materialized work interval. Assembly
-adds the interval's source-relative offset:
+Faster-whisper returns segment and native word timestamps relative to the materialized
+work interval. Assembly adds the interval's source-relative offset:
 
 ```text
 work interval 0 starts at 0 s
-engine timestamp 12.4 s   → canonical timestamp 12.4 s
+engine word at 12.4 s      → canonical word at 12.4 s
 
 work interval 7 starts at 4200 s
-engine timestamp 21.7 s   → canonical timestamp 4221.7 s
+engine word at 588.37 s    → canonical word at 4788.37 s
+                              → display 01:19:48.370
 ```
 
-SRT and WebVTT render from canonical timestamps. Segment/checkpoint boundaries therefore
-do not reset subtitle time to zero.
+The default work-window duration is currently 600 seconds (10 minutes). Those work
+windows are an execution/checkpoint detail, not a user-facing time coordinate. They
+never reset the published transcript timeline.
+
+SRT and WebVTT also render from canonical timestamps. Segment/checkpoint boundaries
+therefore do not reset subtitle time to zero.
 
 💃 The timeline survives the choreography.
 
-## Current source/provenance record
+## Human elapsed timestamps are derived views
+
+`format_elapsed_timestamp()` renders canonical seconds as unwrapped `HH:MM:SS.mmm`.
+
+Examples:
+
+| Numeric evidence | Human display |
+|---:|---|
+| `0.0` | `00:00:00.000` |
+| `60.0` | `00:01:00.000` |
+| `3600.0` | `01:00:00.000` |
+| `4788.37` | `01:19:48.370` |
+| `86400.0` | `24:00:00.000` |
+
+Hours intentionally do not wrap at 24. A 30-hour oral-history corpus item is elapsed
+media, not a wall clock.
+
+The formatter rounds to milliseconds deterministically and handles rollover, so
+`59.9996` becomes `00:01:00.000` rather than producing an impossible `00:00:60.000`.
+
+Search JSON retains numeric `start_seconds`/`end_seconds` and adds derived
+`start_timestamp`/`end_timestamp` conveniences. The human table shows the formatted
+range.
+
+Formatted strings are not durable anchors.
+
+## Canonical source provenance
 
 The original local media file remains authoritative.
 
-EchoFlow separately records enough execution context to explain how canonical text was
-produced, including:
+EchoFlow records enough execution context to explain how canonical text was produced,
+including:
 
 - source fingerprint/media identity;
 - selected audio stream;
+- source-declared temporal tags when present;
 - decode strategy;
 - managed ASR engine/model/revision and execution target;
 - enhancement provider/version/operation/parameters when used;
 - language and optional speaker evidence; and
-- source-relative segment timestamps.
+- source-relative segment and word timestamps.
 
-Derived audio can therefore disappear without erasing the description of the path from
-source to transcript.
+Temporal tags are included in canonical source provenance only when they exist, so files
+without them retain the previous wire shape.
 
-## ✨ Next provenance layer: original media timecode and capture time
+Temporal tags deliberately do **not** participate in checkpoint source equality. Source
+identity remains the cryptographic/file/media identity contract. A camera clock changing
+its story is provenance drift, not a new SHA-256 source.
 
-Source-relative seconds are useful but incomplete for some research, documentary,
-forensic, archival, and multi-device recordings.
+## Why EchoFlow does not add elapsed time to SMPTE yet
 
-A future timeline provenance model should be able to preserve **additional clocks** when
-the media exposes them, without redefining the canonical elapsed-time coordinate.
+A source string such as:
 
-Potential evidence includes:
-
-- non-zero container or stream PTS/DTS origins;
-- SMPTE timecode tracks or tags;
-- camera/device creation or capture timestamps;
-- timezone/offset information when it is actually encoded and trustworthy;
-- stream start-time offsets; and
-- synchronization relationships between independently recorded sources when explicitly
-  known.
-
-The key design rule is **parallel provenance, not timeline mutation**.
-
-Conceptually:
-
-```mermaid
-flowchart TD
-    S[Selected audio stream] --> R[Canonical source-relative timeline]
-    S --> P[Original presentation-time evidence]
-    S --> T[SMPTE / embedded timecode evidence]
-    S --> C[Capture-time metadata]
-    R --> X[Canonical transcript segments]
-    P --> X
-    T --> X
-    C --> X
-
-    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
-    classDef canonical fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
-    classDef provenance fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-
-    class S source
-    class R,X canonical
-    class P,T,C provenance
+```text
+10:00:00:00
 ```
 
-A transcript segment could then say, in effect:
+looks temptingly like a clock. It is not enough information for safe arithmetic.
 
-> This passage begins 4221.7 seconds into the selected audio **and**, where trustworthy
-> source metadata exists, corresponds to original media timecode/capture coordinates X.
+SMPTE-style timecode can depend on frame rate and drop-frame/non-drop-frame semantics.
+Container/device metadata may also be missing, stale, copied, or contradictory.
 
-Those values should be typed and qualified, not collapsed into a single ambiguous
-`timestamp` field.
+This tranche therefore preserves source-declared values but **does not invent a mapping
+from canonical seconds to SMPTE frames** without qualified frame semantics.
 
-## Why this should be its own model
+That limitation does not block ordinary click-to-audio navigation. A local player can
+seek directly to canonical `start_seconds`.
 
-Container/media time is messy.
+Future SMPTE mapping, if product use requires it, should qualify:
 
-A creation timestamp may represent file creation rather than acoustic capture. A stream
-can begin at a non-zero presentation timestamp. Timecode may have frame-rate/drop-frame
-semantics. Device clocks may be wrong. Some metadata may be missing, malformed, or
-contradictory.
+- exact/rational frame rate;
+- nominal frame-numbering rate;
+- drop-frame semantics;
+- source of the timecode declaration;
+- conflict-resolution policy; and
+- deterministic mapping tests around minute/hour/day rollover.
 
-EchoFlow should therefore preserve:
+## Relationship to word timing
 
-- the **kind** of time evidence;
-- its raw/normalized representation;
-- the stream/container it came from;
-- confidence/qualification rules where needed; and
-- whether it can be deterministically mapped to source-relative seconds.
+Word timing and media temporal provenance solve different problems.
 
-It should not pretend every media timestamp is interchangeable.
+**Word timing** answers:
 
-## Relationship to word/timestamp alignment
+> Where does this word live inside the canonical elapsed timeline?
 
-Original-media timecode and word alignment solve different problems.
+**Human elapsed formatting** answers:
 
-**Word/timestamp alignment** gives finer coordinates *within the canonical source-relative
-timeline*.
+> How do I show that coordinate without making a person calculate 4788 seconds?
 
-**Original-media timecode/capture provenance** gives additional clocks or source metadata
-that can be mapped alongside that timeline.
+**Original-media temporal metadata** answers:
 
-Together they eventually make very precise evidence receipts possible:
+> What other clock information did the source itself declare?
+
+Together they support richer evidence receipts without pretending every clock is the
+same clock.
 
 ```text
 word "budget"
-  canonical elapsed time: 01:10:21.700
-  original media timecode: 02:14:03:17   (if available/qualified)
-  capture timestamp: 2026-07-04T14:32:08-04:00   (if present/qualified)
+  canonical elapsed seconds: 4788.370
+  human elapsed display:     01:19:48.370
+  declared source timecode:  10:00:00:00   (if present; not yet mapped)
+  declared creation time:    2026-04-05T12:34:56Z   (if present)
 ```
 
-Neither should be invented when the source does not provide trustworthy evidence.
+## Relationship to future notes and click-to-seek
+
+A graphical player does not exist yet, and neither does the durable notes editor/store.
+The coordinate contract they need now does.
+
+A future player should seek by numeric canonical seconds.
+
+A future annotation should anchor to durable evidence such as source SHA-256 plus a
+canonical word/segment time span. It should not anchor only to a pretty timestamp string
+or rebuildable search-chunk ID.
+
+That keeps user-authored knowledge attached even when search indexes are rebuilt or time
+display formatting changes.
 
 ## Why the stages remain separate
 
-Inspection answers **what source and streams exist?**
+Inspection answers **what source, streams, and declared metadata exist?**
 
 Selection answers **which audio stream are we using?**
 
@@ -293,10 +367,11 @@ Normalization answers **what deterministic representation will local processing 
 
 Enhancement answers **did the user request a provenance-bearing acoustic transform?**
 
-Alignment will answer **where do finer text units sit on the canonical timeline?**
+Word alignment answers **where do finer text units sit on the canonical timeline?**
 
-Original timecode/capture provenance will answer **what other source clocks can be
-preserved alongside that timeline?**
+Human timestamp formatting answers **how should a person read that elapsed coordinate?**
+
+Temporal provenance answers **what other source clocks were declared alongside it?**
 
 Keeping these responsibilities separate makes metadata discovery side-effect free,
 keeps source authority explicit, and leaves room for richer evidence without rewriting

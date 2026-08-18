@@ -2,7 +2,15 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from echoflow.media.models import InputIdentity, MediaInfo, MediaStream, StreamKind
+from echoflow.media.models import (
+    InputIdentity,
+    MediaInfo,
+    MediaStream,
+    MediaTemporalTag,
+    StreamKind,
+    TemporalTagKind,
+    TemporalTagSource,
+)
 
 
 def identity(tmp_path) -> InputIdentity:
@@ -118,15 +126,67 @@ def test_media_stream_rejects_invalid_values(overrides, message):
         audio_stream(**overrides)
 
 
+def test_temporal_tag_is_source_explicit_frozen_and_serializable():
+    tag = MediaTemporalTag(
+        TemporalTagKind.TIMECODE,
+        " 10:00:00:00 ",
+        TemporalTagSource.STREAM,
+        stream_index=2,
+    )
+
+    assert tag.value == "10:00:00:00"
+    assert tag.to_dict() == {
+        "kind": "timecode",
+        "value": "10:00:00:00",
+        "source": "stream",
+        "stream_index": 2,
+    }
+    assert not hasattr(tag, "__dict__")
+    with pytest.raises(FrozenInstanceError):
+        tag.value = "changed"
+
+
+@pytest.mark.parametrize(
+    ("tag", "message"),
+    [
+        (
+            (TemporalTagKind.TIMECODE, " ", TemporalTagSource.FORMAT, None),
+            "temporal tag value cannot be empty",
+        ),
+        (
+            (TemporalTagKind.TIMECODE, "1", TemporalTagSource.FORMAT, 0),
+            "format temporal tags cannot have a stream index",
+        ),
+        (
+            (TemporalTagKind.CREATION_TIME, "1", TemporalTagSource.STREAM, None),
+            "stream temporal tags require a nonnegative stream index",
+        ),
+        (
+            (TemporalTagKind.CREATION_TIME, "1", TemporalTagSource.STREAM, -1),
+            "stream temporal tags require a nonnegative stream index",
+        ),
+    ],
+)
+def test_temporal_tag_rejects_ambiguous_source_coordinates(tag, message):
+    with pytest.raises(ValueError, match=f"^{message}$"):
+        MediaTemporalTag(*tag)
+
+
 def test_media_info_selects_primary_audio_and_serializes_all_streams(tmp_path):
     video = MediaStream(index=0, kind=StreamKind.VIDEO, codec="h264")
     audio = audio_stream(index=1)
+    temporal = MediaTemporalTag(
+        TemporalTagKind.CREATION_TIME,
+        "2026-04-05T12:34:56Z",
+        TemporalTagSource.FORMAT,
+    )
     media = MediaInfo(
         input=identity(tmp_path),
         container_format="mov,mp4,m4a,3gp,3g2,mj2",
         duration_seconds=2.5,
         streams=(video, audio),
         primary_audio_stream_index=1,
+        temporal_tags=(temporal,),
     )
     payload = media.to_dict()
     assert media.primary_audio_stream is audio
@@ -134,6 +194,7 @@ def test_media_info_selects_primary_audio_and_serializes_all_streams(tmp_path):
     assert payload["duration_seconds"] == 2.5
     assert payload["primary_audio_stream_index"] == 1
     assert payload["streams"] == [video.to_dict(), audio.to_dict()]
+    assert payload["temporal_tags"] == [temporal.to_dict()]
     assert payload["input"] == identity(tmp_path).to_dict()
     assert not hasattr(media, "__dict__")
     with pytest.raises(FrozenInstanceError):
@@ -153,6 +214,19 @@ def test_media_info_selects_primary_audio_and_serializes_all_streams(tmp_path):
         (
             {"primary_audio_stream_index": 7},
             "primary_audio_stream_index must select one audio stream",
+        ),
+        (
+            {
+                "temporal_tags": (
+                    MediaTemporalTag(
+                        TemporalTagKind.TIMECODE,
+                        "10:00:00:00",
+                        TemporalTagSource.STREAM,
+                        stream_index=7,
+                    ),
+                )
+            },
+            "stream temporal tag must reference a discovered stream",
         ),
     ],
 )

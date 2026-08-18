@@ -244,6 +244,9 @@ def test_library_search_compiles_cli_options_to_unified_retrieval_contract() -> 
     assert payload["results"][0]["lexical_rank"] == 2
     assert payload["results"][0]["semantic_rank"] == 1
     assert payload["results"][0]["fused_rank"] == 1
+    assert payload["results"][0]["start_seconds"] == 1.5
+    assert payload["results"][0]["start_timestamp"] == "00:00:01.500"
+    assert payload["results"][0]["end_timestamp"] == "00:00:04.000"
     query, mode = captured[0]
     assert mode is RetrievalMode.HYBRID
     assert query.text == "housing affordability"
@@ -264,7 +267,8 @@ def test_library_search_human_view_keeps_evidence_and_ranks_visible() -> None:
 
     assert result.exit_code == 0
     assert "interview" in result.stdout
-    assert "1.50-2.50s" in result.stdout
+    assert "00:00:01.500" in result.stdout
+    assert "00:00:02.500" in result.stdout
     assert "speaker-02" in result.stdout
     assert "L:1" in result.stdout
     assert "housing" in result.stdout

@@ -11,7 +11,12 @@ from echoflow.media.errors import (
     MediaToolUnavailableError,
     UnsupportedMediaError,
 )
-from echoflow.media.models import InputIdentity, StreamKind
+from echoflow.media.models import (
+    InputIdentity,
+    StreamKind,
+    TemporalTagKind,
+    TemporalTagSource,
+)
 from echoflow.media.probe import FfprobeMediaProbe
 
 
@@ -76,6 +81,7 @@ def test_probe_fingerprints_and_parses_local_media_without_network_protocols(
     assert result.primary_audio_stream.channels == 1
     assert result.primary_audio_stream.channel_layout == "mono"
     assert result.primary_audio_stream.bit_rate_bps == 256_000
+    assert result.temporal_tags == ()
     assert captured["lookup"] == "ffprobe"
     assert captured["command"] == [
         "/tools/ffprobe",
@@ -84,8 +90,9 @@ def test_probe_fingerprints_and_parses_local_media_without_network_protocols(
         "-protocol_whitelist",
         "file",
         "-show_entries",
-        "format=format_name,duration:stream=index,codec_type,codec_name,duration,"
-        "sample_rate,channels,channel_layout,bit_rate",
+        "format=format_name,duration:format_tags=timecode,creation_time:"
+        "stream=index,codec_type,codec_name,duration,sample_rate,channels,"
+        "channel_layout,bit_rate:stream_tags=timecode,creation_time",
         "-of",
         "json",
         str(source.resolve()),
@@ -121,13 +128,88 @@ def test_probe_preserves_all_streams_and_uses_first_audio_as_primary(
     assert result.streams[1].channels is None
 
 
+def test_probe_preserves_conflicting_temporal_tags_with_explicit_sources(tmp_path):
+    identity = InputIdentity(tmp_path / "media", 1, 0, "0" * 64)
+    document = payload(
+        streams=[
+            {
+                "index": 0,
+                "codec_type": "video",
+                "codec_name": "h264",
+                "tags": {
+                    "timecode": "10:00:00:00",
+                    "creation_time": "2026-04-05T12:34:56Z",
+                },
+            },
+            {
+                "index": 1,
+                "codec_type": "audio",
+                "codec_name": "aac",
+                "duration": "1.250",
+                "tags": {"timecode": "10:00:00:01"},
+            },
+        ]
+    )
+    document["format"]["tags"] = {
+        "timecode": "09:59:59:29",
+        "creation_time": "2026-04-05T12:30:00Z",
+    }
+
+    result = FfprobeMediaProbe._parse(document, identity)
+
+    assert [tag.to_dict() for tag in result.temporal_tags] == [
+        {
+            "kind": "timecode",
+            "value": "09:59:59:29",
+            "source": "format",
+            "stream_index": None,
+        },
+        {
+            "kind": "creation_time",
+            "value": "2026-04-05T12:30:00Z",
+            "source": "format",
+            "stream_index": None,
+        },
+        {
+            "kind": "timecode",
+            "value": "10:00:00:00",
+            "source": "stream",
+            "stream_index": 0,
+        },
+        {
+            "kind": "creation_time",
+            "value": "2026-04-05T12:34:56Z",
+            "source": "stream",
+            "stream_index": 0,
+        },
+        {
+            "kind": "timecode",
+            "value": "10:00:00:01",
+            "source": "stream",
+            "stream_index": 1,
+        },
+    ]
+    assert result.temporal_tags[0].kind is TemporalTagKind.TIMECODE
+    assert result.temporal_tags[0].source is TemporalTagSource.FORMAT
+
+
+def test_probe_ignores_empty_or_nonstring_temporal_tags(tmp_path):
+    identity = InputIdentity(tmp_path / "media", 1, 0, "0" * 64)
+    document = payload()
+    document["format"]["tags"] = {"timecode": "   ", "creation_time": 123}
+    document["streams"][0]["tags"] = {"timecode": None, "creation_time": False}
+
+    assert FfprobeMediaProbe._parse(document, identity).temporal_tags == ()
+
+
 def test_probe_security_limits_and_defaults_are_stable():
     probe = FfprobeMediaProbe()
     assert probe_module._HASH_BLOCK_SIZE == 1_048_576
     assert probe_module._MAX_PROBE_OUTPUT_BYTES == 1_048_576
     assert probe_module._FFPROBE_ENTRIES == (
-        "format=format_name,duration:stream=index,codec_type,codec_name,duration,"
-        "sample_rate,channels,channel_layout,bit_rate"
+        "format=format_name,duration:format_tags=timecode,creation_time:"
+        "stream=index,codec_type,codec_name,duration,sample_rate,channels,"
+        "channel_layout,bit_rate:stream_tags=timecode,creation_time"
     )
     assert probe.timeout_seconds == 10.0
     assert probe.max_output_bytes == 1_048_576

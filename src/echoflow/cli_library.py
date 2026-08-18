@@ -24,6 +24,7 @@ from echoflow.library.service import (
     LibraryRebuildReport,
     SemanticRebuildReport,
 )
+from echoflow.media.time_coordinates import format_elapsed_timestamp
 
 ContainerFactory = Callable[[typer.Context], AppContainer]
 
@@ -82,6 +83,8 @@ def _passage_dict(passage: SearchPassage) -> dict[str, object]:
         "matched_segment_ids": list(passage.matched_segment_ids),
         "start_seconds": passage.start_seconds,
         "end_seconds": passage.end_seconds,
+        "start_timestamp": format_elapsed_timestamp(passage.start_seconds),
+        "end_timestamp": format_elapsed_timestamp(passage.end_seconds),
         "text": passage.text,
         "languages": list(passage.languages),
         "speaker_refs": list(passage.speaker_refs),
@@ -182,7 +185,7 @@ def _render_response(response: SearchResponse, console: Console) -> None:
         )
     )
     table.add_column("Recording")
-    table.add_column("Time")
+    table.add_column("Time", min_width=12, no_wrap=True)
     table.add_column("Speaker")
     table.add_column("Language")
     table.add_column("Ranks")
@@ -198,9 +201,13 @@ def _render_response(response: SearchResponse, console: Console) -> None:
             f"S:{result.semantic_rank or '-'} "
             f"F:{result.fused_rank}"
         )
+        time_range = (
+            f"{format_elapsed_timestamp(result.start_seconds)}\n"
+            f"{format_elapsed_timestamp(result.end_seconds)}"
+        )
         table.add_row(
             recording,
-            f"{result.start_seconds:.2f}-{result.end_seconds:.2f}s",
+            time_range,
             ", ".join(result.speaker_refs) or "unknown",
             ", ".join(result.languages) or "unknown",
             ranks,

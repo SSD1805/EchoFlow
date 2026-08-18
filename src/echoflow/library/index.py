@@ -3,9 +3,6 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 
-type EvidenceScopeKey = tuple[str, str, str]
-
-
 def _validate_sha256(name: str, value: str) -> None:
     if len(value) != 64 or any(
         character not in "0123456789abcdef" for character in value
@@ -108,7 +105,7 @@ class SearchQuery:
     document_ids: tuple[str, ...] = ()
     sort: SearchSort = SearchSort.RELEVANCE
     limit: int = 100
-    evidence_scope: tuple[EvidenceScopeKey, ...] | None = None
+    evidence_scope: tuple[tuple[str, str, str], ...] | None = None
 
     def __post_init__(self) -> None:
         if not self.text.strip():

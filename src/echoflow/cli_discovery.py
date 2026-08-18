@@ -122,8 +122,7 @@ def _response_dict(response: WorkspaceDiscoveryResponse) -> dict[str, object]:
             "tags": {
                 "count": len(response.tags),
                 "results": [
-                    {"tag_id": item.tag_id, "name": item.name}
-                    for item in response.tags
+                    {"tag_id": item.tag_id, "name": item.name} for item in response.tags
                 ],
             },
             "collections": {
@@ -174,7 +173,9 @@ def _render_transcripts(
             if passage.source_path is None
             else Path(passage.source_path).name
         )
-        speakers = ", ".join(item.display_name for item in located.speakers) or "unknown"
+        speakers = (
+            ", ".join(item.display_name for item in located.speakers) or "unknown"
+        )
         evidence = (
             f"{recording}\n"
             f"{format_elapsed_timestamp(located.evidence.seek_seconds)}\n"

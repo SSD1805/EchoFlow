@@ -20,14 +20,15 @@ flowchart LR
     C --> D[Lexical semantic hybrid retrieval]
     D --> E[Verified evidence navigation]
     E --> F[Durable research workspace]
-    F --> G[Unified library discovery]
+    D --> G[Unified library discovery]
+    F --> G
     G --> H[Saved views and derived navigation]
     H --> I[Thin graphical shell]
 ```
 
-Text fallback: transcription, evidence preservation, retrieval, navigation, and durable
-research state are foundation. Unified discovery is next; saved views/derived navigation
-follow; the first GUI should sit on those same services rather than inventing another
+Text fallback: transcription, evidence preservation, retrieval, navigation, durable
+research state, and unified discovery are foundation. Saved views and derived navigation
+are next; the first GUI should sit on those same services rather than inventing another
 application.
 
 # Current foundation
@@ -165,35 +166,39 @@ The custody hierarchy is now:
 
 🦝 The raccoon may rebuild an index. The raccoon may not eat your annotations.
 
+## Unified library discovery
+
+This is now **foundation** too.
+
+`ResearchWorkspaceService.discover()` and `echoflow library find QUERY` provide one human
+query across four typed result groups:
+
+- transcript evidence through existing lexical/semantic/hybrid retrieval and verified
+  canonical navigation;
+- note prose through the research projection followed by authoritative SQLite hydration;
+- matching tag names; and
+- matching collection names.
+
+The discovery layer deliberately does not create a universal relevance score across
+unlike objects. Transcript ranks remain transcript ranks. Notes, tags, and collections
+remain their own object types.
+
+Name matching for tags/collections is deterministic and group-local. Exact names sort
+before prefix/substring matches, then token overlap. That ordering is a disposable view,
+not authoritative state.
+
+Per-group limits, canonical context, stale-note state, speaker presentation, evidence
+identity, and source seek coordinates remain visible through the same application
+contracts a future GUI can consume.
+
 # Near-term product sequence
 
-The next work should make the existing backend **easy to use** rather than reopening
-solved custody/search contracts.
+The next work should make the existing backend **pleasant to remember and navigate** rather
+than reopening solved custody/search contracts.
 
-## 1. Unified library discovery
+## 1. Saved searches and useful derived navigation
 
 This is the next feature tranche.
-
-Today users can search transcript evidence and query notes, but the surfaces still expose
-the history of how the backend was built. The product should provide one human-facing
-library doorway.
-
-Target direction:
-
-- one typed application query that can surface grouped transcript evidence, notes, tags,
-  collections, and eventually saved searches;
-- preserve type-specific semantics rather than inventing one fake score across unlike
-  result kinds;
-- reuse `ResearchWorkspaceService`, `EvidenceLocator`, and existing transcript retrieval;
-- keep storage topology invisible to presentation code;
-- show stable human evidence coordinates while retaining exact canonical IDs in
-  machine-readable output; and
-- leave room for the GUI to consume the exact same discovery service.
-
-A likely CLI shape is `echoflow library find QUERY`, but the application service contract
-matters more than the command spelling.
-
-## 2. Saved searches and useful derived navigation
 
 Saved searches are **durable user-authored workspace state** and belong in authoritative
 SQLite. They should preserve typed query intent, not a blob of rendered CLI text.
@@ -211,7 +216,7 @@ Useful derived navigation should remain disposable. Candidate conveniences inclu
 Do not make every convenience statistic another authoritative table. The durable object
 is the user's tag/search/collection; popularity and recency rankings are views.
 
-## 3. First thin GUI
+## 2. First thin GUI
 
 The GUI has now earned its place because the backend is ahead of the human interface.
 
@@ -235,7 +240,7 @@ where evidence lives.
 Visual direction can be refined later, but the intended shell is light, calm, legible,
 and evidence-first rather than dashboard-heavy.
 
-## 4. Research portability and selected-result export
+## 3. Research portability and selected-result export
 
 Portability is part of EchoFlow's ownership thesis, not decorative export polish.
 
@@ -252,7 +257,7 @@ segment IDs, and numeric start/end seconds where applicable.
 Native XLSX is optional later. CSV already opens in Excel, Numbers, LibreOffice, R,
 pandas, and many research tools without adding a workbook dependency.
 
-## 5. Incremental library refresh and corpus-scale qualification
+## 4. Incremental library refresh and corpus-scale qualification
 
 `library rebuild` remains the correct repair path, but normal growth should not require
 re-reading an entire large corpus because one transcript changed.
@@ -270,10 +275,10 @@ Keep full rebuild as explicit recovery.
 
 Then measure realistic corpora rather than optimizing by instinct. Representative
 qualification should include startup, warm/cold search, filtered lexical/semantic queries,
-notebook queries, one-edit projection catch-up, large-batch projection catch-up, and full
-rebuild behavior.
+unified-discovery latency, notebook queries, one-edit projection catch-up, large-batch
+projection catch-up, and full rebuild behavior.
 
-## 6. Qualify semantic dependency and managed embedding custody
+## 5. Qualify semantic dependency and managed embedding custody
 
 Before semantic search is advertised as a normal source install, qualify a locked
 optional semantic dependency set with:
@@ -289,7 +294,7 @@ optional semantic dependency set with:
 
 Do not bypass `uv.lock` coherence merely to make the feature look finished.
 
-## 7. Representative-device dogfooding and delivery
+## 6. Representative-device dogfooding and delivery
 
 Exercise real multi-recording corpora on at least:
 
@@ -331,8 +336,8 @@ cases before entering the normal product path.
 
 ## Typed query evolution
 
-The unified discovery/search surface should compile into typed query contracts. Do not let
-CLI flags, GUI chips, saved searches, and a future natural-language convenience layer grow
+The unified discovery/search surface compiles into typed query contracts. Do not let CLI
+flags, GUI chips, saved searches, and a future natural-language convenience layer grow
 separate semantics.
 
 Add date/duration/fuzzy/facet constraints only when real use needs them.

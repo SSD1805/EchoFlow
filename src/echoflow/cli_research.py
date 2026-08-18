@@ -113,6 +113,228 @@ def _workspace(
     return factory(_root_context(context)).research_workspace()
 
 
+def _list_notes(
+    context: typer.Context,
+    container_factory: ContainerFactory,
+    *,
+    transcript: str | None,
+    text: str | None,
+    tags: tuple[str, ...],
+    collections: tuple[str, ...],
+    limit: int,
+    json_output: bool,
+) -> None:
+    if context.invoked_subcommand is not None:
+        return
+    try:
+        notes = _workspace(context, container_factory).notes(
+            document_id=transcript,
+            filters=ResearchQueryFilters(
+                tags=tags,
+                collections=collections,
+                note_text=text,
+            ),
+            limit=limit,
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps([_note_dict(note) for note in notes], sort_keys=True))
+        return
+    _render_notes(notes)
+
+
+def _add_note(
+    context: typer.Context,
+    container_factory: ContainerFactory,
+    transcript_id: str,
+    segment_ids: tuple[str, ...],
+    body: str,
+    *,
+    tags: tuple[str, ...],
+    collections: tuple[str, ...],
+    start_seconds: float | None,
+    end_seconds: float | None,
+    json_output: bool,
+) -> None:
+    try:
+        view = _workspace(context, container_factory).add_note(
+            transcript_id,
+            segment_ids,
+            body,
+            tags=tags,
+            collections=collections,
+            start_seconds=start_seconds,
+            end_seconds=end_seconds,
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_note_dict(view), sort_keys=True))
+        return
+    typer.echo(f"Saved {view.note.note_id}.")
+
+
+def _show_note(
+    context: typer.Context,
+    container_factory: ContainerFactory,
+    note_id: str,
+    *,
+    json_output: bool,
+) -> None:
+    try:
+        view = _workspace(context, container_factory).note(note_id)
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if view is None:
+        typer.echo("Research note does not exist", err=True)
+        raise typer.Exit(code=2)
+    if json_output:
+        typer.echo(json.dumps(_note_dict(view), sort_keys=True))
+        return
+    _render_notes((view,))
+
+
+def _edit_note(
+    context: typer.Context,
+    container_factory: ContainerFactory,
+    note_id: str,
+    body: str,
+    *,
+    json_output: bool,
+) -> None:
+    try:
+        view = _workspace(context, container_factory).update_note(note_id, body)
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_note_dict(view), sort_keys=True))
+        return
+    typer.echo(f"Updated {view.note.note_id}.")
+
+
+def _delete_note(
+    context: typer.Context,
+    container_factory: ContainerFactory,
+    note_id: str,
+) -> None:
+    try:
+        _workspace(context, container_factory).delete_note(note_id)
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    typer.echo(f"Deleted {note_id} from durable user state.")
+
+
+def _set_note_tags(
+    context: typer.Context,
+    container_factory: ContainerFactory,
+    note_id: str,
+    tags: tuple[str, ...],
+    *,
+    json_output: bool,
+) -> None:
+    try:
+        view = _workspace(context, container_factory).set_note_tags(note_id, tags)
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_note_dict(view), sort_keys=True))
+        return
+    typer.echo(f"Updated tags for {note_id}.")
+
+
+def _set_note_collections(
+    context: typer.Context,
+    container_factory: ContainerFactory,
+    note_id: str,
+    collections: tuple[str, ...],
+    *,
+    json_output: bool,
+) -> None:
+    try:
+        view = _workspace(context, container_factory).set_note_collections(
+            note_id, collections
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_note_dict(view), sort_keys=True))
+        return
+    typer.echo(f"Updated collections for {note_id}.")
+
+
+def _projection_status(
+    context: typer.Context,
+    container_factory: ContainerFactory,
+    *,
+    json_output: bool,
+) -> None:
+    if context.invoked_subcommand is not None:
+        return
+    try:
+        status = _workspace(context, container_factory).projection_status()
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    payload = {
+        "authoritative_sequence": status.authoritative_sequence,
+        "projected_sequence": status.projected_sequence,
+        "current": status.current,
+    }
+    if json_output:
+        typer.echo(json.dumps(payload, sort_keys=True))
+        return
+    state = "current" if status.current else "catch-up needed"
+    typer.echo(
+        f"Research projection {state}: SQLite {status.authoritative_sequence}, "
+        f"DuckDB {status.projected_sequence}."
+    )
+
+
+def _sync_projection(
+    context: typer.Context,
+    container_factory: ContainerFactory,
+    *,
+    json_output: bool,
+) -> None:
+    try:
+        report = _workspace(context, container_factory).sync_projection()
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_sync_dict(report), sort_keys=True))
+        return
+    typer.echo(
+        f"Research projection current through sequence {report.after_sequence} "
+        f"({report.batches} batch(es))."
+    )
+
+
+def _rebuild_projection(
+    context: typer.Context,
+    container_factory: ContainerFactory,
+    *,
+    json_output: bool,
+) -> None:
+    try:
+        report = _workspace(context, container_factory).rebuild_projection()
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_sync_dict(report), sort_keys=True))
+        return
+    typer.echo(f"Rebuilt research projection through sequence {report.after_sequence}.")
+
+
 def _build_notes_app(container_factory: ContainerFactory) -> typer.Typer:
     notes_app = typer.Typer(
         help="Write and revisit durable notes anchored to canonical evidence.",
@@ -132,26 +354,16 @@ def _build_notes_app(container_factory: ContainerFactory) -> typer.Typer:
         limit: int = typer.Option(100, "--limit", min=1, max=10_000),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        if context.invoked_subcommand is not None:
-            return
-        try:
-            filters = ResearchQueryFilters(
-                tags=tuple(tags or ()),
-                collections=tuple(collections or ()),
-                note_text=text,
-            )
-            notes = _workspace(context, container_factory).notes(
-                document_id=transcript,
-                filters=filters,
-                limit=limit,
-            )
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if json_output:
-            typer.echo(json.dumps([_note_dict(note) for note in notes], sort_keys=True))
-            return
-        _render_notes(notes)
+        _list_notes(
+            context,
+            container_factory,
+            transcript=transcript,
+            text=text,
+            tags=tuple(tags or ()),
+            collections=tuple(collections or ()),
+            limit=limit,
+            json_output=json_output,
+        )
 
     @notes_app.command("add")
     def add_note(
@@ -168,23 +380,18 @@ def _build_notes_app(container_factory: ContainerFactory) -> typer.Typer:
         end_seconds: float | None = typer.Option(None, "--end-seconds", min=0),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        try:
-            view = _workspace(context, container_factory).add_note(
-                transcript_id,
-                tuple(segment_ids or ()),
-                body,
-                tags=tuple(tags or ()),
-                collections=tuple(collections or ()),
-                start_seconds=start_seconds,
-                end_seconds=end_seconds,
-            )
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if json_output:
-            typer.echo(json.dumps(_note_dict(view), sort_keys=True))
-            return
-        typer.echo(f"Saved {view.note.note_id}.")
+        _add_note(
+            context,
+            container_factory,
+            transcript_id,
+            tuple(segment_ids or ()),
+            body,
+            tags=tuple(tags or ()),
+            collections=tuple(collections or ()),
+            start_seconds=start_seconds,
+            end_seconds=end_seconds,
+            json_output=json_output,
+        )
 
     @notes_app.command("show")
     def show_note(
@@ -192,18 +399,12 @@ def _build_notes_app(container_factory: ContainerFactory) -> typer.Typer:
         note_id: str = typer.Argument(..., metavar="NOTE_ID"),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        try:
-            view = _workspace(context, container_factory).note(note_id)
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if view is None:
-            typer.echo("Research note does not exist", err=True)
-            raise typer.Exit(code=2)
-        if json_output:
-            typer.echo(json.dumps(_note_dict(view), sort_keys=True))
-            return
-        _render_notes((view,))
+        _show_note(
+            context,
+            container_factory,
+            note_id,
+            json_output=json_output,
+        )
 
     @notes_app.command("edit")
     def edit_note(
@@ -212,27 +413,20 @@ def _build_notes_app(container_factory: ContainerFactory) -> typer.Typer:
         body: str = typer.Option(..., "--body", help="Replacement note text."),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        try:
-            view = _workspace(context, container_factory).update_note(note_id, body)
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if json_output:
-            typer.echo(json.dumps(_note_dict(view), sort_keys=True))
-            return
-        typer.echo(f"Updated {view.note.note_id}.")
+        _edit_note(
+            context,
+            container_factory,
+            note_id,
+            body,
+            json_output=json_output,
+        )
 
     @notes_app.command("delete")
     def delete_note(
         context: typer.Context,
         note_id: str = typer.Argument(..., metavar="NOTE_ID"),
     ) -> None:
-        try:
-            _workspace(context, container_factory).delete_note(note_id)
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        typer.echo(f"Deleted {note_id} from durable user state.")
+        _delete_note(context, container_factory, note_id)
 
     @notes_app.command("set-tags")
     def set_tags(
@@ -241,17 +435,13 @@ def _build_notes_app(container_factory: ContainerFactory) -> typer.Typer:
         tags: Annotated[list[str] | None, typer.Option("--tag")] = None,
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        try:
-            view = _workspace(context, container_factory).set_note_tags(
-                note_id, tuple(tags or ())
-            )
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if json_output:
-            typer.echo(json.dumps(_note_dict(view), sort_keys=True))
-            return
-        typer.echo(f"Updated tags for {note_id}.")
+        _set_note_tags(
+            context,
+            container_factory,
+            note_id,
+            tuple(tags or ()),
+            json_output=json_output,
+        )
 
     @notes_app.command("set-collections")
     def set_collections(
@@ -260,17 +450,13 @@ def _build_notes_app(container_factory: ContainerFactory) -> typer.Typer:
         collections: Annotated[list[str] | None, typer.Option("--collection")] = None,
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        try:
-            view = _workspace(context, container_factory).set_note_collections(
-                note_id, tuple(collections or ())
-            )
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if json_output:
-            typer.echo(json.dumps(_note_dict(view), sort_keys=True))
-            return
-        typer.echo(f"Updated collections for {note_id}.")
+        _set_note_collections(
+            context,
+            container_factory,
+            note_id,
+            tuple(collections or ()),
+            json_output=json_output,
+        )
 
     return notes_app
 
@@ -287,25 +473,10 @@ def _build_projection_app(container_factory: ContainerFactory) -> typer.Typer:
         context: typer.Context,
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        if context.invoked_subcommand is not None:
-            return
-        try:
-            status = _workspace(context, container_factory).projection_status()
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        payload = {
-            "authoritative_sequence": status.authoritative_sequence,
-            "projected_sequence": status.projected_sequence,
-            "current": status.current,
-        }
-        if json_output:
-            typer.echo(json.dumps(payload, sort_keys=True))
-            return
-        state = "current" if status.current else "catch-up needed"
-        typer.echo(
-            f"Research projection {state}: SQLite {status.authoritative_sequence}, "
-            f"DuckDB {status.projected_sequence}."
+        _projection_status(
+            context,
+            container_factory,
+            json_output=json_output,
         )
 
     @research_app.command("sync")
@@ -313,17 +484,10 @@ def _build_projection_app(container_factory: ContainerFactory) -> typer.Typer:
         context: typer.Context,
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        try:
-            report = _workspace(context, container_factory).sync_projection()
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if json_output:
-            typer.echo(json.dumps(_sync_dict(report), sort_keys=True))
-            return
-        typer.echo(
-            f"Research projection current through sequence {report.after_sequence} "
-            f"({report.batches} batch(es))."
+        _sync_projection(
+            context,
+            container_factory,
+            json_output=json_output,
         )
 
     @research_app.command("rebuild")
@@ -331,16 +495,10 @@ def _build_projection_app(container_factory: ContainerFactory) -> typer.Typer:
         context: typer.Context,
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        try:
-            report = _workspace(context, container_factory).rebuild_projection()
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if json_output:
-            typer.echo(json.dumps(_sync_dict(report), sort_keys=True))
-            return
-        typer.echo(
-            f"Rebuilt research projection through sequence {report.after_sequence}."
+        _rebuild_projection(
+            context,
+            container_factory,
+            json_output=json_output,
         )
 
     return research_app

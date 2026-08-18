@@ -97,7 +97,11 @@ class SpeakerLabelService:
 
     def _document(self, document_id: str) -> IndexedDocument:
         document = next(
-            (item for item in self.index.documents() if item.document_id == document_id),
+            (
+                item
+                for item in self.index.documents()
+                if item.document_id == document_id
+            ),
             None,
         )
         if document is None:

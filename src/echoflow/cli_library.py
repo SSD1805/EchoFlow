@@ -8,17 +8,24 @@ from typing import Annotated, cast
 import typer
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from echoflow.app.app_container import AppContainer
 from echoflow.cli_speakers import register_speaker_commands
 from echoflow.core.errors import EchoFlowError
+from echoflow.library.evidence import (
+    EvidenceContextSegment,
+    EvidenceLocation,
+    EvidenceWord,
+)
 from echoflow.library.index import (
     IndexedDocument,
     SearchOperator,
     SearchQuery,
     SearchSort,
 )
-from echoflow.library.retrieval import RetrievalMode, SearchPassage, SearchResponse
+from echoflow.library.research import LocatedSearchPassage, ResearchSearchResponse
+from echoflow.library.retrieval import RetrievalMode
 from echoflow.library.semantic import EmbeddingProfile, SemanticState
 from echoflow.library.service import (
     LibraryEvidenceReceipt,
@@ -72,7 +79,57 @@ def _state_dict(state: SemanticState) -> dict[str, object]:
     }
 
 
-def _passage_dict(passage: SearchPassage) -> dict[str, object]:
+def _word_dict(word: EvidenceWord) -> dict[str, object]:
+    return {
+        "segment_id": word.segment_id,
+        "word_index": word.word_index,
+        "start_seconds": word.start_seconds,
+        "end_seconds": word.end_seconds,
+        "start_timestamp": format_elapsed_timestamp(word.start_seconds),
+        "end_timestamp": format_elapsed_timestamp(word.end_seconds),
+        "text": word.text,
+        "speaker_ref": word.speaker_ref,
+        "highlighted": word.highlighted,
+    }
+
+
+def _context_segment_dict(segment: EvidenceContextSegment) -> dict[str, object]:
+    return {
+        "segment_id": segment.segment_id,
+        "start_seconds": segment.start_seconds,
+        "end_seconds": segment.end_seconds,
+        "start_timestamp": format_elapsed_timestamp(segment.start_seconds),
+        "end_timestamp": format_elapsed_timestamp(segment.end_seconds),
+        "text": segment.text,
+        "speaker_refs": list(segment.speaker_refs),
+        "is_result_segment": segment.is_result_segment,
+        "lexical_match": segment.lexical_match,
+        "words": [_word_dict(word) for word in segment.words],
+    }
+
+
+def _evidence_dict(location: EvidenceLocation) -> dict[str, object]:
+    return {
+        "document_id": location.document_id,
+        "source_sha256": location.source_sha256,
+        "canonical_sha256": location.canonical_sha256,
+        "result_segment_ids": list(location.result_segment_ids),
+        "start_seconds": location.start_seconds,
+        "end_seconds": location.end_seconds,
+        "start_timestamp": format_elapsed_timestamp(location.start_seconds),
+        "end_timestamp": format_elapsed_timestamp(location.end_seconds),
+        "seek_seconds": location.seek_seconds,
+        "seek_timestamp": format_elapsed_timestamp(location.seek_seconds),
+        "result_speaker_refs": list(location.result_speaker_refs),
+        "matched_words": [_word_dict(word) for word in location.matched_words],
+        "context_segments": [
+            _context_segment_dict(segment) for segment in location.context_segments
+        ],
+    }
+
+
+def _located_dict(result: LocatedSearchPassage) -> dict[str, object]:
+    passage = result.passage
     return {
         "document_id": passage.document_id,
         "source_sha256": passage.source_sha256,
@@ -89,14 +146,21 @@ def _passage_dict(passage: SearchPassage) -> dict[str, object]:
         "text": passage.text,
         "languages": list(passage.languages),
         "speaker_refs": list(passage.speaker_refs),
+        "speaker_display_labels": {
+            item.speaker_ref: item.display_label
+            for item in result.speakers
+            if item.display_label is not None
+        },
         "lexical_rank": passage.lexical_rank,
         "semantic_rank": passage.semantic_rank,
         "fused_rank": passage.fused_rank,
+        "evidence_location": _evidence_dict(result.evidence),
     }
 
 
-def _response_dict(response: SearchResponse) -> dict[str, object]:
-    query = response.query
+def _response_dict(response: ResearchSearchResponse) -> dict[str, object]:
+    retrieval = response.retrieval
+    query = retrieval.query
     return {
         "query": {
             "text": query.text,
@@ -109,18 +173,18 @@ def _response_dict(response: SearchResponse) -> dict[str, object]:
             "limit": query.limit,
         },
         "retrieval": {
-            "mode": response.mode.value,
-            "lexical_backend_id": response.lexical_backend_id,
-            "semantic_backend_id": response.semantic_backend_id,
+            "mode": retrieval.mode.value,
+            "lexical_backend_id": retrieval.lexical_backend_id,
+            "semantic_backend_id": retrieval.semantic_backend_id,
             "semantic_profile": (
                 None
-                if response.semantic_profile is None
-                else _profile_dict(response.semantic_profile)
+                if retrieval.semantic_profile is None
+                else _profile_dict(retrieval.semantic_profile)
             ),
-            "fusion_profile": response.fusion_profile,
+            "fusion_profile": retrieval.fusion_profile,
         },
         "result_count": len(response.results),
-        "results": [_passage_dict(item) for item in response.results],
+        "results": [_located_dict(item) for item in response.results],
     }
 
 
@@ -178,41 +242,69 @@ def _render_receipt(receipt: LibraryEvidenceReceipt, console: Console) -> None:
     console.print(table)
 
 
-def _render_response(response: SearchResponse, console: Console) -> None:
+def _render_context(result: LocatedSearchPassage) -> Text:
+    rendered = Text()
+    for index, segment in enumerate(result.evidence.context_segments):
+        if index:
+            rendered.append("\n")
+        rendered.append("› " if segment.is_result_segment else "  ", style="bold")
+        if segment.words:
+            for word in segment.words:
+                style = "bold underline" if word.highlighted else None
+                if not segment.is_result_segment and style is None:
+                    style = "dim"
+                rendered.append(word.text, style=style)
+        else:
+            rendered.append(
+                segment.text,
+                style=None if segment.is_result_segment else "dim",
+            )
+    return rendered
+
+
+def _render_response(response: ResearchSearchResponse, console: Console) -> None:
+    retrieval = response.retrieval
     table = Table(
         title=(
-            f"EchoFlow {response.mode.value} evidence search: "
+            f"EchoFlow {retrieval.mode.value} evidence search: "
             f"{len(response.results)} result(s)"
         )
     )
     table.add_column("Recording")
-    table.add_column("Time", min_width=12, no_wrap=True)
+    table.add_column("Evidence time", min_width=12, no_wrap=True)
     table.add_column("Speaker")
     table.add_column("Language")
     table.add_column("Ranks")
-    table.add_column("Passage")
+    table.add_column("Passage + context")
     for result in response.results:
+        passage = result.passage
         recording = (
-            result.document_id
-            if result.source_path is None
-            else Path(result.source_path).name
+            passage.document_id
+            if passage.source_path is None
+            else Path(passage.source_path).name
         )
         ranks = (
-            f"L:{result.lexical_rank or '-'} "
-            f"S:{result.semantic_rank or '-'} "
-            f"F:{result.fused_rank}"
+            f"L:{passage.lexical_rank or '-'} "
+            f"S:{passage.semantic_rank or '-'} "
+            f"F:{passage.fused_rank or '-'}"
         )
+        if result.evidence.matched_words:
+            start = result.evidence.matched_words[0].start_seconds
+            end = result.evidence.matched_words[-1].end_seconds
+        else:
+            start = passage.start_seconds
+            end = passage.end_seconds
         time_range = (
-            f"{format_elapsed_timestamp(result.start_seconds)}\n"
-            f"{format_elapsed_timestamp(result.end_seconds)}"
+            f"{format_elapsed_timestamp(start)}\n"
+            f"{format_elapsed_timestamp(end)}"
         )
         table.add_row(
             recording,
             time_range,
-            ", ".join(result.speaker_refs) or "unknown",
-            ", ".join(result.languages) or "unknown",
+            ", ".join(item.display_name for item in result.speakers) or "unknown",
+            ", ".join(passage.languages) or "unknown",
             ranks,
-            result.text,
+            _render_context(result),
         )
     console.print(table)
 
@@ -332,6 +424,7 @@ def _search_library(
     sort: SearchSort,
     mode: RetrievalMode,
     limit: int,
+    context_segments: int,
     json_output: bool,
     container_factory: ContainerFactory,
 ) -> None:
@@ -348,8 +441,8 @@ def _search_library(
         )
         response = (
             container_factory(_root_context(context))
-            .transcript_library()
-            .retrieve(query, mode=mode)
+            .research_navigation()
+            .search(query, mode=mode, context_segments=context_segments)
         )
     except Exception as exc:
         _handle_error(exc)
@@ -505,6 +598,13 @@ def register_library_commands(
             ),
         ] = RetrievalMode.LEXICAL,
         limit: int = typer.Option(100, "--limit", min=1, max=1_000),
+        context_segments: int = typer.Option(
+            0,
+            "--context-segments",
+            min=0,
+            max=10,
+            help="Include this many canonical segments before and after each result.",
+        ),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
         _search_library(
@@ -518,6 +618,7 @@ def register_library_commands(
             sort=sort,
             mode=mode,
             limit=limit,
+            context_segments=context_segments,
             json_output=json_output,
             container_factory=container_factory,
         )

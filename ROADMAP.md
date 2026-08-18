@@ -3,179 +3,149 @@
 EchoFlow is becoming a **private local workspace for recorded evidence**.
 
 Its job is not to out-engine speech-recognition runtimes. Its job is to make local
-transcription dependable, resumable, inspectable, searchable, and usable on ordinary
-computers while keeping source evidence and user-owned artifacts under clear custody.
+transcription dependable, resumable, inspectable, searchable, and useful on ordinary
+computers while keeping source evidence and user-authored knowledge under clear custody.
 
-Modern EchoFlow restarted on August 2, 2026. Since then, the project has moved very
-quickly from “can we transcribe a file?” to “can we preserve and navigate a local corpus
-of recorded evidence without giving the corpus away?”
+Modern EchoFlow restarted on August 2, 2026. The project has already moved from “can we
+transcribe a file?” to “can we preserve, search, and navigate a local corpus of recorded
+evidence without giving the corpus away?”
 
-That is a substantially different product.
-
-## Where we are now
-
-The backend foundation is broad enough that the next work is increasingly about
-**evidence navigation, qualification, packaging, and interface quality**, not inventing
-another transcription pipeline.
+That is now the useful product boundary.
 
 ```mermaid
 flowchart LR
     A[Local media] --> B[Reliable local transcription]
-    B --> C[Evidence-preserving canonical corpus]
+    B --> C[Evidence-preserving corpus]
     C --> D[Lexical + semantic retrieval]
-    D --> E[Finer evidence navigation]
-    E --> F[Beginner-friendly product shell]
+    D --> E[Aligned evidence navigation]
+    E --> F[Durable research workspace]
+    F --> G[Beginner-friendly product shell]
 
     classDef done fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
     classDef now fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
     classDef next fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
 
-    class A,B,C,D done
-    class E now
-    class F next
+    class A,B,C,D,E done
+    class F now
+    class G next
 ```
 
-## The current foundation: yes, we have been busy 💃
+# Current foundation: yes, we have been busy 💃
 
-### Local execution and hardware awareness
+The backend is broad enough that the next work is increasingly about **research workflow,
+qualification, packaging, and interface quality**, not inventing another transcription
+pipeline.
 
-EchoFlow currently has:
+## Local execution and media processing
+
+EchoFlow currently provides:
 
 - process-visible CPU and memory inspection, including relevant affinity/cgroup limits;
-- physical accelerator topology kept separate from engine/runtime capability;
+- physical accelerator topology kept separate from actual engine/runtime capability;
 - resource-admitted faster-whisper CPU/int8 and CUDA-capable strategies;
 - explicit refusal instead of silent substitution for infeasible user-selected
   strategies;
-- dedicated/shared/unified accelerator-memory accounting; and
+- dedicated/shared/unified accelerator-memory accounting;
+- FFprobe inspection with file-only protocol access and complete source SHA-256;
+- deterministic audio-stream selection;
+- FFmpeg canonicalization to mono 16 kHz PCM16 WAV when required;
+- exact integer-frame work windows;
+- optional deterministic FFmpeg noise suppression with provenance and timeline checks;
+  and
 - bounded one-segment CPU preparation overlap during accelerated inference while
   preserving ordered checkpoints.
 
 Performance ranks and memory estimates remain conservative heuristics pending
 representative-device qualification.
 
-### Media, timeline, alignment, and local preprocessing
+## Reliability, model custody, and timeline evidence
 
-The current media foundation includes:
+The current execution contract includes:
 
-- FFprobe inspection with file-only protocol access and complete source SHA-256;
-- deterministic audio-stream selection;
-- FFmpeg canonicalization to mono 16 kHz PCM16 WAV when required;
-- exact integer-frame work windows and source-relative segment timestamps;
-- faster-whisper native per-word timestamp evidence rebased onto that same source
-  timeline;
-- deterministic human elapsed presentation as unwrapped `HH:MM:SS.mmm` while numeric
-  source-relative seconds remain authoritative;
-- preservation of source-declared `timecode` and `creation_time` metadata at format and
-  stream scope when FFprobe reports it;
-- explicit provenance for conflicting source time declarations instead of silently
-  choosing one;
-- optional deterministic FFmpeg noise suppression;
-- timeline-preservation checks around enhanced audio; and
-- provenance recording for preprocessing that affected ASR input.
-
-Word alignment is part of the current faster-whisper execution/checkpoint contract. It
-preserves engine-produced timing rather than claiming an independent forced-alignment
-pass.
-
-Human elapsed strings are derived views, not durable evidence anchors. Source-declared
-timecode/capture metadata is parallel provenance, not a replacement for canonical
-elapsed time and not part of checkpoint source identity.
-
-The current time-provenance implementation deliberately does **not** perform SMPTE frame
-arithmetic, resolve drop-frame semantics, preserve every PTS/DTS origin, or infer
-cross-device synchronization. Those require qualified source semantics rather than
-optimistic string arithmetic.
-
-The original recording remains read-only evidence. Normalized/enhanced WAV files remain
-private derived processing material.
-
-### Model custody
-
-Faster-whisper model management currently provides:
-
-- offline inventory and recommendation;
-- explicit disk-admitted installation;
-- provider/repository provenance;
-- immutable resolved revisions;
-- local structural revalidation;
-- exact-revision removal; and
-- mandatory managed-model identity for ASR planning/execution.
-
-Transcription itself does not silently download ASR weights.
-
-### Reliability and recovery
-
-EchoFlow has:
-
-- durable private per-work-unit checkpoints;
-- validated resume;
+- explicit faster-whisper model inventory/recommendation/installation;
+- immutable resolved model revisions and local revalidation;
+- no silent ASR model download during transcription;
+- private per-work-unit checkpoints and validated resume;
 - source/model/stream/preprocessing/execution/alignment contract binding;
-- aligned word evidence persisted through checkpoint/resume;
 - contiguous-prefix checkpoint semantics;
-- cleanup of speculative/derived work without masking primary failures; and
-- durable lifecycle evidence around long-running work.
+- native faster-whisper word timestamps rebased onto one source-relative canonical
+  timeline;
+- aligned word evidence persisted through checkpoint/resume;
+- deterministic `HH:MM:SS.mmm` human elapsed presentation without 24-hour wrapping; and
+- preservation of source-declared `timecode` and `creation_time` metadata at format and
+  stream scope when FFprobe reports it.
 
-The goal is that an interrupted long recording is an inconvenience, not a fresh start.
+Numeric source-relative seconds remain authoritative navigation coordinates. Human clock
+strings are presentation. Source-declared camera/container metadata is parallel
+provenance, not a replacement timeline and not automatically trusted.
 
-### Language and speaker evidence
+## Language and speaker evidence
 
-The system currently supports:
+EchoFlow supports:
 
 - multilingual faster-whisper decoding;
 - conservative local text-language attribution that may leave ambiguous text unlabeled;
 - optional recording-scoped anonymous speaker diarization;
-- deterministic speaker-label normalization;
-- word-level projection when native word timing exists; and
-- conservative segment labeling that remains null across mixed speaker handoffs or
-  ambiguous overlap.
+- deterministic anonymous speaker refs;
+- word-level speaker projection when timing evidence supports it;
+- conservative null/mixed behavior instead of forcing one speaker across a handoff;
+- durable user-authored display labels such as `speaker-02 → Dr. Chen`, stored separately
+  from canonical evidence and rebuildable indexes; and
+- a derived overlap-aware speaker transcript that distinguishes `single-speaker`,
+  `overlap`, `mixed-unresolved`, and `unattributed` presentation states.
 
-The diarization path is **integrated but security-held** while its locked Lightning
+Speaker display names are bound to the exact canonical transcript generation. EchoFlow
+does not perform biometric identity inference or silently link anonymous speakers across
+recordings.
+
+The pyannote execution path remains **security-held** while its locked Lightning
 dependency is affected by the compensated CVE-2026-58659/PYSEC-2026-3624 advisory.
-EchoFlow fails closed before pyannote execution/acquisition while that gate is active.
+EchoFlow fails closed before that provider executes or acquires model state while the
+security gate is active.
 
-### Canonical transcript and exports
+## Canonical transcript and publications
 
 Canonical JSON is authoritative transcript evidence.
 
-It carries source and execution provenance, source-relative segment and word timestamps,
+It carries source/execution provenance, source-relative segment and word timestamps,
 source-declared temporal tags when present, language evidence, optional enhancement
 provenance, and optional speaker-turn/word speaker evidence.
 
-TXT, SRT, and WebVTT remain deterministic segment-oriented publication views that can be
-regenerated without rerunning recognition. More expressive intra-segment speaker
-presentation belongs to the speaker-UX tranche rather than being smuggled into timing
-work.
+TXT, SRT, and WebVTT remain deterministic derived publication views. They can be deleted
+and regenerated without rerunning recognition.
 
-### Transcript library and retrieval
+## Transcript library, search, and aligned navigation
 
 The local library now includes:
 
-- a database-neutral lexical search application port;
+- a database-neutral lexical search contract;
 - private DuckDB document/segment/term projections;
 - deterministic offline BM25-style ranking;
-- phrase, ANY/ALL, speaker, language, document, and timeline constraints;
-- canonical transcript SHA-256 in addition to source-media SHA-256;
-- deterministic `search-chunk-v1` retrieval windows anchored to exact canonical segment
-  IDs/timestamps;
-- an `EmbeddingProvider` + immutable `EmbeddingProfile` contract;
-- a strict-local Multilingual E5 Small provider;
-- private numeric semantic vectors;
-- exact local dense similarity with hard filters before top-K;
+- phrase, ANY/ALL, speaker, language, transcript, and timeline constraints;
+- canonical transcript SHA-256 plus source-media SHA-256;
+- deterministic segment-anchored semantic search chunks;
+- a provider-neutral embedding contract and strict-local Multilingual E5 Small profile;
+- private numeric semantic vectors and exact local dense similarity;
 - reciprocal-rank hybrid BM25 + dense retrieval;
-- one evidence-bearing `SearchResponse` with lexical/semantic/fused ranks;
-- human search-result time ranges such as `01:19:48.370–01:19:51.125` while JSON keeps
-  numeric seconds and exposes derived timestamp conveniences; and
-- corpus-fingerprint stale-vector refusal when canonical transcript bytes change.
+- stale-vector refusal when canonical transcript bytes change;
+- human elapsed result coordinates while JSON retains numeric seconds;
+- verified canonical evidence lookup after ranking;
+- exact aligned-word highlighting when lexical evidence justifies it;
+- semantic-only passage navigation without fabricated exact-word matches;
+- bounded neighboring canonical context expansion;
+- deterministic seek coordinates for future local media playback; and
+- current speaker display labels layered onto search presentation while raw anonymous
+  refs remain visible evidence.
 
-Nested word timing is additional canonical evidence. Current lexical/semantic projection
-continues indexing segment text once; later highlighting and jump-to-audio UX can use the
-finer coordinates without changing retrieval ranking semantics.
+Search ranking and evidence navigation are separate operations. A rebuildable index ranks
+a passage; the navigation layer verifies the canonical transcript before presenting a
+precise location.
 
-Semantic search is currently an advanced optional capability because the locked project
+Semantic search remains an advanced optional capability because the locked base project
 dependency graph does not yet include Sentence Transformers. Lexical search remains the
 normal dependency-light default.
 
-### Security, privacy, and quality foundation
+## Security, privacy, and quality foundation
 
 The project currently has:
 
@@ -190,77 +160,64 @@ The project currently has:
 - targeted Poodle mutation qualification for decision-heavy code.
 
 See [SECURITY.md](SECURITY.md) for the exact threat boundary. “Local-first” is not a
-claim that the entire host operating system or every native dependency is trusted.
+claim that the host operating system or every native dependency is trusted.
 
-## The product principle that should survive every feature
+# The custody rule that should survive every feature
 
-EchoFlow now has several kinds of data with deliberately different deletion semantics.
+EchoFlow has several classes of data with deliberately different deletion semantics.
 
 | Class | Examples | Rule |
 |---|---|---|
 | Authoritative evidence | original recording, canonical transcript | never treat as cache |
-| User-authored knowledge | future notes, speaker display labels, tags, annotations, collections | must survive index rebuilds |
+| User-authored knowledge | speaker labels, future notes/tags/annotations/collections | must survive index rebuilds |
 | Rebuildable projection | lexical index, semantic chunks/vectors, derived exports | may be regenerated from durable evidence |
 | Private execution state | normalization, enhancement, checkpoints, temporary segments | lifecycle-managed, not source truth |
-
-This distinction becomes more important as EchoFlow evolves from a transcription tool
-into a research library.
 
 🦝 The raccoon may rebuild an index. The raccoon may not eat your annotations.
 
 # Near-term product sequence
 
-Word timing and human/source time provenance now give EchoFlow a finer canonical evidence
-coordinate and a sane way to present it. The next work should make speaker evidence
-legible to humans, then exploit the same coordinates in the research workspace before
-heavier source-separation machinery arrives.
+Word timing, source time provenance, speaker naming, overlap presentation, and aligned
+search navigation are now foundation. The next work should build on those contracts
+rather than repeatedly reopening them.
 
-## 1. Better speaker UX: overlap + user-assigned display labels
+## 1. Durable research workspace state
 
-Anonymous diarization evidence should remain anonymous-by-default and recording-scoped.
+The next major product layer is user-authored research state over verified evidence
+locations.
 
-But users should eventually be able to map stable anonymous refs to meaningful display
-labels such as:
+Target direction:
 
-```text
-speaker-01 → Dr. Chen
-speaker-02 → Interviewer
-```
+- notes anchored to source/canonical identity plus durable segment/word/time coordinates;
+- tags;
+- saved searches;
+- collections;
+- annotation update/history semantics where useful;
+- exportable selected result sets; and
+- a transactional private user-state store appropriate for mutable/queryable knowledge.
 
-Those labels are **user-authored state**. They must not be disposable search/index
-metadata and should not rewrite the underlying anonymous speaker-turn evidence.
+Speaker labels proved the custody model in miniature. Notes and collections are higher
+volume and more queryable, so they should not simply accumulate forever in one giant JSON
+file. A small transactional store such as SQLite is a likely application adapter, behind
+ports that keep user knowledge separate from search implementation details.
 
-Word alignment already lets EchoFlow preserve an intra-segment handoff without forcing
-one segment-level speaker. The next presentation layer should make that evidence useful
-to a human:
+A note must never be anchored only to a formatted timestamp or disposable semantic chunk
+ID. If canonical evidence changes, EchoFlow should retain the note and report that its
+old anchor needs review rather than silently teleporting the annotation.
 
-- render word/fine-grained handoffs legibly;
-- preserve multiple active speaker refs where evidence supports overlap;
-- avoid forcing one speaker label onto genuinely ambiguous text;
-- let users assign display labels over stable anonymous refs; and
-- keep those labels durable and separate from rebuildable indexes.
+## 2. Search/research workspace ergonomics
 
-## 2. Search/research workspace UX over aligned coordinates
+Use real corpora to decide which navigation conveniences earn permanence:
 
-The retrieval engine supports lexical, semantic, and hybrid ranking, while canonical
-transcripts now have word timing and human elapsed coordinates. Real corpus use should
-drive the next interface layer:
+- result-context expansion beyond simple neighboring segments;
+- facets and typed constraints;
+- exportable/citable result sets;
+- saved-search and collection workflows;
+- local media playback over the existing seek contract; and
+- cross-feature presentation of speaker names, tags, and annotation state.
 
-- exact phrase/word highlighting inside a retrieved passage;
-- result-context expansion;
-- facets;
-- exportable result sets;
-- precise jump-to-audio/video using numeric source-relative seconds;
-- saved searches/collections; and
-- durable tags, notes, and annotations anchored to source identity plus durable canonical
-  evidence coordinates.
-
-The ownership rule is non-negotiable: user-authored state does not share deletion
-semantics with rebuildable indexes.
-
-A display string such as `01:19:48.370` is a convenience, not the annotation anchor.
-Likewise, a semantic chunk ID is rebuildable and must not become the only location of a
-user note.
+The GUI should eventually consume these same services. It should not invent a second
+search engine or a second definition of where transcript evidence lives.
 
 ## 3. Qualify semantic dependency and managed embedding custody
 
@@ -278,11 +235,11 @@ Target direction:
 - offline execution after installation; and
 - clean-wheel/platform qualification.
 
-Do not bypass `uv.lock` coherence to make the feature look more finished.
+Do not bypass `uv.lock` coherence merely to make the feature look more finished.
 
-## 4. Representative-device and enhancement qualification
+## 4. Representative-device qualification and dogfooding
 
-Collect repeated benchmark evidence from at least:
+Exercise real multi-recording corpora and collect repeated evidence from at least:
 
 - 8 GB Windows consumer hardware;
 - 16 GB commodity hardware;
@@ -292,148 +249,113 @@ Collect repeated benchmark evidence from at least:
 
 Measure cold/warm model behavior, real-time factor, thermal effects, CPU/RAM pressure,
 device memory/utilization where reliable, private disk cost, enhancement benefit/cost,
-embedding build cost, and semantic-query latency.
+embedding build cost, and semantic-query/navigation latency.
+
+Dogfood interruption/resume, noisy media, stale-process reconciliation, model
+remove/reinstall, source-integrity receipts, speaker naming/overlap, lexical/semantic/
+hybrid search, and aligned navigation using real interviews, lectures, meetings, and oral
+histories.
 
 Calibrate from measurements, not hardware marketing names.
 
-## 5. Deeper original-media clock qualification only when needed
+## 5. Beginner delivery surface
+
+EchoFlow's backend increasingly makes beginner-friendly decisions automatically. Its
+current source-install/terminal delivery still assumes a developer.
+
+A reasonable pre-1.0 usability milestone includes:
+
+1. durable notes/tags/collections over aligned evidence;
+2. semantic setup that no longer requires advanced manual environment preparation;
+3. representative qualification on ordinary hardware;
+4. polished error/recovery language;
+5. an installer/package path that does not require a developer environment; and
+6. a thin graphical shell over the existing application services.
+
+The GUI should be a presentation adapter, not a second implementation of transcription,
+search, time mapping, speaker policy, or model custody.
+
+## 6. Deeper original-media clock qualification only when real media requires it
 
 The current implementation preserves source-declared format/stream `timecode` and
-`creation_time` tags and keeps them distinct from canonical elapsed seconds.
+`creation_time` tags while keeping them distinct from canonical elapsed seconds.
 
-If real recordings require deterministic mapping to production/media clocks, extend that
-foundation with qualified evidence rather than guessing. Candidate work includes:
-
-- non-zero stream/container start-time or PTS/DTS origins;
-- exact rational frame rates and nominal timecode rates;
-- drop-frame/non-drop-frame semantics;
-- deterministic SMPTE-to-elapsed mappings;
-- timezone/offset normalization only when actually encoded; and
-- explicit synchronization relationships between independently recorded sources.
+If real recordings require deterministic production/media-clock mapping, qualify the
+necessary semantics rather than guessing. Candidate work includes non-zero stream
+origins, rational frame/timecode rates, drop-frame/non-drop-frame semantics, PTS/DTS
+mapping, timezone normalization only when actually encoded, and explicit synchronization
+relationships across independent sources.
 
 “Metadata exists” and “metadata is trustworthy enough to map onto transcript evidence”
 remain different states.
 
-# Beginner-ready milestone
-
-The backend is already beginner-oriented in many internal decisions: resource discovery,
-model custody, recovery, provenance, alignment, time navigation, and search are designed
-so the user does **not** need to manually operate those systems.
-
-But a beginner-friendly product also needs a beginner-friendly delivery surface.
-
-A reasonable pre-1.0 usability milestone is:
-
-1. clearer speaker labels/overlap behavior over aligned evidence;
-2. precise transcript navigation and durable note/annotation anchors;
-3. semantic dependency/model setup that no longer requires advanced manual environment
-   preparation;
-4. representative qualification on ordinary hardware;
-5. polished error/recovery language;
-6. an installer/package path that does not require a developer environment; and
-7. a thin graphical shell over the existing application services.
-
-The GUI should be a presentation adapter, not a second implementation of transcription,
-search, time mapping, or model policy.
-
 # Later capability: speech/source separation for overlapping speakers
 
-Source separation is valuable, but it is intentionally **later** than alignment and
-honest overlap representation.
+Source separation is valuable, but it remains intentionally later than honest overlap
+representation.
 
-Separating mixed speech into estimated source signals adds:
+Separating mixed speech into estimated source signals adds substantial compute/model
+cost, new dependency/model custody, uncertainty about source-to-human identity, derived
+audio provenance, and new failure modes. It should also demonstrate an actual end-to-end
+recognition benefit on representative overlap cases.
 
-- substantial compute/model cost;
-- new model custody/dependency concerns;
-- uncertainty about which separated signal corresponds to which human speaker;
-- timeline/provenance requirements for derived sources;
-- new failure modes; and
-- a need to prove end-to-end recognition benefit on representative overlap cases.
-
-EchoFlow should first become excellent at representing overlap honestly.
-
-Then, if real recordings demonstrate that overlap remains a major recognition failure,
-source separation can be evaluated as a targeted capability rather than an impressive
-but unqualified checkbox.
+EchoFlow can now represent simultaneous speaker evidence without choosing a fake winner.
+That is enough foundation to **measure** whether separation is worth the additional
+complexity.
 
 🧜‍♀️ We enter the deep water after learning to swim.
 
-# Other near-term engineering work
-
-## Dogfood the complete workflow
-
-Use real multi-recording corpora to exercise:
-
-- interruption/resume with aligned word evidence;
-- long-duration human time rendering across hour and 24-hour boundaries;
-- conflicting or absent source temporal metadata;
-- stale-process reconciliation;
-- progress rendering;
-- accelerator re-admission;
-- managed model removal/reinstall;
-- enhancement on noisy/long recordings;
-- transcript-library rebuilds;
-- source-integrity receipts; and
-- lexical/semantic/hybrid search.
-
-Retrieval questions worth measuring include whether current 220/300-word chunks behave
-well across interviews, lectures, meetings, and oral histories; whether exact vector scan
-remains interactive at realistic corpus sizes; and whether RRF improves conceptual
-recall without burying exact names/acronyms.
+# Other engineering work, when evidence asks for it
 
 ## Typed query evolution
 
 `SearchQuery` already owns text, phrase, ANY/ALL semantics, speaker, language,
 document/transcript, sorting, and bounded limits.
 
-Add date/tag/duration/facet/collection constraints only when real product use requires
-them.
-
+Add date/tag/duration/facet/collection constraints when real product use requires them.
 CLI syntax, future query chips, and any local natural-language convenience layer should
 compile to the same typed contract instead of growing separate search semantics.
 
 ## Bounded failure recovery
 
 Audio bisection/retry should be added only if representative long-recording failures show
-it is needed.
+it is needed. Do not front-load a recovery labyrinth for hypothetical failures.
 
-Do not front-load a recovery labyrinth for hypothetical failures.
+## Pre-production contract policy
 
-# Pre-production contract policy
+EchoFlow has not yet had a released/dogfooded durable compatibility boundary. Internal
+durable contracts therefore use one current canonical shape rather than accumulating
+migration branches for every unreleased intermediate state.
 
-EchoFlow has not had a released/dogfooded durable compatibility boundary yet.
-
-Internal durable contracts therefore use one current canonical shape rather than
-accumulating migration branches for every unreleased intermediate state.
-
-Unsupported schema versions still fail closed.
-
-When a real compatibility obligation exists, migrations should be introduced against
-actual persisted fixtures from that boundary.
+Unsupported schema versions still fail closed. When a real compatibility obligation
+exists, migrations should be introduced against actual persisted fixtures from that
+boundary.
 
 # Research candidates, not promises
 
 Interesting later investigations include:
 
 - independent forced alignment or phoneme-level timing if native word timing proves
-  insufficient for a real use case;
+  insufficient;
 - finer intra-clause/romanized language attribution;
-- improved overlap rendering and source separation;
+- source separation when measured overlap failures justify it;
 - richer PTS/SMPTE synchronization only when real media requires it;
 - alternative qualified multilingual embedding models;
 - character n-gram/fuzzy retrieval for ASR names/acronyms/misspellings;
 - a small local cross-encoder reranker if measured benefit justifies it;
-- resource-admitted HNSW only when exact-search latency justifies it;
+- resource-admitted HNSW only when exact-search latency justifies approximation;
 - constrained deterministic natural-language query grammar;
-- optional local query translation that shows the interpreted typed query to the user;
+- optional local query translation that shows the interpreted typed query;
 - optional summarization only over an explicitly selected/citable evidence set;
+- explicit user-authored cross-recording person relationships, without biometric
+  identity inference;
 - additional ASR engines when they provide a concrete advantage; and
 - additional accelerator backends when a real engine can consume them.
 
 The order can change when security review, dogfooding, hardware evidence, or complexity
 contradicts an assumption.
 
-The stable direction is much narrower:
+The stable direction is narrower:
 
 > **Make sensitive local transcription boringly dependable. Make its evidence easy to
-> navigate. Do not give the corpus away.** 💃
+> navigate and annotate. Do not give the corpus away.** 💃

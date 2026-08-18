@@ -49,7 +49,9 @@ class ResearchSearchResponse:
 
     def __post_init__(self) -> None:
         if len(self.retrieval.results) != len(self.results):
-            raise ValueError("research results must preserve retrieval result cardinality")
+            raise ValueError(
+                "research results must preserve retrieval result cardinality"
+            )
         if tuple(item.passage for item in self.results) != self.retrieval.results:
             raise ValueError("research results must preserve retrieval result order")
 

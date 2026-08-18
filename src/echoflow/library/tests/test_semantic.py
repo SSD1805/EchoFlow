@@ -89,7 +89,6 @@ def test_chunking_never_turns_a_long_source_segment_into_fake_evidence(
     slack=st.integers(min_value=0, max_value=12),
 )
 def test_chunking_property_preserves_every_evidence_segment_exactly_once(
-    tmp_path: Path,
     word_counts: list[int],
     target_words: int,
     slack: int,
@@ -105,7 +104,7 @@ def test_chunking_property_preserves_every_evidence_segment_exactly_once(
         )
         for index, word_count in enumerate(word_counts)
     )
-    transcript = _transcript(tmp_path, segments=segments)
+    transcript = _transcript(Path("property-fixture"), segments=segments)
     profile = ChunkingProfile(
         "property-test",
         target_words=target_words,
@@ -225,6 +224,7 @@ def _module_loader_with_rows(rows: list[list[float]]) -> Any:
             normalize_embeddings: bool,
             show_progress_bar: bool,
         ) -> _FakeEncoded:
+            assert texts
             assert normalize_embeddings is True
             assert show_progress_bar is False
             return _FakeEncoded(rows)
@@ -236,7 +236,9 @@ def _module_loader_with_rows(rows: list[list[float]]) -> Any:
     return loader
 
 
-def _provider_with_rows(tmp_path: Path, rows: list[list[float]]) -> SentenceTransformersE5Provider:
+def _provider_with_rows(
+    tmp_path: Path, rows: list[list[float]]
+) -> SentenceTransformersE5Provider:
     snapshot = tmp_path / ("b" * 40)
     snapshot.mkdir(exist_ok=True)
     return SentenceTransformersE5Provider(

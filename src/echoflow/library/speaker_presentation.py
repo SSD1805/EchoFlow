@@ -267,6 +267,8 @@ class SpeakerPresentationService:
         turns: list[_Turn],
         labels: dict[str, str],
     ) -> SpeakerPresentationSpan:
+        refs: tuple[str, ...]
+        kind: SpeakerPresentationKind
         if segment.speaker_ref is not None and segment.speaker_ref.strip():
             refs = (segment.speaker_ref,)
             kind = SpeakerPresentationKind.SINGLE

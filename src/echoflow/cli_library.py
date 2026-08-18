@@ -11,6 +11,7 @@ from rich.table import Table
 from rich.text import Text
 
 from echoflow.app.app_container import AppContainer
+from echoflow.cli_discovery import register_discovery_command
 from echoflow.cli_research import register_research_commands
 from echoflow.cli_speakers import register_speaker_commands
 from echoflow.core.errors import EchoFlowError
@@ -734,6 +735,7 @@ def register_library_commands(
         )
 
     library_app.add_typer(embeddings_app, name="embeddings")
+    register_discovery_command(library_app, container_factory)
     register_speaker_commands(library_app, container_factory)
     register_research_commands(library_app, container_factory)
     app.add_typer(library_app, name="library")

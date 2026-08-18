@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.library.errors import SpeakerLabelStateError
@@ -80,6 +81,69 @@ class _StoredState(BaseModel):
 
     schema_version: int
     labels: list[_StoredLabel]
+
+
+class _CanonicalWordSpeaker(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    speaker_ref: str | None = None
+
+
+class _CanonicalSegmentSpeaker(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    speaker_ref: str | None = None
+    words: list[_CanonicalWordSpeaker] = Field(default_factory=list)
+
+
+class _CanonicalSpeakerProjection(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    segments: list[_CanonicalSegmentSpeaker]
+
+
+def canonical_speaker_refs(
+    document: IndexedDocument,
+    file_manager: FileManagerFacade,
+) -> tuple[str, ...]:
+    """Return anonymous refs from the exact canonical generation in the index.
+
+    Mixed-speaker ASR segments may have no segment-level label while their aligned
+    words do, so both evidence levels are inspected. The canonical hash is checked
+    before accepting a human label to avoid binding a name to stale speaker numbering.
+    """
+    canonical_sha256 = SpeakerLabelStore._require_canonical_hash(document)
+    try:
+        payload = file_manager.read_file(Path(document.canonical_path))
+        if hashlib.sha256(payload).hexdigest() != canonical_sha256:
+            raise SpeakerLabelStateError(
+                "Canonical transcript changed; rebuild the library before editing speaker labels"
+            )
+        projection = _CanonicalSpeakerProjection.model_validate(json.loads(payload))
+    except SpeakerLabelStateError:
+        raise
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        ValidationError,
+        ValueError,
+    ) as exc:
+        raise SpeakerLabelStateError(
+            "Canonical speaker evidence could not be validated safely",
+            cause=exc,
+        ) from exc
+
+    refs: set[str] = set()
+    for segment in projection.segments:
+        if segment.speaker_ref is not None and segment.speaker_ref.strip():
+            refs.add(segment.speaker_ref)
+        refs.update(
+            word.speaker_ref
+            for word in segment.words
+            if word.speaker_ref is not None and word.speaker_ref.strip()
+        )
+    return tuple(sorted(refs))
 
 
 class SpeakerLabelStore:

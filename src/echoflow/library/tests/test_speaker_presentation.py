@@ -181,7 +181,9 @@ def test_simultaneous_turns_are_exposed_as_overlap_without_assigning_one_voice(
     assert span.text == "sorry"
 
 
-def test_unattributed_word_is_not_upgraded_from_single_active_turn(tmp_path: Path) -> None:
+def test_unattributed_word_is_not_upgraded_from_single_active_turn(
+    tmp_path: Path,
+) -> None:
     canonical = tmp_path / "transcript.json"
     digest = _write_canonical(
         canonical,
@@ -197,9 +199,7 @@ def test_unattributed_word_is_not_upgraded_from_single_active_turn(tmp_path: Pat
                 ]
             )
         ],
-        turns=[
-            {"start_seconds": 0.0, "end_seconds": 1.0, "speaker_ref": "speaker-01"}
-        ],
+        turns=[{"start_seconds": 0.0, "end_seconds": 1.0, "speaker_ref": "speaker-01"}],
     )
     service, _ = _service(tmp_path, _document(canonical, digest))
 
@@ -209,7 +209,9 @@ def test_unattributed_word_is_not_upgraded_from_single_active_turn(tmp_path: Pat
     assert span.speakers == ()
 
 
-def test_unaligned_sequential_speakers_are_mixed_not_false_overlap(tmp_path: Path) -> None:
+def test_unaligned_sequential_speakers_are_mixed_not_false_overlap(
+    tmp_path: Path,
+) -> None:
     canonical = tmp_path / "transcript.json"
     digest = _write_canonical(
         canonical,
@@ -278,9 +280,7 @@ def test_changed_canonical_generation_fails_closed(tmp_path: Path) -> None:
                 "speaker_ref": "speaker-01",
             }
         ],
-        turns=[
-            {"start_seconds": 0.0, "end_seconds": 1.0, "speaker_ref": "speaker-01"}
-        ],
+        turns=[{"start_seconds": 0.0, "end_seconds": 1.0, "speaker_ref": "speaker-01"}],
     )
     service, _ = _service(tmp_path, _document(canonical, digest))
     canonical.write_text('{"segments": []}')

@@ -193,7 +193,9 @@ def test_assembler_rebases_aligned_words_to_source_relative_timeline():
         ((first_window, first), (second_window, second))
     )
 
-    assert [(segment.start_seconds, segment.end_seconds) for segment in result.segments] == [
+    assert [
+        (segment.start_seconds, segment.end_seconds) for segment in result.segments
+    ] == [
         (1.0, 3.0),
         (12.0, 14.0),
     ]

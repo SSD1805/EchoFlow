@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from echoflow.transcription.models import RecognizedSegment
 
-_TIMESTAMP_TOLERANCE_SECONDS = 1e-6
+_WORD_SEGMENT_TOLERANCE_SECONDS = 0.05
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,13 +60,19 @@ class AlignedRecognizedSegment(RecognizedSegment):
     def _validate_words(self) -> None:
         previous_end = self.start_seconds
         for word in self.words:
-            if word.start_seconds < self.start_seconds - _TIMESTAMP_TOLERANCE_SECONDS:
+            if (
+                word.start_seconds
+                < self.start_seconds - _WORD_SEGMENT_TOLERANCE_SECONDS
+            ):
                 raise ValueError("word timestamp starts before its segment")
-            if word.end_seconds > self.end_seconds + _TIMESTAMP_TOLERANCE_SECONDS:
+            if word.end_seconds > self.end_seconds + _WORD_SEGMENT_TOLERANCE_SECONDS:
                 raise ValueError("word timestamp ends after its segment")
-            if word.start_seconds < previous_end - _TIMESTAMP_TOLERANCE_SECONDS:
+            if (
+                word.start_seconds
+                < previous_end - _WORD_SEGMENT_TOLERANCE_SECONDS
+            ):
                 raise ValueError("word timestamps must be ordered and non-overlapping")
-            previous_end = word.end_seconds
+            previous_end = max(previous_end, word.end_seconds)
 
         if self.speaker_ref is None or not self.words:
             return

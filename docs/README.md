@@ -16,41 +16,35 @@ somebody to be EchoFlow.
 > inspectable evidence, your notes and labels remain your knowledge, and most machinery
 > built around those things can be thrown away and rebuilt.
 
-🧜‍♀️
-
 ## What can EchoFlow do today?
 
-EchoFlow is still pre-production, but the backend is no longer a toy transcription
-script. The current foundation covers the local journey from media to a searchable,
-navigable evidence corpus with durable user-authored research state.
+EchoFlow is still pre-production, but the backend is no longer a toy transcription script.
+The current foundation covers the local journey from media to a searchable, navigable
+evidence corpus with durable user-authored research state.
 
 | You want to… | EchoFlow currently… |
 |---|---|
 | Transcribe a recording privately | runs faster-whisper locally from a verified managed model |
 | Avoid melting a smaller laptop | inspects process-visible CPU, RAM, and compatible acceleration before choosing a strategy |
-| Use a GPU when it is actually usable | separates physical hardware discovery from engine/runtime capability |
 | Survive an interruption | checkpoints completed work and validates the original contract on resume |
 | Keep the original recording intact | treats source media as read-only evidence and writes processing artifacts separately |
 | Handle video files | deterministically selects an audio stream and transcribes the audio-bearing source |
 | Clean up a noisy recording | optionally applies deterministic local noise suppression with provenance and timeline checks |
 | Work with multiple languages | supports multilingual decoding plus conservative local language attribution |
 | Distinguish speakers | preserves optional anonymous recording-scoped speaker evidence without claiming identity |
-| Give anonymous speakers useful names | stores user-assigned display labels separately from canonical diarization evidence and rebuildable search state |
-| Read awkward handoffs honestly | distinguishes clean speaker spans, true overlap, mixed/unresolved text, and unattributed text |
+| Give speakers useful display names | stores user-assigned labels separately from canonical diarization evidence |
+| Read awkward handoffs honestly | distinguishes clean speaker spans, overlap, mixed/unresolved text, and unattributed text |
 | Publish useful transcript formats | produces canonical JSON plus rebuildable TXT, SRT, and WebVTT views |
 | Find an exact phrase later | builds a private local lexical/BM25 transcript library |
-| Find an idea when the wording changed | supports optional local semantic retrieval |
+| Find an idea when wording changed | supports optional local semantic retrieval |
 | Combine both search styles | uses inspectable reciprocal-rank fusion |
-| Stop calculating giant second counts | renders source-relative evidence as human `HH:MM:SS.mmm` coordinates while keeping numeric seconds authoritative |
-| Preserve camera/container time clues | records source-declared `timecode` and `creation_time` tags with format/stream provenance when present |
-| Follow a search result back to evidence | verifies the canonical transcript, resolves exact lexical word matches when justified, expands context, and exposes a source seek coordinate |
-| See your speaker names in search | decorates current search presentation with names such as `Dr. Chen (speaker-02)` without replacing the anonymous evidence ref |
+| Follow a search result back to evidence | verifies the canonical transcript, resolves exact lexical words when justified, expands context, and exposes a source seek coordinate |
 | Keep durable research notes | stores notes, tags, and collections in authoritative private SQLite state anchored to exact canonical evidence |
-| Query your notebook quickly | projects only queryable research metadata into rebuildable DuckDB state |
-| Search transcript evidence through your notes | applies tag/collection/note-text constraints before lexical ranking or semantic vector scoring |
+| Query your notebook quickly | projects only query-relevant research relationships and lexical terms into rebuildable DuckDB state |
+| Search transcript evidence through your notes | applies tag/collection/note-text constraints before lexical ranking or semantic scoring |
 
-That is a lot of machinery. The point is not to make you operate the machinery. The
-point is to make sensitive local transcription and research feel boringly dependable.
+The point is not to make users operate the machinery. The point is to make sensitive local
+transcription and research feel boringly dependable.
 
 ## Pick your doorway
 
@@ -58,8 +52,8 @@ point is to make sensitive local transcription and research feel boringly depend
 
 Start with **[Getting started](getting-started.md)**.
 
-It walks through installation, model setup, transcription, resume, exports, and search
-without requiring an architecture degree.
+It walks through installation, model setup, transcription, resume, exports, search, and
+the current command-line research notebook.
 
 ### 📝 I want to keep notes beside the evidence
 
@@ -69,22 +63,6 @@ It explains durable evidence anchors, notes/tags/collections, notebook queries,
 research-aware transcript search, stale transcript generations, and why deleting a search
 index cannot delete your research work.
 
-### 🕰️ I want to understand transcript time and jumping around
-
-Read **[Transcript time without calculator gymnastics](time-navigation.md)**.
-
-It explains what word timestamps buy you, why `4788.37` seconds becomes
-`01:19:48.370`, why source-declared camera time is a different clock, and how canonical
-numeric coordinates support source seeking.
-
-### 👥 I want `speaker-02` to have a human name
-
-Read **[Give the anonymous speakers names](speaker-names.md)**.
-
-It explains why `speaker-02` remains evidence while `Dr. Chen` is your durable display
-label, how overlap/handoffs are presented, and why names do not silently jump across a
-changed transcript generation.
-
 ### 🔎 I found something. Show me the actual evidence.
 
 Read **[From search result to the exact evidence](evidence-navigation.md)**.
@@ -92,6 +70,20 @@ Read **[From search result to the exact evidence](evidence-navigation.md)**.
 It explains canonical hash verification, exact lexical word highlighting, semantic
 restraint, neighboring context, speaker display names, source seek coordinates, and the
 durable anchor research notes reuse.
+
+### 🕰️ I want to understand transcript time and jumping around
+
+Read **[Transcript time without calculator gymnastics](time-navigation.md)**.
+
+It explains source-relative timing, human elapsed display, source-declared media metadata,
+and why playback should seek by canonical numeric coordinates.
+
+### 👥 I want `speaker-02` to have a human name
+
+Read **[Give the anonymous speakers names](speaker-names.md)**.
+
+It explains why `speaker-02` remains evidence while `Dr. Chen` is durable user-authored
+presentation state.
 
 ### ✨ I want to understand semantic search
 
@@ -101,8 +93,7 @@ embedding is and what stays local.
 
 ### 🔐 I care about privacy and security boundaries
 
-Read **[SECURITY.md](../SECURITY.md)**. That document intentionally uses less glitter.
-Security claims should be boring enough to audit.
+Read **[SECURITY.md](../SECURITY.md)**. Security claims should be boring enough to audit.
 
 ### 🔧 I am maintaining or extending EchoFlow
 
@@ -115,55 +106,40 @@ navigation, and durable research-state projection.
 ### 🧪 I am here to break things professionally
 
 The [development docs](development/) cover benchmarking, test design, bisect strategy,
-and targeted mutation qualification.
-
----
+semantic retrieval qualification, and targeted mutation testing.
 
 ## The EchoFlow family portrait
 
-The product makes more sense when its capabilities are grouped by the job they perform.
-
 ```mermaid
 flowchart LR
-    U[Your recording] --> C[Custodian\nsource + provenance]
-    C --> H[Hardware sommelier\nfit work to this machine]
-    H --> T[Transcription engine room\nASR + checkpoints + enrichment]
-    T --> A[Archivist\ncanonical transcript + exports]
-    A --> L[Librarian\nlexical + semantic + hybrid search]
-    L --> N[Navigator\nverify + highlight + context + seek]
-    N --> R[Research notebook\ndurable notes + tags + collections]
-    R --> E[Evidence you can inspect again]
-
-    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
-    classDef compute fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
-    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
-    classDef result fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
-
-    class U,C source
-    class H compute
-    class T process
-    class A evidence
-    class L,N,E result
-    class R evidence
+    A[Your recording] --> B[Local transcription]
+    B --> C[Canonical transcript]
+    C --> D[Lexical semantic hybrid search]
+    D --> E[Verified evidence navigation]
+    E --> F[Research notebook]
+    F --> D
+    F --> G[Future unified discovery and GUI]
 ```
 
-The shared rule across the whole family is simple:
+Text fallback: canonical evidence feeds rebuildable search; search resolves back to
+verified evidence; durable notes/tags/collections attach to that evidence and can constrain
+later retrieval; the next user-facing layer unifies those capabilities rather than
+reimplementing them.
+
+The shared rule is simple:
 
 **Do complicated work locally. Keep the evidence understandable, portable, and owned by
 the user.**
 
 ## What belongs to you, and what can the raccoon rebuild? 🦝
 
-EchoFlow uses different custody rules for different kinds of data.
-
 | Data | What it is | Rebuildable? |
 |---|---|---|
 | Original recording | source evidence | **No** |
 | Canonical transcript JSON | authoritative transcript artifact | **No** |
 | Speaker display labels | user-authored knowledge | **No** |
-| Research notes, tags, collections, and evidence anchors | user-authored knowledge | **No** |
-| Future saved searches / curated result sets | user-authored knowledge | **No** |
+| Research notes, tags, collections, evidence anchors | user-authored knowledge | **No** |
+| Future saved searches / selected result sets | user-authored knowledge | **No** |
 | TXT / SRT / WebVTT | publication views | Yes |
 | Normalized/enhanced working audio | private processing material | Yes |
 | Checkpoint machinery after successful publication | execution/recovery state | Usually disposable after completion |
@@ -175,44 +151,39 @@ EchoFlow uses different custody rules for different kinds of data.
 If deleting a search or research projection destroys unique user-authored information,
 something has gone very wrong.
 
+## Where the product is going next
+
+The research-navigation sequence that used to live here as future work is now foundation:
+word timing, human/source time semantics, speaker display labels, overlap-aware speaker
+presentation, verified search navigation, and durable notes/tags/collections are all
+implemented.
+
+The next layers are intentionally more human-facing:
+
+1. **Unified library discovery** across transcript evidence, notes, tags, collections, and
+   later saved searches.
+2. **Saved searches and useful derived navigation**, including frequent/recent tags and
+   facets where they reduce hunting without creating new authoritative counters.
+3. **A thin graphical shell** that can browse/search transcripts, select evidence, create
+   notes, apply tags/collections, and seek local media using existing application services.
+4. **Portable research export and incremental library refresh** so ownership and larger
+   corpora remain pleasant rather than merely correct.
+5. **Productization** through semantic-install qualification, representative-device
+   dogfooding, installers, and polished recovery/error language.
+
+The GUI should be a presentation adapter, not a second implementation of transcription,
+search, time mapping, speaker policy, evidence anchoring, or research-state custody.
+
+For the fuller sequencing and deliberate limits, see **[ROADMAP.md](../ROADMAP.md)**.
+
 ## Why the docs have different personalities
 
-Not every reader needs the same depth.
-
-- **Welcome/onboarding docs** explain the product in ordinary language and may contain
-  raccoons, mermaids, dancing women, and other signs of life.
+- **Welcome/onboarding docs** explain the product in ordinary language.
 - **Feature guides** explain *why* a capability exists before exposing implementation
   detail.
-- **Architecture docs** keep exact contracts, but each should still provide a
-  plain-English doorway and useful diagrams.
-- **Security, audit, schema, and command contracts** prioritize unambiguous language over
-  jokes.
+- **Architecture docs** keep exact contracts, but provide a plain-English doorway.
+- **Security, audit, schema, and command contracts** prioritize unambiguous language.
 
 The detailed editorial rules live in **[documentation-style.md](documentation-style.md)**.
-
-## What is next?
-
-The research-navigation sequence that used to live here as future work is now mostly
-foundation:
-
-1. word/timestamp alignment is implemented;
-2. human elapsed time and source-declared temporal provenance are implemented;
-3. durable recording-scoped speaker display labels are implemented;
-4. handoff/overlap-aware speaker presentation is implemented;
-5. search results resolve back to verified canonical segments/words with bounded context
-   and seek coordinates; and
-6. durable notes/tags/collections now live in authoritative SQLite state with a
-   rebuildable DuckDB research projection for fast notebook and transcript filtering.
-
-The next research-workspace layer is narrower: saved searches, citable/exportable result
-sets, richer annotation/playback ergonomics, and a thin graphical shell over the same
-application services. Semantic dependency/model setup, representative-device
-qualification, and installers remain major productization work.
-
-Speech/source separation remains later. EchoFlow can now represent overlap honestly, so
-a separation model should earn its compute/model/provenance cost with measured benefit
-on real recordings.
-
-For the fuller sequencing and research boundary, see **[ROADMAP.md](../ROADMAP.md)**.
 
 💃 **You are now allowed to leave the documentation lobby.**

@@ -70,6 +70,11 @@ class FakeEmbeddingProvider:
         return tuple((1.0, 0.0) for _ in texts)
 
 
+class FailingEmbeddingProvider(FakeEmbeddingProvider):
+    def embed_passages(self, texts: tuple[str, ...]) -> tuple[tuple[float, ...], ...]:
+        raise RuntimeError("synthetic embedding failure")
+
+
 def _paths(tmp_path: Path) -> WorkspacePaths:
     cache_dir = tmp_path / "cache"
     return WorkspacePaths(
@@ -156,11 +161,37 @@ def test_semantic_rebuild_uses_same_canonical_corpus_and_hybrid_response(
     assert report.indexed_chunks == 1
     assert report.semantic_backend_id == "duckdb-exact-vector-v1"
     assert len(report.corpus_fingerprint) == 64
+    assert report.model_id == "fake/multilingual"
     assert response.mode is RetrievalMode.HYBRID
     assert response.results[0].segment_ids == ("s1",)
     assert response.results[0].lexical_rank == 1
     assert response.results[0].semantic_rank == 1
     assert response.results[0].canonical_sha256 is not None
+
+
+def test_non_e5_provider_contract_is_accepted_by_library_core(tmp_path: Path) -> None:
+    service, provider, _ = _service(tmp_path)
+
+    service.rebuild_semantic(provider)
+    state = service.semantic_state()
+
+    assert state is not None
+    assert state.profile.provider == "fake"
+    assert state.profile.model_id == "fake/multilingual"
+    assert state.profile.dimensions == 2
+
+
+def test_embedding_failure_does_not_replace_previous_semantic_generation(
+    tmp_path: Path,
+) -> None:
+    service, provider, _ = _service(tmp_path)
+    service.rebuild_semantic(provider)
+    before = service.semantic_state()
+
+    with pytest.raises(SemanticSearchUnavailableError, match="could not build"):
+        service.rebuild_semantic(FailingEmbeddingProvider(tmp_path))
+
+    assert service.semantic_state() == before
 
 
 def test_canonical_change_invalidates_semantic_generation_after_lexical_rebuild(

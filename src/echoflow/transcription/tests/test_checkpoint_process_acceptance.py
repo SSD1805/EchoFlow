@@ -10,11 +10,8 @@ from dependency_injector import providers
 from echoflow.app.app_container import AppContainer
 from echoflow.core.config import AppConfig
 from echoflow.runner.models import ProcessingProfile
-from echoflow.transcription.models import (
-    AudioSegmentWindow,
-    EngineTranscript,
-    RecognizedSegment,
-)
+from echoflow.transcription.alignment import AlignedRecognizedSegment, AlignedWord
+from echoflow.transcription.models import AudioSegmentWindow, EngineTranscript
 from echoflow.workspace.models import JobId
 
 _EXIT_AFTER_CHECKPOINT = 73
@@ -86,11 +83,19 @@ def _crash_after_checkpoint(root_text: str) -> None:
         _WINDOW,
         EngineTranscript(
             segments=(
-                RecognizedSegment(
+                AlignedRecognizedSegment(
                     index=0,
                     start_seconds=0.0,
                     end_seconds=1.0,
                     text="Durable checkpoint.",
+                    words=(
+                        AlignedWord(
+                            start_seconds=0.0,
+                            end_seconds=1.0,
+                            text=" Durable checkpoint.",
+                            probability=0.99,
+                        ),
+                    ),
                 ),
             ),
             language="en",
@@ -129,6 +134,15 @@ def test_completed_checkpoint_survives_unceremonious_process_exit(tmp_path):
     window, transcript = restored.completed[0]
     assert window == _WINDOW
     assert transcript.segments[0].text == "Durable checkpoint."
+    assert transcript.segments[0].to_dict()["words"] == [
+        {
+            "start_seconds": 0.0,
+            "end_seconds": 1.0,
+            "text": " Durable checkpoint.",
+            "probability": 0.99,
+            "speaker_ref": None,
+        }
+    ]
     assert transcript.language == "en"
     assert restored.engine_version == "crash-acceptance-engine"
 

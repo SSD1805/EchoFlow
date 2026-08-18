@@ -8,7 +8,12 @@ from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.library.evidence import EvidenceLocator
 from echoflow.library.errors import EvidenceNavigationError
 from echoflow.library.index import SearchQuery
-from echoflow.library.retrieval import RetrievalMode, SearchPassage, SearchResponse
+from echoflow.library.retrieval import (
+    RetrievalMode,
+    SearchPassage,
+    SearchResponse,
+)
+from echoflow.library.semantic import EmbeddingProfile
 
 
 def _canonical(path: Path) -> str:
@@ -181,9 +186,7 @@ def test_semantic_only_result_does_not_invent_exact_word_highlight(tmp_path: Pat
         mode=RetrievalMode.SEMANTIC,
         lexical_backend_id=None,
         semantic_backend_id="duckdb-exact-vector-v1",
-        semantic_profile=pytest.importorskip(
-            "echoflow.library.semantic"
-        ).EmbeddingProfile(
+        semantic_profile=EmbeddingProfile(
             profile_id="profile",
             provider="fake",
             model_id="fake/model",

@@ -193,9 +193,7 @@ def test_notes_show_json_reads_authoritative_note_view() -> None:
     workspace.note.return_value = _note_view(current=False)
     app = _app(workspace)
 
-    result = CliRunner().invoke(
-        app, ["library", "notes", "show", "note-1", "--json"]
-    )
+    result = CliRunner().invoke(app, ["library", "notes", "show", "note-1", "--json"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -371,9 +369,7 @@ def test_research_rebuild_json_reports_rebuild_receipt() -> None:
     )
     app = _app(workspace)
 
-    result = CliRunner().invoke(
-        app, ["library", "research", "rebuild", "--json"]
-    )
+    result = CliRunner().invoke(app, ["library", "research", "rebuild", "--json"])
 
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {
@@ -390,7 +386,9 @@ def test_research_cli_preserves_public_errors_and_masks_internal_failures() -> N
     runner = CliRunner()
 
     public_workspace = Mock()
-    public_workspace.notes.side_effect = ResearchStateError("Research state is unavailable")
+    public_workspace.notes.side_effect = ResearchStateError(
+        "Research state is unavailable"
+    )
     public_result = runner.invoke(_app(public_workspace), ["library", "notes"])
 
     value_workspace = Mock()
@@ -398,7 +396,9 @@ def test_research_cli_preserves_public_errors_and_masks_internal_failures() -> N
     value_result = runner.invoke(_app(value_workspace), ["library", "notes"])
 
     internal_workspace = Mock()
-    internal_workspace.notes.side_effect = RuntimeError("sensitive implementation detail")
+    internal_workspace.notes.side_effect = RuntimeError(
+        "sensitive implementation detail"
+    )
     internal_result = runner.invoke(_app(internal_workspace), ["library", "notes"])
 
     assert public_result.exit_code == 2

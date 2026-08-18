@@ -423,9 +423,7 @@ class ResearchWorkspaceService:
     def _matching_collections(
         self, text: str, *, limit: int
     ) -> tuple[ResearchCollection, ...]:
-        ranked: list[
-            tuple[tuple[int, int, str], str, ResearchCollection]
-        ] = []
+        ranked: list[tuple[tuple[int, int, str], str, ResearchCollection]] = []
         for collection in self.state.collections():
             key = self._name_match_key(collection.name, text)
             if key is not None:

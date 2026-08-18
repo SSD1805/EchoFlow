@@ -123,6 +123,55 @@ The speaker-label service inspects **both segment-level and aligned-word speaker
 
 💃 Finer evidence, less lying. A useful trade.
 
+## Reading handoffs and overlap without flattening them
+
+A speaker name is only useful if EchoFlow can show it where the evidence actually belongs.
+
+The derived speaker transcript view combines canonical word timing with the preserved speaker-turn timeline:
+
+```bash
+echoflow library speakers transcript TRANSCRIPT_ID
+```
+
+A clean handoff can become two readable spans:
+
+```text
+00:00:04.100  Interviewer (speaker-01)       single-speaker  What happened next?
+00:00:05.900  Dr. Chen (speaker-02)          single-speaker  We moved the samples.
+```
+
+If two diarized speakers are simultaneously active over the same aligned word interval, EchoFlow does not choose a winner:
+
+```text
+00:00:12.200  Interviewer (speaker-01)
+              + Dr. Chen (speaker-02)         overlap         Sorry—
+```
+
+And if a coarse segment contains more than one speaker but lacks word timing precise enough to assign its text, the view says `mixed-unresolved` rather than pretending the whole sentence belongs to either person.
+
+```mermaid
+flowchart LR
+    W[Canonical word timing] --> P[Derived speaker presentation]
+    T[Speaker-turn timeline] --> P
+    N[Your display labels] --> P
+    P --> S[single-speaker]
+    P --> O[overlap]
+    P --> M[mixed-unresolved]
+    P --> U[unattributed]
+
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef user fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+
+    class W,T evidence
+    class N user
+    class P,S,O,M,U view
+```
+
+This view is **derived presentation**, not a new canonical transcript. Numeric source-relative seconds and the original anonymous refs remain visible in JSON, along with the canonical transcript SHA-256 that the view came from.
+
+One conservative rule matters: if a canonical aligned word is unattributed, the presentation layer will not promote it to a single named speaker merely because one diarization turn happens to overlap. Presentation may expose additional **multi-speaker overlap**, but it does not manufacture a stronger single-speaker claim than canonical evidence already made.
+
 ## Where are these labels stored?
 
 Speaker names are **private user-authored state**, not rebuildable search state.
@@ -142,6 +191,6 @@ This means rebuilding lexical or semantic search must not erase the names you as
 
 Speaker display labels are not biometric identification. EchoFlow does not infer that `speaker-01` in two different recordings is the same person, and it does not search for somebody's identity from their voice.
 
-This feature also does not solve simultaneous speech. Word-level diarization can preserve ambiguity honestly, but source separation remains a later and materially heavier capability.
+Overlap-aware presentation also does not perform source separation. It represents simultaneous speaker evidence honestly using the timeline EchoFlow already has. Separating overlapping audio into estimated sources remains a later and materially heavier capability with its own compute, model-custody, and provenance requirements.
 
 For the underlying diarization evidence model, security gate, and overlap rules, see **[Anonymous speaker diarization](architecture/diarization.md)**.

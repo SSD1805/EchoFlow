@@ -13,6 +13,11 @@ from rich.table import Table
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
 from echoflow.library.speaker_label_service import SpeakerRosterEntry
+from echoflow.library.speaker_presentation import (
+    SpeakerPresentationService,
+    SpeakerPresentationSpan,
+)
+from echoflow.media.time_coordinates import format_elapsed_timestamp
 
 ContainerFactory = Callable[[typer.Context], AppContainer]
 
@@ -42,6 +47,14 @@ def _roster_dict(entry: SpeakerRosterEntry) -> dict[str, object]:
     }
 
 
+def _span_dict(span: SpeakerPresentationSpan) -> dict[str, object]:
+    return {
+        **span.to_dict(),
+        "start_timestamp": format_elapsed_timestamp(span.start_seconds),
+        "end_timestamp": format_elapsed_timestamp(span.end_seconds),
+    }
+
+
 def _render_roster(
     document_id: str,
     roster: tuple[SpeakerRosterEntry, ...],
@@ -58,6 +71,36 @@ def _render_roster(
             entry.display_name,
         )
     console.print(table)
+
+
+def _render_transcript(
+    document_id: str,
+    spans: tuple[SpeakerPresentationSpan, ...],
+    console: Console,
+) -> None:
+    table = Table(title=f"EchoFlow speaker transcript: {document_id}")
+    table.add_column("Time", min_width=12, no_wrap=True)
+    table.add_column("Speaker evidence")
+    table.add_column("State")
+    table.add_column("Transcript")
+    for span in spans:
+        time_range = (
+            f"{format_elapsed_timestamp(span.start_seconds)}\n"
+            f"{format_elapsed_timestamp(span.end_seconds)}"
+        )
+        speakers = (
+            " + ".join(speaker.display_name for speaker in span.speakers) or "unknown"
+        )
+        table.add_row(time_range, speakers, span.kind.value, span.text)
+    console.print(table)
+
+
+def _presentation_service(container: AppContainer) -> SpeakerPresentationService:
+    return SpeakerPresentationService(
+        index=container.transcript_index(),
+        label_store=container.speaker_label_store(),
+        file_manager=container.file_manager(),
+    )
 
 
 def _list_speakers(
@@ -80,6 +123,25 @@ def _list_speakers(
         typer.echo(json.dumps([_roster_dict(item) for item in roster], sort_keys=True))
         return
     _render_roster(transcript_id, roster, Console())
+
+
+def _show_speaker_transcript(
+    context: typer.Context,
+    transcript_id: str,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        container = container_factory(_root_context(context))
+        spans = _presentation_service(container).spans(transcript_id)
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps([_span_dict(item) for item in spans], sort_keys=True))
+        return
+    _render_transcript(transcript_id, spans, Console())
 
 
 def _name_speaker(
@@ -150,7 +212,7 @@ def register_speaker_commands(
     container_factory: ContainerFactory,
 ) -> None:
     speakers_app = typer.Typer(
-        help="Give anonymous transcript speakers durable human display names.",
+        help="Name and inspect anonymous transcript speaker evidence.",
         no_args_is_help=True,
     )
 
@@ -161,6 +223,19 @@ def register_speaker_commands(
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
         _list_speakers(
+            context,
+            transcript_id,
+            json_output=json_output,
+            container_factory=container_factory,
+        )
+
+    @speakers_app.command("transcript")
+    def speaker_transcript(
+        context: typer.Context,
+        transcript_id: str = typer.Argument(..., metavar="TRANSCRIPT_ID"),
+        json_output: bool = typer.Option(False, "--json"),
+    ) -> None:
+        _show_speaker_transcript(
             context,
             transcript_id,
             json_output=json_output,

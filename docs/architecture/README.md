@@ -6,9 +6,9 @@ The user-facing docs explain what EchoFlow does. These pages explain **why the b
 exist, what each capability owns, what it refuses to own, and which invariants must
 survive refactors**.
 
-If you are trying to transcribe a file rather than maintain the system, back out gently
-and use **[Getting started](../getting-started.md)**. There is no prize for learning
-cgroup accounting before lunch.
+If you are trying to transcribe a file rather than maintain the system, use
+**[Getting started](../getting-started.md)**. There is no prize for learning cgroup
+accounting before lunch.
 
 ## The shape of the system
 
@@ -19,36 +19,31 @@ Injector.
 
 ```mermaid
 flowchart LR
-    A[Source media] --> M[Media inspection]
-    M --> R[Resource + runtime inspection]
-    R --> P[Immutable plan]
-    P --> X[Local execution]
-    X --> C[Canonical transcript]
-    C --> E[Derived exports]
-    C --> L[Rebuildable search projections]
-    L --> S[Ranked search passages]
-    C --> N[Verified evidence navigation]
-    S --> N
-    N --> U[Authoritative user research state]
-    U --> RP[Rebuildable research projection]
-    RP --> S
-
-    classDef evidence fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
-    classDef compute fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
-    classDef publish fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
-    classDef result fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
-
-    class A,C evidence
-    class M,R,P compute
-    class X process
-    class E,U publish
-    class L,S,N,RP result
+    A[Source media] --> B[Media and resource inspection]
+    B --> C[Immutable local plan]
+    C --> D[Transcription and checkpoints]
+    D --> E[Canonical transcript JSON]
+    E --> F[Derived exports]
+    E --> G[DuckDB lexical and semantic projections]
+    G --> H[Ranked passages]
+    E --> I[Verified evidence navigation]
+    H --> I
+    I --> J[SQLite research authority]
+    J --> K[Deterministic projector]
+    K --> L[DuckDB research projection]
+    L --> H
+    J --> M[ResearchWorkspaceService]
+    I --> M
 ```
 
-The architectural through-line is custody: source evidence and canonical transcript
-truth remain distinguishable from temporary execution state, model dependencies,
-rebuildable search infrastructure, and durable user-authored knowledge.
+Text fallback: source media produces canonical transcript evidence; DuckDB search
+projections rank passages; evidence navigation verifies those passages; SQLite owns
+human-authored research state; a deterministic projector builds disposable DuckDB query
+state; `ResearchWorkspaceService` is the application-facing seam across those boundaries.
+
+The architectural through-line is **custody**. Source evidence, canonical transcript
+truth, private execution state, managed model dependencies, rebuildable indexes, and
+durable human knowledge intentionally have different deletion and recovery semantics.
 
 ## Where to look
 
@@ -57,16 +52,14 @@ rebuildable search infrastructure, and durable user-authored knowledge.
 | [Processing capabilities](processing-capabilities.md) | How does the whole local transcription/research system fit together? |
 | [Adaptive heterogeneous execution](adaptive-heterogeneous-execution.md) | How does EchoFlow decide what this machine can safely run? |
 | [Media and timeline](media-and-timeline.md) | What source did we inspect, which audio stream did we use, and what do timestamps mean? |
-| [Word-level timestamp alignment](word-alignment.md) | How do engine-produced word timings become source-relative evidence and improve speaker handoffs? |
+| [Word-level timestamp alignment](word-alignment.md) | How do engine-produced word timings become source-relative evidence? |
 | [Local model management](model-management.md) | Which model revision is allowed to execute, and how did it get here? |
 | [Speech enhancement](speech-enhancement.md) | How can preprocessing affect ASR without becoming source truth? |
 | [Anonymous speaker diarization](diarization.md) | How are speaker turns represented without pretending anonymous labels are identities? |
 | [Corpus search](corpus-search.md) | How do lexical/semantic/hybrid ranking and verified canonical navigation stay separate? |
-| [Durable research state](research-state.md) | How do authoritative SQLite notes and rebuildable DuckDB research projections stay consistent without sharing custody? |
+| [Durable research state](research-state.md) | Why does SQLite own human research while DuckDB owns rebuildable acceleration, and how do they converge? |
 | [ROADMAP](../../ROADMAP.md) | What is implemented, what is next, and what remains research? |
 | [SECURITY](../../SECURITY.md) | What does the security boundary actually claim? |
-
-🧜‍♀️ The mermaid has no architectural responsibility. She is observing.
 
 ## Package map
 
@@ -81,11 +74,10 @@ rebuildable search infrastructure, and durable user-authored knowledge.
 | `transcription` | Planning, normalization, enhancement, segmentation, ASR, checkpoints, language attribution, word alignment, diarization, assembly, exports |
 | `workspace` | Private job paths and public artifact allocation |
 | `benchmarking` | Privacy-minimized local execution measurement |
-| `library` | Lexical/semantic retrieval, canonical evidence navigation, speaker presentation, authoritative research state, and rebuildable research projection |
+| `library` | Retrieval, canonical evidence navigation, speaker presentation, authoritative research state, and rebuildable research projection |
 
-A couple of names are easy to misread. `runner` means the local compute environment
-available to the process; it is not a distributed task runner. `media.probe` performs
-inspection, not transcoding.
+`runner` means the local compute environment visible to the process; it is not a
+distributed task runner. `media.probe` performs inspection, not transcoding.
 
 ## Capability boundaries
 
@@ -95,57 +87,99 @@ everything vaguely adjacent to it.
 External/configuration/durable-data boundaries may use Pydantic where parsing and
 serialization are valuable. Small internal immutable values generally use frozen/slotted
 dataclasses. Services use narrow `Protocol` capabilities when substitution is real and
-useful for testing or multiple implementations.
+useful.
 
-The search/research area now has four deliberately separate authorities:
+The search/research area has deliberately separate responsibilities:
 
-1. retrieval services rank rebuildable passages;
-2. canonical evidence navigation verifies and locates those passages;
-3. authoritative research-state services own durable human-authored notes, tags, and
-   collections without rewriting evidence; and
-4. the research projector owns only the deterministic DuckDB acceleration layer and its
-   convergence watermark.
+1. `TranscriptLibraryService` and retrieval services discover/rank rebuildable transcript
+   passages.
+2. `EvidenceLocator` verifies and resolves those passages back to canonical evidence.
+3. `SpeakerLabelService` owns durable recording-scoped human display names without
+   rewriting diarization evidence.
+4. `ResearchStateStore` owns durable human-authored notes, tags, collections, and
+   evidence anchors.
+5. `ResearchStateProjector` owns convergence from authoritative SQLite state into the
+   rebuildable research projection.
+6. `ResearchProjectionIndex` owns fast derived research constraints and summaries.
+7. `ResearchWorkspaceService` composes those capabilities for presentation adapters.
 
-That split should survive the GUI. Presentation convenience is not permission to merge
-custody boundaries.
+That split should survive unified discovery and the GUI. Presentation convenience is not
+permission to merge custody boundaries.
 
-Structlog remains behind `core.observability.ILogger`; application services should not
-need to import Structlog directly.
+## Why SQLite and DuckDB both exist
+
+The two engines serve different workloads and different custody classes.
+
+SQLite is authoritative for irreplaceable, frequently mutated user research. DuckDB is
+used for rebuildable analytical/query projections over transcript and research data.
+There is **one authority**, not two masters.
+
+```text
+SQLite authority
+      |
+      | monotonic transactional change journal
+      v
+ResearchStateProjector
+      |
+      v
+DuckDB research projection
+```
+
+If the research projection disappears, rebuild it. If SQLite user state disappears,
+unique human work is lost. That asymmetry is intentional.
+
+See [Durable research state](research-state.md) for the full transaction, watermark,
+rebuild, and fail-closed contract.
 
 ## The custody rules 🦝
 
 These rules are load-bearing:
 
 1. **Original media is source evidence and treated as read-only input.**
-2. **Canonical transcript/checkpoint artifacts carry execution truth.**
+2. **Canonical transcript JSON is authoritative transcript evidence.**
 3. **Managed model manifests describe verified local execution dependencies.**
-4. **Lexical, semantic, and research DuckDB databases are derived, private, and
-   rebuildable.**
-5. **User-authored speaker labels, research notes, tags, collections, and future curated
-   result sets do not share deletion semantics with rebuildable indexes.**
-6. **Research-state joins include canonical generation identity, not a friendly segment
-   ID alone.**
-7. **Precise navigation must resolve back to verified canonical evidence rather than
-   trusting a stale search projection.**
-8. **A convenience layer may not quietly become the only place unique evidence or user
+4. **Lexical, semantic, and research DuckDB databases are private rebuildable
+   projections.**
+5. **User-authored speaker labels, notes, tags, collections, future saved searches, and
+   curated result sets do not share deletion semantics with indexes.**
+6. **Research-state joins include canonical generation identity, not a friendly segment ID
+   alone.**
+7. **Precise navigation resolves back to verified canonical evidence rather than trusting
+   a stale search projection.**
+8. **Research filters are applied before ranking/scoring when they define eligible
+   evidence.**
+9. **A convenience layer may not quietly become the only place unique evidence or user
    knowledge lives.**
 
 Search infrastructure is allowed to disappear. User-authored knowledge is not.
 
+## The next architectural seam
+
+The next user-facing feature is **unified library discovery**. It should compose existing
+services rather than create another database or search engine.
+
+A future discovery service may return grouped typed results such as transcript evidence,
+notes, tags, collections, and saved searches. It should preserve each result type's own
+semantics rather than inventing one universal relevance score across unlike objects.
+
+Saved searches belong to durable SQLite user state because they are authored workspace
+intent. Frequent/recent tag rankings are derived convenience views and should not become
+precious counters.
+
+The first GUI then becomes a thin presentation adapter over the same discovery,
+`ResearchWorkspaceService`, `EvidenceAnchor`, speaker, time, and playback-seek contracts.
+
 ## New abstraction test
 
-Before adding a manager, framework, registry, adapter hierarchy, or generalized plugin
-system, ask which concrete capability or invariant it protects.
+Before adding a manager, framework, registry, adapter hierarchy, generalized plugin
+system, or “database wrapper,” ask which concrete capability or invariant it protects.
 
 File count is not an architectural problem. Repeated policy, unclear ownership, and
 unprovable invariants are.
 
 ## Documentation contract
 
-Architecture docs may be technical. They should not require a reader to decode a wall of
-implementation nouns before learning the purpose.
-
-Each architecture page should aim to provide:
+Architecture pages should provide:
 
 - a plain-English doorway;
 - a visual model when structure matters;

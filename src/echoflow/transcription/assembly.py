@@ -118,7 +118,9 @@ class TranscriptAssembler:
             else:
                 end_seconds = window.start_seconds + segment.end_seconds
 
-            words = tuple(cls._rebase_word(word, window) for word in aligned_words(segment))
+            words = tuple(
+                cls._rebase_word(word, window) for word in aligned_words(segment)
+            )
             if words:
                 rebased = replace(
                     segment,
@@ -142,7 +144,9 @@ class TranscriptAssembler:
             start_seconds=min(
                 window.end_seconds, window.start_seconds + word.start_seconds
             ),
-            end_seconds=min(window.end_seconds, window.start_seconds + word.end_seconds),
+            end_seconds=min(
+                window.end_seconds, window.start_seconds + word.end_seconds
+            ),
             text=word.text,
             probability=word.probability,
             speaker_ref=word.speaker_ref,

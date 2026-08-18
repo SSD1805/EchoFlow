@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 _MILLISECONDS_PER_SECOND = 1_000
 _MILLISECONDS_PER_MINUTE = 60 * _MILLISECONDS_PER_SECOND

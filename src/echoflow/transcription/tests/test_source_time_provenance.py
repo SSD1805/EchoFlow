@@ -33,7 +33,7 @@ def test_temporal_metadata_is_provenance_not_checkpoint_source_identity(tmp_path
         TemporalTagKind.TIMECODE,
         "10:00:00:00",
         TemporalTagSource.STREAM,
-        stream_index=0,
+        stream_index=1,
     )
     plain = TranscriptSource.from_media(media(tmp_path))
     tagged = TranscriptSource.from_media(media(tmp_path, temporal_tags=(tag,)))
@@ -49,7 +49,7 @@ def test_canonical_transcript_preserves_source_declared_temporal_metadata(tmp_pa
             TemporalTagKind.TIMECODE,
             "10:00:00:00",
             TemporalTagSource.STREAM,
-            stream_index=0,
+            stream_index=1,
         ),
         MediaTemporalTag(
             TemporalTagKind.CREATION_TIME,

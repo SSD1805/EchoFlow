@@ -29,3 +29,15 @@ class EvidenceNavigationError(TranscriptLibraryError):
     """A ranked result cannot be reconciled safely with canonical evidence."""
 
     exit_code = 2
+
+
+class ResearchStateError(TranscriptLibraryError):
+    """Durable user-authored research state is invalid or unavailable."""
+
+    exit_code = 2
+
+
+class ResearchProjectionError(TranscriptLibraryError):
+    """Disposable research-state projection cannot be reconciled safely."""
+
+    exit_code = 2

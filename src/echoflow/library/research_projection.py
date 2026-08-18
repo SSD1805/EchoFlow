@@ -1,7 +1,5 @@
 """Disposable research-state projection contracts used for fast evidence filtering."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 

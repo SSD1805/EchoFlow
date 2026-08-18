@@ -172,9 +172,9 @@ class SpeakerLabelStore:
             (item.document_id, item.canonical_sha256, item.speaker_ref): item
             for item in state
         }
-        keyed[
-            (binding.document_id, binding.canonical_sha256, binding.speaker_ref)
-        ] = binding
+        keyed[(binding.document_id, binding.canonical_sha256, binding.speaker_ref)] = (
+            binding
+        )
         self._save(tuple(sorted(keyed.values(), key=self._sort_key)))
         return binding
 
@@ -195,7 +195,9 @@ class SpeakerLabelStore:
         self._save(retained)
         return True
 
-    def current_labels(self, document: IndexedDocument) -> tuple[SpeakerDisplayLabel, ...]:
+    def current_labels(
+        self, document: IndexedDocument
+    ) -> tuple[SpeakerDisplayLabel, ...]:
         canonical_sha256 = self._require_canonical_hash(document)
         return tuple(
             item
@@ -281,7 +283,9 @@ class SpeakerLabelStore:
             "schema_version": _STATE_SCHEMA_VERSION,
             "labels": [item.to_dict() for item in labels],
         }
-        payload = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        payload = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode(
+            "utf-8"
+        )
         self.file_manager.save_file(payload, self.path, private=True)
 
     @staticmethod

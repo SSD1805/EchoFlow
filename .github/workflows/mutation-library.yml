@@ -1,0 +1,64 @@
+name: Transcript Library Mutation
+
+# Mutation testing is a targeted qualification tool, not a routine PR gate.
+# Run this workflow manually when retrieval, ranking, evidence custody, or semantic
+# projection behavior changes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: transcript-library-mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutation:
+    name: Targeted transcript-library Poodle mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: true
+
+      - name: Install locked development dependencies
+        run: uv sync --locked --all-groups --extra transcription
+
+      - name: Establish retrieval qualification baseline
+        run: >-
+          uv run pytest
+          src/echoflow/library/tests/test_semantic.py
+          src/echoflow/library/tests/test_duckdb_semantic.py
+          src/echoflow/library/tests/test_retrieval.py
+          src/echoflow/library/tests/test_service_semantic.py
+          src/echoflow/tests/test_cli_library.py
+          --cov=echoflow
+          --cov-context=test
+          --cov-report=
+          --cov-fail-under=0
+
+      # Keep the mutation surface focused on decision-heavy semantic and hybrid behavior.
+      # DuckDB lexical ranking already has its own established coverage; these modules
+      # contain the new chunk custody, vector validation, filter-before-top-k, RRF, and
+      # stale-generation decisions introduced by Transcript Library V2.
+      - name: Mutate semantic retrieval decisions
+        run: >-
+          uv run poodle
+          -w 4
+          --only src/echoflow/library/semantic.py
+          --only src/echoflow/library/duckdb_semantic.py
+          --only src/echoflow/library/retrieval.py
+          --only src/echoflow/library/service.py

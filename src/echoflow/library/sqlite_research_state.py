@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 from uuid import uuid4
 
 from echoflow.core.file_manager_facade import FileManagerFacade
@@ -574,8 +575,8 @@ class SqliteResearchStateStore:
             canonical_path=str(row[5]),
             source_path=None if row[6] is None else str(row[6]),
             segment_ids=segment_ids,
-            start_seconds=float(row[7]),
-            end_seconds=float(row[8]),
+            start_seconds=float(cast("float | int", row[7])),
+            end_seconds=float(cast("float | int", row[8])),
         )
         return ResearchNote(
             note_id=str(row[0]),

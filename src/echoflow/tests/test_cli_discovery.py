@@ -140,9 +140,7 @@ def _discovery_response() -> WorkspaceDiscoveryResponse:
             ),
         ),
         tags=(ResearchTag("tag-housing", "housing"),),
-        collections=(
-            ResearchCollection("collection-housing", "Housing interviews"),
-        ),
+        collections=(ResearchCollection("collection-housing", "Housing interviews"),),
     )
 
 
@@ -156,7 +154,9 @@ def _app(workspace: Mock) -> typer.Typer:
     return app
 
 
-def test_library_find_json_preserves_typed_groups_and_forwards_discovery_options() -> None:
+def test_library_find_json_preserves_typed_groups_and_forwards_discovery_options() -> (
+    None
+):
     workspace = Mock()
     workspace.discover.return_value = _discovery_response()
     app = _app(workspace)
@@ -189,9 +189,9 @@ def test_library_find_json_preserves_typed_groups_and_forwards_discovery_options
     assert payload["total_count"] == 4
     assert payload["groups"]["transcripts"]["count"] == 1
     assert payload["groups"]["transcripts"]["results"][0]["seek_seconds"] == 1.5
-    assert payload["groups"]["transcripts"]["results"][0][
-        "speaker_display_labels"
-    ] == {"speaker-02": "Dr. Chen"}
+    assert payload["groups"]["transcripts"]["results"][0]["speaker_display_labels"] == {
+        "speaker-02": "Dr. Chen"
+    }
     assert payload["groups"]["notes"]["results"][0]["body"].startswith("Compare")
     assert payload["groups"]["notes"]["results"][0]["current"] is True
     assert payload["groups"]["tags"]["results"] == [

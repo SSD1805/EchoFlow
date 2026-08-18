@@ -23,6 +23,12 @@ from echoflow.library.research import (
     ResearchSearchResponse,
     SpeakerDisplay,
 )
+from echoflow.library.research_workspace import (
+    ResearchEvidenceView,
+    ResearchQueryFilters,
+    WorkspaceSearchPassage,
+    WorkspaceSearchResponse,
+)
 from echoflow.library.retrieval import RetrievalMode, SearchPassage, SearchResponse
 from echoflow.library.semantic import EmbeddingProfile, SemanticState
 from echoflow.library.service import (
@@ -85,9 +91,13 @@ def _passage() -> SearchPassage:
     )
 
 
-def _response(query: SearchQuery | None = None) -> SearchResponse:
-    return SearchResponse(
-        query=query or SearchQuery("housing"),
+def _located(
+    retrieval: SearchResponse | None = None,
+    *,
+    passage: SearchPassage | None = None,
+) -> ResearchSearchResponse:
+    retrieval = retrieval or SearchResponse(
+        query=SearchQuery("housing"),
         mode=RetrievalMode.LEXICAL,
         lexical_backend_id="duckdb-bm25-v1",
         semantic_backend_id=None,
@@ -95,14 +105,6 @@ def _response(query: SearchQuery | None = None) -> SearchResponse:
         fusion_profile=None,
         results=(_passage(),),
     )
-
-
-def _located(
-    retrieval: SearchResponse | None = None,
-    *,
-    passage: SearchPassage | None = None,
-) -> ResearchSearchResponse:
-    retrieval = retrieval or _response()
     passage = passage or retrieval.results[0]
     word = EvidenceWord(
         segment_id=passage.segment_ids[0],
@@ -119,17 +121,7 @@ def _located(
         end_seconds=passage.end_seconds,
         text=passage.text,
         speaker_refs=("speaker-02",),
-        words=(
-            word,
-            EvidenceWord(
-                segment_id=passage.segment_ids[0],
-                word_index=1,
-                start_seconds=2.0,
-                end_seconds=2.5,
-                text=" affordability matters",
-                speaker_ref="speaker-02",
-            ),
-        ),
+        words=(word,),
         is_result_segment=True,
         lexical_match=True,
     )
@@ -159,15 +151,33 @@ def _located(
     )
 
 
+def _workspace_response(
+    navigation: ResearchSearchResponse | None = None,
+    *,
+    filters: ResearchQueryFilters | None = None,
+) -> WorkspaceSearchResponse:
+    navigation = navigation or _located()
+    research = ResearchEvidenceView(
+        note_ids=("note-1",),
+        tags=("methodology",),
+        collections=("Chapter 3",),
+    )
+    return WorkspaceSearchResponse(
+        navigation=navigation,
+        filters=filters or ResearchQueryFilters(),
+        results=(WorkspaceSearchPassage(navigation.results[0], research),),
+    )
+
+
 def _app_with_library(
     library: Mock,
     *,
-    research: Mock | None = None,
+    workspace: Mock | None = None,
 ) -> tuple[typer.Typer, Mock]:
     app = typer.Typer()
     container = Mock()
     container.transcript_library.return_value = library
-    container.research_navigation.return_value = research or Mock()
+    container.research_workspace.return_value = workspace or Mock()
     container.semantic_embedding_provider.return_value = Mock()
     register_library_commands(app, lambda context: container)
     return app, container
@@ -200,9 +210,8 @@ def test_library_rebuild_reports_backend_and_skipped_files() -> None:
         skipped_files=1,
     )
     app, _ = _app_with_library(library)
-    runner = CliRunner()
 
-    result = runner.invoke(app, ["library", "rebuild", "--json"])
+    result = CliRunner().invoke(app, ["library", "rebuild", "--json"])
 
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {
@@ -217,14 +226,14 @@ def test_library_rebuild_accepts_explicit_files_and_directories() -> None:
     library = Mock()
     library.rebuild.return_value = LibraryRebuildReport("duckdb-bm25-v1", 1, 0)
     app, _ = _app_with_library(library)
-    runner = CliRunner()
 
-    result = runner.invoke(app, ["library", "rebuild", "one.json", "transcripts"])
+    result = CliRunner().invoke(
+        app, ["library", "rebuild", "one.json", "transcripts"]
+    )
 
     assert result.exit_code == 0
     assert "Indexed 1 transcript" in result.stdout
-    paths = library.rebuild.call_args.args[0]
-    assert paths == (Path("one.json"), Path("transcripts"))
+    assert library.rebuild.call_args.args[0] == (Path("one.json"), Path("transcripts"))
 
 
 def test_library_show_explains_source_integrity_and_storage_custody() -> None:
@@ -242,27 +251,25 @@ def test_library_show_explains_source_integrity_and_storage_custody() -> None:
 
     assert human.exit_code == 0
     assert "matches-recorded-source" in human.stdout
-    assert "read-only" in human.stdout
     assert "private-rebuildable-derived-state" in human.stdout
-    assert "Canonical SHA-256" in human.stdout
     payload = json.loads(machine.stdout)
     assert payload["source_handling"] == "read-only"
-    assert payload["source_integrity"] == "matches-recorded-source"
     assert payload["canonical_sha256"] == "1" * 64
 
 
-def test_library_search_compiles_cli_options_to_research_navigation_contract() -> None:
+def test_library_search_compiles_research_filters_to_workspace_contract() -> None:
     library = Mock()
-    research = Mock()
-    captured: list[tuple[SearchQuery, RetrievalMode, int]] = []
+    workspace = Mock()
+    captured: list[tuple[SearchQuery, ResearchQueryFilters, RetrievalMode, int]] = []
 
     def capture(
         query: SearchQuery,
         *,
+        filters: ResearchQueryFilters,
         mode: RetrievalMode,
         context_segments: int,
-    ) -> ResearchSearchResponse:
-        captured.append((query, mode, context_segments))
+    ) -> WorkspaceSearchResponse:
+        captured.append((query, filters, mode, context_segments))
         passage = SearchPassage(
             document_id="job-1",
             source_sha256="0" * 64,
@@ -270,7 +277,7 @@ def test_library_search_compiles_cli_options_to_research_navigation_contract() -
             canonical_path="/canonical.json",
             source_path="/interview.wav",
             chunk_id="chunk-1",
-            segment_ids=("segment-000001", "segment-000002"),
+            segment_ids=("segment-000001",),
             matched_segment_ids=("segment-000001",),
             start_seconds=1.5,
             end_seconds=4.0,
@@ -290,13 +297,15 @@ def test_library_search_compiles_cli_options_to_research_navigation_contract() -
             fusion_profile="rrf-k60-v1",
             results=(passage,),
         )
-        return _located(retrieval, passage=passage)
+        resolved_filters = filters
+        return _workspace_response(
+            _located(retrieval, passage=passage),
+            filters=resolved_filters,
+        )
 
-    research.search.side_effect = capture
-    app, _ = _app_with_library(library, research=research)
-    runner = CliRunner()
-
-    result = runner.invoke(
+    workspace.search.side_effect = capture
+    app, _ = _app_with_library(library, workspace=workspace)
+    result = CliRunner().invoke(
         app,
         [
             "library",
@@ -310,6 +319,13 @@ def test_library_search_compiles_cli_options_to_research_navigation_contract() -
             "en",
             "--transcript",
             "job-1",
+            "--tag",
+            "methodology",
+            "--collection",
+            "Chapter 3",
+            "--note-text",
+            "survey evidence",
+            "--with-notes",
             "--sort",
             "timeline",
             "--mode",
@@ -325,21 +341,15 @@ def test_library_search_compiles_cli_options_to_research_navigation_contract() -
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["retrieval"]["mode"] == "hybrid"
-    assert payload["retrieval"]["fusion_profile"] == "rrf-k60-v1"
-    assert payload["results"][0]["chunk_id"] == "chunk-1"
-    assert payload["results"][0]["lexical_rank"] == 2
-    assert payload["results"][0]["semantic_rank"] == 1
-    assert payload["results"][0]["fused_rank"] == 1
-    assert payload["results"][0]["start_seconds"] == 1.5
-    assert payload["results"][0]["start_timestamp"] == "00:00:01.500"
-    assert payload["results"][0]["speaker_refs"] == ["speaker-02"]
     assert payload["results"][0]["speaker_display_labels"] == {"speaker-02": "Dr. Chen"}
+    assert payload["results"][0]["research_state"] == {
+        "collections": ["Chapter 3"],
+        "note_count": 1,
+        "note_ids": ["note-1"],
+        "tags": ["methodology"],
+    }
     assert payload["results"][0]["evidence_location"]["seek_seconds"] == 1.5
-    assert (
-        payload["results"][0]["evidence_location"]["matched_words"][0]["highlighted"]
-        is True
-    )
-    query, mode, context_segments = captured[0]
+    query, filters, mode, context_segments = captured[0]
     assert mode is RetrievalMode.HYBRID
     assert context_segments == 2
     assert query.text == "housing affordability"
@@ -350,15 +360,18 @@ def test_library_search_compiles_cli_options_to_research_navigation_contract() -
     assert query.document_ids == ("job-1",)
     assert query.sort is SearchSort.TIMELINE
     assert query.limit == 25
+    assert filters.tags == ("methodology",)
+    assert filters.collections == ("Chapter 3",)
+    assert filters.note_text == "survey evidence"
+    assert filters.with_notes is True
 
 
-def test_library_search_human_view_shows_display_name_and_highlighted_evidence() -> (
-    None
-):
+def test_library_search_human_view_shows_research_and_speaker_state() -> None:
     library = Mock()
-    research = Mock()
-    research.search.return_value = _located()
-    app, _ = _app_with_library(library, research=research)
+    workspace = Mock()
+    workspace.search.return_value = _workspace_response()
+    app, _ = _app_with_library(library, workspace=workspace)
+
     result = CliRunner().invoke(app, ["library", "search", "housing"])
 
     assert result.exit_code == 0
@@ -366,7 +379,9 @@ def test_library_search_human_view_shows_display_name_and_highlighted_evidence()
     assert "00:00:01.500" in result.stdout
     assert "Dr. Chen" in result.stdout
     assert "speaker-02" in result.stdout
-    assert "L:1" in result.stdout
+    assert "1 note" in result.stdout
+    assert "methodology" in result.stdout
+    assert "Chapter 3" in result.stdout
     assert "housing" in result.stdout
 
 

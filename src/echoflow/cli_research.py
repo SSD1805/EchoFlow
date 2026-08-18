@@ -13,7 +13,7 @@ from rich.table import Table
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
 from echoflow.library.research_projector import ResearchProjectionSyncReport
-from echoflow.library.research_workspace import ResearchNoteView
+from echoflow.library.research_workspace import ResearchNoteView, ResearchWorkspaceService
 from echoflow.media.time_coordinates import format_elapsed_timestamp
 
 ContainerFactory = Callable[[typer.Context], AppContainer]
@@ -103,7 +103,9 @@ def _sync_dict(report: ResearchProjectionSyncReport) -> dict[str, object]:
     }
 
 
-def _workspace(context: typer.Context, factory: ContainerFactory):
+def _workspace(
+    context: typer.Context, factory: ContainerFactory
+) -> ResearchWorkspaceService:
     return factory(_root_context(context)).research_workspace()
 
 
@@ -144,9 +146,9 @@ def register_research_commands(
         context: typer.Context,
         transcript_id: str = typer.Argument(..., metavar="TRANSCRIPT_ID"),
         segment_ids: Annotated[
-            list[str],
+            list[str] | None,
             typer.Argument(metavar="SEGMENT_ID..."),
-        ] = ...,  # type: ignore[assignment]
+        ] = None,
         body: str = typer.Option(..., "--body", help="Your note text."),
         tags: Annotated[list[str] | None, typer.Option("--tag")] = None,
         collections: Annotated[list[str] | None, typer.Option("--collection")] = None,
@@ -157,7 +159,7 @@ def register_research_commands(
         try:
             view = _workspace(context, container_factory).add_note(
                 transcript_id,
-                tuple(segment_ids),
+                tuple(segment_ids or ()),
                 body,
                 tags=tuple(tags or ()),
                 collections=tuple(collections or ()),

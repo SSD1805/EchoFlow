@@ -13,14 +13,22 @@ from echoflow.media.errors import (
     MediaToolUnavailableError,
     UnsupportedMediaError,
 )
-from echoflow.media.models import InputIdentity, MediaInfo, MediaStream, StreamKind
+from echoflow.media.models import (
+    InputIdentity,
+    MediaInfo,
+    MediaStream,
+    MediaTemporalTag,
+    StreamKind,
+    TemporalTagKind,
+    TemporalTagSource,
+)
 
 _HASH_BLOCK_SIZE = 1024 * 1024
 _MAX_PROBE_OUTPUT_BYTES = 1024 * 1024
 _FFPROBE_ENTRIES = (
-    "format=format_name,duration:"
+    "format=format_name,duration:format_tags=timecode,creation_time:"
     "stream=index,codec_type,codec_name,duration,sample_rate,channels,"
-    "channel_layout,bit_rate"
+    "channel_layout,bit_rate:stream_tags=timecode,creation_time"
 )
 
 
@@ -65,6 +73,8 @@ def _parse_stream(raw_stream: object) -> MediaStream:
         raise MediaProbeError("FFprobe stream metadata is invalid")
     index = raw_stream.get("index")
     try:
+        if isinstance(index, bool):
+            raise ValueError("boolean stream index")
         parsed_index = int(str(index))
     except (TypeError, ValueError) as exc:
         raise MediaProbeError("FFprobe stream index is invalid", cause=exc) from exc
@@ -103,6 +113,58 @@ def _audio_duration(
     if duration <= 0:
         raise UnsupportedMediaError("Input audio duration could not be determined")
     return duration
+
+
+def _tag_value(raw_tags: object, key: str) -> str | None:
+    if not isinstance(raw_tags, dict):
+        return None
+    value = raw_tags.get(key)
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _temporal_tags(
+    raw_format: Mapping[str, Any],
+    raw_streams: list[object],
+    streams: list[MediaStream],
+) -> tuple[MediaTemporalTag, ...]:
+    """Preserve temporal declarations without resolving conflicts or asserting truth."""
+    tags: list[MediaTemporalTag] = []
+    kinds = (
+        (TemporalTagKind.TIMECODE, "timecode"),
+        (TemporalTagKind.CREATION_TIME, "creation_time"),
+    )
+
+    format_tags = raw_format.get("tags")
+    for kind, key in kinds:
+        value = _tag_value(format_tags, key)
+        if value is not None:
+            tags.append(
+                MediaTemporalTag(
+                    kind=kind,
+                    value=value,
+                    source=TemporalTagSource.FORMAT,
+                )
+            )
+
+    for raw_stream, stream in zip(raw_streams, streams, strict=True):
+        if not isinstance(raw_stream, dict):
+            continue
+        stream_tags = raw_stream.get("tags")
+        for kind, key in kinds:
+            value = _tag_value(stream_tags, key)
+            if value is not None:
+                tags.append(
+                    MediaTemporalTag(
+                        kind=kind,
+                        value=value,
+                        source=TemporalTagSource.STREAM,
+                        stream_index=stream.index,
+                    )
+                )
+    return tuple(tags)
 
 
 class FfprobeMediaProbe:
@@ -228,6 +290,7 @@ class FfprobeMediaProbe:
                 duration_seconds=_audio_duration(raw_format, audio_streams),
                 streams=tuple(streams),
                 primary_audio_stream_index=audio_streams[0].index,
+                temporal_tags=_temporal_tags(raw_format, raw_streams, streams),
             )
         except ValueError as exc:
             raise MediaProbeError(

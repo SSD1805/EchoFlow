@@ -57,6 +57,81 @@ The dual-store design makes the rule physical:
 | DuckDB lexical index | derived | transcript terms and segment metadata | Yes |
 | DuckDB semantic index | derived | semantic chunks, segment map, numeric vectors | Yes |
 
+## Why SQLite for durable state and DuckDB for the projection?
+
+This is a workload and custody decision, not a claim that one database is generally better
+than the other.
+
+SQLite is a strong fit for the authoritative research workspace because that workload is
+transactional and mutation-heavy. A user repeatedly creates, edits, deletes, renames, and
+relates small durable records. EchoFlow needs those writes to commit atomically with
+constraints, foreign keys, and crash-safe local durability. SQLite is designed for that
+kind of embedded application state.
+
+DuckDB is a strong fit for the query side because EchoFlow also performs analytical work:
+scanning many transcript segments, joining projected relationships, filtering large local
+corpora, computing lexical statistics, restricting semantic candidates, and ranking
+results. That is the workload DuckDB is intended to make fast.
+
+The split therefore follows the shape of the work:
+
+| Need | Better fit in EchoFlow | Reason |
+|---|---|---|
+| Small frequent user-authored writes | SQLite | transactional embedded application state |
+| Relational integrity for precious records | SQLite | foreign keys and straightforward durable mutations |
+| Corpus scans and analytical joins | DuckDB | columnar analytical execution |
+| Search/ranking projections | DuckDB | optimized for large local query workloads |
+| State that must survive index deletion | SQLite | authoritative user custody |
+| State that may be rebuilt for speed | DuckDB | disposable projection semantics |
+
+### Why not DuckDB for both?
+
+DuckDB could technically store notes, tags, and collections. The problem is not that it
+would immediately lose them. The problem is that EchoFlow would then be choosing an
+analytical database as the system of record for frequently-mutated, irreplaceable user
+state when SQLite is purpose-built for that workload.
+
+More importantly, it would blur the deletion boundary. EchoFlow intentionally treats its
+DuckDB files as rebuildable machinery. A future maintainer should be able to remove a
+corrupt lexical, semantic, or research projection and rebuild it without first asking
+whether unique human research is hiding inside the same lifecycle.
+
+### Why not SQLite for both?
+
+SQLite could also technically hold transcript search state, and SQLite FTS may be useful
+for some local note-text operations. But EchoFlow's transcript retrieval path increasingly
+looks like an analytical corpus workload rather than ordinary row lookup. DuckDB is the
+better home for large scans, joins, ranking support, vector candidate filtering, and other
+rebuildable search structures.
+
+Using SQLite for everything would simplify the number of database engines while giving up
+the engine that better matches EchoFlow's corpus-scale analytical work.
+
+### Why not make both authoritative?
+
+Two authoritative stores would create a dual-master problem. A user mutation could succeed
+in one database and fail in the other, leaving EchoFlow to decide which copy is true.
+
+EchoFlow avoids that class of conflict entirely:
+
+```text
+SQLite authority
+      |
+      | monotonic change journal
+      v
+Deterministic projector
+      |
+      v
+DuckDB projection
+```
+
+All user-authored mutations commit to SQLite. DuckDB receives only a derived,
+reconstructable representation. If the stores disagree, SQLite wins. If DuckDB is missing,
+stale, or damaged, EchoFlow catches it up or rebuilds it.
+
+That single-authority rule is the main reason the two-database design remains manageable
+rather than becoming distributed-state synchronization inside a desktop application.
+
 ## Evidence identity is the join contract
 
 Research state never joins transcript evidence by a friendly segment ID alone.

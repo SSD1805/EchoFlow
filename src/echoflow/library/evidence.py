@@ -225,7 +225,9 @@ class EvidenceLocator:
                 "Search result references canonical evidence that no longer exists"
             ) from exc
         if not result_indices:
-            raise EvidenceNavigationError("Search result has no canonical evidence segments")
+            raise EvidenceNavigationError(
+                "Search result has no canonical evidence segments"
+            )
         return result_indices
 
     def _context_for_passage(
@@ -269,11 +271,15 @@ class EvidenceLocator:
         phrase: bool,
     ) -> tuple[EvidenceContextSegment, tuple[EvidenceWord, ...]]:
         should_highlight = segment.segment_id in lexical_ids
-        highlighted_indices = self._highlighted_word_indices(
-            segment.words,
-            query_tokens=query_tokens,
-            phrase=phrase,
-        ) if should_highlight else set()
+        highlighted_indices = (
+            self._highlighted_word_indices(
+                segment.words,
+                query_tokens=query_tokens,
+                phrase=phrase,
+            )
+            if should_highlight
+            else set()
+        )
         words = tuple(
             EvidenceWord(
                 segment_id=segment.segment_id,

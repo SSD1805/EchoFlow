@@ -23,11 +23,7 @@ from echoflow.library.research import (
     ResearchSearchResponse,
     SpeakerDisplay,
 )
-from echoflow.library.retrieval import (
-    RetrievalMode,
-    SearchPassage,
-    SearchResponse,
-)
+from echoflow.library.retrieval import RetrievalMode, SearchPassage, SearchResponse
 from echoflow.library.semantic import EmbeddingProfile, SemanticState
 from echoflow.library.service import (
     LibraryEvidenceReceipt,

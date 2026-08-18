@@ -161,93 +161,21 @@ class EvidenceLocator:
         context_segments: int,
         cache: dict[tuple[str, str], _CanonicalTranscript],
     ) -> EvidenceLocation:
-        canonical_sha256 = passage.canonical_sha256
-        if canonical_sha256 is None:
-            raise EvidenceNavigationError(
-                "Transcript index predates canonical hashing; rebuild the library before navigating evidence"
-            )
-        cache_key = (passage.canonical_path, canonical_sha256)
-        canonical = cache.get(cache_key)
-        if canonical is None:
-            canonical = self._load_canonical(passage, canonical_sha256)
-            cache[cache_key] = canonical
-
-        by_id = {segment.segment_id: index for index, segment in enumerate(canonical.segments)}
-        try:
-            result_indices = tuple(by_id[item] for item in passage.segment_ids)
-        except KeyError as exc:
-            raise EvidenceNavigationError(
-                "Search result references canonical evidence that no longer exists"
-            ) from exc
-        if not result_indices:
-            raise EvidenceNavigationError("Search result has no canonical evidence segments")
-
-        first_result = min(result_indices)
-        last_result = max(result_indices)
-        context_start = max(0, first_result - context_segments)
-        context_end = min(len(canonical.segments), last_result + context_segments + 1)
-        result_ids = set(passage.segment_ids)
-        lexical_ids = set(passage.matched_segment_ids)
-        query_tokens = lexical_tokens(response.query.text)
-        context: list[EvidenceContextSegment] = []
-        matched_words: list[EvidenceWord] = []
-
-        for segment in canonical.segments[context_start:context_end]:
-            should_highlight = segment.segment_id in lexical_ids
-            highlighted_indices = (
-                self._highlighted_word_indices(
-                    segment.words,
-                    query_tokens=query_tokens,
-                    phrase=response.query.phrase,
-                )
-                if should_highlight
-                else set()
-            )
-            words = tuple(
-                EvidenceWord(
-                    segment_id=segment.segment_id,
-                    word_index=index,
-                    start_seconds=word.start_seconds,
-                    end_seconds=word.end_seconds,
-                    text=word.text,
-                    speaker_ref=word.speaker_ref,
-                    highlighted=index in highlighted_indices,
-                )
-                for index, word in enumerate(segment.words)
-            )
-            matched_words.extend(word for word in words if word.highlighted)
-            context.append(
-                EvidenceContextSegment(
-                    segment_id=segment.segment_id,
-                    start_seconds=segment.start_seconds,
-                    end_seconds=segment.end_seconds,
-                    text=segment.text,
-                    speaker_refs=self._segment_speakers(segment),
-                    words=words,
-                    is_result_segment=segment.segment_id in result_ids,
-                    lexical_match=should_highlight,
-                )
-            )
-
-        result_segments = tuple(canonical.segments[index] for index in result_indices)
-        result_start = min(segment.start_seconds for segment in result_segments)
-        result_end = max(segment.end_seconds for segment in result_segments)
-        if passage.start_seconds < result_start - 1e-6 or passage.end_seconds > result_end + 1e-6:
-            raise EvidenceNavigationError(
-                "Search result timing does not fit its canonical evidence segments"
-            )
-        result_speakers = tuple(
-            sorted(
-                {
-                    ref
-                    for segment in result_segments
-                    for ref in self._segment_speakers(segment)
-                }
-            )
+        canonical_sha256, canonical = self._canonical_for_passage(passage, cache)
+        result_indices = self._result_indices(passage, canonical)
+        context, matched_words = self._context_for_passage(
+            passage,
+            canonical=canonical,
+            result_indices=result_indices,
+            response=response,
+            context_segments=context_segments,
         )
-        if not result_speakers:
-            result_speakers = passage.speaker_refs
-        seek_seconds = matched_words[0].start_seconds if matched_words else passage.start_seconds
+        result_segments = tuple(canonical.segments[index] for index in result_indices)
+        self._validate_result_timing(passage, result_segments)
+        result_speakers = self._result_speakers(passage, result_segments)
+        seek_seconds = (
+            matched_words[0].start_seconds if matched_words else passage.start_seconds
+        )
 
         return EvidenceLocation(
             document_id=passage.document_id,
@@ -260,9 +188,149 @@ class EvidenceLocator:
             end_seconds=passage.end_seconds,
             seek_seconds=seek_seconds,
             result_speaker_refs=result_speakers,
-            matched_words=tuple(matched_words),
-            context_segments=tuple(context),
+            matched_words=matched_words,
+            context_segments=context,
         )
+
+    def _canonical_for_passage(
+        self,
+        passage: SearchPassage,
+        cache: dict[tuple[str, str], _CanonicalTranscript],
+    ) -> tuple[str, _CanonicalTranscript]:
+        canonical_sha256 = passage.canonical_sha256
+        if canonical_sha256 is None:
+            raise EvidenceNavigationError(
+                "Transcript index predates canonical hashing; rebuild the library before navigating evidence"
+            )
+        cache_key = (passage.canonical_path, canonical_sha256)
+        canonical = cache.get(cache_key)
+        if canonical is None:
+            canonical = self._load_canonical(passage, canonical_sha256)
+            cache[cache_key] = canonical
+        return canonical_sha256, canonical
+
+    @staticmethod
+    def _result_indices(
+        passage: SearchPassage,
+        canonical: _CanonicalTranscript,
+    ) -> tuple[int, ...]:
+        by_id = {
+            segment.segment_id: index
+            for index, segment in enumerate(canonical.segments)
+        }
+        try:
+            result_indices = tuple(by_id[item] for item in passage.segment_ids)
+        except KeyError as exc:
+            raise EvidenceNavigationError(
+                "Search result references canonical evidence that no longer exists"
+            ) from exc
+        if not result_indices:
+            raise EvidenceNavigationError("Search result has no canonical evidence segments")
+        return result_indices
+
+    def _context_for_passage(
+        self,
+        passage: SearchPassage,
+        *,
+        canonical: _CanonicalTranscript,
+        result_indices: tuple[int, ...],
+        response: SearchResponse,
+        context_segments: int,
+    ) -> tuple[tuple[EvidenceContextSegment, ...], tuple[EvidenceWord, ...]]:
+        first_result = min(result_indices)
+        last_result = max(result_indices)
+        context_start = max(0, first_result - context_segments)
+        context_end = min(len(canonical.segments), last_result + context_segments + 1)
+        result_ids = set(passage.segment_ids)
+        lexical_ids = set(passage.matched_segment_ids)
+        query_tokens = lexical_tokens(response.query.text)
+        context: list[EvidenceContextSegment] = []
+        matched_words: list[EvidenceWord] = []
+
+        for segment in canonical.segments[context_start:context_end]:
+            rendered, highlighted = self._context_segment(
+                segment,
+                result_ids=result_ids,
+                lexical_ids=lexical_ids,
+                query_tokens=query_tokens,
+                phrase=response.query.phrase,
+            )
+            context.append(rendered)
+            matched_words.extend(highlighted)
+        return tuple(context), tuple(matched_words)
+
+    def _context_segment(
+        self,
+        segment: _CanonicalSegment,
+        *,
+        result_ids: set[str],
+        lexical_ids: set[str],
+        query_tokens: tuple[str, ...],
+        phrase: bool,
+    ) -> tuple[EvidenceContextSegment, tuple[EvidenceWord, ...]]:
+        should_highlight = segment.segment_id in lexical_ids
+        highlighted_indices = self._highlighted_word_indices(
+            segment.words,
+            query_tokens=query_tokens,
+            phrase=phrase,
+        ) if should_highlight else set()
+        words = tuple(
+            EvidenceWord(
+                segment_id=segment.segment_id,
+                word_index=index,
+                start_seconds=word.start_seconds,
+                end_seconds=word.end_seconds,
+                text=word.text,
+                speaker_ref=word.speaker_ref,
+                highlighted=index in highlighted_indices,
+            )
+            for index, word in enumerate(segment.words)
+        )
+        highlighted = tuple(word for word in words if word.highlighted)
+        return (
+            EvidenceContextSegment(
+                segment_id=segment.segment_id,
+                start_seconds=segment.start_seconds,
+                end_seconds=segment.end_seconds,
+                text=segment.text,
+                speaker_refs=self._segment_speakers(segment),
+                words=words,
+                is_result_segment=segment.segment_id in result_ids,
+                lexical_match=should_highlight,
+            ),
+            highlighted,
+        )
+
+    @staticmethod
+    def _validate_result_timing(
+        passage: SearchPassage,
+        result_segments: tuple[_CanonicalSegment, ...],
+    ) -> None:
+        result_start = min(segment.start_seconds for segment in result_segments)
+        result_end = max(segment.end_seconds for segment in result_segments)
+        if (
+            passage.start_seconds < result_start - 1e-6
+            or passage.end_seconds > result_end + 1e-6
+        ):
+            raise EvidenceNavigationError(
+                "Search result timing does not fit its canonical evidence segments"
+            )
+
+    def _result_speakers(
+        self,
+        passage: SearchPassage,
+        result_segments: tuple[_CanonicalSegment, ...],
+    ) -> tuple[str, ...]:
+        result_speakers = tuple(
+            sorted(
+                {
+                    ref
+                    for segment in result_segments
+                    for ref in self._segment_speakers(segment)
+                }
+            )
+        )
+        return result_speakers or passage.speaker_refs
 
     def _load_canonical(
         self,

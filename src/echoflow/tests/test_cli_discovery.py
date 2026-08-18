@@ -17,7 +17,11 @@ from echoflow.library.research import (
     ResearchSearchResponse,
     SpeakerDisplay,
 )
-from echoflow.library.research_state import ResearchCollection, ResearchNote, ResearchTag
+from echoflow.library.research_state import (
+    ResearchCollection,
+    ResearchNote,
+    ResearchTag,
+)
 from echoflow.library.research_workspace import (
     ResearchEvidenceView,
     ResearchNoteView,

@@ -295,8 +295,7 @@ def _render_response(response: ResearchSearchResponse, console: Console) -> None
             start = passage.start_seconds
             end = passage.end_seconds
         time_range = (
-            f"{format_elapsed_timestamp(start)}\n"
-            f"{format_elapsed_timestamp(end)}"
+            f"{format_elapsed_timestamp(start)}\n{format_elapsed_timestamp(end)}"
         )
         table.add_row(
             recording,

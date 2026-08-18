@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 
 from echoflow.library.errors import ResearchStateError
 from echoflow.library.evidence import EvidenceLocator
-from echoflow.library.index import EvidenceScopeKey, SearchQuery
+from echoflow.library.index import EvidenceScopeKey, IndexedDocument, SearchQuery
 from echoflow.library.research import (
     LocatedSearchPassage,
     ResearchNavigationService,
@@ -121,14 +121,15 @@ class ResearchWorkspaceService:
         self,
         query: SearchQuery,
         *,
-        filters: ResearchQueryFilters = ResearchQueryFilters(),
+        filters: ResearchQueryFilters | None = None,
         mode: RetrievalMode = RetrievalMode.LEXICAL,
         context_segments: int = 0,
     ) -> WorkspaceSearchResponse:
+        resolved_filters = filters or ResearchQueryFilters()
         self.projector.sync()
         scoped_query = query
-        if filters.active:
-            resolved = self._resolve_projection_filter(filters)
+        if resolved_filters.active:
+            resolved = self._resolve_projection_filter(resolved_filters)
             scope = () if resolved is None else self.projection.matching_evidence(resolved)
             scoped_query = replace(query, evidence_scope=scope)
         navigation = self.navigation.search(
@@ -155,7 +156,7 @@ class ResearchWorkspaceService:
         )
         return WorkspaceSearchResponse(
             navigation=navigation,
-            filters=filters,
+            filters=resolved_filters,
             results=results,
         )
 
@@ -206,10 +207,8 @@ class ResearchWorkspaceService:
     def notes(
         self, *, document_id: str | None = None, limit: int = 1_000
     ) -> tuple[ResearchNoteView, ...]:
-        return tuple(
-            self._note_view(note)
-            for note in self.state.notes(document_id=document_id, limit=limit)
-        )
+        notes = self.state.notes(document_id=document_id, limit=limit)
+        return self._note_views(notes)
 
     def tags(self) -> tuple[ResearchTag, ...]:
         return self.state.tags()
@@ -293,19 +292,44 @@ class ResearchWorkspaceService:
         )
 
     def _note_view(self, note: ResearchNote) -> ResearchNoteView:
+        return self._note_views((note,))[0]
+
+    def _note_views(
+        self, notes: tuple[ResearchNote, ...]
+    ) -> tuple[ResearchNoteView, ...]:
+        if not notes:
+            return ()
         current_documents = {
             document.document_id: document for document in self.transcript_library.documents()
         }
+        tag_names = {item.tag_id: item.name for item in self.state.tags()}
+        collection_names = {
+            item.collection_id: item.name for item in self.state.collections()
+        }
+        return tuple(
+            self._note_view_with_maps(
+                note,
+                current_documents=current_documents,
+                tag_names=tag_names,
+                collection_names=collection_names,
+            )
+            for note in notes
+        )
+
+    @staticmethod
+    def _note_view_with_maps(
+        note: ResearchNote,
+        *,
+        current_documents: dict[str, IndexedDocument],
+        tag_names: dict[str, str],
+        collection_names: dict[str, str],
+    ) -> ResearchNoteView:
         document = current_documents.get(note.anchor.document_id)
         current = bool(
             document is not None
             and document.canonical_sha256 == note.anchor.canonical_sha256
             and document.source_sha256 == note.anchor.source_sha256
         )
-        tag_names = {item.tag_id: item.name for item in self.state.tags()}
-        collection_names = {
-            item.collection_id: item.name for item in self.state.collections()
-        }
         return ResearchNoteView(
             note=note,
             current=current,
@@ -316,7 +340,7 @@ class ResearchWorkspaceService:
             ),
         )
 
-    def _document(self, document_id: str):
+    def _document(self, document_id: str) -> IndexedDocument:
         document = next(
             (
                 item

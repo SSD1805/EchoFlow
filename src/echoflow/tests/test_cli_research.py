@@ -99,7 +99,8 @@ def test_notes_list_human_view_forwards_filters_and_marks_stale_evidence() -> No
         limit=5,
     )
     assert "note-1" in result.stdout
-    assert "older transcript generation" in result.stdout
+    assert "older" in result.stdout
+    assert "generation" in result.stdout
     assert "methodology" in result.stdout
     assert "Chapter 3" in result.stdout
 

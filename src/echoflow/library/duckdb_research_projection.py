@@ -331,26 +331,33 @@ class DuckDbResearchProjection:
                 record.body.casefold(),
             ],
         )
-        self._connection.executemany(
-            "INSERT INTO projected_note_segments VALUES (?, ?)",
-            [(record.note_id, segment_id) for segment_id in record.anchor.segment_ids],
-        )
-        self._connection.executemany(
-            "INSERT INTO projected_note_tags VALUES (?, ?)",
-            [(record.note_id, tag_id) for tag_id in record.tag_ids],
-        )
-        self._connection.executemany(
-            "INSERT INTO projected_note_collections VALUES (?, ?)",
-            [
-                (record.note_id, collection_id)
-                for collection_id in record.collection_ids
-            ],
-        )
-        terms = tuple(sorted(set(lexical_tokens(record.body))))
-        self._connection.executemany(
-            "INSERT INTO projected_note_terms VALUES (?, ?)",
-            [(record.note_id, term) for term in terms],
-        )
+        segment_rows = [
+            (record.note_id, segment_id) for segment_id in record.anchor.segment_ids
+        ]
+        tag_rows = [(record.note_id, tag_id) for tag_id in record.tag_ids]
+        collection_rows = [
+            (record.note_id, collection_id) for collection_id in record.collection_ids
+        ]
+        term_rows = [
+            (record.note_id, term)
+            for term in tuple(sorted(set(lexical_tokens(record.body))))
+        ]
+        if segment_rows:
+            self._connection.executemany(
+                "INSERT INTO projected_note_segments VALUES (?, ?)", segment_rows
+            )
+        if tag_rows:
+            self._connection.executemany(
+                "INSERT INTO projected_note_tags VALUES (?, ?)", tag_rows
+            )
+        if collection_rows:
+            self._connection.executemany(
+                "INSERT INTO projected_note_collections VALUES (?, ?)", collection_rows
+            )
+        if term_rows:
+            self._connection.executemany(
+                "INSERT INTO projected_note_terms VALUES (?, ?)", term_rows
+            )
 
     def _delete_note(self, note_id: str) -> None:
         self._connection.execute(

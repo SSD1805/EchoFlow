@@ -34,7 +34,9 @@ class SqliteResearchStateStore:
     def __init__(self, database_path: Path, file_manager: FileManagerFacade) -> None:
         self.database_path = database_path.expanduser().resolve(strict=False)
         self.file_manager = file_manager
-        self.file_manager.ensure_directory_exists(self.database_path.parent, private=True)
+        self.file_manager.ensure_directory_exists(
+            self.database_path.parent, private=True
+        )
         self._initialize()
 
     def create_note(
@@ -178,7 +180,9 @@ class SqliteResearchStateStore:
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             self._require_note(connection, resolved_id)
-            connection.execute("DELETE FROM note_tags WHERE note_id = ?", (resolved_id,))
+            connection.execute(
+                "DELETE FROM note_tags WHERE note_id = ?", (resolved_id,)
+            )
             for name in normalized:
                 tag_id = self._ensure_tag(connection, name)
                 connection.execute(
@@ -260,9 +264,7 @@ class SqliteResearchStateStore:
                 resolved.append(str(row[0]))
         return tuple(sorted(resolved))
 
-    def resolve_collection_ids(
-        self, names: tuple[str, ...]
-    ) -> tuple[str, ...] | None:
+    def resolve_collection_ids(self, names: tuple[str, ...]) -> tuple[str, ...] | None:
         normalized = self._normalized_names(names)
         if not normalized:
             return ()

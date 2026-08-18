@@ -17,6 +17,46 @@ from echoflow.library.research_state import ResearchProjectionRecord
 from echoflow.library.text import lexical_tokens
 
 _SCHEMA_VERSION = 1
+_MATCHED_NOTES_CTE = """
+requested_tags AS (
+    SELECT UNNEST(?::VARCHAR[]) AS tag_id
+),
+requested_collections AS (
+    SELECT UNNEST(?::VARCHAR[]) AS collection_id
+),
+requested_terms AS (
+    SELECT UNNEST(?::VARCHAR[]) AS term
+),
+matched_notes AS (
+    SELECT n.note_id, n.document_id, n.canonical_sha256
+    FROM projected_notes n
+    WHERE (? = FALSE OR list_contains(?::VARCHAR[], n.document_id))
+      AND (
+          ? = FALSE OR (
+              SELECT COUNT(DISTINCT nt.tag_id)
+              FROM projected_note_tags nt
+              JOIN requested_tags rt USING (tag_id)
+              WHERE nt.note_id = n.note_id
+          ) = ?
+      )
+      AND (
+          ? = FALSE OR (
+              SELECT COUNT(DISTINCT nc.collection_id)
+              FROM projected_note_collections nc
+              JOIN requested_collections rc USING (collection_id)
+              WHERE nc.note_id = n.note_id
+          ) = ?
+      )
+      AND (
+          ? = FALSE OR (
+              SELECT COUNT(DISTINCT nt.term)
+              FROM projected_note_terms nt
+              JOIN requested_terms rt USING (term)
+              WHERE nt.note_id = n.note_id
+          ) = ?
+      )
+)
+"""
 
 
 class DuckDbResearchProjection:
@@ -110,65 +150,41 @@ class DuckDbResearchProjection:
                 cause=exc,
             ) from exc
 
+    def matching_note_ids(
+        self, filters: ResearchProjectionFilter
+    ) -> tuple[str, ...]:
+        self._require_open()
+        parameters = self._filter_parameters(filters)
+        if parameters is None:
+            return ()
+        try:
+            rows = self._connection.execute(
+                f"WITH {_MATCHED_NOTES_CTE} SELECT note_id FROM matched_notes ORDER BY note_id",
+                parameters,
+            ).fetchall()
+        except duckdb.Error as exc:
+            raise ResearchProjectionError(
+                "Research note filter could not be evaluated", cause=exc
+            ) from exc
+        return tuple(str(row[0]) for row in rows)
+
     def matching_evidence(
         self, filters: ResearchProjectionFilter
     ) -> tuple[EvidenceScopeKey, ...]:
         self._require_open()
-        terms = tuple(dict.fromkeys(lexical_tokens(filters.note_text or "")))
-        if filters.note_text is not None and not terms:
+        parameters = self._filter_parameters(filters)
+        if parameters is None:
             return ()
         try:
             rows = self._connection.execute(
-                """
-                WITH requested_tags AS (
-                    SELECT UNNEST(?::VARCHAR[]) AS tag_id
-                ),
-                requested_collections AS (
-                    SELECT UNNEST(?::VARCHAR[]) AS collection_id
-                ),
-                requested_terms AS (
-                    SELECT UNNEST(?::VARCHAR[]) AS term
-                )
-                SELECT DISTINCT n.document_id, n.canonical_sha256, s.segment_id
-                FROM projected_notes n
+                f"""
+                WITH {_MATCHED_NOTES_CTE}
+                SELECT DISTINCT m.document_id, m.canonical_sha256, s.segment_id
+                FROM matched_notes m
                 JOIN projected_note_segments s USING (note_id)
-                WHERE (
-                    ? = FALSE OR (
-                        SELECT COUNT(DISTINCT nt.tag_id)
-                        FROM projected_note_tags nt
-                        JOIN requested_tags rt USING (tag_id)
-                        WHERE nt.note_id = n.note_id
-                    ) = ?
-                )
-                AND (
-                    ? = FALSE OR (
-                        SELECT COUNT(DISTINCT nc.collection_id)
-                        FROM projected_note_collections nc
-                        JOIN requested_collections rc USING (collection_id)
-                        WHERE nc.note_id = n.note_id
-                    ) = ?
-                )
-                AND (
-                    ? = FALSE OR (
-                        SELECT COUNT(DISTINCT nt.term)
-                        FROM projected_note_terms nt
-                        JOIN requested_terms rt USING (term)
-                        WHERE nt.note_id = n.note_id
-                    ) = ?
-                )
-                ORDER BY n.document_id, n.canonical_sha256, s.segment_id
+                ORDER BY m.document_id, m.canonical_sha256, s.segment_id
                 """,
-                [
-                    list(filters.tag_ids),
-                    list(filters.collection_ids),
-                    list(terms),
-                    bool(filters.tag_ids),
-                    len(filters.tag_ids),
-                    bool(filters.collection_ids),
-                    len(filters.collection_ids),
-                    filters.note_text is not None,
-                    len(terms),
-                ],
+                parameters,
             ).fetchall()
         except duckdb.Error as exc:
             raise ResearchProjectionError(
@@ -182,11 +198,10 @@ class DuckDbResearchProjection:
         self._require_open()
         if not keys:
             return {}
-        if len(keys) != len(set(keys)):
-            keys = tuple(dict.fromkeys(keys))
-        documents = [key[0] for key in keys]
-        canonical_hashes = [key[1] for key in keys]
-        segments = [key[2] for key in keys]
+        unique_keys = tuple(dict.fromkeys(keys))
+        documents = [key[0] for key in unique_keys]
+        canonical_hashes = [key[1] for key in unique_keys]
+        segments = [key[2] for key in unique_keys]
         try:
             rows = self._connection.execute(
                 """
@@ -339,8 +354,7 @@ class DuckDbResearchProjection:
             (record.note_id, collection_id) for collection_id in record.collection_ids
         ]
         term_rows = [
-            (record.note_id, term)
-            for term in tuple(sorted(set(lexical_tokens(record.body))))
+            (record.note_id, term) for term in sorted(set(lexical_tokens(record.body)))
         ]
         if segment_rows:
             self._connection.executemany(
@@ -358,6 +372,26 @@ class DuckDbResearchProjection:
             self._connection.executemany(
                 "INSERT INTO projected_note_terms VALUES (?, ?)", term_rows
             )
+
+    def _filter_parameters(
+        self, filters: ResearchProjectionFilter
+    ) -> list[object] | None:
+        terms = tuple(dict.fromkeys(lexical_tokens(filters.note_text or "")))
+        if filters.note_text is not None and not terms:
+            return None
+        return [
+            list(filters.tag_ids),
+            list(filters.collection_ids),
+            list(terms),
+            bool(filters.document_ids),
+            list(filters.document_ids),
+            bool(filters.tag_ids),
+            len(filters.tag_ids),
+            bool(filters.collection_ids),
+            len(filters.collection_ids),
+            filters.note_text is not None,
+            len(terms),
+        ]
 
     def _delete_note(self, note_id: str) -> None:
         self._connection.execute(

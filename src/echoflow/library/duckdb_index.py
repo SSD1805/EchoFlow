@@ -1,4 +1,3 @@
-import re
 from collections import Counter
 from pathlib import Path
 
@@ -13,8 +12,7 @@ from echoflow.library.index import (
     SearchSort,
     TranscriptMatch,
 )
-
-_TOKEN_PATTERN = re.compile(r"\w+(?:['’]\w+)*", re.UNICODE)
+from echoflow.library.text import lexical_tokens
 
 _SEARCH_SQL_PREFIX = """
     WITH query_terms AS (
@@ -72,11 +70,6 @@ _RELEVANCE_SEARCH_SQL = (
 _TIMELINE_SEARCH_SQL = (
     _SEARCH_SQL_PREFIX + "ORDER BY s.document_id, s.start_seconds, s.segment_id LIMIT ?"
 )
-
-
-def lexical_tokens(text: str) -> tuple[str, ...]:
-    """Return deterministic, Unicode-aware lexical tokens for local ranking."""
-    return tuple(match.group(0).casefold() for match in _TOKEN_PATTERN.finditer(text))
 
 
 def _numeric_cell(value: object, field: str) -> float:

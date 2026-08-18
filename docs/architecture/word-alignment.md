@@ -2,25 +2,25 @@
 
 A transcript that says *what* somebody said is useful. A transcript that can also point
 to **when each word occurred** is much more useful for speaker handoffs, search
-highlighting, jump-to-audio, precise annotations, and later editing interfaces.
+highlighting, source seeking, precise annotations, and later editing interfaces.
 
-EchoFlow now preserves word timing evidence already produced by faster-whisper. It does
-not invent timestamps from character positions, and it does not run a separate forced
-alignment model in this tranche.
+EchoFlow preserves word timing evidence already produced by faster-whisper. It does not
+invent timestamps from character positions, and it does not currently run a separate
+forced-alignment model.
 
 > **The rule:** preserve the engine's word evidence, put it on the same source-relative
 > timeline as the canonical transcript, and stay conservative when that evidence is
 > ambiguous.
 
-🦝 The scholarly raccoon would like the record to show that “more precise coordinates”
-does not mean “permission to become more confident than the evidence.”
+🦝 “More precise coordinates” does not mean “permission to become more confident than
+the evidence.”
 
 ## What changes for a user?
 
-Usually, nothing about the command.
+Usually, nothing about the transcription command.
 
-Word timing is part of the current faster-whisper transcription contract. A normal local
-transcription can now produce canonical segment evidence shaped conceptually like:
+Word timing is part of the current faster-whisper execution/checkpoint contract. A normal
+local transcription can produce canonical evidence shaped conceptually like:
 
 ```text
 segment  12.40s ─ 15.10s   "we moved the meeting to Friday"
@@ -33,23 +33,20 @@ word     14.20s ─ 14.45s   " to"
 word     14.45s ─ 15.10s   " Friday"
 ```
 
-The exact word token text is retained from the engine, including meaningful leading
-whitespace. Presentation code may trim or style that text later; canonical evidence does
-not quietly rewrite it for aesthetics.
+Exact engine token text is retained, including meaningful leading whitespace.
+Presentation may trim/style later; canonical evidence does not rewrite it for aesthetics.
 
 ## The timeline stays the same
 
-EchoFlow already owns deterministic work windows over canonical decoded audio. The ASR
-engine sees one materialized window at a time and returns timestamps relative to that
-window.
-
-Alignment extends the existing assembly rule to words:
+EchoFlow owns deterministic work windows over canonical decoded audio. Faster-whisper
+returns timestamps relative to one work window. Assembly rebases both segment and word
+intervals onto one source-relative timeline.
 
 ```mermaid
 flowchart LR
     A[Source audio timeline] --> B[Deterministic work window]
     B --> C[Faster-whisper]
-    C --> D[Segment-relative words]
+    C --> D[Window-relative words]
     D --> E[Source-relative word evidence]
     E --> F[Canonical transcript JSON]
 
@@ -62,11 +59,11 @@ flowchart LR
     class E,F result
 ```
 
-If work window 7 begins at source second `4200` and the engine reports a word at
-`21.70s`, the canonical word starts at source second `4221.70`.
+If work window 7 begins at source second `4200` and the engine reports a word at `21.70`,
+the canonical word starts at `4221.70`.
 
-Segmentation is therefore still an execution detail. It does not reset public word
-coordinates to zero every ten minutes.
+Segmentation is an execution detail. It does not reset published word time every ten
+minutes.
 
 ## Evidence model
 
@@ -78,61 +75,52 @@ coordinates to zero every ten minutes.
 - optional engine word probability; and
 - optional anonymous `speaker_ref` after diarization projection.
 
-`AlignedRecognizedSegment` retains the existing segment contract and adds an ordered
-`words` tuple.
+`AlignedRecognizedSegment` retains the segment contract and adds an ordered `words`
+tuple.
 
-Word evidence is validated before it can become canonical state:
+Validation requires finite/non-negative ordered time, segment containment within a small
+boundary tolerance, ordered non-overlapping word intervals beyond that tolerance,
+probability within zero-to-one when present, and non-blank word evidence.
 
-- timestamps must be finite and non-negative;
-- end may equal start because EchoFlow does not fabricate duration for a zero-duration
-  engine observation;
-- words must remain in timeline order;
-- overlapping word intervals are rejected beyond a small boundary tolerance;
-- words must remain within their containing segment beyond that same tolerance;
-- probability, when present, must be finite and between zero and one; and
-- blank word tokens are not accepted as evidence.
-
-The boundary tolerance exists for small floating-point/engine rounding differences. It
-changes **validation**, not stored timestamps. EchoFlow does not nudge every timestamp
-onto a prettier grid.
+The tolerance handles small floating-point/engine boundary differences. It changes
+**validation**, not stored timestamps. EchoFlow does not nudge timestamps onto a prettier
+grid.
 
 ## Is this forced alignment?
 
 No.
 
-A forced aligner usually takes known text plus audio and performs a separate alignment
-step intended to reconcile that text to acoustic time. This tranche does not do that.
+A forced aligner usually takes known text plus audio and performs a separate acoustic
+alignment pass. EchoFlow asks faster-whisper for its native word timing and preserves it.
 
-EchoFlow asks faster-whisper to return its native word timestamps and preserves them.
-That has three useful properties:
+That avoids another model/download and another heavy inference pass, while keeping timing
+attributable to the same managed ASR execution that produced the text.
 
-1. no additional alignment model or model download;
-2. no second heavy inference pass merely to obtain word coordinates; and
-3. timing evidence remains attributable to the same managed ASR execution that produced
-   the recognized text.
-
-It also means EchoFlow should not advertise these timestamps as independently corrected
+It also means EchoFlow should not advertise native word timing as independently corrected
 forced-alignment truth.
 
 ## Speaker handoffs get much better 💃
 
-Before word timing, ASR segments and diarization turns had different boundaries. If one
-ASR segment crossed from `speaker-01` to `speaker-02`, EchoFlow correctly left the whole
-segment unlabeled rather than guessing.
+ASR segments and diarization turns have different boundaries. Word intervals let EchoFlow
+project anonymous turns onto smaller evidence coordinates.
 
-With word intervals, diarization can project onto the finer evidence:
+A word receives a speaker only when exactly one diarized speaker overlaps that word
+interval. The enclosing segment keeps a convenience speaker only when the aligned words
+support one uniform speaker.
+
+Mixed handoffs and ambiguous overlap therefore remain explicit.
 
 ```mermaid
 flowchart TD
-    A[ASR segment spans two speakers] --> B[Aligned words]
+    A[ASR segment spans speakers] --> B[Aligned words]
     B --> C[Compare each word with speaker turns]
     C --> D{Exactly one speaker overlaps?}
-    D -->|yes| E[Attach anonymous speaker ref to word]
+    D -->|yes| E[Attach anonymous ref to word]
     D -->|no| F[Leave word unattributed]
-    E --> G{Every word has the same speaker?}
+    E --> G{Every word same speaker?}
     F --> G
-    G -->|yes| H[Also keep segment-level convenience label]
-    G -->|no| I[Segment speaker stays null]
+    G -->|yes| H[Keep segment convenience label]
+    G -->|no| I[Segment speaker remains null]
 
     classDef evidence fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
@@ -145,84 +133,86 @@ flowchart TD
     class F,I ambiguous
 ```
 
-So this:
+EchoFlow now also has a derived speaker transcript that presents clean handoffs, true
+simultaneous overlap, sequential mixed/unresolved text, and unattributed text separately.
+User-assigned names such as `Dr. Chen (speaker-02)` remain durable presentation state over
+anonymous evidence, not replacements for it.
 
-```text
-speaker-01: "I think we should"
-speaker-02: "move it to Friday"
-```
-
-can live inside one ASR segment without EchoFlow claiming the entire sentence belonged
-to either person.
-
-If two diarized speakers overlap the same word interval, that word remains unattributed.
-Later source separation may provide additional evidence, but alignment alone does not
-solve simultaneous speech.
+Alignment alone still does not separate simultaneous speech into independent audio
+sources.
 
 ## Checkpoint and resume semantics
 
-Alignment changes recognized evidence, so it is part of the private checkpoint contract
-rather than a hidden backend switch.
+Alignment changes recognized evidence, so it belongs in the private checkpoint contract.
 
-New manifests record an alignment identity containing:
+New manifests record:
 
 ```text
-schema_version = 1
-provider       = faster-whisper
-word_timestamps = true
+schema_version   = 1
+provider         = faster-whisper
+word_timestamps  = true
 ```
 
-Per-window checkpoint payloads persist the aligned words themselves. Resume restores
-that evidence before source-relative assembly.
-
-A pre-alignment checkpoint that lacks the alignment contract is refused rather than
-being combined with newly aligned segments. EchoFlow is pre-production, so preserving a
-single current contract is preferable to inventing migration support for unreleased
-checkpoint shapes.
+Per-window checkpoint payloads persist aligned words. Resume restores that evidence before
+source-relative assembly. A checkpoint lacking the current alignment contract is refused
+rather than being mixed with newly aligned work.
 
 ## What happens to search?
 
-Nothing surprising.
+Ranking still indexes canonical **segment text once**. Nested words do not become one
+search document per token.
 
-Lexical and semantic retrieval continue to index the canonical **segment text once**.
-The transcript-library projection deliberately ignores additional nested word evidence
-for now.
+What changed later is the presentation/navigation consumer.
 
-That means alignment does not suddenly turn one sentence into six search documents or
-change BM25 statistics merely because the canonical transcript has finer coordinates.
-Future retrieval UX may use word evidence for highlighting and precise jump-to-audio,
-but the current ranking contract remains segment/chunk based.
+After lexical/semantic/hybrid retrieval ranks a passage, `EvidenceLocator` can verify the
+exact canonical transcript and resolve the result back onto segment and word evidence:
 
-## What this unlocks
+- lexical results may highlight matching aligned words;
+- exact phrase highlights require contiguous canonical word tokens;
+- semantic-only results receive passage navigation but no invented exact-word match;
+- neighboring canonical context may be added after ranking; and
+- the first justified aligned match can become a source seek coordinate.
 
-Word coordinates create a useful seam for several later capabilities:
+So alignment enriches navigation **without changing ranking semantics**.
 
-- highlight the exact returned phrase while preserving segment-level search ranking;
-- jump playback closer to the relevant word rather than only the containing segment;
-- anchor durable annotations more precisely;
-- render speaker handoffs inside a long ASR segment;
-- improve subtitle/caption editing interfaces; and
-- compare future forced-alignment providers without changing the canonical source
-  timeline.
+See **[Evidence-first corpus search](corpus-search.md)** and
+**[From search result to the exact evidence](../evidence-navigation.md)**.
 
-Those consumers should use the timing evidence that actually exists rather than derive
-fake word positions from character counts.
+## What else word coordinates now support
+
+The implemented consumers include:
+
+- finer anonymous speaker handoffs;
+- overlap-aware speaker presentation;
+- human source-relative time display;
+- exact lexical result highlighting; and
+- deterministic search-result seek coordinates.
+
+The same coordinates are ready to support later:
+
+- durable note/tag/annotation anchors;
+- graphical click-to-media playback;
+- subtitle/caption editing; and
+- comparison with a future independently qualified forced-alignment provider.
+
+Those consumers should use actual canonical timing evidence rather than derive fake word
+positions from character counts.
 
 ## What this does **not** claim
 
-This tranche does not provide:
+Word alignment does not provide:
 
 - independent forced alignment;
 - phoneme-level timestamps;
 - fabricated character offsets;
-- calibrated probability as a universal confidence score;
-- automatic correction of recognized text from timing evidence;
-- original-media SMPTE/container/capture-time provenance;
-- user-assigned speaker names/display labels; or
-- speech/source separation for simultaneous speakers.
+- calibrated word probability as a universal confidence score;
+- automatic text correction from timing evidence;
+- speech/source separation for simultaneous speakers; or
+- biometric/cross-recording speaker identity.
 
-The next provenance tranche is original-media timecode/capture-time representation.
-Better speaker display/overlap UX follows, with source separation intentionally later.
+Original-media temporal provenance, user display labels, overlap presentation, and
+aligned search navigation are now separate implemented layers above the word-coordinate
+foundation.
 
 🧜‍♀️ One timeline at a time. The mermaid has seen what happens when clocks are allowed
 to breed unsupervised.

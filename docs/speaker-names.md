@@ -172,6 +172,28 @@ This view is **derived presentation**, not a new canonical transcript. Numeric s
 
 One conservative rule matters: if a canonical aligned word is unattributed, the presentation layer will not promote it to a single named speaker merely because one diarization turn happens to overlap. Presentation may expose additional **multi-speaker overlap**, but it does not manufacture a stronger single-speaker claim than canonical evidence already made.
 
+## Do the names show up when I search too?
+
+Yes. Ordinary transcript-library search now consumes the same current display-label state.
+
+If you assigned:
+
+```text
+speaker-02 → Dr. Chen
+```
+
+then a human search result involving that speaker can show:
+
+```text
+Dr. Chen (speaker-02)
+```
+
+Machine-readable output keeps `speaker-02` in `speaker_refs` and exposes the friendly label separately. Ranking and speaker filters still operate on anonymous evidence refs. A human name is presentation, not a new search identity.
+
+The search navigation layer resolves names only for the exact canonical generation behind the result. It also batches the lookup per transcript generation rather than repeatedly rereading private label state for every result row.
+
+See **[From search result to the exact evidence](evidence-navigation.md)** for highlighting, context, and source seek behavior.
+
 ## Where are these labels stored?
 
 Speaker names are **private user-authored state**, not rebuildable search state.

@@ -83,17 +83,18 @@ class SpeakerLabelService:
         canonical_sha256: str | None,
         speaker_refs: tuple[str, ...],
     ) -> dict[str, str]:
-        """Resolve only labels bound to the exact evidence generation in a result."""
-        resolved: dict[str, str] = {}
-        for speaker_ref in speaker_refs:
-            label = self.store.resolve(
-                document_id=document_id,
-                canonical_sha256=canonical_sha256,
-                speaker_ref=speaker_ref,
-            )
-            if label is not None:
-                resolved[speaker_ref] = label
-        return resolved
+        """Resolve labels for one exact canonical generation with one state read."""
+        if canonical_sha256 is None or not speaker_refs:
+            return {}
+        document = self._document(document_id)
+        if document.canonical_sha256 != canonical_sha256:
+            return {}
+        requested = set(speaker_refs)
+        return {
+            item.speaker_ref: item.label
+            for item in self.store.current_labels(document)
+            if item.speaker_ref in requested
+        }
 
     def _document(self, document_id: str) -> IndexedDocument:
         document = next(

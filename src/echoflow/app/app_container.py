@@ -18,6 +18,8 @@ from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.library.duckdb_index import DuckDbTranscriptIndex
 from echoflow.library.duckdb_semantic import DuckDbSemanticIndex
+from echoflow.library.evidence import EvidenceLocator
+from echoflow.library.research import ResearchNavigationService
 from echoflow.library.semantic import EmbeddingProfile, SentenceTransformersE5Provider
 from echoflow.library.service import TranscriptLibraryService
 from echoflow.library.speaker_label_service import SpeakerLabelService
@@ -259,6 +261,13 @@ class AppContainer(containers.DeclarativeContainer):
         file_manager=file_manager,
         semantic_index=semantic_index,
         embedding_provider_factory=embedding_provider_factory,
+    )
+    evidence_locator = providers.Singleton(EvidenceLocator, file_manager=file_manager)
+    research_navigation = providers.Singleton(
+        ResearchNavigationService,
+        transcript_library=transcript_library,
+        evidence_locator=evidence_locator,
+        speaker_labels=speaker_labels,
     )
     checkpoint_store = providers.Factory(
         LocalCheckpointStore, file_manager=file_manager

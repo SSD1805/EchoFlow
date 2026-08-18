@@ -7,11 +7,21 @@ from typer.testing import CliRunner
 
 from echoflow.cli_library import register_library_commands
 from echoflow.library.errors import TranscriptLibraryError
+from echoflow.library.evidence import (
+    EvidenceContextSegment,
+    EvidenceLocation,
+    EvidenceWord,
+)
 from echoflow.library.index import (
     IndexedDocument,
     SearchOperator,
     SearchQuery,
     SearchSort,
+)
+from echoflow.library.research import (
+    LocatedSearchPassage,
+    ResearchSearchResponse,
+    SpeakerDisplay,
 )
 from echoflow.library.retrieval import RetrievalMode, SearchPassage, SearchResponse
 from echoflow.library.semantic import EmbeddingProfile, SemanticState
@@ -87,10 +97,77 @@ def _response(query: SearchQuery | None = None) -> SearchResponse:
     )
 
 
-def _app_with_library(library: Mock) -> tuple[typer.Typer, Mock]:
+def _located(
+    retrieval: SearchResponse | None = None,
+    *,
+    passage: SearchPassage | None = None,
+) -> ResearchSearchResponse:
+    retrieval = retrieval or _response()
+    passage = passage or retrieval.results[0]
+    word = EvidenceWord(
+        segment_id=passage.segment_ids[0],
+        word_index=0,
+        start_seconds=1.5,
+        end_seconds=1.9,
+        text="housing",
+        speaker_ref="speaker-02",
+        highlighted=True,
+    )
+    context = EvidenceContextSegment(
+        segment_id=passage.segment_ids[0],
+        start_seconds=passage.start_seconds,
+        end_seconds=passage.end_seconds,
+        text=passage.text,
+        speaker_refs=("speaker-02",),
+        words=(
+            word,
+            EvidenceWord(
+                segment_id=passage.segment_ids[0],
+                word_index=1,
+                start_seconds=2.0,
+                end_seconds=2.5,
+                text=" affordability matters",
+                speaker_ref="speaker-02",
+            ),
+        ),
+        is_result_segment=True,
+        lexical_match=True,
+    )
+    evidence = EvidenceLocation(
+        document_id=passage.document_id,
+        source_sha256=passage.source_sha256,
+        canonical_sha256=passage.canonical_sha256 or "1" * 64,
+        canonical_path=passage.canonical_path,
+        source_path=passage.source_path,
+        result_segment_ids=passage.segment_ids,
+        start_seconds=passage.start_seconds,
+        end_seconds=passage.end_seconds,
+        seek_seconds=1.5,
+        result_speaker_refs=("speaker-02",),
+        matched_words=(word,),
+        context_segments=(context,),
+    )
+    return ResearchSearchResponse(
+        retrieval=retrieval,
+        results=(
+            LocatedSearchPassage(
+                passage=passage,
+                evidence=evidence,
+                speakers=(SpeakerDisplay("speaker-02", "Dr. Chen"),),
+            ),
+        ),
+    )
+
+
+def _app_with_library(
+    library: Mock,
+    *,
+    research: Mock | None = None,
+) -> tuple[typer.Typer, Mock]:
     app = typer.Typer()
     container = Mock()
     container.transcript_library.return_value = library
+    container.research_navigation.return_value = research or Mock()
     container.semantic_embedding_provider.return_value = Mock()
     register_library_commands(app, lambda context: container)
     return app, container
@@ -174,12 +251,18 @@ def test_library_show_explains_source_integrity_and_storage_custody() -> None:
     assert payload["canonical_sha256"] == "1" * 64
 
 
-def test_library_search_compiles_cli_options_to_unified_retrieval_contract() -> None:
+def test_library_search_compiles_cli_options_to_research_navigation_contract() -> None:
     library = Mock()
-    captured: list[tuple[SearchQuery, RetrievalMode]] = []
+    research = Mock()
+    captured: list[tuple[SearchQuery, RetrievalMode, int]] = []
 
-    def capture(query: SearchQuery, *, mode: RetrievalMode) -> SearchResponse:
-        captured.append((query, mode))
+    def capture(
+        query: SearchQuery,
+        *,
+        mode: RetrievalMode,
+        context_segments: int,
+    ) -> ResearchSearchResponse:
+        captured.append((query, mode, context_segments))
         passage = SearchPassage(
             document_id="job-1",
             source_sha256="0" * 64,
@@ -198,7 +281,7 @@ def test_library_search_compiles_cli_options_to_unified_retrieval_contract() -> 
             semantic_rank=1,
             fused_rank=1,
         )
-        return SearchResponse(
+        retrieval = SearchResponse(
             query=query,
             mode=mode,
             lexical_backend_id="duckdb-bm25-v1",
@@ -207,9 +290,10 @@ def test_library_search_compiles_cli_options_to_unified_retrieval_contract() -> 
             fusion_profile="rrf-k60-v1",
             results=(passage,),
         )
+        return _located(retrieval, passage=passage)
 
-    library.retrieve.side_effect = capture
-    app, _ = _app_with_library(library)
+    research.search.side_effect = capture
+    app, _ = _app_with_library(library, research=research)
     runner = CliRunner()
 
     result = runner.invoke(
@@ -232,6 +316,8 @@ def test_library_search_compiles_cli_options_to_unified_retrieval_contract() -> 
             "hybrid",
             "--limit",
             "25",
+            "--context-segments",
+            "2",
             "--json",
         ],
     )
@@ -246,9 +332,16 @@ def test_library_search_compiles_cli_options_to_unified_retrieval_contract() -> 
     assert payload["results"][0]["fused_rank"] == 1
     assert payload["results"][0]["start_seconds"] == 1.5
     assert payload["results"][0]["start_timestamp"] == "00:00:01.500"
-    assert payload["results"][0]["end_timestamp"] == "00:00:04.000"
-    query, mode = captured[0]
+    assert payload["results"][0]["speaker_refs"] == ["speaker-02"]
+    assert payload["results"][0]["speaker_display_labels"] == {"speaker-02": "Dr. Chen"}
+    assert payload["results"][0]["evidence_location"]["seek_seconds"] == 1.5
+    assert (
+        payload["results"][0]["evidence_location"]["matched_words"][0]["highlighted"]
+        is True
+    )
+    query, mode, context_segments = captured[0]
     assert mode is RetrievalMode.HYBRID
+    assert context_segments == 2
     assert query.text == "housing affordability"
     assert query.phrase is True
     assert query.operator is SearchOperator.ALL
@@ -259,16 +352,19 @@ def test_library_search_compiles_cli_options_to_unified_retrieval_contract() -> 
     assert query.limit == 25
 
 
-def test_library_search_human_view_keeps_evidence_and_ranks_visible() -> None:
+def test_library_search_human_view_shows_display_name_and_highlighted_evidence() -> (
+    None
+):
     library = Mock()
-    library.retrieve.return_value = _response()
-    app, _ = _app_with_library(library)
+    research = Mock()
+    research.search.return_value = _located()
+    app, _ = _app_with_library(library, research=research)
     result = CliRunner().invoke(app, ["library", "search", "housing"])
 
     assert result.exit_code == 0
     assert "interview" in result.stdout
     assert "00:00:01.500" in result.stdout
-    assert "00:00:02.500" in result.stdout
+    assert "Dr. Chen" in result.stdout
     assert "speaker-02" in result.stdout
     assert "L:1" in result.stdout
     assert "housing" in result.stdout

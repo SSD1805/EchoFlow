@@ -5,7 +5,6 @@ from pathlib import Path
 import duckdb
 
 from echoflow.core.file_manager_facade import FileManagerFacade
-from echoflow.library.duckdb_index import lexical_tokens
 from echoflow.library.index import SearchOperator, SearchQuery
 from echoflow.library.semantic import (
     EmbeddingProfile,
@@ -15,6 +14,7 @@ from echoflow.library.semantic import (
     SemanticCandidate,
     SemanticState,
 )
+from echoflow.library.text import lexical_tokens
 
 
 class DuckDbSemanticIndex:

@@ -1,4 +1,5 @@
 from dataclasses import FrozenInstanceError
+from typing import cast
 
 import pytest
 
@@ -81,7 +82,8 @@ def test_aligned_segment_serializes_words_without_changing_base_segment_contract
 
     document = segment.to_dict()
     assert document["segment_id"] == "segment-000000"
-    assert [word["text"] for word in document["words"]] == ["hello", "world"]
+    words = cast("list[dict[str, object]]", document["words"])
+    assert [word["text"] for word in words] == ["hello", "world"]
     assert aligned_words(segment) == segment.words
 
 
@@ -117,8 +119,9 @@ def test_canonical_transcript_serializes_source_relative_word_evidence():
     )
 
     document = transcript.to_dict()
+    segments = cast("list[dict[str, object]]", document["segments"])
+    words = cast("list[dict[str, object]]", segments[0]["words"])
 
-    words = document["segments"][0]["words"]
     assert words == [
         {
             "start_seconds": 12.4,

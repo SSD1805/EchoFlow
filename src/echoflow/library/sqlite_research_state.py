@@ -25,6 +25,7 @@ _SCHEMA_VERSION = 1
 _MAX_BODY_CHARS = 1_000_000
 _MAX_NAME_CHARS = 200
 _MAX_ID_CHARS = 200
+_MAX_BATCH_NOTES = 10_000
 
 
 class SqliteResearchStateStore:
@@ -138,7 +139,7 @@ class SqliteResearchStateStore:
     def notes(
         self, *, document_id: str | None = None, limit: int = 1_000
     ) -> tuple[ResearchNote, ...]:
-        if limit < 1 or limit > 10_000:
+        if limit < 1 or limit > _MAX_BATCH_NOTES:
             raise ValueError("note list limit must be between 1 and 10000")
         if document_id is not None and not document_id.strip():
             raise ValueError("document_id cannot be blank")
@@ -159,6 +160,16 @@ class SqliteResearchStateStore:
                     (document_id, limit),
                 ).fetchall()
             note_ids = tuple(str(row[0]) for row in rows)
+            return self._notes_by_ids(connection, note_ids)
+
+    def notes_by_ids(self, note_ids: tuple[str, ...]) -> tuple[ResearchNote, ...]:
+        if len(note_ids) > _MAX_BATCH_NOTES:
+            raise ValueError("note batch cannot contain more than 10000 IDs")
+        if len(note_ids) != len(set(note_ids)):
+            raise ValueError("note batch cannot contain duplicate IDs")
+        for note_id in note_ids:
+            self._validate_id(note_id, "note_id")
+        with self._connection() as connection:
             return self._notes_by_ids(connection, note_ids)
 
     def set_note_tags(self, note_id: str, names: tuple[str, ...]) -> ResearchNote:
@@ -288,7 +299,7 @@ class SqliteResearchStateStore:
     ) -> tuple[ResearchStateChange, ...]:
         if sequence_id < 0:
             raise ValueError("sequence_id cannot be negative")
-        if limit < 1 or limit > 10_000:
+        if limit < 1 or limit > _MAX_BATCH_NOTES:
             raise ValueError("change batch limit must be between 1 and 10000")
         with self._connection() as connection:
             rows = connection.execute(
@@ -481,7 +492,7 @@ class SqliteResearchStateStore:
                    n.start_seconds, n.end_seconds, n.created_at, n.updated_at
             FROM notes n
             JOIN selected_note_ids selected USING (note_id)
-            ORDER BY n.note_id
+            ORDER BY selected.ordinal
             """
         ).fetchall()
         segment_rows = connection.execute(
@@ -489,7 +500,7 @@ class SqliteResearchStateStore:
             SELECT s.note_id, s.segment_id
             FROM note_segments s
             JOIN selected_note_ids selected USING (note_id)
-            ORDER BY s.note_id, s.ordinal
+            ORDER BY selected.ordinal, s.ordinal
             """
         ).fetchall()
         tag_rows = connection.execute(
@@ -497,7 +508,7 @@ class SqliteResearchStateStore:
             SELECT nt.note_id, nt.tag_id
             FROM note_tags nt
             JOIN selected_note_ids selected USING (note_id)
-            ORDER BY nt.note_id, nt.tag_id
+            ORDER BY selected.ordinal, nt.tag_id
             """
         ).fetchall()
         collection_rows = connection.execute(
@@ -505,7 +516,7 @@ class SqliteResearchStateStore:
             SELECT cn.note_id, cn.collection_id
             FROM collection_notes cn
             JOIN selected_note_ids selected USING (note_id)
-            ORDER BY cn.note_id, cn.collection_id
+            ORDER BY selected.ordinal, cn.collection_id
             """
         ).fetchall()
         segments = self._group_values(segment_rows)
@@ -526,12 +537,17 @@ class SqliteResearchStateStore:
         connection: sqlite3.Connection, note_ids: tuple[str, ...]
     ) -> None:
         connection.execute(
-            "CREATE TEMP TABLE IF NOT EXISTS selected_note_ids (note_id TEXT PRIMARY KEY)"
+            """
+            CREATE TEMP TABLE IF NOT EXISTS selected_note_ids (
+                note_id TEXT PRIMARY KEY,
+                ordinal INTEGER NOT NULL
+            )
+            """
         )
         connection.execute("DELETE FROM selected_note_ids")
         connection.executemany(
-            "INSERT INTO selected_note_ids (note_id) VALUES (?)",
-            ((note_id,) for note_id in note_ids),
+            "INSERT INTO selected_note_ids (note_id, ordinal) VALUES (?, ?)",
+            ((note_id, ordinal) for ordinal, note_id in enumerate(note_ids)),
         )
 
     @staticmethod

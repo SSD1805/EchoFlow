@@ -132,7 +132,9 @@ def test_discover_returns_grouped_transcript_and_authoritative_research_results(
     assert navigation.search.call_args.kwargs["mode"] is RetrievalMode.HYBRID
     assert response.query == "housing"
     assert response.transcripts.results[0].located is located
-    assert tuple(view.note.note_id for view in response.notes) == (housing_note.note_id,)
+    assert tuple(view.note.note_id for view in response.notes) == (
+        housing_note.note_id,
+    )
     assert response.notes[0].note.body == "Housing affordability methodology"
     assert response.notes[0].current
     assert tuple(tag.name for tag in response.tags) == ("housing",)
@@ -142,7 +144,9 @@ def test_discover_returns_grouped_transcript_and_authoritative_research_results(
     assert response.total_count == 4
 
 
-def test_discovery_name_matching_is_group_local_and_deterministic(tmp_path: Path) -> None:
+def test_discovery_name_matching_is_group_local_and_deterministic(
+    tmp_path: Path,
+) -> None:
     workspace, state, _, navigation = _workspace(tmp_path)
     state.create_note(
         _anchor(),

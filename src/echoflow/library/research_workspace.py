@@ -6,13 +6,14 @@ from dataclasses import dataclass, replace
 
 from echoflow.library.errors import ResearchStateError
 from echoflow.library.evidence import EvidenceLocator
-from echoflow.library.index import EvidenceScopeKey, IndexedDocument, SearchQuery
+from echoflow.library.index import IndexedDocument, SearchQuery
 from echoflow.library.research import (
     LocatedSearchPassage,
     ResearchNavigationService,
     ResearchSearchResponse,
 )
 from echoflow.library.research_projection import (
+    EvidenceScopeKey,
     ProjectedEvidenceSummary,
     ResearchProjectionFilter,
     ResearchProjectionIndex,

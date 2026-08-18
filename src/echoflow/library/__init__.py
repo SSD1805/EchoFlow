@@ -2,6 +2,12 @@
 
 from echoflow.library.duckdb_index import DuckDbTranscriptIndex
 from echoflow.library.duckdb_semantic import DuckDbSemanticIndex
+from echoflow.library.evidence import (
+    EvidenceContextSegment,
+    EvidenceLocation,
+    EvidenceLocator,
+    EvidenceWord,
+)
 from echoflow.library.index import (
     IndexedDocument,
     IndexedSegment,
@@ -11,6 +17,12 @@ from echoflow.library.index import (
     SearchSort,
     TranscriptIndex,
     TranscriptMatch,
+)
+from echoflow.library.research import (
+    LocatedSearchPassage,
+    ResearchNavigationService,
+    ResearchSearchResponse,
+    SpeakerDisplay,
 )
 from echoflow.library.retrieval import (
     LexicalRetriever,
@@ -47,12 +59,19 @@ __all__ = [
     "EmbeddingProfile",
     "EmbeddingProvider",
     "EmbeddingVector",
+    "EvidenceContextSegment",
+    "EvidenceLocation",
+    "EvidenceLocator",
+    "EvidenceWord",
     "IndexedDocument",
     "IndexedSegment",
     "IndexedTranscript",
     "LexicalRetriever",
     "LibraryEvidenceReceipt",
     "LibraryRebuildReport",
+    "LocatedSearchPassage",
+    "ResearchNavigationService",
+    "ResearchSearchResponse",
     "RetrievalMode",
     "SearchChunk",
     "SearchOperator",
@@ -66,6 +85,7 @@ __all__ = [
     "SemanticState",
     "SentenceTransformersE5Provider",
     "SourceIntegrity",
+    "SpeakerDisplay",
     "TranscriptIndex",
     "TranscriptLibraryService",
     "TranscriptMatch",

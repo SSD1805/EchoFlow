@@ -27,9 +27,7 @@ def test_speaker_list_preserves_evidence_ref_and_human_label() -> None:
     runner = CliRunner()
 
     human = runner.invoke(app, ["library", "speakers", "list", "job-1"])
-    machine = runner.invoke(
-        app, ["library", "speakers", "list", "job-1", "--json"]
-    )
+    machine = runner.invoke(app, ["library", "speakers", "list", "job-1", "--json"])
 
     assert human.exit_code == 0
     assert "Interviewer (speaker-01)" in human.stdout

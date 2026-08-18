@@ -3,13 +3,11 @@
 A transcript is much more useful when “where did they say that?” has an answer that a
 human can actually use.
 
-EchoFlow therefore keeps **one durable numeric timeline** and can present it as a familiar
-clock-style coordinate.
+EchoFlow keeps **one durable numeric source-relative timeline** and derives familiar
+clock-style coordinates from it.
 
 If a passage begins `4788.37` seconds into a recording, you should not have to divide by
-60 twice in your head.
-
-EchoFlow can present that as:
+60 twice in your head. EchoFlow can present that as:
 
 ```text
 01:19:48.370
@@ -52,90 +50,94 @@ The numbers are the anchor. The clock-style strings are the label on the drawer.
 
 ```mermaid
 flowchart LR
-    W[📜 Canonical word evidence<br/>4788.370 seconds] --> H[✨ Human display<br/>01:19:48.370]
-    W --> P[▶️ Future player seek<br/>seek to 4788.370]
-    W --> N[📝 Future note anchor<br/>source + evidence span]
-    W --> S[🔎 Search result<br/>show the useful time]
+    W[Canonical word evidence\n4788.370 seconds] --> H[Human display\n01:19:48.370]
+    W --> S[Search evidence locator\nseek to 4788.370]
+    W --> P[Future local player]
+    W --> N[Future note anchor]
 
     classDef truth fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
     classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
     class W truth
-    class H,P,N,S view
+    class H,S,P,N view
 ```
 
-## Can I click a word and jump to that exact place in the recording?
+## Can search find the exact place now?
 
-**The evidence coordinate needed for that now exists.**
+Yes, when the retrieval evidence justifies that precision.
 
-A future local player can take a word's `start_seconds` and seek the original recording
-to that point. Search results already carry source-relative start/end seconds, and the
-human CLI view now renders them as `HH:MM:SS.mmm` instead of asking you to interpret a
-large decimal number.
+The transcript-library navigation layer now reopens the exact canonical transcript,
+verifies its SHA-256, and resolves a ranked search result back to canonical segments and
+aligned words.
 
-EchoFlow does **not yet ship the graphical media-player click handler**. The important
-part is that the UI will not need to guess where a phrase lives when that layer arrives.
-It can consume canonical evidence that already has the coordinate.
+For lexical search, matching aligned words can become the exact highlighted evidence and
+the first matched word becomes the preferred source seek coordinate.
+
+For example:
+
+```text
+query: "housing cost"
+matched canonical words: housing → cost
+seek_seconds: 4788.370
+seek_timestamp: 01:19:48.370
+```
+
+Semantic-only retrieval is intentionally less precise. An embedding can say “this
+passage is related to your query” without identifying one exact matching word. EchoFlow
+therefore exposes the verified passage and its start time rather than fabricating a word
+highlight.
+
+Read **[From search result to the exact evidence](evidence-navigation.md)** for context
+expansion, speaker names, and the full search-to-canonical contract.
+
+## Can I click a word and jump to the recording?
+
+**The application coordinate needed for that now exists.**
+
+A local player can seek the original recording using numeric `seek_seconds`. Search
+navigation now exposes that coordinate directly, so a future GUI does not need to guess
+from rendered text or reconstruct internal work chunks.
+
+EchoFlow does **not yet ship the graphical media-player click handler**. The missing
+piece is presentation, not timeline plumbing.
 
 ## What about notes and annotations? 📝
 
 Notes are planned as **durable user-authored knowledge**, not search-index metadata.
 There is not yet a finished notes editor or annotation store.
 
-When that feature arrives, a note should anchor to durable evidence, conceptually:
+The evidence-navigation layer now gives that future feature a concrete anchor to reuse:
 
 ```text
-source SHA-256:   <recording fingerprint>
-start:            4788.370 s
-end:              4791.125 s
-canonical span:   the relevant segment/word evidence
-note:             "Participant connects housing cost to the decision to leave."
+source SHA-256
+canonical transcript SHA-256
+canonical segment ID(s)
+word index/indices when available
+numeric start/end seconds
 ```
 
-It should **not** anchor only to:
+A note should **not** anchor only to:
 
 ```text
 "01:19:48.370"
 ```
 
-Why? Because `01:19:48.370` is presentation. We may later offer a different visual
-format, but a researcher's sticky note should not fall off the transcript because
-someone changed the clock typography.
+because that is presentation. It also should not anchor only to a semantic-search chunk
+ID because chunks and indexes are rebuildable.
 
-It also should not anchor only to a semantic-search chunk ID. Search chunks and indexes
-are rebuildable. Notes are not.
-
-```mermaid
-flowchart TD
-    A[🎙️ Original recording<br/>read-only evidence] --> C[📜 Canonical transcript]
-    C --> W[Word / segment coordinates]
-    W --> N[📝 Future user note]
-    C --> I[🔎 Rebuildable search index]
-    I --> R[Search result]
-    R -. points back to .-> W
-
-    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
-    classDef durable fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
-    classDef rebuild fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-    class A source
-    class C,W,N durable
-    class I,R rebuild
-```
-
-If the librarian rebuilds the index, the note remains attached to the evidence. This is
-one of EchoFlow's custody rules, not a decorative preference.
+If the librarian rebuilds the index, the note must remain attached to durable evidence.
+If the canonical transcript changes, EchoFlow should retain the note and report that its
+old anchor needs review rather than silently moving it.
 
 ## Do internal work chunks reset the clock?
 
 No.
 
 EchoFlow currently uses application-owned work windows that are **10 minutes by default**
-(`600` seconds), not hour-long user-visible transcript sections. Those windows exist so
-long recordings can be processed and checkpointed safely.
-
-They are an implementation detail.
+(`600` seconds). Those windows exist so long recordings can be processed and
+checkpointed safely. They are an implementation detail.
 
 When a work window starts at `4200` seconds and faster-whisper reports a word at `588.37`
-seconds inside that work window, assembly rebases it onto the source timeline:
+seconds inside that window, assembly rebases it onto the source timeline:
 
 ```text
 4200.000 + 588.370 = 4788.370 seconds
@@ -159,7 +161,7 @@ timecode:      10:00:00:00
 creation_time: 2026-04-05T12:34:56Z
 ```
 
-EchoFlow now asks FFprobe for `timecode` and `creation_time` at both container and stream
+EchoFlow asks FFprobe for `timecode` and `creation_time` at both container and stream
 scope. When present, those declarations are preserved in canonical source provenance,
 including where they came from.
 
@@ -171,11 +173,11 @@ So the model stays parallel:
 
 ```mermaid
 flowchart LR
-    M[🎥 Original media] --> E[Canonical elapsed time<br/>0.000 s → ...]
-    M --> T[Declared timecode<br/>if source provides it]
-    M --> C[Declared creation time<br/>if source provides it]
+    M[Original media] --> E[Canonical elapsed time\n0.000 s → ...]
+    M --> T[Declared timecode\nif source provides it]
+    M --> C[Declared creation time\nif source provides it]
 
-    E --> X[📜 Transcript evidence]
+    E --> X[Canonical transcript evidence]
     T --> X
     C --> X
 
@@ -200,24 +202,27 @@ called `timestamp`.
 Because SMPTE-style timecode is not just wall-clock `HH:MM:SS` with two extra digits.
 Frame rate and drop-frame/non-drop-frame semantics can change the arithmetic.
 
-This tranche deliberately preserves source declarations **without inventing a mapping it
-cannot yet qualify**.
+EchoFlow preserves source declarations **without inventing a mapping it cannot yet
+qualify**.
 
 For ordinary transcript navigation, no such mapping is necessary. Canonical elapsed time
-already gives a local player an exact seek coordinate.
+already gives a local player a deterministic seek coordinate.
 
 ## What you get now
 
 | Need | Current behavior |
 |---|---|
 | “Where is 4788 seconds?” | rendered as `01:19:48.000` |
-| Search result navigation | human elapsed start/end plus numeric seconds in JSON |
+| Search result navigation | verified canonical location plus numeric/human seek coordinate |
+| Exact lexical word match | highlighted aligned words when canonical timing evidence supports it |
+| Semantic-only result | verified passage coordinate without fabricated word precision |
+| Neighboring reading context | bounded canonical segment expansion after ranking |
 | Word-level position | native faster-whisper word start/end retained in canonical evidence |
 | Speaker handoff inside one ASR segment | word evidence can carry the handoff without inventing one segment speaker |
 | Original `timecode` metadata | preserved when FFprobe reports it, with source scope |
 | Original `creation_time` metadata | preserved when FFprobe reports it, with source scope |
-| Click word to play source | coordinate is ready; graphical player interaction is still future UI work |
-| Durable notes/annotations | architecture is ready for canonical anchors; editor/storage is still future work |
+| Click word to play source | seek contract is ready; graphical player interaction is still future UI work |
+| Durable notes/annotations | evidence anchor is ready; editor/storage is still future work |
 | SMPTE frame arithmetic | intentionally not inferred without qualified frame semantics |
 
 ## The small rule underneath all of this
@@ -226,5 +231,6 @@ already gives a local player an exact seek coordinate.
 confuse the three.** ✨
 
 For the exact implementation contract, see
-**[Media normalization and transcript timeline](architecture/media-and-timeline.md)** and
-**[Word-level timestamp alignment](architecture/word-alignment.md)**.
+**[Media normalization and transcript timeline](architecture/media-and-timeline.md)**,
+**[Word-level timestamp alignment](architecture/word-alignment.md)**, and
+**[Evidence-first corpus search](architecture/corpus-search.md)**.

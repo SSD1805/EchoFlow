@@ -70,7 +70,9 @@ def test_sqlite_state_commits_note_labels_and_outbox_together(tmp_path: Path) ->
     assert state.changes_after(0, limit=10)[0].note_id == "note-1"
 
 
-def test_projection_replays_incremental_mutations_and_note_terms(tmp_path: Path) -> None:
+def test_projection_replays_incremental_mutations_and_note_terms(
+    tmp_path: Path,
+) -> None:
     state, projection = _stores(tmp_path)
     state.create_note(
         _anchor(),
@@ -86,9 +88,9 @@ def test_projection_replays_incremental_mutations_and_note_terms(tmp_path: Path)
     assert tag_id is not None
     assert first.current
     assert first.batches == 1
-    assert projection.matching_evidence(
-        ResearchProjectionFilter(tag_ids=tag_id)
-    ) == (("job-1", "1" * 64, "segment-000042"),)
+    assert projection.matching_evidence(ResearchProjectionFilter(tag_ids=tag_id)) == (
+        ("job-1", "1" * 64, "segment-000042"),
+    )
     assert projection.matching_evidence(
         ResearchProjectionFilter(note_text="affordability checking")
     ) == (("job-1", "1" * 64, "segment-000042"),)
@@ -97,9 +99,12 @@ def test_projection_replays_incremental_mutations_and_note_terms(tmp_path: Path)
     second = projector.sync()
 
     assert second.current
-    assert projection.matching_evidence(
-        ResearchProjectionFilter(note_text="affordability")
-    ) == ()
+    assert (
+        projection.matching_evidence(
+            ResearchProjectionFilter(note_text="affordability")
+        )
+        == ()
+    )
     assert projection.matching_evidence(
         ResearchProjectionFilter(note_text="different observation")
     ) == (("job-1", "1" * 64, "segment-000042"),)
@@ -125,12 +130,12 @@ def test_projection_keeps_canonical_generations_separate(tmp_path: Path) -> None
     history = state.resolve_tag_ids(("history",))
     current = state.resolve_tag_ids(("current",))
     assert history is not None and current is not None
-    assert projection.matching_evidence(
-        ResearchProjectionFilter(tag_ids=history)
-    ) == (("job-1", "1" * 64, "segment-000042"),)
-    assert projection.matching_evidence(
-        ResearchProjectionFilter(tag_ids=current)
-    ) == (("job-1", "2" * 64, "segment-000042"),)
+    assert projection.matching_evidence(ResearchProjectionFilter(tag_ids=history)) == (
+        ("job-1", "1" * 64, "segment-000042"),
+    )
+    assert projection.matching_evidence(ResearchProjectionFilter(tag_ids=current)) == (
+        ("job-1", "2" * 64, "segment-000042"),
+    )
 
 
 def test_deleted_projection_rebuilds_from_sqlite_after_outbox_compaction(

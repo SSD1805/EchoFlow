@@ -29,7 +29,9 @@ flowchart LR
     L --> S[Ranked search passages]
     C --> N[Verified evidence navigation]
     S --> N
-    U[User-authored state] --> N
+    N --> U[Authoritative user research state]
+    U --> RP[Rebuildable research projection]
+    RP --> S
 
     classDef evidence fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef compute fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
@@ -41,7 +43,7 @@ flowchart LR
     class M,R,P compute
     class X process
     class E,U publish
-    class L,S,N result
+    class L,S,N,RP result
 ```
 
 The architectural through-line is custody: source evidence and canonical transcript
@@ -60,6 +62,7 @@ rebuildable search infrastructure, and durable user-authored knowledge.
 | [Speech enhancement](speech-enhancement.md) | How can preprocessing affect ASR without becoming source truth? |
 | [Anonymous speaker diarization](diarization.md) | How are speaker turns represented without pretending anonymous labels are identities? |
 | [Corpus search](corpus-search.md) | How do lexical/semantic/hybrid ranking and verified canonical navigation stay separate? |
+| [Durable research state](research-state.md) | How do authoritative SQLite notes and rebuildable DuckDB research projections stay consistent without sharing custody? |
 | [ROADMAP](../../ROADMAP.md) | What is implemented, what is next, and what remains research? |
 | [SECURITY](../../SECURITY.md) | What does the security boundary actually claim? |
 
@@ -78,7 +81,7 @@ rebuildable search infrastructure, and durable user-authored knowledge.
 | `transcription` | Planning, normalization, enhancement, segmentation, ASR, checkpoints, language attribution, word alignment, diarization, assembly, exports |
 | `workspace` | Private job paths and public artifact allocation |
 | `benchmarking` | Privacy-minimized local execution measurement |
-| `library` | Lexical/semantic retrieval, canonical evidence navigation, speaker presentation, and durable library-side user state |
+| `library` | Lexical/semantic retrieval, canonical evidence navigation, speaker presentation, authoritative research state, and rebuildable research projection |
 
 A couple of names are easy to misread. `runner` means the local compute environment
 available to the process; it is not a distributed task runner. `media.probe` performs
@@ -94,11 +97,14 @@ serialization are valuable. Small internal immutable values generally use frozen
 dataclasses. Services use narrow `Protocol` capabilities when substitution is real and
 useful for testing or multiple implementations.
 
-The search/research area now has three deliberately separate authorities:
+The search/research area now has four deliberately separate authorities:
 
 1. retrieval services rank rebuildable passages;
-2. canonical evidence navigation verifies and locates those passages; and
-3. user-state services provide durable human-authored labels without rewriting evidence.
+2. canonical evidence navigation verifies and locates those passages;
+3. authoritative research-state services own durable human-authored notes, tags, and
+   collections without rewriting evidence; and
+4. the research projector owns only the deterministic DuckDB acceleration layer and its
+   convergence watermark.
 
 That split should survive the GUI. Presentation convenience is not permission to merge
 custody boundaries.
@@ -113,12 +119,16 @@ These rules are load-bearing:
 1. **Original media is source evidence and treated as read-only input.**
 2. **Canonical transcript/checkpoint artifacts carry execution truth.**
 3. **Managed model manifests describe verified local execution dependencies.**
-4. **Lexical and semantic databases are derived, private, and rebuildable.**
-5. **User-authored speaker labels, and future notes/tags/collections/annotations, do not
-   share deletion semantics with rebuildable indexes.**
-6. **Precise navigation must resolve back to verified canonical evidence rather than
+4. **Lexical, semantic, and research DuckDB databases are derived, private, and
+   rebuildable.**
+5. **User-authored speaker labels, research notes, tags, collections, and future curated
+   result sets do not share deletion semantics with rebuildable indexes.**
+6. **Research-state joins include canonical generation identity, not a friendly segment
+   ID alone.**
+7. **Precise navigation must resolve back to verified canonical evidence rather than
    trusting a stale search projection.**
-7. **A convenience layer may not quietly become the only place unique evidence lives.**
+8. **A convenience layer may not quietly become the only place unique evidence or user
+   knowledge lives.**
 
 Search infrastructure is allowed to disappear. User-authored knowledge is not.
 

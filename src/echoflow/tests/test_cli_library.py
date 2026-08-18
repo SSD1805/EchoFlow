@@ -6,12 +6,12 @@ import typer
 from typer.testing import CliRunner
 
 from echoflow.cli_library import register_library_commands
+from echoflow.library.errors import TranscriptLibraryError
 from echoflow.library.evidence import (
     EvidenceContextSegment,
     EvidenceLocation,
     EvidenceWord,
 )
-from echoflow.library.errors import TranscriptLibraryError
 from echoflow.library.index import (
     IndexedDocument,
     SearchOperator,

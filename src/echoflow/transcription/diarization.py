@@ -8,7 +8,7 @@ from importlib import import_module, metadata
 from pathlib import Path
 from typing import Any, cast
 
-from echoflow.transcription.alignment import aligned_words
+from echoflow.transcription.alignment import AlignedRecognizedSegment, aligned_words
 from echoflow.transcription.errors import (
     DiarizationDependencyError,
     DiarizationError,
@@ -204,7 +204,7 @@ def project_speaker_refs(
         ):
             raise ValueError("speaker projection refuses to overwrite existing labels")
 
-        if words:
+        if isinstance(segment, AlignedRecognizedSegment) and words:
             projected_words = tuple(
                 replace(
                     word,

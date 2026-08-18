@@ -3,7 +3,8 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from echoflow.library.index import IndexedSegment, IndexedTranscript
 from echoflow.library.semantic import (

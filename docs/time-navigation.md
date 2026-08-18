@@ -98,7 +98,7 @@ It should **not** anchor only to:
 ```
 
 Why? Because `01:19:48.370` is presentation. We may later offer a different visual
-format, but Susan's metaphorical sticky note should not fall off the transcript because
+format, but a researcher's sticky note should not fall off the transcript because
 someone changed the clock typography.
 
 It also should not anchor only to a semantic-search chunk ID. Search chunks and indexes

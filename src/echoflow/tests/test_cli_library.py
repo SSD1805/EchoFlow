@@ -227,9 +227,7 @@ def test_library_rebuild_accepts_explicit_files_and_directories() -> None:
     library.rebuild.return_value = LibraryRebuildReport("duckdb-bm25-v1", 1, 0)
     app, _ = _app_with_library(library)
 
-    result = CliRunner().invoke(
-        app, ["library", "rebuild", "one.json", "transcripts"]
-    )
+    result = CliRunner().invoke(app, ["library", "rebuild", "one.json", "transcripts"])
 
     assert result.exit_code == 0
     assert "Indexed 1 transcript" in result.stdout

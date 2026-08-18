@@ -65,7 +65,9 @@ class DuckDbResearchProjection:
     def __init__(self, database_path: Path, file_manager: FileManagerFacade) -> None:
         self.database_path = database_path.expanduser().resolve(strict=False)
         self.file_manager = file_manager
-        self.file_manager.ensure_directory_exists(self.database_path.parent, private=True)
+        self.file_manager.ensure_directory_exists(
+            self.database_path.parent, private=True
+        )
         try:
             self._connection = duckdb.connect(str(self.database_path))
             self._closed = False
@@ -150,9 +152,7 @@ class DuckDbResearchProjection:
                 cause=exc,
             ) from exc
 
-    def matching_note_ids(
-        self, filters: ResearchProjectionFilter
-    ) -> tuple[str, ...]:
+    def matching_note_ids(self, filters: ResearchProjectionFilter) -> tuple[str, ...]:
         self._require_open()
         parameters = self._filter_parameters(filters)
         if parameters is None:

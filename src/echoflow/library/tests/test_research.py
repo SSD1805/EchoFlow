@@ -72,7 +72,7 @@ def test_research_navigation_adds_display_names_without_mutating_retrieval() -> 
     assert response.retrieval is retrieval
     assert response.results[0].passage is passage
     assert response.results[0].passage.speaker_refs == ("speaker-02",)
-    assert response.results[0].speakers[0].display_name == "Dr. Chen (speaker-02)"
+    assert response.results[0].speakers[0].display_name == "Dr. Chen\nspeaker-02"
     locator.locate_response.assert_called_once_with(retrieval, context_segments=1)
     labels.display_labels.assert_called_once_with(
         document_id="job-1",
@@ -138,6 +138,6 @@ def test_label_lookup_is_batched_per_canonical_generation() -> None:
         speaker_refs=("speaker-02", "speaker-03"),
     )
     assert [result.speakers[0].display_name for result in response.results] == [
-        "Dr. Chen (speaker-02)",
-        "Interviewer (speaker-03)",
+        "Dr. Chen\nspeaker-02",
+        "Interviewer\nspeaker-03",
     ]

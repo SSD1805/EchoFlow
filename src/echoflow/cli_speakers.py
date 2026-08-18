@@ -88,9 +88,9 @@ def _render_transcript(
             f"{format_elapsed_timestamp(span.start_seconds)}\n"
             f"{format_elapsed_timestamp(span.end_seconds)}"
         )
-        speakers = " + ".join(
-            speaker.display_name for speaker in span.speakers
-        ) or "unknown"
+        speakers = (
+            " + ".join(speaker.display_name for speaker in span.speakers) or "unknown"
+        )
         table.add_row(time_range, speakers, span.kind.value, span.text)
     console.print(table)
 

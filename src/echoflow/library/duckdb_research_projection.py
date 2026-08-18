@@ -158,9 +158,9 @@ class DuckDbResearchProjection:
         if parameters is None:
             return ()
         try:
-            # Only the module-owned static CTE is interpolated. User values remain bound.
-            query = (  # noqa: S608
-                f"WITH {_MATCHED_NOTES_CTE} "
+            # The only interpolation is this module-owned CTE; user values stay bound.
+            query = (
+                f"WITH {_MATCHED_NOTES_CTE} "  # noqa: S608
                 "SELECT note_id FROM matched_notes ORDER BY note_id"
             )
             rows = self._connection.execute(query, parameters).fetchall()
@@ -178,14 +178,14 @@ class DuckDbResearchProjection:
         if parameters is None:
             return ()
         try:
-            # Only the module-owned static CTE is interpolated. User values remain bound.
-            query = f"""  # noqa: S608
-                WITH {_MATCHED_NOTES_CTE}
-                SELECT DISTINCT m.document_id, m.canonical_sha256, s.segment_id
-                FROM matched_notes m
-                JOIN projected_note_segments s USING (note_id)
-                ORDER BY m.document_id, m.canonical_sha256, s.segment_id
-                """
+            # The only interpolation is this module-owned CTE; user values stay bound.
+            query = (
+                f"WITH {_MATCHED_NOTES_CTE} "  # noqa: S608
+                "SELECT DISTINCT m.document_id, m.canonical_sha256, s.segment_id "
+                "FROM matched_notes m "
+                "JOIN projected_note_segments s USING (note_id) "
+                "ORDER BY m.document_id, m.canonical_sha256, s.segment_id"
+            )
             rows = self._connection.execute(query, parameters).fetchall()
         except duckdb.Error as exc:
             raise ResearchProjectionError(

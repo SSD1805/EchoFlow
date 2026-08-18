@@ -69,15 +69,15 @@ def _list_speakers(
 ) -> None:
     try:
         roster = (
-            container_factory(_root_context(context)).speaker_labels().roster(transcript_id)
+            container_factory(_root_context(context))
+            .speaker_labels()
+            .roster(transcript_id)
         )
     except Exception as exc:
         _handle_error(exc)
         return
     if json_output:
-        typer.echo(
-            json.dumps([_roster_dict(item) for item in roster], sort_keys=True)
-        )
+        typer.echo(json.dumps([_roster_dict(item) for item in roster], sort_keys=True))
         return
     _render_roster(transcript_id, roster, Console())
 

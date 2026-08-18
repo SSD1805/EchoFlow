@@ -22,7 +22,7 @@ class SpeakerDisplay:
     def display_name(self) -> str:
         if self.display_label is None:
             return self.speaker_ref
-        return f"{self.display_label} ({self.speaker_ref})"
+        return f"{self.display_label}\n{self.speaker_ref}"
 
 
 @dataclass(frozen=True, slots=True)

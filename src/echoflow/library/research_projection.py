@@ -15,6 +15,7 @@ class ResearchProjectionFilter:
 
     tag_ids: tuple[str, ...] = ()
     collection_ids: tuple[str, ...] = ()
+    document_ids: tuple[str, ...] = ()
     note_text: str | None = None
     require_notes: bool = False
 
@@ -22,6 +23,7 @@ class ResearchProjectionFilter:
         for name, values in (
             ("tag_ids", self.tag_ids),
             ("collection_ids", self.collection_ids),
+            ("document_ids", self.document_ids),
         ):
             if any(not value.strip() for value in values):
                 raise ValueError(f"{name} cannot contain empty values")
@@ -36,6 +38,7 @@ class ResearchProjectionFilter:
             self.require_notes
             or self.tag_ids
             or self.collection_ids
+            or self.document_ids
             or self.note_text is not None
         )
 
@@ -90,6 +93,10 @@ class ResearchProjectionIndex(Protocol):
         deleted_note_ids: tuple[str, ...],
         through_sequence: int,
     ) -> None: ...
+
+    def matching_note_ids(
+        self, filters: ResearchProjectionFilter
+    ) -> tuple[str, ...]: ...
 
     def matching_evidence(
         self, filters: ResearchProjectionFilter

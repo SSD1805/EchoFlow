@@ -185,7 +185,7 @@ def _render_response(response: SearchResponse, console: Console) -> None:
         )
     )
     table.add_column("Recording")
-    table.add_column("Time")
+    table.add_column("Time", min_width=12, no_wrap=True)
     table.add_column("Speaker")
     table.add_column("Language")
     table.add_column("Ranks")
@@ -202,7 +202,7 @@ def _render_response(response: SearchResponse, console: Console) -> None:
             f"F:{result.fused_rank}"
         )
         time_range = (
-            f"{format_elapsed_timestamp(result.start_seconds)}–"
+            f"{format_elapsed_timestamp(result.start_seconds)}\n"
             f"{format_elapsed_timestamp(result.end_seconds)}"
         )
         table.add_row(

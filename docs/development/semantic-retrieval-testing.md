@@ -1,80 +1,150 @@
-# Semantic retrieval qualification
+# Semantic retrieval qualification 🧪🔎
 
-Transcript Library V2 is decision-heavy code. Its tests protect evidence custody,
-chunking, vector-space coherence, filter ordering, stale-index rejection, and hybrid
-ranking. A high line count by itself is not enough.
+Transcript Library V2 is full of small decisions that can quietly make search wrong
+while the happy path still looks fine.
+
+Chunk boundaries can drop evidence. Filters can be applied too late. A stale vector
+space can look plausible. One malformed embedding can poison a rebuild. Hybrid ranking
+can claim provenance it did not actually earn.
+
+So the qualification question is not “did we write a lot of tests?”
+
+It is:
+
+> **If one of these decisions were subtly wrong, would a specific test notice?**
 
 ## Qualification matrix
-
-The semantic tranche uses several complementary test styles.
 
 | Test style | What it protects | Current examples |
 |---|---|---|
 | Positive | intended retrieval behavior | deterministic chunks, exact vector ranking, RRF fusion |
 | Negative | fail-closed behavior | stale corpus, missing model, malformed vectors, embedding failure |
-| Boundary | thresholds and invalid contracts | chunk target/max sizes, indivisible oversize source segments |
-| Property-based | invariants over many generated cases | every source segment appears exactly once in deterministic chunks |
+| Boundary | thresholds and invalid contracts | chunk target/max sizes, indivisible oversized source segments |
+| Property-based | invariants over many generated cases | every canonical segment appears exactly once in deterministic chunks |
 | Integration | cross-component behavior | canonical JSON → projection → vectors → DuckDB → hybrid search |
-| Mutation | strength of decision tests | targeted Poodle workflow for semantic/retrieval/service modules |
+| Mutation | strength of decision tests | targeted Poodle workflow over semantic/retrieval/service modules |
 
-Factory Boy is intentionally not introduced for this capability. The tested objects are
-small immutable domain values rather than ORM graphs. Narrow builders and Hypothesis
-strategies provide the useful construction behavior without another dependency.
+The different styles are complementary. Property tests do not make named boundary tests
+obsolete. Mutation testing does not make ordinary negative tests optional.
 
-## Hypothesis invariants
+## Why there is no Factory Boy here
+
+The semantic tests mostly construct small immutable domain values, not sprawling ORM
+object graphs with lifecycle hooks.
+
+Narrow builders and Hypothesis strategies give the useful construction behavior without
+another dependency.
+
+If object construction later becomes genuinely lifecycle-heavy, revisit the decision.
+Do not add a factory framework merely because test data exists.
+
+🦝 The raccoon is perfectly capable of constructing a frozen dataclass by hand.
+
+## Hypothesis: protect segment custody, not only examples
 
 `src/echoflow/library/tests/test_semantic.py` generates varied segment word counts and
-chunking thresholds and checks these invariants:
+chunking thresholds and protects invariants such as:
 
-- the same input/profile produces the same chunks and IDs;
-- every canonical segment appears exactly once in the flattened chunk sequence;
-- no chunk invents or drops an evidence coordinate;
-- chunk timestamps are inherited from the first/last canonical segments;
-- exceeding `max_words` is allowed only when one indivisible source segment is itself
-  larger than the maximum.
+- same input/profile → same chunks and IDs;
+- every canonical segment appears **exactly once** in the flattened chunk sequence;
+- no chunk invents, duplicates, or drops an evidence coordinate;
+- chunk timestamps come from the first/last canonical source segments; and
+- exceeding `max_words` is permitted only when one indivisible source segment is itself
+  larger than that maximum.
 
-Keep named examples for important boundaries even when a property test could generate
-them. A future maintainer should be able to see why `target_words=0` and
-`max_words < target_words` are invalid without reverse-engineering a strategy.
+Named cases still call out important boundaries such as:
 
-## Embedding-provider failure cases
+```text
+target_words = 0                  → invalid
+max_words < target_words          → invalid
+one source segment > max_words    → remains indivisible
+```
 
-The E5 adapter tests should reject at least:
+A future maintainer should not have to reverse-engineer a Hypothesis strategy to learn
+which boundary is load-bearing.
 
-- unavailable snapshot directory;
+## Embedding-provider defensive checks
+
+The qualified E5 adapter should reject at least:
+
+- unavailable local snapshot directory;
 - snapshot/revision mismatch;
 - blank input text;
 - wrong number of output vectors;
 - wrong vector dimensions;
-- non-finite values;
-- vectors that violate the declared L2-normalized contract.
+- non-finite values such as NaN/Infinity; and
+- vectors that violate the declared L2-normalized profile contract.
 
-The model runtime is faked for these tests. Qualification must not require downloading a
-model or sending text to an external service.
+The runtime is faked for these unit tests.
+
+Qualification should not require downloading a model or sending text anywhere.
+
+## Failure preservation: a bad rebuild must not destroy a good one
+
+One especially important invariant is transactional replacement of semantic state.
+
+```mermaid
+flowchart LR
+    A[Existing valid generation] --> B[Attempt rebuild]
+    B --> C{Embedding / validation succeeds?}
+    C -->|yes| D[Commit new generation]
+    C -->|no| E[Keep previous valid generation]
+
+    classDef good fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+    classDef work fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef stop fill:#FFD6D6,stroke:#9E3434,stroke-width:2px,color:#351616
+
+    class A,D good
+    class B,C work
+    class E stop
+```
+
+Tests cover embedding failure and invalid semantic replacement so a failed rebuild does
+not erase the previous usable corpus fingerprint/chunk state.
 
 ## Projection and service failure cases
 
-The service/index tests protect:
+The service/index suite protects:
 
-- hard metadata/phrase constraints before semantic top-K;
-- invalid semantic replacement leaving previous state intact;
-- embedding failure leaving the previous semantic generation intact;
+- hard metadata/phrase constraints **before** semantic top-K;
 - canonical transcript changes invalidating stale semantic vectors;
+- semantic/hybrid search refusing stale generations;
 - lexical search remaining available without semantic capability;
+- failed semantic rebuild preserving prior valid state; and
 - a non-E5 fake provider satisfying the application-level `EmbeddingProvider` contract.
 
-The last case matters for architecture: the library core is provider-agnostic even
-though the normal CLI currently qualifies one concrete local E5 profile.
+That final case proves something architectural but limited:
 
-## Mutation testing
+> The library core is provider-agnostic.
 
-Run the dedicated manual workflow:
+It does **not** prove that arbitrary embedding models are mathematically interchangeable.
+The normal CLI still qualifies one concrete local E5 profile because dimensions,
+pooling, normalization, transforms, and distance semantics are load-bearing.
+
+## Rank provenance tests
+
+Search presentation must not manufacture relevance provenance.
+
+Qualification should preserve distinctions such as:
+
+- lexical-only relevance sorting can carry lexical rank;
+- timeline-sorted lexical presentation must not pretend chronological order is BM25
+  relevance rank;
+- semantic-only results carry semantic rank but no fused rank; and
+- hybrid results may carry lexical, semantic, and fused ranks as applicable.
+
+A presentation reorder is allowed. Rewriting the stored provenance to match the display
+order is not.
+
+## Mutation testing: ask the bad edits on purpose 💃
+
+The dedicated manual workflow is:
 
 ```text
 .github/workflows/mutation-library.yml
 ```
 
-It establishes a focused semantic-library baseline and asks Poodle to mutate:
+It establishes a focused baseline and asks Poodle to mutate:
 
 ```text
 src/echoflow/library/semantic.py
@@ -83,23 +153,30 @@ src/echoflow/library/retrieval.py
 src/echoflow/library/service.py
 ```
 
-The mutations we care about include:
+The mutation hypotheses we care about include:
 
 - changing chunk boundary comparisons;
+- synthetically splitting source segments;
+- dropping canonical hashes from corpus fingerprints;
 - accepting stale corpus fingerprints;
-- weakening vector dimension/normalization checks;
+- swapping query/passage prefixes;
+- weakening dimension/normalization checks;
 - applying filters after top-K;
 - changing RRF rank arithmetic;
-- claiming lexical/semantic/fused ranks when that retrieval path did not run;
+- claiming lexical/semantic/fused ranks when that path did not run;
+- allowing timeline presentation to overwrite relevance rank;
 - replacing semantic state after a failed build;
-- mixing incompatible embedding profiles;
-- turning a local-only model path into a network-capable resolution path.
+- mixing incompatible embedding profiles; and
+- turning strict-local model resolution into a network-capable path.
 
-Mutation testing remains a deliberate qualification tool, not a routine PR gate. Run it
-when these decisions change and inspect surviving mutations as evidence of a missing test
-contract.
+Mutation testing remains deliberate qualification, not a routine PR gate.
 
-## Feedback ladder for this capability
+Run it when these decisions change and inspect surviving mutants as evidence of a missing
+or weak contract.
+
+## Feedback ladder
+
+Start narrow, then widen:
 
 ```bash
 # Focused semantic/domain tests
@@ -121,5 +198,25 @@ uv run mypy
 uv run vulture
 ```
 
-The repository-wide branch-coverage gate remains 90%. A semantic change is not considered
-qualified merely because its focused tests pass if the full quality workflow is red.
+The repository-wide branch-coverage gate remains 90%.
+
+A semantic change is not qualified merely because its focused test file is green while
+the full quality workflow is red.
+
+## Why this much fuss for search?
+
+Because retrieval is becoming a research interface over user-owned evidence.
+
+A wrong search result is not the same as a corrupted transcript, but the product still
+needs to distinguish:
+
+- what evidence exists;
+- which projection generated a candidate;
+- which filters were applied;
+- whether the semantic state still corresponds to current canonical bytes; and
+- how a result earned its displayed rank.
+
+That is exactly the kind of decision surface where a cheerful green test suite can hide
+a very specific hole.
+
+Our job is to make the hole boringly hard to create. 🧜‍♀️

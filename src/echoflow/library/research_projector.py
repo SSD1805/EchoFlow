@@ -82,43 +82,33 @@ class ResearchStateProjector:
             if not changes:
                 authoritative = self.store.current_sequence()
                 if projected == authoritative:
-                    break
+                    self.store.compact_changes(
+                        projected,
+                        retain=self.retained_changes,
+                    )
+                    return ResearchProjectionSyncReport(
+                        before_sequence=before,
+                        after_sequence=projected,
+                        authoritative_sequence=authoritative,
+                        batches=batches,
+                        rebuilt=False,
+                    )
                 return self.rebuild(before_sequence=before)
+
             note_ids = tuple(sorted({change.note_id for change in changes}))
             records = self.store.projection_records(note_ids)
             present_ids = {record.note_id for record in records}
             deleted = tuple(note_id for note_id in note_ids if note_id not in present_ids)
-            through = changes[-1].sequence_id
+            projected = changes[-1].sequence_id
             self.projection.apply(
                 records,
                 deleted_note_ids=deleted,
-                through_sequence=through,
+                through_sequence=projected,
             )
-            projected = through
             batches += 1
-            authoritative = self.store.current_sequence()
-            if projected == authoritative:
-                break
-        else:
-            raise ResearchProjectionError(
-                "Research projection did not converge within its bounded sync budget"
-            )
 
-        authoritative = self.store.current_sequence()
-        if projected != authoritative:
-            raise ResearchProjectionError(
-                "Research projection stopped before authoritative state was reached"
-            )
-        self.store.compact_changes(
-            projected,
-            retain=self.retained_changes,
-        )
-        return ResearchProjectionSyncReport(
-            before_sequence=before,
-            after_sequence=projected,
-            authoritative_sequence=authoritative,
-            batches=batches,
-            rebuilt=False,
+        raise ResearchProjectionError(
+            "Research projection did not converge within its bounded sync budget"
         )
 
     def rebuild(self, *, before_sequence: int | None = None) -> ResearchProjectionSyncReport:

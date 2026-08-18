@@ -333,13 +333,12 @@ def test_library_search_compiles_cli_options_to_research_navigation_contract() -
     assert payload["results"][0]["start_seconds"] == 1.5
     assert payload["results"][0]["start_timestamp"] == "00:00:01.500"
     assert payload["results"][0]["speaker_refs"] == ["speaker-02"]
-    assert payload["results"][0]["speaker_display_labels"] == {
-        "speaker-02": "Dr. Chen"
-    }
+    assert payload["results"][0]["speaker_display_labels"] == {"speaker-02": "Dr. Chen"}
     assert payload["results"][0]["evidence_location"]["seek_seconds"] == 1.5
-    assert payload["results"][0]["evidence_location"]["matched_words"][0][
-        "highlighted"
-    ] is True
+    assert (
+        payload["results"][0]["evidence_location"]["matched_words"][0]["highlighted"]
+        is True
+    )
     query, mode, context_segments = captured[0]
     assert mode is RetrievalMode.HYBRID
     assert context_segments == 2
@@ -353,7 +352,9 @@ def test_library_search_compiles_cli_options_to_research_navigation_contract() -
     assert query.limit == 25
 
 
-def test_library_search_human_view_shows_display_name_and_highlighted_evidence() -> None:
+def test_library_search_human_view_shows_display_name_and_highlighted_evidence() -> (
+    None
+):
     library = Mock()
     research = Mock()
     research.search.return_value = _located()

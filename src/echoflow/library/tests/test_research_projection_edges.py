@@ -150,7 +150,9 @@ def test_projector_enforces_bounded_convergence_budget(monkeypatch) -> None:
     store.compact_changes.assert_not_called()
 
 
-def test_sqlite_bounds_large_user_inputs_without_mutating_authority(tmp_path: Path) -> None:
+def test_sqlite_bounds_large_user_inputs_without_mutating_authority(
+    tmp_path: Path,
+) -> None:
     state = _state(tmp_path)
 
     with pytest.raises(ValueError, match="body is too large"):

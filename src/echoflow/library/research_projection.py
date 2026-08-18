@@ -1,6 +1,6 @@
 """Disposable research-state projection contracts used for fast evidence filtering."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass  # noqa: I001
 from typing import Protocol, runtime_checkable
 
 from echoflow.library.research_state import ResearchProjectionRecord

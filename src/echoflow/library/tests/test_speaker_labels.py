@@ -96,7 +96,9 @@ def test_roster_reads_segment_and_word_only_speaker_evidence(tmp_path: Path) -> 
     assert [item.display_name for item in roster] == ["speaker-01", "speaker-02"]
 
 
-def test_label_is_user_state_without_replacing_anonymous_evidence(tmp_path: Path) -> None:
+def test_label_is_user_state_without_replacing_anonymous_evidence(
+    tmp_path: Path,
+) -> None:
     canonical = tmp_path / "transcript.json"
     digest = _canonical(canonical)
     document = _document(canonical, digest)
@@ -136,11 +138,14 @@ def test_label_does_not_follow_changed_canonical_generation(tmp_path: Path) -> N
     second = _document(canonical, second_digest)
     current = _service(tmp_path, second)
 
-    assert current.display_labels(
-        document_id="job-1",
-        canonical_sha256=second_digest,
-        speaker_refs=("speaker-02",),
-    ) == {}
+    assert (
+        current.display_labels(
+            document_id="job-1",
+            canonical_sha256=second_digest,
+            speaker_refs=("speaker-02",),
+        )
+        == {}
+    )
     views = current.views("job-1")
     assert len(views) == 1
     assert views[0].binding.canonical_sha256 == first_digest

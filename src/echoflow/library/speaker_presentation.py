@@ -70,8 +70,7 @@ class SpeakerPresentationSpan:
         if not self.document_id.strip() or not self.segment_id.strip():
             raise ValueError("presentation identity cannot be empty")
         if len(self.canonical_sha256) != 64 or any(
-            character not in "0123456789abcdef"
-            for character in self.canonical_sha256
+            character not in "0123456789abcdef" for character in self.canonical_sha256
         ):
             raise ValueError("canonical_sha256 must be a lowercase 64-character digest")
         if (
@@ -331,9 +330,8 @@ class SpeakerPresentationService:
             for second in relevant[index + 1 :]:
                 if first.speaker_ref == second.speaker_ref:
                     continue
-                if (
-                    min(end_seconds, first.end_seconds, second.end_seconds)
-                    > max(start_seconds, first.start_seconds, second.start_seconds)
+                if min(end_seconds, first.end_seconds, second.end_seconds) > max(
+                    start_seconds, first.start_seconds, second.start_seconds
                 ):
                     return True
         return False

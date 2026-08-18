@@ -41,7 +41,9 @@ class ResearchStateProjector:
         retained_changes: int = _DEFAULT_RETAINED_CHANGES,
     ) -> None:
         if batch_size < 1 or batch_size > 10_000:
-            raise ValueError("research projection batch_size must be between 1 and 10000")
+            raise ValueError(
+                "research projection batch_size must be between 1 and 10000"
+            )
         if retained_changes < 0:
             raise ValueError("retained_changes cannot be negative")
         self.store = store
@@ -98,7 +100,9 @@ class ResearchStateProjector:
             note_ids = tuple(sorted({change.note_id for change in changes}))
             records = self.store.projection_records(note_ids)
             present_ids = {record.note_id for record in records}
-            deleted = tuple(note_id for note_id in note_ids if note_id not in present_ids)
+            deleted = tuple(
+                note_id for note_id in note_ids if note_id not in present_ids
+            )
             projected = changes[-1].sequence_id
             self.projection.apply(
                 records,
@@ -111,7 +115,9 @@ class ResearchStateProjector:
             "Research projection did not converge within its bounded sync budget"
         )
 
-    def rebuild(self, *, before_sequence: int | None = None) -> ResearchProjectionSyncReport:
+    def rebuild(
+        self, *, before_sequence: int | None = None
+    ) -> ResearchProjectionSyncReport:
         before = (
             self.projection.projected_through_sequence()
             if before_sequence is None

@@ -1,77 +1,89 @@
-# EchoFlow
+# EchoFlow 🦝✨
 
-EchoFlow is a local-first Python application for audio processing, transcription, and
-analysis. It is designed to keep private, potentially large recordings on the user's
-machine.
+**Private local transcription that remembers where everything came from.**
 
-The product target is a privacy-by-default, resource-aware, reproducible, and resumable
-workflow for sensitive recordings rather than a model-specific transcription GUI.
-EchoFlow derives execution plans from CPU, system memory, and execution-capable
-accelerators actually available to the current process, keeps source media authoritative,
-makes local model and preprocessing provenance explicit, and provides evidence-first
-local search across completed transcripts.
+EchoFlow is a local-first Python application for turning recordings into durable,
+searchable evidence. It is designed for interviews, research recordings, meetings,
+lectures, oral histories, and other audio you may not want wandering off to a hosted
+transcription service.
 
-EchoFlow does not require a hosted transcription account. Durability, reliability,
-performance on ordinary hardware, local storage awareness, and portable user-owned
-artifacts are first-class constraints. See [`docs/getting-started.md`](docs/getting-started.md)
-for the short user path and [`ROADMAP.md`](ROADMAP.md) for current work and research
-candidates.
+The application does more than run a speech model. It inspects the machine it is running
+on, chooses a safe execution strategy, manages local model custody, survives interrupted
+work, preserves source provenance, publishes portable transcripts, and builds a private
+searchable library over completed recordings.
 
-## Project status
+The original recording remains read-only input. Canonical transcript JSON is the
+authoritative transcript artifact. Working audio and search databases are derived state
+that can be regenerated.
 
-EchoFlow is pre-production. Its current tested foundation includes:
+> **EchoFlow's product rule:** do complicated work locally, keep the evidence
+> understandable, portable, and owned by the user.
 
-- a Typer/Rich CLI with deterministic JSON output;
-- `echoflow doctor`, first-run initialization, and platform-aware private state;
-- process-visible CPU, affinity, cgroup, memory, accelerator, and runtime capability
-  inspection;
-- resource-admitted faster-whisper CPU/int8 and CUDA execution strategies with no
-  silent fallback for explicit selections;
-- FFprobe media inspection and deterministic audio-stream selection;
-- FFmpeg canonicalization to mono 16 kHz PCM16 WAV where needed;
-- exact source-relative frame segmentation and one job-scoped faster-whisper session;
-- bounded one-segment CPU preparation overlap for accelerated inference;
-- durable private checkpoints and validated resume;
-- multilingual faster-whisper decoding plus conservative local language attribution;
-- optional anonymous local speaker diarization, currently security-held when its
-  locked dependency graph is unsafe;
-- canonical JSON with deterministic TXT, SRT, and WebVTT derived exports;
-- explicit faster-whisper model inventory, recommendation, installation, local
-  verification, immutable revision pinning, and exact-revision removal;
-- mandatory managed-model custody for ASR planning and execution;
-- optional deterministic local FFmpeg speech noise suppression with private derived
-  audio, timeline-preservation checks, and transcript provenance;
-- a database-neutral transcript-index port with a private rebuildable DuckDB backend,
-  deterministic offline BM25-style lexical ranking, and typed evidence search;
-- canonical transcript SHA-256 projection and semantic corpus-fingerprint stale-state
-  detection;
-- deterministic segment-anchored search chunks and a separate rebuildable semantic
-  DuckDB index using numeric `FLOAT[]` vectors;
-- a strict-local multilingual-E5 embedding adapter with explicit query/passage
-  semantics and immutable profile provenance;
-- exact local semantic similarity plus BM25+dense reciprocal-rank hybrid retrieval;
-- one evidence-bearing retrieval response contract with lexical, semantic, and fused
-  ranks;
-- human-readable transcript evidence receipts with canonical/source locations,
-  recorded source SHA-256, and current source-integrity verification;
-- storage preflight for normalization, enhancement, segment materialization, model
-  acquisition, and published artifacts;
-- cross-platform private-storage enforcement and Linux/macOS/Windows CI.
+For the human-friendly documentation lobby, start at **[docs/README.md](docs/README.md)**.
+For the shortest path from clone to transcript, use
+**[Getting started](docs/getting-started.md)**.
 
-The Sentence Transformers runtime is intentionally not added to the locked dependency
-graph in the semantic-foundation tranche. Semantic search therefore remains an optional
-capability for environments that already provide a compatible local runtime and an
-immutable local `intfloat/multilingual-e5-small` snapshot. Lexical BM25 search remains
-fully available without it.
+🧜‍♀️
 
-Accelerator memory estimates and performance ranks remain conservative heuristics until
-representative-device qualification is complete. Standalone end-user installers and a
-graphical UI are not implemented yet.
+## What can it do right now?
 
-## Requirements and installation
+EchoFlow is pre-production, but the current backend already covers a surprisingly large
+part of the local recording lifecycle.
 
-EchoFlow does not publish end-user installers or Releases yet. The supported path is a
-source/developer install with Python 3.12 and `uv`:
+| Area | Current foundation |
+|---|---|
+| Local transcription | faster-whisper CPU/int8 and CUDA-capable strategies with explicit managed model revisions |
+| Hardware awareness | process-visible CPU/RAM, affinity/cgroup limits, accelerator topology, engine capability negotiation, and resource admission |
+| Media handling | FFprobe inspection, deterministic audio-stream selection, FFmpeg canonicalization, exact source-relative frame windows |
+| Reliability | durable private checkpoints, validated resume, contiguous checkpoint ordering, bounded accelerated prefetch |
+| Languages | multilingual decoding plus conservative local text-language attribution |
+| Speakers | optional anonymous recording-scoped diarization, currently blocked when its locked dependency security gate is unsafe |
+| Difficult audio | optional deterministic local FFmpeg noise suppression with provenance and timeline-preservation checks |
+| Model custody | explicit inventory, recommendation, install, local revalidation, immutable revision pinning, and exact-revision removal |
+| Transcript output | canonical JSON plus deterministic TXT, SRT, and WebVTT derived views |
+| Search | private local BM25 lexical retrieval, optional semantic retrieval, and inspectable hybrid RRF ranking |
+| Evidence | source/canonical SHA-256, timestamps, speaker/language context, provenance, stale-index detection, and integrity receipts |
+| Portability | Linux, macOS, and Windows CI plus clean-wheel/package verification |
+
+The point of this list is not that users should learn every subsystem. It is that most
+of the annoying decisions around local transcription are becoming application behavior
+instead of homework.
+
+## The journey from recording to something useful
+
+```mermaid
+flowchart LR
+    A[Original recording] --> B[Inspect source + machine]
+    B --> C[Choose safe local strategy]
+    C --> D[Transcribe + checkpoint]
+    D --> E[Canonical transcript]
+    E --> F[TXT / SRT / WebVTT]
+    E --> G[Lexical search]
+    E --> H[Optional semantic search]
+    G --> I[Evidence-bearing results]
+    H --> I
+
+    classDef evidence fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef compute fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef publish fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef result fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+
+    class A evidence
+    class B,C compute
+    class D process
+    class E,F publish
+    class G,H,I result
+```
+
+That flow is intentionally evidence-first. Search results still point back to passages,
+timestamps, speakers/languages, and canonical transcript coordinates instead of
+replacing the corpus with an uncited generated answer.
+
+## Install the current source build
+
+EchoFlow does not publish end-user installers or Releases yet. The current supported
+path is a source/developer install with Python 3.12 and `uv`:
 
 ```bash
 git clone https://github.com/SSD1805/EchoFlow.git
@@ -79,200 +91,125 @@ cd EchoFlow
 uv sync --locked --extra transcription
 ```
 
-Run the CLI and initialize local directories:
+Initialize private application state and inspect the machine:
 
 ```bash
-uv run echoflow
 uv run echoflow init
 uv run echoflow doctor
 uv run echoflow runner
-uv run echoflow strategies
 ```
 
-CUDA is not assumed merely because a GPU is visible. EchoFlow selects CUDA only when
-physical topology, the CTranslate2 runtime, compute type, system-memory budget, and
-device-memory budget all agree. CPU/int8 remains the reference fallback strategy.
-
-## Install a transcription model first
-
-ASR model acquisition is an explicit model-management action. Transcription itself does
-not download faster-whisper models and does not treat arbitrary Hugging Face cache
-entries as managed state.
-
-Inspect the local catalog and current recommendation:
+## Let EchoFlow recommend a transcription model
 
 ```bash
-uv run echoflow models
 uv run echoflow models recommend
 ```
 
-Install the model required by the strategy/profile you intend to use:
+Install the model you intend to use:
 
 ```bash
 uv run echoflow models install small
 ```
 
-The install is disk-admitted, downloaded into EchoFlow's private model cache, structurally
-verified, and recorded with provider/repository/resolved-revision provenance. New
-transcription plans require a verified managed revision. If the selected model is not
-managed, planning fails with an install-first message.
+Model installation is an explicit network-bearing action. Transcription itself does not
+silently download faster-whisper weights.
 
-Inventory and recommendation are offline. `models install` is the explicit network-
-bearing ASR model operation.
+EchoFlow records and locally revalidates the immutable model revision it manages. A
+cached model does not become trusted application state merely because some bytes happen
+to exist in a Hugging Face cache.
 
-See
-[`docs/architecture/model-management.md`](docs/architecture/model-management.md) for
-the custody contract and current verification boundary.
+## Plan before you run
 
-## Plan and transcribe
-
-Dry-run is side-effect free with respect to job/output reservation and model acquisition:
+A dry run inspects the source and machine and shows the intended execution plan without
+starting recognition:
 
 ```bash
-uv run echoflow transcribe /path/to/recording.wav --dry-run
-uv run echoflow transcribe /path/to/recording.wav --dry-run --profile screening --json
-uv run echoflow transcribe /path/to/recording.wav --strategy small-cpu-int8 --dry-run
+uv run echoflow transcribe interview.m4a --dry-run
 ```
 
-Execute locally:
+Then transcribe locally:
 
 ```bash
-uv run echoflow transcribe /path/to/interview.mp4
-uv run echoflow transcribe /path/to/interview.mp4 --export txt
-uv run echoflow transcribe /path/to/interview.mp4 --export srt --export vtt
+uv run echoflow transcribe interview.m4a
 ```
 
-The faster-whisper adapter is local-only at execution time and loads the exact managed
-revision already recorded in the plan.
-
-TXT, SRT, and WebVTT are derived views of completed canonical JSON. Selecting an export
-does not invoke recognition again. Canonical JSON remains authoritative; derived files
-can be removed or regenerated without becoming checkpoint or recognition state.
-
-## Optional local noise suppression
-
-EchoFlow can apply deterministic local FFmpeg noise suppression before ASR:
+Add derived publication formats when useful:
 
 ```bash
-uv run echoflow transcribe /path/to/noisy-interview.wav --enhance
+uv run echoflow transcribe interview.m4a --export txt --export srt --export vtt
 ```
 
-Enhancement is off by default. The first provider uses the application-owned FFmpeg
-`afftdn=nf=-50:nr=12` contract. Enhanced audio is private derived execution material,
-not a replacement for the source recording and not published by default.
+The recording is not overwritten. Canonical JSON remains authoritative; TXT/SRT/VTT can
+be deleted and regenerated.
 
-ASR consumes the enhanced derivative when enabled. Anonymous diarization continues to
-inspect the unmodified canonical decode in this first version because EchoFlow has not
-yet established that denoising improves speaker evidence.
+## Resume interrupted work
 
-The provider must preserve channel count, sample width, sample rate, and frame count.
-A timeline mismatch fails closed. Canonical transcript JSON records provider version,
-operation, and parameters when enhancement affected ASR input.
+If an in-progress job is interrupted, EchoFlow can restore its validated checkpoint
+contract:
 
-There is no automatic enhancement mode yet. Representative benchmarks must show an
-end-to-end ASR benefit before EchoFlow invents heuristics for when to turn it on.
+```bash
+uv run echoflow transcribe interview.m4a --resume JOB_ID
+```
 
-See
-[`docs/architecture/speech-enhancement.md`](docs/architecture/speech-enhancement.md).
+Resume rechecks source identity and current resource admission. It does not silently
+change model revision, selected audio stream, enhancement contract, or execution target
+just to get moving again.
 
-## Search the local transcript library
+## Optional noise suppression
 
-Completed canonical transcripts can be projected into private rebuildable local search
-state. Canonical JSON remains authoritative. Search databases are disposable derived
-state and may not contain the only copy of user-authored information.
+For a difficult recording, deterministic local FFmpeg noise suppression can be enabled
+explicitly:
 
-Build or rebuild the lexical library from EchoFlow's known completed transcripts:
+```bash
+uv run echoflow transcribe noisy-interview.wav --enhance
+```
+
+The enhanced audio is private derived processing material, not a replacement for the
+source. EchoFlow verifies that preprocessing did not change the frame/timeline shape
+before allowing ASR to consume it.
+
+See **[Local speech enhancement](docs/architecture/speech-enhancement.md)** for the exact
+provider and failure contract.
+
+## Optional anonymous speaker diarization
+
+The user surface is:
+
+```bash
+uv run echoflow transcribe interview.wav --diarize
+```
+
+Diarization produces anonymous recording-scoped labels such as `speaker-01`; it does not
+perform biometric identity or cross-recording speaker linking.
+
+The current pyannote dependency path is **security-held** while its locked Lightning
+version is affected by a compensated advisory. EchoFlow fails closed before pyannote
+execution/model acquisition while that condition remains true. See
+**[Anonymous speaker diarization](docs/architecture/diarization.md)** and
+**[SECURITY.md](SECURITY.md)**.
+
+## Search your transcript library
+
+Build the private lexical library:
 
 ```bash
 uv run echoflow library rebuild
-uv run echoflow library
 ```
 
-Additional canonical transcript files or directories can be included explicitly:
-
-```bash
-uv run echoflow library rebuild /path/to/transcripts
-```
-
-Lexical search uses deterministic local BM25-style ranking. DuckDB is an implementation
-detail below the application boundary; users do not provide SQL, and EchoFlow does not
-install or load a network-fetched DuckDB FTS extension.
+Search for exact or related words:
 
 ```bash
 uv run echoflow library search "housing insecurity"
-uv run echoflow library search "housing insecurity" --phrase
+```
+
+Filter by transcript evidence when needed:
+
+```bash
 uv run echoflow library search \
   "rent increase" \
-  --all-terms \
   --speaker speaker-02 \
   --language en
 ```
-
-Search results preserve evidence context including the canonical transcript, source
-recording path when known, source and canonical SHA-256 evidence, source-relative
-timestamps, speaker/language evidence, and retrieval ranks.
-
-### Optional semantic and hybrid retrieval
-
-Semantic state is separate, private, and rebuildable. EchoFlow combines adjacent ASR
-segments into deterministic search windows, embeds those windows with one coherent
-profile, stores numeric vectors in a separate DuckDB projection, and binds the
-generation to the exact canonical corpus fingerprint.
-
-The current real embedding adapter targets `intfloat/multilingual-e5-small` with:
-
-- 384 dimensions;
-- L2 normalization;
-- mean pooling provenance;
-- dot-product retrieval;
-- explicit `query: ` and `passage: ` transforms;
-- immutable model revision;
-- `search-chunk-v1` chunking provenance.
-
-The adapter requires a local immutable model snapshot and loads it with local-only model
-resolution and remote code disabled. The project does not yet declare a locked
-Sentence Transformers dependency extra, so this path is intended for environments that
-already provide a compatible runtime.
-
-Build semantic state:
-
-```bash
-uv run echoflow library embeddings build \
-  /path/to/models--intfloat--multilingual-e5-small/snapshots/<revision> \
-  --revision <revision>
-```
-
-Inspect semantic provenance:
-
-```bash
-uv run echoflow library embeddings
-uv run echoflow library embeddings --json
-```
-
-Exact dense retrieval:
-
-```bash
-uv run echoflow library search \
-  "people struggling to make rent" \
-  --mode semantic
-```
-
-Hybrid BM25 + dense retrieval uses reciprocal rank fusion rather than pretending BM25
-scores and dense similarity scores share a scale:
-
-```bash
-uv run echoflow library search \
-  "people struggling to make rent" \
-  --mode hybrid
-```
-
-Hard transcript/language/speaker constraints are applied before semantic top-K ranking.
-ANN/HNSW is intentionally absent until measured corpus scale demonstrates that exact
-local search misses an interactive latency target.
-
-If canonical JSON changes after embeddings were built, semantic/hybrid search refuses
-the stale generation and requires a rebuild rather than silently comparing against old
-vectors.
 
 Inspect one transcript's custody and source-integrity evidence:
 
@@ -280,119 +217,109 @@ Inspect one transcript's custody and source-integrity evidence:
 uv run echoflow library show JOB_ID
 ```
 
-The evidence receipt distinguishes the original recording, canonical transcript, and
-private search indexes. It reports the SHA-256 recorded for transcription, the canonical
-artifact SHA-256 recorded during projection, and can re-hash the file currently at the
-recorded source path to show whether those bytes still match. A match proves current
-byte identity with the recorded fingerprint; it does not claim that no external process
-ever modified and later restored the file.
+### ✨ Optional semantic and hybrid search
 
-EchoFlow treats the supplied source recording as read-only input. Canonicalization,
-segmentation, enhancement, checkpoints, exports, and search data are written separately
-rather than overwriting that source.
+Lexical search is good at finding the words you typed. Semantic search can also find a
+passage whose wording differs but whose meaning is related.
 
-See
-[`docs/architecture/corpus-search.md`](docs/architecture/corpus-search.md).
+For example, the query:
 
-## Resume interrupted work
-
-An interrupted job retains completed segment results in private local state. Resume
-requires the original input and the job ID printed when execution began:
-
-```bash
-uv run echoflow transcribe /path/to/interview.mp4 --resume JOB_ID
+```text
+people struggling to afford housing
 ```
 
-The current checkpoint contract binds source identity, selected audio stream,
-profile/provisional state, managed engine/model/revision, CPU/device/compute type,
-decode settings, enhancement off/on/provider/parameters, segmentation settings,
-resource requirements, and exact PCM frame windows.
+may help retrieve:
 
-Resume restores that contract rather than accepting overrides. The input is
-fingerprinted again and the restored strategy must still satisfy current CPU, memory,
-and, where applicable, accelerator admission before work continues. Completed segment
-checkpoints must form a validated contiguous prefix and use one engine version.
-
-Successful publication removes checkpoint payloads on a best-effort basis. Checkpoint
-deletion is not secure erasure.
-
-## Optional speaker diarization
-
-Diarization is a separate optional enrichment:
-
-```bash
-uv run echoflow transcribe interview.wav --diarize
+```text
+I was spending almost seventy percent of my pay on the apartment.
 ```
 
-The current pyannote capability remains fail-closed while its locked Lightning
-dependency is affected by the compensated security advisory documented in
-[`SECURITY.md`](SECURITY.md). If model acquisition is explicitly needed for this
-optional capability, authorization is narrowly scoped to
-`--allow-diarization-model-download`; that flag does not authorize ASR model downloads.
+The current semantic foundation uses a strict-local Multilingual E5 Small profile and
+private rebuildable vectors. It is deliberately optional: the locked project dependency
+graph does not yet include Sentence Transformers, so a compatible local runtime and
+immutable local model snapshot are currently advanced setup rather than base-install
+requirements.
 
-Diarization produces anonymous recording-scoped labels such as `speaker-01`; it does
-not perform biometric identity or cross-recording speaker linking.
+Hybrid retrieval combines BM25 and dense ranks using reciprocal rank fusion instead of
+pretending their raw scores share one scale.
 
-## Configuration
+Read **[Semantic search, without the mystery box](docs/semantic-search.md)** before
+opening the deeper **[corpus-search architecture](docs/architecture/corpus-search.md)**.
 
-Configuration uses namespaced `ECHOFLOW_*` environment variables, including:
+## What belongs to you? 🦝
 
-- `ECHOFLOW_STATE_DIR`
-- `ECHOFLOW_CACHE_DIR`
-- `ECHOFLOW_MODEL_DIR`
-- `ECHOFLOW_OUTPUT_DIR`
-- `ECHOFLOW_PROCESSING_PROFILE`
-- resource ceilings and FFmpeg/FFprobe timeouts
+The custody boundary is intentionally simple:
 
-EchoFlow ignores generic variables such as `OUTPUT_DIR` and never loads an ambient
-`.env` from the current directory. Select an explicit dotenv file before the command:
+| Artifact | Role | Rebuildable? |
+|---|---|---|
+| Original recording | source evidence | **No** |
+| Canonical transcript JSON | authoritative transcript artifact | **No** |
+| Future notes/tags/annotations | user-authored knowledge | **No** |
+| TXT/SRT/WebVTT | publication views | Yes |
+| Normalized/enhanced working audio | private processing material | Yes |
+| Lexical search database | private search projection | Yes |
+| Semantic chunks/vectors | private search projection | Yes |
 
-```bash
-uv run echoflow --config /private/path/echoflow.env runner --json
-```
+A database is allowed to make evidence useful. It is not allowed to become the only
+place the evidence exists.
 
-There is no faster-whisper revision override. ASR revisions come from verified managed
-model state.
+## For maintainers
 
-See [`.env.example`](.env.example) for supported settings.
+The architecture is organized around narrow capabilities rather than one universal
+pipeline manager. Start with **[docs/architecture/README.md](docs/architecture/README.md)**.
 
-## Development
+The most important references are:
 
-Production code uses a standard `src/` layout. Tests are colocated under a `tests/`
-directory beneath the package whose contract they protect and are excluded from built
-distributions.
+- **[Processing capabilities](docs/architecture/processing-capabilities.md)** for the
+  end-to-end execution map.
+- **[Adaptive heterogeneous execution](docs/architecture/adaptive-heterogeneous-execution.md)**
+  for machine discovery, engine capability, strategy admission, and bounded overlap.
+- **[Media and timeline](docs/architecture/media-and-timeline.md)** for stream selection,
+  canonical audio, and timestamp semantics.
+- **[Model management](docs/architecture/model-management.md)** for explicit acquisition,
+  immutable revisions, and local custody.
+- **[Speech enhancement](docs/architecture/speech-enhancement.md)** for optional
+  preprocessing and provenance.
+- **[Diarization](docs/architecture/diarization.md)** for anonymous speaker evidence and
+  the current security hold.
+- **[Corpus search](docs/architecture/corpus-search.md)** for lexical/semantic/hybrid
+  retrieval and data ownership.
 
-Install hooks once:
+Documentation itself has a contract now too. See
+**[docs/documentation-style.md](docs/documentation-style.md)**.
 
-```bash
-uv run pre-commit install
-```
+## Quality and development
 
-Run normal repository gates:
+Production code uses a `src/` layout. Tests are colocated beneath the package whose
+contract they protect.
 
-```bash
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy
-uv run vulture
-uv run radon cc src/echoflow --total-average
-uv run radon mi src/echoflow
-uv run pytest --cov=echoflow --cov-branch --cov-report=term-missing
-uv lock --check
-uv build
-uv run python scripts/verify_distribution.py dist
-```
+Normal repository qualification includes Ruff lint/format/security rules, strict mypy,
+Vulture, Radon complexity/maintainability checks, branch coverage, locked dependency
+verification/auditing, package builds, clean-wheel verification, and Linux/macOS/Windows
+CI.
 
-Normal CI also audits locked dependencies, builds distributions, verifies clean-wheel
-installs, and runs platform smoke coverage on Linux, macOS, and Windows. The enforced
-quality budgets include Ruff complexity <= 10, branch coverage >= 90%, strict mypy,
-100%-confidence Vulture findings, and Ruff security rules.
+Mutation testing with Poodle is targeted qualification for load-bearing decisions rather
+than a routine per-commit gate. See
+**[docs/development/testing-and-bisect.md](docs/development/testing-and-bisect.md)**.
 
-Mutation testing is deliberate qualification, not a per-commit gate. For load-bearing
-decision code, tests should first anticipate comparator, Boolean, threshold, fallback,
-fail-open, ordering, cleanup, resume, provenance, and concurrency mutations. Targeted
-Poodle runs are then used locally/sandboxed or through the manual workflow after normal
-tests are green.
+## Where the project goes next
 
-See
-[`docs/development/testing-and-bisect.md`](docs/development/testing-and-bisect.md).
+The backend is broad enough that the next high-value work is increasingly about finer
+evidence navigation and ordinary-user delivery rather than inventing another ASR
+pipeline.
+
+The likely sequence is **word/timestamp alignment**, then richer **original-media
+timecode/capture-time provenance**, then **better speaker overlap/display-label UX**.
+Source separation for overlapping speakers is a later, heavier capability once the
+simpler temporal evidence model is strong enough to support it.
+
+Installers and a thin graphical interface remain important for non-developer adoption.
+They should sit on top of the same application services, not fork the product into a
+second implementation.
+
+See **[ROADMAP.md](ROADMAP.md)** for the current sequencing and deliberate limits.
+
+---
+
+**EchoFlow is trying to make sensitive local transcription boringly dependable, then
+make the resulting evidence easy to find without giving the corpus away.** 💃

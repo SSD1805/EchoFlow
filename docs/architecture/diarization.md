@@ -1,72 +1,88 @@
-# Anonymous speaker diarization
+# Anonymous speaker diarization 👥
 
-EchoFlow treats speaker diarization as an optional enrichment capability, separate
-from speech recognition and separate from human identity.
+EchoFlow treats diarization as **speaker-timeline evidence**, not identity.
 
-## Privacy boundary
+In ordinary language: diarization tries to answer **who spoke when inside this one
+recording?** It gives recording-scoped labels such as `speaker-01` and `speaker-02` so a
+transcript can say which anonymous voice most likely owns a passage.
 
-Diarization answers **who spoke when within this recording** using anonymous,
-recording-scoped labels such as `speaker-01` and `speaker-02`. EchoFlow does not use
-those labels as biometric identities and does not infer that a speaker in one
-recording is the same person in another recording.
+It does **not** mean “identify this human,” and EchoFlow does not infer that
+`speaker-01` in one recording is the same person as `speaker-01` in another.
 
-The first adapter targets the open-source pyannote `community-1` pipeline. Upstream
-currently requires accepting the model conditions and authenticating with Hugging
-Face for initial model acquisition. EchoFlow does not store an HF token in its own
-configuration. Model acquisition uses the standard Hugging Face credential flow and a
-narrow `--allow-diarization-model-download` authorization that applies only to this
-optional capability. ASR model acquisition remains a separate explicit
-`echoflow models install MODEL` action.
+```mermaid
+flowchart LR
+    A[Recording audio] --> D[Local diarization]
+    D --> T[Speaker-turn timeline]
+    T --> P[Conservative projection onto transcript]
+    P --> C[Canonical transcript evidence]
 
-Pyannote telemetry is disabled by EchoFlow before the pyannote package is imported.
-The adapter records `telemetry_enabled: false` in diarization provenance. Recording
-audio remains local during inference.
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
 
-## Installation
-
-Diarization is deliberately not part of the ordinary transcription dependency set.
-Pyannote brings a large PyTorch-based dependency graph and must be installed
-explicitly:
-
-```bash
-uv sync --locked --extra transcription --extra diarization
+    class A source
+    class D,P process
+    class T,C evidence
 ```
 
-The first model acquisition also requires that the user has accepted the upstream
-Community-1 model conditions and authenticated through Hugging Face's supported
-credential mechanism. EchoFlow does not put access tokens in `.env` or canonical
-artifacts.
+## What the user would see
 
-## Temporary upstream security gate
-
-As of August 2026, pyannote 4.0.7 requires Lightning and the current lock resolves
-Lightning 2.6.5. Lightning 2.6.5 is affected by CVE-2026-58659 /
-PYSEC-2026-3624, a checkpoint-loading remote-code-execution vulnerability. Pyannote
-subclasses `lightning.LightningModule` and loads pretrained model checkpoints through
-Lightning, so this advisory intersects EchoFlow's actual diarization path rather than
-being an unrelated transitive dependency.
-
-Upstream merged the fix in July 2026, but no patched normal 2.x Lightning release is
-available yet. EchoFlow therefore fails closed: before importing pyannote or resolving
-or downloading any diarization model, it inspects the installed Lightning release.
-Known-affected releases and versions whose safety cannot be established are rejected.
-The current locked 2.6.5 runtime is consequently **not executable for diarization**.
-
-Dependency auditing carries a single documented exception for PYSEC-2026-3624 while
-that compensating control is in place. All other advisories still fail the audit.
-The exception and runtime gate should be removed once a compatible upstream release
-containing the merged fix is available and qualified.
-
-## CLI contract
-
-Diarization is opt-in:
+The intended CLI surface is opt-in:
 
 ```bash
 uv run echoflow transcribe interview.wav --diarize
 ```
 
-If the Community-1 snapshot is not already available in EchoFlow's configured model
-cache and the security gate has been cleared, acquisition must be authorized narrowly:
+If the speaker count is known:
+
+```bash
+uv run echoflow transcribe focus-group.wav --diarize --speakers 4
+```
+
+Or provide a bounded range:
+
+```bash
+uv run echoflow transcribe meeting.wav --diarize --min-speakers 2 --max-speakers 6
+```
+
+Exact and bounded speaker-count options are mutually exclusive. Speaker-count options
+are invalid without `--diarize`.
+
+## Current operational status: integrated, but security-held 🔐
+
+The first adapter targets the open-source pyannote `community-1` pipeline.
+
+As of August 2026, pyannote 4.0.7 requires Lightning and the current lock resolves
+Lightning 2.6.5. That release is affected by CVE-2026-58659 / PYSEC-2026-3624, a
+checkpoint-loading remote-code-execution vulnerability.
+
+This is not an irrelevant transitive advisory. Pyannote subclasses
+`lightning.LightningModule` and loads pretrained checkpoints through Lightning, so the
+vulnerable path intersects the feature EchoFlow would actually execute.
+
+EchoFlow therefore **fails closed** before pyannote import or model acquisition when the
+installed Lightning safety cannot be established.
+
+The dependency audit carries one narrow documented exception for that exact advisory
+while the runtime compensating control remains in place. Other advisories still fail the
+audit.
+
+Once a compatible patched Lightning release is available and qualified, both the audit
+exception and runtime hold should be removed.
+
+So the current product description is deliberately precise:
+
+> **Diarization is integrated, tested at the application boundary, and security-gated;
+> it is not currently an operationally qualified everyday feature.**
+
+## Privacy and model-acquisition boundary
+
+Pyannote model acquisition may require accepting upstream model conditions and
+authenticating with Hugging Face.
+
+EchoFlow does not store a Hugging Face token in its own configuration.
+
+Any model download authorization is narrowly scoped to diarization:
 
 ```bash
 uv run echoflow transcribe interview.wav \
@@ -74,31 +90,31 @@ uv run echoflow transcribe interview.wav \
   --allow-diarization-model-download
 ```
 
-This flag does not authorize faster-whisper model downloads. ASR execution still
-requires a separately installed, verified managed model revision.
+That flag does **not** authorize faster-whisper model downloads. ASR model acquisition
+remains the separate explicit `echoflow models install MODEL` path.
 
-If the speaker count is known, the user can provide an exact count:
+Pyannote telemetry is disabled by EchoFlow before package import. Diarization provenance
+records `telemetry_enabled: false`. Recording audio remains local during inference.
+
+Once a snapshot is resolved into EchoFlow's configured private model cache, inference
+uses the local snapshot path.
+
+## Dependency footprint
+
+Diarization is intentionally a separate dependency extra because pyannote brings a
+large PyTorch-based stack:
 
 ```bash
-uv run echoflow transcribe focus-group.wav --diarize --speakers 4
+uv sync --locked --extra transcription --extra diarization
 ```
 
-Or a bounded range:
+Representative CPU-only Windows/Linux/macOS installation size, peak RAM, and sustained
+real-time factor still need physical-device qualification before EchoFlow should call
+this a comfortable feature for an 8 GB machine.
 
-```bash
-uv run echoflow transcribe meeting.wav --diarize --min-speakers 2 --max-speakers 6
-```
+## The evidence model
 
-Exact and bounded speaker-count options are mutually exclusive. Speaker-count
-options are invalid without `--diarize`.
-
-While the temporary Lightning security gate above is active, these diarization
-commands fail before pyannote import or model acquisition rather than executing the
-known-vulnerable checkpoint-loading path.
-
-## Evidence model
-
-The primary diarization evidence is a source-relative speaker-turn timeline:
+The primary diarization artifact is a source-relative speaker-turn timeline:
 
 ```text
 00:00.0 ─ 00:12.4  speaker-01
@@ -106,26 +122,22 @@ The primary diarization evidence is a source-relative speaker-turn timeline:
 00:18.1 ─ 00:20.0  speaker-01   # overlap can exist
 ```
 
-Raw backend labels are not stable API. EchoFlow sorts turns deterministically and
-maps backend labels to `speaker-01`, `speaker-02`, and so on in first-seen timeline
-order.
+Overlap is real evidence, not an error condition.
 
-EchoFlow's one current pre-production canonical transcript schema is version 1.
-Diarization is represented inside that same shape with optional `diarization`,
-`speaker_turns`, and per-segment `speaker_ref` evidence. A transcript without
-diarization keeps those optional capability fields empty rather than switching to a
-different schema version.
+Raw backend labels are not stable API. EchoFlow sorts turns deterministically and maps
+them to `speaker-01`, `speaker-02`, and so on in first-seen timeline order.
 
-Schema numbers represent structural evolution of the canonical contract, not feature
-combinations. EchoFlow intentionally does not retain the earlier unreleased v2/v3
-feature-version split.
+The current canonical transcript schema keeps optional diarization fields in the same
+structural contract rather than inventing a new schema version for each combination of
+features.
 
-## Conservative text projection
+## Why EchoFlow is conservative about putting a speaker name on text
 
-ASR segments and diarization turns are produced independently. Without word-level
-alignment, an ASR segment can cross a speaker handoff or overlap two speakers.
-EchoFlow therefore only assigns `RecognizedSegment.speaker_ref` when exactly one
-unique diarized speaker overlaps that segment.
+ASR segments and diarization turns are produced independently.
+
+Without word-level alignment, one ASR segment may cross a speaker handoff or overlap two
+speakers. EchoFlow therefore assigns `RecognizedSegment.speaker_ref` only when exactly
+one unique diarized speaker overlaps that segment.
 
 ```text
 ASR segment overlaps speaker-01 only
@@ -138,59 +150,122 @@ ASR segment overlaps speaker-01 + speaker-02
     → speaker_ref = null
 ```
 
-The exact turn evidence is still preserved even when text projection is ambiguous.
-This avoids converting uncertain temporal reconciliation into false speaker
-precision. A later alignment capability can split or associate words more finely.
+The exact speaker-turn timeline is still preserved when projection is ambiguous.
 
-Derived TXT, SRT, and WebVTT views prefix an unambiguous segment with its anonymous
-speaker label. Ambiguous segments remain unlabeled. Export rendering never changes
-timestamps or becomes canonical custody.
+That refusal matters. It is better to preserve “we know these voices overlap here” than
+to confidently put the wrong speaker label in front of a sentence.
 
-## Model and dependency boundary
+## Why word/timestamp alignment is the next important seam ✨
 
-The adapter resolves the configured pyannote snapshot into EchoFlow's private model
-cache. Without scoped diarization download authorization, snapshot resolution is
-cache-only. Once resolved, pyannote receives the local snapshot path for inference and
-does not need to fetch model bytes during execution.
+Word-level or fine-grained timestamp alignment would give EchoFlow smaller evidence
+coordinates than an entire ASR segment.
 
-The internal diarization adapter carries an `allow_model_download` decision only for
-this pyannote resolution boundary. It is not a general application permission and does
-not reopen the removed transcription-time faster-whisper download path.
+That unlocks several improvements at once:
 
-The `diarization` extra is intentionally separate because the current pyannote 4.x
-stack resolves a substantial PyTorch dependency graph. Representative CPU-only
-Windows/Linux/macOS installation size, peak RAM, and real-time factor still require
-physical-device qualification before EchoFlow should advertise diarization as
-appropriate for an 8 GB machine.
+- finer speaker attribution near handoffs;
+- better presentation of overlapping turns;
+- precise transcript highlighting;
+- more exact jump-to-audio behavior;
+- durable annotations anchored to smaller evidence spans; and
+- cleaner future speaker-label UX.
 
-## Evidence ladder and deliberate limits
+Alignment does not solve every overlap problem, but it lets EchoFlow stop treating a
+long ASR segment as the smallest practical text unit.
 
-The adapter, cache-only/download policy, telemetry-disable behavior, deterministic
-label normalization, canonical schema, executor integration, conservative fusion,
-derived exports, and fail-closed Lightning security gate are covered by deterministic
-tests.
+## User-assigned display labels without biometric identity
 
-The locked diarization dependency graph is included in normal and scheduled
-vulnerability auditing. A separate distribution lane installs `echoflow[diarization]`
-from the built wheel outside the source checkout and imports the real pyannote and
-PyTorch runtimes. This proves packaging/runtime compatibility without authorizing
-model execution.
+A useful future feature is allowing the user to say:
 
-A dedicated real-model acceptance workflow exists but remains intentionally blocked
-by the Lightning security gate until a patched compatible release is available. Once
-unblocked, that lane is manual and credential-gated: it generates a non-sensitive
-local speech fixture, runs real Community-1 inference, and then reopens the same cache
-with model downloads disabled. Ordinary pull-request CI remains free of gated
-credentials and model downloads.
+```text
+speaker-01 → Dr. Chen
+speaker-02 → Interviewer
+```
 
-Until both the upstream security gate is cleared and the real-model lane has
-completed successfully on representative hardware, EchoFlow should describe
-Community-1 diarization as integrated but not operationally qualified.
+The important design rule is that this should be **display/user-authored state**, not a
+rewrite of the underlying anonymous diarization evidence.
 
-This capability does not provide:
+Conceptually:
+
+```mermaid
+flowchart LR
+    A[speaker-01 evidence] --> B[User-authored display label: Dr. Chen]
+    A --> C[Canonical speaker-turn coordinates]
+
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef user fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+
+    class A,C evidence
+    class B user
+```
+
+The label is meaningful user knowledge and must **not** share the deletion semantics of
+a rebuildable search index.
+
+EchoFlow can remain anonymous-by-default while still letting a researcher make their own
+recording understandable.
+
+## Better overlap handling before source separation
+
+Overlap deserves two distinct product steps.
+
+First, EchoFlow should improve **representation and presentation** of overlap using
+better temporal alignment, clearer multi-speaker evidence, and UI/export behavior that
+does not force one speaker when multiple voices are active.
+
+Only later should EchoFlow consider **speech/source separation**, where the audio itself
+is decomposed into estimated sources before or during recognition.
+
+Source separation is materially heavier. It adds compute, model/dependency custody,
+quality uncertainty, and new provenance questions. It should be justified by real
+recordings after the simpler evidence model is strong.
+
+🧜‍♀️ Deep technical water is permitted. Inventing confidence is not.
+
+## Canonical and derived output behavior
+
+When a segment has one unambiguous `speaker_ref`, derived TXT/SRT/WebVTT views may prefix
+that anonymous speaker label.
+
+Ambiguous segments remain unlabeled. Export rendering never changes timestamps or
+becomes canonical custody.
+
+Future user-assigned display labels should remain a presentation layer over stable
+anonymous speaker references and durable transcript coordinates.
+
+## Qualification boundary
+
+The current deterministic test surface covers:
+
+- adapter/cache-only versus download policy;
+- telemetry-disable behavior;
+- deterministic label normalization;
+- canonical schema integration;
+- executor integration;
+- conservative speaker projection;
+- derived exports; and
+- the fail-closed Lightning security gate.
+
+The locked diarization dependency graph remains in normal/scheduled vulnerability
+auditing.
+
+A clean-wheel distribution lane imports the real pyannote/PyTorch runtime without
+executing the gated model. A dedicated real-model acceptance workflow exists but remains
+blocked by the dependency security gate; once unblocked, it is manual and
+credential-gated rather than ordinary PR CI.
+
+## Current deliberate limits
+
+This capability does not currently provide:
 
 - biometric speaker identification;
 - cross-recording speaker linking;
+- user-assigned display labels;
 - guaranteed word-level speaker attribution;
-- a claim that speaker labels are correct when temporal evidence is ambiguous;
-- a lightweight dependency footprint on low-memory devices.
+- polished overlap presentation;
+- simultaneous-speaker/source separation; or
+- a claim that the dependency footprint is suitable for every low-memory device.
+
+The stable rule is:
+
+> **Preserve speaker evidence first. Add convenience only when it does not fabricate
+> certainty.**

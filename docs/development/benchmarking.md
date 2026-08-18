@@ -1,116 +1,164 @@
-# Empirical benchmarking and calibration
+# Empirical benchmarking and calibration 📏
 
-EchoFlow's resource estimates and relative strategy ranks are intentionally
-conservative heuristics until they can be compared with measured execution. The
-benchmarking subsystem is a local-only harness for collecting that evidence without
-creating a second transcription implementation.
+EchoFlow's resource estimates and relative strategy ranks are intentionally conservative
+heuristics until real machines prove them right or wrong.
 
-ASR models must already be installed through model management before a benchmark can
-plan or execute. Benchmarking never authorizes a hidden faster-whisper download.
+The benchmarking subsystem exists to collect that evidence **without creating a second
+transcription implementation**.
 
-The current development interface is:
+The important separation is:
+
+> **Benchmarks describe what happened. A later reviewed policy change decides whether
+> those observations justify different planner behavior.**
+
+One fast laptop run does not get to rewrite the product's memory policy by vibes.
+
+## Quick start
+
+ASR models must already be installed through normal model management. Benchmarking never
+authorizes a hidden faster-whisper download.
 
 ```bash
 uv run python -m echoflow.benchmarking /path/to/recording.wav
 uv run python -m echoflow.benchmarking /path/to/recording.wav --json
 ```
 
-An interrupted job can be measured as a separate resumed attempt:
+Measure a resumed attempt separately:
 
 ```bash
 uv run python -m echoflow.benchmarking /path/to/recording.wav --resume JOB_ID
 ```
 
-The harness is experimental. Once its schema and behavior have been validated on real
-devices it may be promoted into the primary `echoflow` command surface.
+The harness is experimental. Once its schema and behavior survive real-device use, it
+may graduate into the primary `echoflow` command surface.
 
-## What is measured
+## What problem are we trying to solve?
 
-A benchmark report describes one execution attempt and currently includes:
+The planner currently estimates whether a strategy fits and ranks eligible choices.
+Those estimates should become better because of **measured behavior on representative
+machines**, not because somebody remembers that one GPU sounded fast in a product page.
+
+```mermaid
+flowchart LR
+    A[Planner prediction] --> B[Real execution]
+    B --> C[Local benchmark report]
+    C --> D[Compare predicted vs observed]
+    D --> E[Reviewed calibration change]
+    E --> A
+
+    classDef predict fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef measure fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef policy fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+
+    class A predict
+    class B measure
+    class C,D evidence
+    class E policy
+```
+
+## What one benchmark report records
+
+A report describes one execution attempt and currently includes:
 
 - EchoFlow and Python versions;
 - path-minimized source provenance: SHA-256, size, modification timestamp, container,
-  duration, and audio stream index;
+  duration, and selected audio stream;
 - process-visible runner resources and selected execution policy;
-- path-free managed engine/model/revision, execution target, decoder, enhancement,
-  segmentation, and resource-estimate contracts;
+- path-free managed engine/model/revision and execution target;
+- decoder, enhancement, segmentation, and resource-estimate contracts;
 - planning, execution, and total wall-clock duration;
 - whole-run and execution-only real-time factors;
-- sampled RSS and CPU use for EchoFlow and current descendant processes;
-- aggregate named execution-stage durations and failure counts;
-- segment totals, restored counts, and completed counts where available;
+- sampled process-tree RSS and CPU use;
+- aggregate named execution-stage durations/failure counts;
+- segment totals/restored/completed counts when available;
 - canonical transcript artifact size after successful publication; and
 - the ratio between observed peak process-tree RSS and the planner's peak-memory
   estimate.
 
-Repeated stages are named aggregates rather than fixed columns. Additional capabilities
-can therefore add measurements such as `enhancement.apply`, `speaker.diarize`,
-`alignment`, `embedding.index`, `search.index`, or `gpu.transfer` without a new
-benchmark architecture.
+Repeated stages are named aggregates rather than fixed columns. Future capabilities can
+add stages such as:
 
-CPU percentages sum sampled process-tree CPU and may exceed 100% on multi-core systems.
-RSS is summed across the process tree and may conservatively double-count shared pages.
-These are comparative measurements, not exact operating-system accounting.
+```text
+enhancement.apply
+speaker.diarize
+alignment
+embedding.index
+search.index
+gpu.transfer
+```
 
-## Privacy boundary
+without redesigning the benchmark schema.
 
-Benchmarking does not transmit results and EchoFlow has no benchmark telemetry.
+CPU percentages may exceed 100% because sampled process-tree CPU is summed across cores.
+RSS is also summed across the process tree and may conservatively double-count shared
+pages. These are comparative measurements, not perfect OS accounting.
+
+## Privacy boundary 🔐
+
+Benchmarking does not transmit reports. EchoFlow has no benchmark telemetry.
+
 Reports are user-owned JSON files in the selected output directory.
 
-Reports intentionally omit source paths/filenames, model-cache paths, transcript text,
-and exception messages. They retain source digest and other provenance needed to
-compare equivalent runs. A source digest can still be linkable when another party has
-the same recording, so a report for sensitive media is not automatically anonymous.
+They intentionally omit:
 
-Public sharing should use a redistributable/synthetic corpus or a future intentionally
+- source paths/filenames;
+- model-cache paths;
+- transcript text; and
+- exception messages.
+
+They retain source digest and enough provenance to compare equivalent runs.
+
+A source digest can still be linkable if another party has the same recording, so a
+benchmark report from sensitive media is not automatically anonymous.
+
+Public sharing should use synthetic/redistributable media or a future deliberately
 shareable report format with reduced provenance.
 
 ## Interruption and resume
 
-Ctrl+C and ordinary Python-level failures persist a partial benchmark report before the
-benchmark command exits. It identifies the attempt as interrupted/failed, includes only
-the exception type, and preserves measurements already recorded.
+Ctrl+C and ordinary Python-level failures persist a partial benchmark report before exit
+when finalization can run.
+
+The report marks the attempt interrupted/failed, includes only the exception type, and
+preserves measurements already recorded.
 
 The transcription checkpoint contract remains authoritative for recovery. Completed
-segments are checkpointed before they count as complete, so a later resume benchmark
-measures the resumed attempt without redefining recovery semantics. The checkpoint also
-binds managed model revision and enhancement state, preventing a resumed benchmark from
-quietly changing preprocessing or weights.
+segments are checkpointed before they count as complete.
 
-A hard process kill, power loss, kernel termination, or machine crash cannot execute
-benchmark-finalization code, so no final report is promised for those failures. Durable
-transcription checkpoints and lifecycle state remain recovery evidence.
+A later `--resume` benchmark therefore measures the resumed attempt without redefining
+resume semantics.
 
-## Qualification layers
+Hard kills, power loss, kernel termination, or machine crashes cannot run benchmark
+finalization code, so a final benchmark report is not promised for those cases. Durable
+transcription checkpoints/lifecycle state remain the recovery evidence.
 
-Calibration needs three evidence layers that answer different questions.
+## Three qualification layers
 
 ### 1. Deterministic unit and contract tests
 
-These validate the measurement system itself:
+These prove the measurement machinery itself behaves correctly:
 
-- ordinary transcription uses a no-op observer without changing semantics;
+- normal transcription uses a no-op observer without semantic changes;
 - repeated stage measurements aggregate correctly;
-- failed stages are recorded without swallowing the original error;
-- reports omit sensitive paths and transcript content;
+- failed stages are recorded without swallowing the primary error;
+- reports omit sensitive paths/transcript text;
 - interruption/failure produce partial reports;
-- process-tree sampling tolerates disappearing children;
+- process-tree sampling tolerates disappearing child processes;
 - resume uses the checkpointed current contract; and
-- report/schema validation fails closed on invalid values.
-
-These remain deterministic and fast.
+- invalid report/schema values fail closed.
 
 ### 2. Cross-platform CI
 
-Linux, macOS, and Windows GitHub Actions runners execute tests, build distributions,
-and exercise clean-wheel behavior. CI proves psutil sampling, packaging, observer
-injection, file handling, native media tools, and CLI behavior on supported operating
-systems.
+Linux, macOS, and Windows GitHub Actions runners exercise tests, packaging,
+clean-wheel behavior, psutil sampling, file handling, native media tools, and CLI
+contracts.
 
-Hosted-runner timing is **not calibration truth**. Runner generations, neighboring
-workloads, virtualization, CPU frequency policy, caches, and infrastructure change
-outside EchoFlow's control. CI can reveal catastrophic regressions, but planner
-heuristics should not be fitted to one hosted-runner measurement.
+Hosted-runner timing is **not calibration truth**.
+
+Runner generations, virtualization, neighboring workloads, frequency policy, caches, and
+infrastructure can change outside the project. CI is useful for regression evidence, not
+for fitting device policy.
 
 ### 3. Representative real-device runs
 
@@ -122,63 +170,84 @@ The initial physical matrix should include:
 - a discrete-GPU laptop; and
 - a larger 32/64 GB workstation.
 
-For comparisons, keep input bytes, EchoFlow version, managed model revision,
-profile/strategy, enhancement condition, and relevant configuration identical. Record
-whether caches are cold/warm. Run repeated trials and compare medians/spread rather
-than one fastest result.
+For comparisons, hold constant the input bytes, EchoFlow version, managed model revision,
+profile/strategy, enhancement condition, and relevant configuration.
 
-Thermal throttling, battery/power mode, other applications, storage speed, and OS
+Record cold/warm cache state. Prefer repeated trials and medians/spread over one heroic
+fastest result.
+
+Thermal throttling, battery/power mode, background applications, storage speed, and OS
 updates are legitimate consumer conditions. Record them as experimental context when
-known rather than silently inferring/uploading them.
+known instead of pretending they do not exist.
 
-## Raw ASR versus enhancement-plus-ASR
+🧜‍♀️ A benchmark without context is just a number wearing a lab coat.
 
-Noise suppression is qualified by **transcription outcome and total cost**, not by
-whether processed audio sounds nicer.
+## Raw ASR versus enhancement + ASR
 
-Use representative noisy recordings and run matched conditions:
+Noise suppression should be qualified by **transcription outcome and total cost**, not
+whether the processed file sounds nicer to a listener.
 
-1. managed-model raw ASR with enhancement off;
-2. the same model/revision/strategy with `--enhance`; and
+Use matched conditions:
+
+1. the same managed model/revision/strategy with enhancement off;
+2. the same setup with `--enhance`; and
 3. repeated runs when variance matters.
 
-Where reference transcripts exist, compare at least WER and, where useful, CER. Also
-compare:
+Where reference transcripts exist, compare WER and, where useful, CER.
 
-- total and stage-specific wall-clock time;
+Also compare:
+
+- total/stage wall-clock time;
 - real-time factor;
 - CPU/RAM pressure;
-- accelerator impact when applicable;
+- accelerator impact;
 - private disk overhead;
 - checkpoint/resume behavior; and
 - failures on silence, clipping, stationary/non-stationary noise, music, and mixed
   acoustic conditions.
 
-The first FFmpeg `afftdn` provider is a fixed deterministic condition. Its presence in
-the product does not imply it improves every recording.
+The current FFmpeg `afftdn` provider is a fixed deterministic condition. Its existence in
+EchoFlow is not a claim that it improves every recording.
 
-An automatic enhancement mode should not exist until measurements show a sufficiently
+An automatic enhancement mode should wait until measurements show a sufficiently
 reliable relationship between observable input conditions and end-to-end ASR benefit.
-If enhancement worsens transcription or adds unjustified cost for a class of inputs,
-that is evidence against automatic activation for that class.
 
-## How evidence changes policy
+## Future alignment, diarization, search, and source-separation measurements
 
-The harness exists first for **measurement, not self-tuning**. A single benchmark must
-not rewrite conservative planner constants or enhancement policy.
+The same observer/stage model can eventually measure newer capabilities without
+inventing parallel harnesses.
+
+Useful future dimensions include:
+
+- alignment wall time and memory cost;
+- diarization real-time factor/peak memory after the security gate is cleared;
+- embedding-index build cost;
+- semantic-query latency at increasing corpus size;
+- exact-scan break-even points before considering ANN/HNSW; and
+- source-separation cost/recognition benefit on genuine overlap cases.
+
+Source separation in particular should be judged on end-to-end evidence quality, not on
+whether separated audio sounds technologically impressive.
+
+## How measurements become policy
+
+The harness is for **measurement first, self-tuning never by accident**.
 
 After a sufficient matrix exists, compare predicted and observed:
 
-- peak memory and device memory;
+- peak system/device memory;
 - real-time factor;
 - model initialization;
-- decode and enhancement cost;
-- segment materialization/inference/checkpoint cost;
+- decode/enhancement/alignment cost;
+- segmentation/inference/checkpoint cost;
 - cold/warm behavior; and
-- raw-ASR versus enhanced-ASR accuracy.
+- accuracy outcomes where reference text exists.
 
-Only then should a separate reviewed change propose calibrated constants, safety
-margins, hardware classes, or an evidence-driven enhancement heuristic.
+Only then should a separate reviewed change propose new constants, safety margins,
+hardware classes, or automatic preprocessing heuristics.
 
-The separation keeps evidence auditable: benchmark reports say what happened; policy
-changes explain why those observations justify different admission or selection.
+Benchmark reports say what happened. Policy changes explain why that evidence justifies
+a different decision.
+
+That separation keeps calibration auditable and prevents the planner from becoming a
+self-modifying raccoon with a stopwatch. 🦝

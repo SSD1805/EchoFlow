@@ -1,194 +1,275 @@
-# Local speech enhancement and noise suppression
+# Local speech enhancement and noise suppression 🎚️✨
 
-## Purpose
+## The human version
 
-EchoFlow can optionally preprocess difficult recordings before automatic speech
-recognition while preserving the original recording as the authoritative evidence.
-The first implementation is deliberately narrow: deterministic local background-noise
-suppression, explicit user selection, private derived audio, and complete preprocessing
-provenance.
+Some recordings are just noisy.
 
-The feature is not a restoration engine and does not claim that processed audio is a
-better archival source. Its purpose is to test whether a conservative local transform
-can improve downstream transcription on noisy recordings without weakening custody,
-resumability, or timeline guarantees.
+Air conditioners hum. Rooms echo. Microphones sit too far away. Someone decides to move
+a coffee mug directly on top of the only useful sentence in the interview.
 
-## Pipeline boundary
+EchoFlow can optionally apply deterministic local noise suppression **before speech
+recognition** while preserving the original recording as the authoritative evidence.
 
-The current processing path is:
+The first implementation is intentionally modest. It is not an audio-restoration oracle.
+It asks a narrower question:
 
-```text
-source media
-  -> selected audio stream
-  -> canonical decode (mono, 16 kHz, PCM16 WAV)
-  -> optional private noise suppression
-  -> segmentation
-  -> managed local ASR
-  -> canonical transcript
+> Can a conservative, reproducible local transform improve downstream transcription
+> without changing source custody, timeline semantics, or resume behavior?
+
+```mermaid
+flowchart LR
+    A[Original recording] --> B[Canonical decode]
+    B --> C{Enhancement requested?}
+    C -->|no| D[ASR]
+    C -->|yes| E[Private noise-suppressed derivative]
+    E --> F[Timeline identity checks]
+    F --> D
+    D --> G[Canonical transcript + provenance]
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef check fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef result fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+
+    class A source
+    class B,C,D,E process
+    class F check
+    class G result
 ```
 
-The source media remains authoritative. Canonical decoded audio and enhanced audio are
-private execution material. They are deleted when no longer required and are not
-published merely because enhancement was enabled.
+## User surface
 
-For the first version, anonymous speaker diarization deliberately reads the unmodified
-canonical decoded audio while ASR reads the enhanced derivative. EchoFlow does not yet
-claim that denoising improves speaker-boundary evidence, so it does not silently
-preprocess the diarization input.
+Enhancement is off by default.
 
-## Explicit off/on contract
+Enable it explicitly:
 
-Enhancement is off by default. A user enables it explicitly with:
-
-```text
-echoflow transcribe recording.m4a --enhance
+```bash
+uv run echoflow transcribe recording.m4a --enhance
 ```
 
-There is no automatic enhancement selector in the first version. EchoFlow must first
-collect representative evidence showing when enhancement improves end-to-end ASR
-accuracy enough to justify its extra compute and storage cost.
+There is no automatic “this sounds noisy, so I turned something on” behavior yet.
 
-The immutable plan records the enhancement mode, provider, parameters, and any future
-model identity. The checkpoint contract records the same structure even when
-preprocessing is off. Resume therefore cannot switch provider, parameters, or off/on
-state halfway through a recording.
+That is deliberate. EchoFlow should first collect representative evidence showing when
+enhancement improves end-to-end ASR enough to justify extra compute and disk use.
+
+## Source custody
+
+The source recording remains authoritative.
+
+Canonical decoded audio and enhanced audio are private execution material. They are not
+published merely because preprocessing happened.
+
+The canonical transcript records which preprocessing affected ASR input, but the
+derived WAV does not become a new archival source of truth.
+
+🦝 Derived audio can live under the floorboards. The original recording keeps the deed.
 
 ## First provider
 
-The first provider is FFmpeg's local `afftdn` frequency-domain noise-reduction filter.
-EchoFlow pins an application-owned parameter contract:
+The current provider uses FFmpeg's local `afftdn` frequency-domain noise-reduction
+filter with one application-owned parameter contract:
 
 ```text
 afftdn=nf=-50:nr=12
 ```
 
-The corresponding application provenance is:
+Canonical provenance is:
 
 - provider: `ffmpeg-afftdn`;
 - operation: `noise_suppression`;
 - noise floor: `-50 dB`;
 - noise reduction: `12 dB`; and
-- provider version: the locally verified first line of `ffmpeg -version`.
+- provider version: locally verified first line of `ffmpeg -version`.
 
-The provider is model-free. EchoFlow does not create a fake model manifest merely to
-make the abstraction look uniform. If a future neural provider introduces model
-weights, those weights must use the model-management custody, verification, disk
-admission, explicit-install, and immutable-revision contracts.
+This provider has no model weights.
 
-## Timeline preservation
+EchoFlow does not create a pretend model manifest merely to make the architecture look
+uniform.
 
-Enhancement must not change EchoFlow's source-relative transcript timeline.
+If a future neural enhancement provider introduces weights, those weights must enter
+through the same family of explicit model custody, disk admission, verification, and
+immutable revision rules used by other model-backed capabilities.
 
-Before accepting an enhanced WAV, EchoFlow compares the canonical input and derived
-output for:
+## Timeline preservation is load-bearing
+
+Enhancement may change **sample values**.
+
+It may not silently change the **shape of the timeline** that transcript timestamps rely
+on.
+
+Before accepting the derived WAV, EchoFlow compares input/output:
 
 - channel count;
 - sample width;
 - sample rate; and
 - frame count.
 
-Any mismatch fails closed and the derived output is removed. This protects the
-assumption that segment frame intervals and source-relative timestamps refer to the
-same acoustic timeline before and after preprocessing.
+Any mismatch fails closed and the derived output is removed where possible.
 
-The provider is also instructed to emit mono 16 kHz PCM16 WAV, matching the canonical
-decode contract. This is defense in depth rather than permission for the provider to
-resample arbitrarily.
+The FFmpeg provider is also instructed to emit the same mono 16 kHz PCM16 working format
+as canonical decode. That is defense in depth, not permission to resample and then hope
+nobody notices.
+
+## Why diarization still sees the unmodified canonical decode
+
+In enhancement v1:
+
+- **ASR** consumes the enhanced derivative when enhancement succeeds;
+- **anonymous diarization** continues to consume the unmodified canonical decoded audio.
+
+EchoFlow has not established that denoising improves speaker-boundary evidence.
+
+Preprocessing the diarization input merely because preprocessing helps ASR would be an
+unearned assumption.
+
+Future empirical evidence may justify a different provider path, but the change should
+be explicit and provenance-bearing.
+
+## Immutable plan and resume behavior
+
+The transcription plan records enhancement mode, provider, parameters, and any future
+model identity.
+
+The checkpoint contract records the same structure even when enhancement is off.
+
+Resume therefore cannot switch enhancement on/off, swap provider, or alter parameters
+halfway through a recording.
+
+A resumed transcript should not quietly contain two different acoustic preprocessing
+regimes.
 
 ## Storage admission
 
-Enhancement materializes one additional full-recording canonical-rate WAV in the
-private job workspace. Planning therefore adds that derivative to the private storage
-estimate before job execution begins.
+Enhancement materializes one additional full-recording canonical-rate WAV in the private
+job workspace.
 
-For mono 16 kHz PCM16 audio, the incremental storage estimate is approximately:
+For mono 16 kHz PCM16 audio, the incremental estimate is approximately:
 
 ```text
 duration_seconds * 16,000 * 1 channel * 2 bytes
 ```
 
-The estimate participates in the same storage admission policy as normalization,
-segment materialization, checkpoints, and published outputs. EchoFlow should refuse a
-job before creating large private derivatives if local free space is below the safe
-budget.
+That cost participates in the same storage admission policy as normalization, segment
+materialization, checkpoints, and published artifacts.
 
-## Provenance
+EchoFlow should refuse a job before creating a large derivative when available disk
+space is below the safe budget.
+
+## Canonical provenance
 
 When enhancement is used, canonical transcript JSON records an
-`EnhancementProvenance` object containing the provider, provider version, operation,
-parameters, and any future model identity/revision.
+`EnhancementProvenance` object containing:
 
-The provenance describes the preprocessing that affected ASR input. It does not make
-the enhanced WAV authoritative and it does not imply that the enhanced audio was
-published.
+- provider;
+- provider version;
+- operation;
+- parameters; and
+- any future model identity/revision.
 
-When enhancement is off, the transcript records no enhancement provenance.
+This explains which transform affected ASR input.
 
-## Failure semantics
+It does **not** claim that:
 
-Enhancement fails closed. EchoFlow does not silently fall back to raw audio when the
-user explicitly requested preprocessing.
+- the enhanced audio is authoritative;
+- the enhanced audio was published;
+- the enhanced audio necessarily sounds better; or
+- enhancement necessarily improved ASR for this recording.
+
+When enhancement is off, no enhancement provenance is recorded.
+
+## Failure semantics 🔐
+
+Enhancement fails closed when the user explicitly requested it.
+
+EchoFlow does not silently fall back to raw audio after an enhancement failure and then
+pretend the requested plan executed.
 
 Failure cases include:
 
 - FFmpeg unavailable;
 - FFmpeg runtime version cannot be verified;
-- provider or parameter contract differs from the planned configuration;
-- filtering times out or exits unsuccessfully;
-- output is missing or contains no usable samples; or
-- output violates the canonical timeline identity.
+- provider/parameter contract differs from the plan;
+- filtering timeout/non-zero exit;
+- missing or empty output; or
+- output violating canonical timeline identity.
 
-Partial derived output is removed where possible. Cleanup failure after another primary
-failure is logged and must not replace the primary exception.
+Partial derived output is removed where possible.
+
+Cleanup failure after another primary error is logged and must not replace the primary
+exception.
 
 ## Mutation-oriented test contract
 
-Tests should be designed so the following plausible bad edits are killed before a
-broad mutation run is needed:
+Tests should kill plausible bad decisions such as:
 
-- `off` accidentally invokes the enhancer;
-- `on` silently falls back to raw audio after provider failure;
-- ASR uses the raw path even though enhancement succeeded;
-- diarization unexpectedly uses the enhanced path in v1;
-- provider or parameter values can change without checkpoint incompatibility;
-- enhanced audio is omitted from storage admission;
-- frame-count/sample-rate/channel validation is weakened or inverted;
-- partial output survives a failed transform;
-- enhanced cleanup is skipped or masks a primary failure;
-- provider/version/parameter provenance is omitted from the canonical transcript; and
-- a future model-backed provider bypasses managed model custody.
+- `off` accidentally invoking enhancement;
+- `on` silently falling back to raw audio;
+- ASR reading the raw path after enhancement succeeded;
+- diarization unexpectedly reading enhanced audio in v1;
+- provider/parameters changing without checkpoint incompatibility;
+- enhanced audio disappearing from storage admission;
+- frame/sample-rate/channel validation being weakened or inverted;
+- partial output surviving a failed transform;
+- cleanup masking the primary failure;
+- missing canonical enhancement provenance; and
+- a future model-backed provider bypassing managed model custody.
 
-Poodle remains a targeted manual qualification technique for this decision-heavy code,
-not an automatic per-commit gate.
+Poodle remains targeted qualification for this decision-heavy code rather than a routine
+per-commit gate.
 
-## Qualification criteria
+## What qualification actually has to measure
 
-The product question is not whether denoised audio sounds nicer. Qualification compares
-raw ASR with enhancement-plus-ASR on representative noisy recordings and measures at
-least:
+The product question is not “does the denoised file sound nicer to a human?”
 
-- word error rate or another transcription-accuracy measure when reference text exists;
-- character error rate where appropriate;
+Qualification should compare **raw ASR** with **enhancement + ASR** on representative
+recordings using measures such as:
+
+- WER/CER where reference text exists;
 - end-to-end execution time and real-time factor;
-- CPU/RAM pressure and accelerator impact when relevant;
+- CPU/RAM/accelerator pressure;
 - private disk overhead; and
-- failure behavior on silence, music, clipping, stationary noise, and non-stationary
+- failure behavior across silence, music, clipping, stationary noise, and non-stationary
   noise.
 
-Only after measurements show a reliable relationship between input conditions and
-end-to-end benefit should EchoFlow consider an `auto` mode.
+Only after evidence shows a reliable relationship between input conditions and benefit
+should EchoFlow consider an `auto` mode.
 
-## Out of scope
+## Where source separation belongs later 🧜‍♀️
 
-The first version does not implement:
+Noise suppression and source separation are not the same problem.
+
+The current provider tries to suppress background noise while preserving one acoustic
+timeline.
+
+**Speech/source separation for overlapping speakers** would attempt to decompose a mixed
+recording into estimated speaker/source signals. That introduces substantially more
+model/compute cost and harder provenance questions:
+
+- which separated source produced which recognized words;
+- how separation uncertainty is represented;
+- whether separated outputs remain aligned to the original timeline;
+- which model/revision produced them;
+- whether source separation actually improves recognition on the target corpus; and
+- how derived sources should be retained or discarded.
+
+That is a later capability, after word alignment and overlap representation are strong
+enough to show where separation is actually needed.
+
+## Current deliberate limits
+
+The current feature does not provide:
 
 - simultaneous-speaker separation;
-- arbitrary source separation or music isolation;
-- generative audio restoration;
+- arbitrary music/source isolation;
+- generative restoration;
 - automatic provider/model selection;
-- automatic denoising based on an opaque quality score; or
-- publishing enhanced audio by default.
+- opaque automatic denoising based on a quality score; or
+- automatic publication of enhanced audio.
 
-The stable rule is evidence-first: preprocessing may help recognition, but the source
-recording remains truth and every transform affecting ASR must remain inspectable,
-reproducible, private by default, and safe to resume.
+The stable rule is:
+
+> **Preprocessing may help recognition. The source recording remains truth, and every
+> transform that affects ASR must remain explicit, reproducible, private by default,
+> and safe to resume.**
+
+That is enough glamour for one filter. 💃

@@ -1,4 +1,18 @@
-# Testing and regression bisection
+# Testing and regression bisection 🧪🦝
+
+EchoFlow has enough failure-sensitive logic that “the happy path passed” is not a
+satisfying definition of tested.
+
+The testing strategy therefore prefers **small deterministic oracles, explicit boundary
+cases, property invariants, and targeted mutation hypotheses** before expensive broad
+qualification.
+
+The question to keep asking is:
+
+> **If this comparator, Boolean, threshold, fallback, ordering decision, or cleanup path
+> were subtly wrong, which exact test would fail?**
+
+If the answer is “probably something somewhere,” strengthen the test contract.
 
 ## Colocation rule
 
@@ -13,150 +27,244 @@ src/echoflow/interfaces/local_file_manager.py
 src/echoflow/interfaces/tests/test_local_file_manager.py
 ```
 
-Repository-wide pytest configuration belongs in root `conftest.py`. Shared fixtures
-remain local to the narrowest package that needs them. Test packages are excluded from
-built distributions.
+Repository-wide pytest configuration belongs in root `conftest.py`.
+
+Shared fixtures stay at the narrowest package that needs them. Test packages are
+excluded from built distributions.
+
+This makes source-to-test navigation predictable without needing a test metadata system.
 
 ## Feedback ladder
 
-Use the smallest trustworthy oracle first, then widen it:
+Use the smallest trustworthy oracle first, then widen:
 
-1. One test node: `uv run pytest path/to/test.py::test_name`
-2. One capability suite: `uv run pytest path/to/test.py`
-3. One package suite: `uv run pytest src/echoflow/PACKAGE/tests`
-4. Most recent failures: `uv run pytest --last-failed`
-5. Full behavioral suite: `uv run pytest`
-6. Full branch coverage:
-   `uv run pytest --cov=echoflow --cov-branch --cov-report=term-missing`
-7. Static/metric gates: Ruff check/format, strict mypy, Vulture, and Radon.
-8. Targeted mutation scope for changed decision logic, followed by build, clean-wheel,
-   and lock verification.
+```text
+one test node
+    ↓
+one capability file
+    ↓
+one package suite
+    ↓
+last failures
+    ↓
+full behavioral suite
+    ↓
+full branch coverage
+    ↓
+static / complexity / dead-code gates
+    ↓
+targeted mutation qualification
+    ↓
+build + clean-wheel + lock verification
+```
 
-## Mutation anticipation rule
+Typical commands:
 
-Mutation testing should not be the first place EchoFlow discovers weak test contracts.
-For load-bearing decision logic, define plausible bad edits while designing ordinary
-tests and identify the exact test expected to kill each one.
+```bash
+uv run pytest path/to/test.py::test_name
+uv run pytest path/to/test.py
+uv run pytest src/echoflow/PACKAGE/tests
+uv run pytest --last-failed
+uv run pytest
+uv run pytest --cov=echoflow --cov-branch --cov-report=term-missing
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv run vulture
+uv run radon cc src/echoflow --total-average
+uv run radon mi src/echoflow
+```
 
-At minimum, review changed decision logic for:
+The narrow test should answer the local question. The wide suite should answer whether
+the change broke a contract you did not realize was adjacent.
 
-- boundary/operator changes such as `<` vs `<=`, `>` vs `>=`, `==` vs `!=`;
-- Boolean changes such as `and` vs `or`, removed `not`, or inverted predicates;
-- threshold/constant perturbations around zero, one, counts, sizes, durations,
-  percentages, schema versions, and resource limits;
-- arithmetic/accounting changes such as `+` vs `-`, omitted/double-counted terms,
-  integer rounding, or multipliers;
-- fallback mutations that silently downgrade/upgrade or choose another
-  provider/device/model;
-- fail-open mutations where exceptions, missing capability, malformed probes, or
-  uncertain security state become success;
-- ordering mutations around checkpoint, persistence, publish, cleanup, cancellation,
-  model-manifest commits, and provenance writes;
-- ownership/lifecycle mutations such as skipped cleanup, double cleanup, leaked
-  prefetched/derived work, or stale-state reuse;
-- resume/idempotence mutations that accept mismatched source, model, revision,
-  preprocessing, engine, version, or execution contract;
-- provenance/serialization mutations that omit or alter evidence needed to explain an
-  artifact; and
-- concurrency mutations such as increased prefetch depth, oversubscription, changed
-  worker counts, or out-of-order commits.
+## Mutation anticipation: think like a tiny malicious editor
 
-The preferred shape is explicit positive, negative, boundary, and failure-path coverage
-where the contract warrants it. Hypothesis is useful for invariants spanning many
-values, but named boundary cases remain valuable for safety decisions.
+Mutation testing should not be the first place EchoFlow discovers that tests are vague.
 
-The review question is:
+When changing load-bearing decision logic, enumerate plausible bad edits during test
+design.
 
-**if this comparator, Boolean, threshold, fallback, or ordering decision were subtly
-wrong, which exact test would fail?**
+### Comparator and boundary mutations
 
-If there is no clear answer, strengthen ordinary tests before asking Poodle to find the
-blind spot.
+Examples:
 
-Run Poodle only after deterministic tests are green and over the smallest relevant
-module set. Inspect survivors as evidence about test strength. Routine CI does not gate
-on mutation sweeps; use an available local/sandbox checkout or the manual workflow for
-deliberate qualification.
+- `<` ↔ `<=`;
+- `>` ↔ `>=`;
+- `==` ↔ `!=`;
+- zero/one/count/size/duration thresholds shifting by one; and
+- percentages or schema versions drifting across a boundary.
+
+Named tests should exist when the exact threshold is meaningful.
+
+### Boolean and fallback mutations
+
+Examples:
+
+- `and` ↔ `or`;
+- removed/inverted `not`;
+- missing capability becoming success;
+- an explicit strategy silently falling back;
+- a security uncertainty becoming fail-open; and
+- a provider/model/device being substituted without authorization.
+
+### Arithmetic/accounting mutations
+
+Examples:
+
+- `+` ↔ `-`;
+- double-counted or omitted memory/disk terms;
+- rounding changes; and
+- altered multipliers.
+
+These matter especially in resource/storage admission.
+
+### Ordering and lifecycle mutations
+
+Examples:
+
+- manifest committed before provider verification;
+- checkpoint committed after work is exposed as resumable;
+- publish/cleanup ordering reversed;
+- speculative prefetched work leaked;
+- derived audio not removed after failure; and
+- cleanup error masking the primary exception.
+
+### Resume/provenance mutations
+
+Examples:
+
+- mismatched source accepted;
+- model revision changed;
+- preprocessing changed halfway through a job;
+- engine/runtime version mismatch ignored;
+- execution target changed silently; and
+- evidence/provenance fields omitted from durable artifacts.
+
+### Concurrency mutations
+
+Examples:
+
+- prefetch depth increased beyond the admitted bound;
+- worker count oversubscribed;
+- future work committed out of order; and
+- cleanup races leave unowned files behind.
+
+💃 Mutation testing is not chaos testing. It is asking whether the test suite notices
+plausible wrong code decisions.
+
+## Hypothesis where the invariant spans many values
+
+Property tests are particularly useful when the contract is easier to state than to
+cover with examples.
+
+Current semantic chunking is a good example: every generated source segment must appear
+exactly once and in order regardless of word-count/profile combinations.
+
+Named boundary cases remain valuable even when Hypothesis could generate them. A reader
+should be able to see why a specific threshold is invalid without waiting for a
+property-based failure seed.
 
 ## Model-custody mutation hypotheses
 
-For model-management and the ASR planning/execution boundary, tests should kill at
-least these plausible bad edits when the related logic changes:
+When model-management or ASR custody changes, tests should kill bad edits such as:
 
-- failed structural verification is treated as managed;
-- a manifest points outside EchoFlow's model cache;
-- repository identity can be substituted while required files still look valid;
-- recorded revision and snapshot directory disagree;
-- requested revision is silently replaced by another provider revision;
-- insufficient disk is admitted before acquisition;
-- manifest commit happens before provider verification completes;
-- removal deletes the manifest before provider deletion succeeds;
-- external deletion leaves a stale manifest reported as usable;
-- a transcription plan accepts an unmanaged/ambient cache entry;
-- a managed revision is replaced by a configuration override;
-- faster-whisper execution changes `local_files_only=True` to a network-capable path;
-  or
-- model/repository/revision/verification provenance is omitted.
+- failed structural verification treated as managed;
+- manifest path escaping EchoFlow's model cache;
+- provider repository identity substituted;
+- recorded revision/snapshot path disagreeing;
+- requested revision silently replaced;
+- insufficient disk admitted before acquisition;
+- manifest committed before verification;
+- removal deleting the manifest before provider deletion succeeds;
+- external model deletion leaving a stale manifest reported usable;
+- transcription planning accepting an unmanaged ambient cache entry;
+- configuration overriding managed revision identity;
+- faster-whisper changing from `local_files_only=True` to network-capable resolution; or
+- model/repository/revision/verification provenance disappearing.
 
-The pre-production current contract has **no ASR transcription-time download fallback**.
-A test expecting that old compatibility behavior should be rewritten or removed rather
-than forcing production code to preserve it.
+There is no ASR transcription-time download fallback in the current pre-production
+contract. Tests should not preserve obsolete behavior merely because an earlier branch
+once had it.
 
 ## Enhancement mutation hypotheses
 
-For optional speech noise suppression, tests should kill:
+When optional speech enhancement changes, tests should kill:
 
-- `off` invokes the enhancer;
-- `on` skips enhancement or silently falls back to raw audio after a provider failure;
-- ASR consumes raw audio after enhancement succeeded;
-- diarization consumes enhanced audio in the current v1 contract;
-- provider or parameters can change without checkpoint incompatibility;
-- enhanced full-recording storage is omitted or double-counted;
-- channel/sample-width/sample-rate/frame-count validation is weakened or inverted;
-- partial enhanced output survives a failed transform;
-- cleanup is skipped, duplicated unsafely, or masks the primary error;
-- provider/version/operation/parameters disappear from transcript provenance;
-- enhancement modifies the original recording;
-- enhanced audio becomes a public artifact without an explicit export contract; or
-- a future model-backed enhancer bypasses model-management custody.
+- `off` invoking enhancement;
+- `on` skipping enhancement;
+- explicit enhancement failure silently falling back to raw audio;
+- ASR reading raw audio after enhancement succeeded;
+- diarization reading enhanced audio in the current v1 contract;
+- provider/parameters changing without checkpoint incompatibility;
+- enhanced full-recording storage omitted or double-counted;
+- channel/sample-width/sample-rate/frame validation weakened;
+- partial enhanced output surviving failure;
+- cleanup skipped/duplicated/masking the primary error;
+- provenance disappearing;
+- original recording modified; or
+- a future model-backed enhancer bypassing model custody.
 
-Tests should compare paths and ownership explicitly. “Enhancer was called” is not enough
-to prove ASR used its output or that diarization retained the raw canonical decode.
+“Enhancer was called” is not enough. Tests should prove **which path ASR actually
+consumed** and which path diarization retained.
+
+## Semantic/search mutation hypotheses
+
+When transcript-library retrieval changes, ask whether tests would notice:
+
+- stale semantic generations being accepted;
+- canonical hashes disappearing from the corpus fingerprint;
+- filters moving after top-K;
+- chunk boundaries dropping/duplicating canonical segments;
+- vector dimensions/normalization being accepted incorrectly;
+- query/passage transforms being swapped;
+- failed rebuild replacing valid semantic state;
+- RRF arithmetic changing;
+- timeline presentation overwriting relevance provenance; or
+- local-only embedding restoration becoming network-capable.
+
+See [semantic-retrieval-testing.md](semantic-retrieval-testing.md) for the focused matrix.
 
 ## Pre-production schema rule
 
 EchoFlow currently has no released/dogfooded durable-schema compatibility obligation.
-Tests protect **one current job-plan, checkpoint, and canonical-transcript contract**.
-Do not retain old schema branches solely because an earlier PR once emitted them during
-development.
 
-When a real compatibility boundary exists, migration tests should be added against
-actual persisted fixtures from that boundary. Until then, deleting obsolete
-pre-production branches is preferable to multiplying migration paths nobody uses.
+Tests protect **one current job-plan, checkpoint, and canonical-transcript contract**.
+
+Do not retain obsolete pre-production branches solely because an earlier PR once emitted
+them.
+
+When a real compatibility boundary exists, add migration tests against actual persisted
+fixtures from that boundary.
+
+Until then, deleting unused compatibility scaffolding is usually safer than maintaining
+fictional history.
 
 ## Sandbox readiness
 
-A sandbox can run repository-local tools only when it actually has an EchoFlow
-checkout. The repository cannot force an external execution environment to mount that
-checkout, so every coding session verifies workspace availability before claiming local
-mutation capability.
+A sandbox can run repository-local tools only when an EchoFlow checkout is actually
+mounted.
 
-When a checkout exists, prepare it with:
+When a checkout exists:
 
 ```bash
 python scripts/prepare_dev_environment.py
 ```
 
-This performs a locked development sync and verifies Poodle is runnable. If the
-checkout is absent, use the connected GitHub repository for inspection and the manual
-mutation workflow for qualification rather than making per-commit mutation CI a
-substitute for a local workspace.
+This performs a locked development sync and verifies Poodle availability.
+
+If the checkout is absent, inspect through the connected repository and use the manual
+mutation workflow instead of pretending a local mutation run happened.
+
+The environment is allowed to have boundaries. The documentation must tell the truth
+about them. 🧜‍♀️
 
 ## Git bisect
 
-A bisect oracle must be deterministic, noninteractive, and narrow enough to run
-repeatedly. Start from a known bad revision and a known good revision, then let Git
-invoke the smallest test proving the regression:
+A bisect oracle must be deterministic, noninteractive, and narrow enough to run many
+times.
+
+Start from known bad/good revisions and use the smallest test proving the regression:
 
 ```bash
 git bisect start BAD GOOD
@@ -165,17 +273,30 @@ git bisect reset
 ```
 
 Use a package/full-suite oracle only when a smaller contract cannot reproduce the
-failure. A test depending on network access, mutable model cache, wall-clock timing, or
-mutable user state is not a valid bisect oracle until those inputs are controlled.
+failure.
+
+A test that depends on network access, mutable model cache, wall-clock timing, or mutable
+user state is not a trustworthy bisect oracle until those inputs are controlled.
 
 Model acquisition tests should fake the provider boundary. Enhancement-provider tests
-should fake subprocess behavior or use intentionally generated local audio when the
-native-media boundary itself is under test.
+should fake subprocess behavior or use generated local audio only when the native media
+boundary itself is the subject.
 
 ## Source-to-test navigation
 
-The path convention is the primary index: changed production files and their tests
-share a package. `rg`, `pytest --collect-only`, coverage, and Git's changed-file list
-cover current navigation needs. Static test-to-symbol mapping can use Python `ast`
-later if repository scale justifies it. Tree-sitter would not improve Git bisect,
-pytest collection, or Python-only symbol parsing today.
+The path convention is the primary index: changed production files and their tests share
+a package.
+
+`rg`, `pytest --collect-only`, coverage, and Git's changed-file list cover current
+navigation needs.
+
+Static test-to-symbol mapping can use Python `ast` later if repository scale justifies
+it. Tree-sitter would not improve Git bisect, pytest collection, or Python-only symbol
+parsing today.
+
+## The stable testing rule
+
+**Make the smallest important wrong decision fail loudly. Then widen the evidence.**
+
+That is much more useful than admiring a large green test count while one load-bearing
+branch quietly has no witness. 🦝

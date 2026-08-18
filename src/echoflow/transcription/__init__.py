@@ -1,5 +1,10 @@
 """Resource-aware local transcription capability."""
 
+from echoflow.transcription.alignment import (
+    AlignedRecognizedSegment,
+    AlignedWord,
+    aligned_words,
+)
 from echoflow.transcription.audio import DecodedAudio, FfmpegAudioDecoder
 from echoflow.transcription.backend import FasterWhisperTranscriber
 from echoflow.transcription.enhancement import FfmpegAfftdnEnhancer
@@ -29,6 +34,8 @@ from echoflow.transcription.models import (
 from echoflow.transcription.planner import TranscriptionJobPlanner
 
 __all__ = [
+    "AlignedRecognizedSegment",
+    "AlignedWord",
     "CanonicalTranscript",
     "CpuEngineConfiguration",
     "DecodedAudio",
@@ -53,4 +60,5 @@ __all__ = [
     "TranscriptionExecutor",
     "TranscriptionJobPlan",
     "TranscriptionJobPlanner",
+    "aligned_words",
 ]

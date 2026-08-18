@@ -90,12 +90,12 @@ uv run echoflow library show JOB_ID
 
 ```mermaid
 flowchart LR
-    A[Your recording] -->|read only| B[EchoFlow processing]
+    A[🎙️ Your recording] -->|read only| B[EchoFlow processing]
     B --> C[Private temporary state]
-    B --> D[Canonical transcript JSON]
+    B --> D[📜 Canonical transcript JSON]
     D --> E[TXT / SRT / VTT]
     D --> F[Private lexical index]
-    D --> G[Optional private semantic index]
+    D --> G[✨ Optional private semantic index]
     A -. never overwritten .-> A
 ```
 
@@ -108,16 +108,71 @@ The important distinction is ownership:
 
 Deleting a search index should not delete transcript evidence.
 
-## Optional semantic and hybrid search
+## 5. Optional semantic and hybrid search
 
-EchoFlow now has deterministic chunking, exact local vector retrieval, multilingual-E5
-query/passage semantics, and reciprocal-rank hybrid fusion. The E5 adapter is
-strict-local: it accepts an immutable local model snapshot rather than a repository ID.
+Lexical search finds the words you typed. Semantic search can also find passages with a
+similar meaning, even when they use different wording.
+
+For example, a search for:
+
+```text
+people struggling to afford housing
+```
+
+may help surface a transcript passage such as:
+
+```text
+I was spending almost seventy percent of my pay on the apartment.
+```
+
+The words differ, but the idea is related.
+
+EchoFlow does this with a **local sentence-embedding model**. The model converts your
+query and transcript passages into small numeric vectors that can be compared for
+similarity. EchoFlow still returns the original transcript passage with timestamps,
+speaker/language evidence, and canonical-source provenance.
+
+```mermaid
+flowchart LR
+    Q[🔎 Search phrase] --> L[Exact words<br/>BM25]
+    Q --> S[Related meaning<br/>local embeddings]
+    L --> H[💃 Hybrid ranking]
+    S --> H
+    H --> E[📜 Evidence-bearing passages]
+```
+
+Semantic search is **optional**. Lexical search remains the default and has no semantic
+model requirement.
+
+### Privacy boundary
+
+Semantic indexing and search run locally. EchoFlow loads the embedding model from a
+local immutable snapshot and does not send transcript passages to a hosted embedding
+API.
+
+Obtaining a model is a separate concern. Downloading a model from a provider such as
+Hugging Face may require network access, but building/searching the semantic index from
+a model already present locally does not.
+
+The repository does not bundle model weights.
+
+### Why Multilingual E5 Small?
+
+EchoFlow's first qualified semantic profile is
+`intfloat/multilingual-e5-small`.
+
+It is a conservative local default because it gives EchoFlow multilingual retrieval,
+compact 384-dimensional vectors, explicit retrieval-oriented query/passage semantics,
+and a comparatively lightweight local execution profile.
+
+The model is not treated as permanent product truth. EchoFlow records an immutable
+embedding profile so a future model can rebuild the derived semantic projection without
+changing canonical transcripts.
 
 The locked project dependency graph does not yet include Sentence Transformers. Until a
 semantic dependency tranche is resolved and audited, this capability requires an
 environment that already supplies a compatible `sentence_transformers` runtime and a
-local `intfloat/multilingual-e5-small` snapshot.
+local immutable Multilingual E5 Small snapshot.
 
 Build the private semantic index:
 
@@ -149,7 +204,8 @@ uv run echoflow library search \
   --mode hybrid
 ```
 
-Lexical search remains the default and has no semantic-model requirement.
+For the plain-language explanation of embeddings, privacy, model custody, and future
+provider interoperability, see [`semantic-search.md`](semantic-search.md).
 
 ## How search results stay tied to evidence
 

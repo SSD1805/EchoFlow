@@ -8,6 +8,7 @@ from typing import cast
 
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.runner.models import ProcessingProfile
+from echoflow.transcription.alignment import AlignedRecognizedSegment, AlignedWord
 from echoflow.transcription.enhancement_models import (
     EnhancementConfiguration,
     EnhancementMode,
@@ -19,7 +20,6 @@ from echoflow.transcription.models import (
     DecodeConfiguration,
     DecodeStrategy,
     EngineTranscript,
-    RecognizedSegment,
     SegmentationConfiguration,
     TranscriptionJobPlan,
     TranscriptSource,
@@ -28,6 +28,7 @@ from echoflow.workspace.models import Job
 
 _CHECKPOINT_SCHEMA_VERSION = 1
 _JOB_PLAN_SCHEMA_VERSION = 1
+_ALIGNMENT_SCHEMA_VERSION = 1
 _MANIFEST_NAME = "manifest.json"
 _MAX_CHECKPOINT_BYTES = 16 * 1024 * 1024
 
@@ -250,6 +251,11 @@ class LocalCheckpointStore:
             "profile": plan.policy.profile.value,
             "provisional": plan.policy.provisional,
             "engine": engine,
+            "alignment": {
+                "schema_version": _ALIGNMENT_SCHEMA_VERSION,
+                "provider": plan.engine.engine,
+                "word_timestamps": True,
+            },
             "decoder": plan.decoder.to_dict(),
             "enhancement": plan.enhancement.to_dict(),
             "segmentation": plan.segmentation.to_dict(),
@@ -300,10 +306,17 @@ class LocalCheckpointStore:
                 raise ValueError("unsupported job-plan schema version")
             source = cast("dict[str, object]", contract["source"])
             engine = cast("dict[str, object]", contract["engine"])
+            alignment = cast("dict[str, object]", contract["alignment"])
             decoder = cast("dict[str, object]", contract["decoder"])
             enhancement = cast("dict[str, object]", contract["enhancement"])
             segmentation = cast("dict[str, object]", contract["segmentation"])
             resources = cast("dict[str, object]", contract["resources"])
+            if int(cast("int", alignment["schema_version"])) != _ALIGNMENT_SCHEMA_VERSION:
+                raise ValueError("unsupported word-alignment schema version")
+            if alignment["word_timestamps"] is not True:
+                raise ValueError("word alignment must remain enabled for resume")
+            if str(alignment["provider"]) != str(engine["engine"]):
+                raise ValueError("word-alignment provider does not match engine")
             return ResumeSettings(
                 source=TranscriptSource(
                     sha256=str(source["sha256"]),
@@ -427,39 +440,60 @@ class LocalCheckpointStore:
     def _result_from_dict(document: dict[str, object]) -> EngineTranscript:
         try:
             raw_segments = cast("list[dict[str, object]]", document["segments"])
-            segments = tuple(
-                RecognizedSegment(
-                    index=int(cast("int", raw["index"])),
-                    start_seconds=float(cast("float", raw["start_seconds"])),
-                    end_seconds=float(cast("float", raw["end_seconds"])),
-                    text=str(raw["text"]),
-                    average_log_probability=(
-                        None
-                        if raw.get("average_log_probability") is None
-                        else float(cast("float", raw["average_log_probability"]))
-                    ),
-                    no_speech_probability=(
-                        None
-                        if raw.get("no_speech_probability") is None
-                        else float(cast("float", raw["no_speech_probability"]))
-                    ),
-                    detected_language=(
-                        None
-                        if raw.get("detected_language") is None
-                        else str(raw["detected_language"])
-                    ),
-                    language_probability=(
-                        None
-                        if raw.get("language_probability") is None
-                        else float(cast("float", raw["language_probability"]))
-                    ),
+            segments = []
+            for raw in raw_segments:
+                raw_words = cast("list[dict[str, object]]", raw["words"])
+                words = tuple(
+                    AlignedWord(
+                        start_seconds=float(cast("float", word["start_seconds"])),
+                        end_seconds=float(cast("float", word["end_seconds"])),
+                        text=str(word["text"]),
+                        probability=(
+                            None
+                            if word.get("probability") is None
+                            else float(cast("float", word["probability"]))
+                        ),
+                        speaker_ref=(
+                            None
+                            if word.get("speaker_ref") is None
+                            else str(word["speaker_ref"])
+                        ),
+                    )
+                    for word in raw_words
                 )
-                for raw in raw_segments
-            )
+                segments.append(
+                    AlignedRecognizedSegment(
+                        index=int(cast("int", raw["index"])),
+                        start_seconds=float(cast("float", raw["start_seconds"])),
+                        end_seconds=float(cast("float", raw["end_seconds"])),
+                        text=str(raw["text"]),
+                        average_log_probability=(
+                            None
+                            if raw.get("average_log_probability") is None
+                            else float(cast("float", raw["average_log_probability"]))
+                        ),
+                        no_speech_probability=(
+                            None
+                            if raw.get("no_speech_probability") is None
+                            else float(cast("float", raw["no_speech_probability"]))
+                        ),
+                        detected_language=(
+                            None
+                            if raw.get("detected_language") is None
+                            else str(raw["detected_language"])
+                        ),
+                        language_probability=(
+                            None
+                            if raw.get("language_probability") is None
+                            else float(cast("float", raw["language_probability"]))
+                        ),
+                        words=words,
+                    )
+                )
             language_value = document.get("language")
             probability_value = document.get("language_probability")
             return EngineTranscript(
-                segments=segments,
+                segments=tuple(segments),
                 language=None if language_value is None else str(language_value),
                 language_probability=(
                     None

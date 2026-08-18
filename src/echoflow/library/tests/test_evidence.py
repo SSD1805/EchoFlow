@@ -155,7 +155,9 @@ def test_lexical_result_highlights_aligned_words_and_seeks_to_first_match(
     assert location.context_segments[0].segment_id == "segment-000001"
 
 
-def test_phrase_highlight_requires_contiguous_canonical_word_tokens(tmp_path: Path) -> None:
+def test_phrase_highlight_requires_contiguous_canonical_word_tokens(
+    tmp_path: Path,
+) -> None:
     canonical = tmp_path / "transcript.json"
     digest = _canonical(canonical)
     passage = _passage(canonical, digest)
@@ -173,7 +175,9 @@ def test_phrase_highlight_requires_contiguous_canonical_word_tokens(tmp_path: Pa
     ]
 
 
-def test_semantic_only_result_does_not_invent_exact_word_highlight(tmp_path: Path) -> None:
+def test_semantic_only_result_does_not_invent_exact_word_highlight(
+    tmp_path: Path,
+) -> None:
     canonical = tmp_path / "transcript.json"
     digest = _canonical(canonical)
     passage = _passage(canonical, digest, matched=False)

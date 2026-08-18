@@ -10,6 +10,11 @@ from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.models import InputIdentity, MediaInfo, MediaStream, StreamKind
 from echoflow.runner.models import ProcessingProfile
+from echoflow.transcription.alignment import (
+    AlignedRecognizedSegment,
+    AlignedWord,
+    aligned_words,
+)
 from echoflow.transcription.checkpoint import LocalCheckpointStore
 from echoflow.transcription.enhancement import ffmpeg_afftdn_configuration
 from echoflow.transcription.enhancement_models import EnhancementConfiguration
@@ -20,7 +25,6 @@ from echoflow.transcription.models import (
     DecodeConfiguration,
     DecodeStrategy,
     EngineTranscript,
-    RecognizedSegment,
     SegmentationConfiguration,
 )
 from echoflow.workspace.models import Job, JobId, WorkspacePaths
@@ -85,7 +89,7 @@ def context(tmp_path, *, profile=ProcessingProfile.BALANCED):
 def result(text, *, language="en"):
     return EngineTranscript(
         (
-            RecognizedSegment(
+            AlignedRecognizedSegment(
                 0,
                 0.0,
                 1.0,
@@ -94,6 +98,7 @@ def result(text, *, language="en"):
                 0.1,
                 detected_language=language,
                 language_probability=0.98,
+                words=(AlignedWord(0.0, 1.0, text, 0.91),),
             ),
         ),
         language,
@@ -117,6 +122,11 @@ def test_manifest_is_private_local_and_omits_source_and_model_paths(tmp_path):
     contract = json.loads(document)["contract"]
     assert contract["source"]["sha256"] == "a" * 64
     assert contract["enhancement"]["mode"] == "off"
+    assert contract["alignment"] == {
+        "provider": "faster-whisper",
+        "schema_version": 1,
+        "word_timestamps": True,
+    }
     if os.name != "nt":
         assert manifest.stat().st_mode & 0o777 == 0o600
         assert manifest.parent.stat().st_mode & 0o777 == 0o700
@@ -141,7 +151,7 @@ def test_manifest_restores_original_execution_settings_without_local_paths(tmp_p
     assert restored_engine.model_cache_path == (tmp_path / "new-model-cache").resolve()
 
 
-def test_completed_segment_round_trips_with_detected_language(tmp_path):
+def test_completed_segment_round_trips_with_detected_language_and_word_alignment(tmp_path):
     store, job, plan, windows, _ = context(tmp_path)
     store.initialize(job, plan, windows)
     store.save_segment(job, plan, windows, windows[0], result("sensitive words"))
@@ -151,9 +161,13 @@ def test_completed_segment_round_trips_with_detected_language(tmp_path):
     assert len(restored.completed) == 1
     assert restored.completed[0][0] == windows[0]
     restored_result = restored.completed[0][1]
-    assert restored_result.segments[0].text == "sensitive words"
-    assert restored_result.segments[0].detected_language == "en"
-    assert restored_result.segments[0].language_probability == 0.98
+    restored_segment = restored_result.segments[0]
+    assert restored_segment.text == "sensitive words"
+    assert restored_segment.detected_language == "en"
+    assert restored_segment.language_probability == 0.98
+    assert aligned_words(restored_segment) == (
+        AlignedWord(0.0, 1.0, "sensitive words", 0.91),
+    )
     assert restored.engine_version == "1.2.1"
 
 
@@ -167,6 +181,23 @@ def test_contract_change_refuses_resume(tmp_path):
         match="^Private checkpoint does not match the current transcription contract$",
     ):
         store.restore(job, plan, windows)
+
+
+def test_missing_alignment_contract_refuses_pre_alignment_checkpoint(tmp_path):
+    store, job, plan, windows, _ = context(tmp_path)
+    store.initialize(job, plan, windows)
+    manifest = job.workspace_dir / "checkpoints" / "manifest.json"
+    document = json.loads(manifest.read_text())
+    contract = document["contract"]
+    contract.pop("alignment")
+    document["contract_sha256"] = store._digest(contract)
+    manifest.write_bytes(store._canonical_bytes(document))
+
+    with pytest.raises(
+        CheckpointError,
+        match="^Private checkpoint contract is malformed$",
+    ):
+        store.resume_settings(job)
 
 
 def test_enhancement_change_refuses_resume(tmp_path):

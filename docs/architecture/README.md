@@ -51,6 +51,7 @@ rebuildable search infrastructure.
 | [Processing capabilities](processing-capabilities.md) | How does the whole local transcription system fit together? |
 | [Adaptive heterogeneous execution](adaptive-heterogeneous-execution.md) | How does EchoFlow decide what this machine can safely run? |
 | [Media and timeline](media-and-timeline.md) | What source did we inspect, which audio stream did we use, and what do timestamps mean? |
+| [Word-level timestamp alignment](word-alignment.md) | How do engine-produced word timings become source-relative evidence and improve speaker handoffs? |
 | [Local model management](model-management.md) | Which model revision is allowed to execute, and how did it get here? |
 | [Speech enhancement](speech-enhancement.md) | How can preprocessing affect ASR without becoming source truth? |
 | [Anonymous speaker diarization](diarization.md) | How are speaker turns represented without pretending anonymous labels are identities? |
@@ -70,7 +71,7 @@ rebuildable search infrastructure.
 | `media` | Read-only source inspection and deterministic audio-stream selection |
 | `runner` | Process-visible CPU/memory inspection and execution-budget policy |
 | `model_management` | Explicit local model inventory, acquisition, verification, provenance, and removal |
-| `transcription` | Planning, normalization, enhancement, segmentation, ASR, checkpoints, language attribution, diarization, assembly, exports |
+| `transcription` | Planning, normalization, enhancement, segmentation, ASR, checkpoints, language attribution, word alignment, diarization, assembly, exports |
 | `workspace` | Private job paths and public artifact allocation |
 | `benchmarking` | Privacy-minimized local execution measurement |
 | `library` | Evidence-first lexical/semantic retrieval over rebuildable transcript projections |

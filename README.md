@@ -9,8 +9,8 @@ transcription service.
 
 The application does more than run a speech model. It inspects the machine it is running
 on, chooses a safe execution strategy, manages local model custody, survives interrupted
-work, preserves source provenance, publishes portable transcripts, and builds a private
-searchable library over completed recordings.
+work, preserves source provenance, publishes portable transcripts, keeps engine-produced
+word timing evidence, and builds a private searchable library over completed recordings.
 
 The original recording remains read-only input. Canonical transcript JSON is the
 authoritative transcript artifact. Working audio and search databases are derived state
@@ -35,14 +35,15 @@ part of the local recording lifecycle.
 | Local transcription | faster-whisper CPU/int8 and CUDA-capable strategies with explicit managed model revisions |
 | Hardware awareness | process-visible CPU/RAM, affinity/cgroup limits, accelerator topology, engine capability negotiation, and resource admission |
 | Media handling | FFprobe inspection, deterministic audio-stream selection, FFmpeg canonicalization, exact source-relative frame windows |
+| Word timing | native faster-whisper per-word timestamps validated, rebased to source-relative time, and preserved through resume |
 | Reliability | durable private checkpoints, validated resume, contiguous checkpoint ordering, bounded accelerated prefetch |
 | Languages | multilingual decoding plus conservative local text-language attribution |
-| Speakers | optional anonymous recording-scoped diarization, currently blocked when its locked dependency security gate is unsafe |
+| Speakers | optional anonymous recording-scoped diarization, with word-level projection when timing evidence exists; currently blocked when its locked dependency security gate is unsafe |
 | Difficult audio | optional deterministic local FFmpeg noise suppression with provenance and timeline-preservation checks |
 | Model custody | explicit inventory, recommendation, install, local revalidation, immutable revision pinning, and exact-revision removal |
 | Transcript output | canonical JSON plus deterministic TXT, SRT, and WebVTT derived views |
 | Search | private local BM25 lexical retrieval, optional semantic retrieval, and inspectable hybrid RRF ranking |
-| Evidence | source/canonical SHA-256, timestamps, speaker/language context, provenance, stale-index detection, and integrity receipts |
+| Evidence | source/canonical SHA-256, segment/word timestamps, speaker/language context, provenance, stale-index detection, and integrity receipts |
 | Portability | Linux, macOS, and Windows CI plus clean-wheel/package verification |
 
 The point of this list is not that users should learn every subsystem. It is that most
@@ -55,7 +56,7 @@ instead of homework.
 flowchart LR
     A[Original recording] --> B[Inspect source + machine]
     B --> C[Choose safe local strategy]
-    C --> D[Transcribe + checkpoint]
+    C --> D[Transcribe + word timing + checkpoint]
     D --> E[Canonical transcript]
     E --> F[TXT / SRT / WebVTT]
     E --> G[Lexical search]
@@ -133,6 +134,10 @@ Then transcribe locally:
 uv run echoflow transcribe interview.m4a
 ```
 
+The current faster-whisper execution path requests native word timestamps. EchoFlow
+validates and rebases those word intervals onto the same source-relative timeline as the
+canonical segment instead of running a second forced-alignment model.
+
 Add derived publication formats when useful:
 
 ```bash
@@ -152,8 +157,11 @@ uv run echoflow transcribe interview.m4a --resume JOB_ID
 ```
 
 Resume rechecks source identity and current resource admission. It does not silently
-change model revision, selected audio stream, enhancement contract, or execution target
-just to get moving again.
+change model revision, selected audio stream, enhancement contract, alignment contract,
+or execution target just to get moving again.
+
+Aligned word evidence already checkpointed for completed work is restored rather than
+recomputed under a potentially different execution contract.
 
 ## Optional noise suppression
 
@@ -182,10 +190,16 @@ uv run echoflow transcribe interview.wav --diarize
 Diarization produces anonymous recording-scoped labels such as `speaker-01`; it does not
 perform biometric identity or cross-recording speaker linking.
 
+When word timing evidence exists, EchoFlow can reconcile speaker turns at the word level.
+A word receives a speaker only when exactly one diarized speaker overlaps that word. A
+segment that crosses a speaker handoff therefore stays unlabeled at the segment level
+rather than being assigned to the wrong person.
+
 The current pyannote dependency path is **security-held** while its locked Lightning
 version is affected by a compensated advisory. EchoFlow fails closed before pyannote
 execution/model acquisition while that condition remains true. See
-**[Anonymous speaker diarization](docs/architecture/diarization.md)** and
+**[Anonymous speaker diarization](docs/architecture/diarization.md)**,
+**[Word-level timestamp alignment](docs/architecture/word-alignment.md)**, and
 **[SECURITY.md](SECURITY.md)**.
 
 ## Search your transcript library
@@ -216,6 +230,10 @@ Inspect one transcript's custody and source-integrity evidence:
 ```bash
 uv run echoflow library show JOB_ID
 ```
+
+Word timing does not change ranking semantics. The current library still indexes
+canonical segment text once; the finer coordinates are available for later precise
+highlighting, jump-to-audio, and annotation UX.
 
 ### ✨ Optional semantic and hybrid search
 
@@ -253,7 +271,7 @@ The custody boundary is intentionally simple:
 | Artifact | Role | Rebuildable? |
 |---|---|---|
 | Original recording | source evidence | **No** |
-| Canonical transcript JSON | authoritative transcript artifact | **No** |
+| Canonical transcript JSON, including word timing evidence | authoritative transcript artifact | **No** |
 | Future notes/tags/annotations | user-authored knowledge | **No** |
 | TXT/SRT/WebVTT | publication views | Yes |
 | Normalized/enhanced working audio | private processing material | Yes |
@@ -276,6 +294,8 @@ The most important references are:
   for machine discovery, engine capability, strategy admission, and bounded overlap.
 - **[Media and timeline](docs/architecture/media-and-timeline.md)** for stream selection,
   canonical audio, and timestamp semantics.
+- **[Word-level timestamp alignment](docs/architecture/word-alignment.md)** for native
+  word timing, source-relative rebasing, checkpoint identity, and speaker handoffs.
 - **[Model management](docs/architecture/model-management.md)** for explicit acquisition,
   immutable revisions, and local custody.
 - **[Speech enhancement](docs/architecture/speech-enhancement.md)** for optional
@@ -308,10 +328,11 @@ The backend is broad enough that the next high-value work is increasingly about 
 evidence navigation and ordinary-user delivery rather than inventing another ASR
 pipeline.
 
-The likely sequence is **word/timestamp alignment**, then richer **original-media
-timecode/capture-time provenance**, then **better speaker overlap/display-label UX**.
-Source separation for overlapping speakers is a later, heavier capability once the
-simpler temporal evidence model is strong enough to support it.
+Word timing is now part of the current faster-whisper evidence path. The next sequence is
+**original-media timecode/capture-time provenance**, then **better speaker
+overlap/display-label UX**, then richer research-workspace behavior over those aligned
+coordinates. Source separation for overlapping speakers remains a later, heavier
+capability once the simpler temporal evidence model is strong enough to support it.
 
 Installers and a thin graphical interface remain important for non-developer adoption.
 They should sit on top of the same application services, not fork the product into a

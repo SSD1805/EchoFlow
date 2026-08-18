@@ -53,17 +53,23 @@ EchoFlow currently has:
 Performance ranks and memory estimates remain conservative heuristics pending
 representative-device qualification.
 
-### Media, timeline, and local preprocessing
+### Media, timeline, alignment, and local preprocessing
 
 The current media foundation includes:
 
 - FFprobe inspection with file-only protocol access and complete source SHA-256;
 - deterministic audio-stream selection;
 - FFmpeg canonicalization to mono 16 kHz PCM16 WAV when required;
-- exact integer-frame work windows and source-relative transcript timestamps;
+- exact integer-frame work windows and source-relative segment timestamps;
+- faster-whisper native per-word timestamp evidence rebased onto that same source
+  timeline;
 - optional deterministic FFmpeg noise suppression;
 - timeline-preservation checks around enhanced audio; and
 - provenance recording for preprocessing that affected ASR input.
+
+Word alignment is part of the current faster-whisper execution/checkpoint contract. It
+preserves engine-produced timing rather than claiming an independent forced-alignment
+pass.
 
 The original recording remains read-only evidence. Normalized/enhanced WAV files remain
 private derived processing material.
@@ -88,7 +94,8 @@ EchoFlow has:
 
 - durable private per-work-unit checkpoints;
 - validated resume;
-- source/model/stream/preprocessing/execution contract binding;
+- source/model/stream/preprocessing/execution/alignment contract binding;
+- aligned word evidence persisted through checkpoint/resume;
 - contiguous-prefix checkpoint semantics;
 - cleanup of speculative/derived work without masking primary failures; and
 - durable lifecycle evidence around long-running work.
@@ -102,8 +109,10 @@ The system currently supports:
 - multilingual faster-whisper decoding;
 - conservative local text-language attribution that may leave ambiguous text unlabeled;
 - optional recording-scoped anonymous speaker diarization;
-- deterministic speaker-label normalization; and
-- conservative speaker projection that refuses ambiguous multi-speaker ASR segments.
+- deterministic speaker-label normalization;
+- word-level projection when native word timing exists; and
+- conservative segment labeling that remains null across mixed speaker handoffs or
+  ambiguous overlap.
 
 The diarization path is **integrated but security-held** while its locked Lightning
 dependency is affected by the compensated CVE-2026-58659/PYSEC-2026-3624 advisory.
@@ -113,11 +122,14 @@ EchoFlow fails closed before pyannote execution/acquisition while that gate is a
 
 Canonical JSON is authoritative transcript evidence.
 
-It carries source and execution provenance, source-relative timestamps, language
-evidence, optional enhancement provenance, and optional speaker-turn evidence.
+It carries source and execution provenance, source-relative segment and word timestamps,
+language evidence, optional enhancement provenance, and optional speaker-turn/word
+speaker evidence.
 
-TXT, SRT, and WebVTT are deterministic publication views that can be regenerated without
-rerunning recognition.
+TXT, SRT, and WebVTT remain deterministic segment-oriented publication views that can be
+regenerated without rerunning recognition. More expressive intra-segment speaker
+presentation belongs to the later speaker-UX tranche rather than being smuggled into the
+alignment work.
 
 ### Transcript library and retrieval
 
@@ -137,6 +149,10 @@ The local library now includes:
 - reciprocal-rank hybrid BM25 + dense retrieval;
 - one evidence-bearing `SearchResponse` with lexical/semantic/fused ranks; and
 - corpus-fingerprint stale-vector refusal when canonical transcript bytes change.
+
+Nested word timing is additional canonical evidence. Current lexical/semantic projection
+continues indexing segment text once; later highlighting and jump-to-audio UX can use the
+finer coordinates without changing retrieval ranking semantics.
 
 Semantic search is currently an advanced optional capability because the locked project
 dependency graph does not yet include Sentence Transformers. Lexical search remains the
@@ -177,39 +193,12 @@ into a research library.
 
 # Near-term product sequence
 
-The next features should make evidence **finer, easier to navigate, and easier to name**
-before EchoFlow adds heavier generative/audio-processing machinery.
+Word timing now gives EchoFlow a finer canonical evidence coordinate below the ASR
+segment. The next features should **add source clocks, improve how humans see speaker
+evidence, and then exploit those coordinates in the research workspace** before heavier
+source-separation machinery arrives.
 
-## 1. Word/timestamp alignment
-
-**Likely next feature.**
-
-Current canonical ASR segments are durable evidence coordinates, but they are often too
-coarse for precise highlighting, speaker handoffs, annotations, and jump-to-audio.
-
-Alignment should add finer timestamp evidence without rewriting raw ASR truth.
-
-Primary uses:
-
-- word/phrase highlighting in search results;
-- precise jump-to-audio;
-- finer speaker attribution near handoffs;
-- better handling of partially overlapping turns;
-- durable annotation anchors smaller than an entire ASR segment; and
-- improved subtitle/transcript interaction in a future GUI.
-
-### Architectural direction
-
-Alignment should be an **enrichment capability** over canonical transcript/audio
-evidence.
-
-Its output must record provider/model/version/revision as applicable and remain traceable
-to canonical segments and source-relative time.
-
-A neural model-backed aligner must reuse the model-custody family rather than inventing
-a hidden download path.
-
-## 2. Original-media timecode and capture-time provenance
+## 1. Original-media timecode and capture-time provenance
 
 EchoFlow currently exposes one clear canonical clock: elapsed source-relative seconds
 from the selected audio origin.
@@ -230,9 +219,11 @@ These should be typed parallel provenance, not collapsed into an ambiguous `time
 field.
 
 The design should distinguish “metadata exists” from “metadata is trustworthy enough to
-map onto the transcript.”
+map onto the transcript.” Word timing should remain expressed in canonical elapsed time,
+with additional media clocks providing mappings rather than replacing that coordinate
+system.
 
-## 3. Better speaker UX: overlap + user-assigned display labels
+## 2. Better speaker UX: overlap + user-assigned display labels
 
 Anonymous diarization evidence should remain anonymous-by-default and recording-scoped.
 
@@ -247,30 +238,34 @@ speaker-02 → Interviewer
 Those labels are **user-authored state**. They must not be disposable search/index
 metadata and should not rewrite the underlying anonymous speaker-turn evidence.
 
-Overlap handling should also improve in presentation:
+Word alignment already lets EchoFlow preserve an intra-segment handoff without forcing
+one segment-level speaker. The next presentation layer should make that evidence useful
+to a human:
 
+- render word/fine-grained handoffs legibly;
 - preserve multiple active speaker refs where evidence supports overlap;
-- use word/fine alignment where available;
-- avoid forcing one speaker label onto genuinely ambiguous text; and
-- render overlap clearly in human/GUI views.
+- avoid forcing one speaker label onto genuinely ambiguous text;
+- let users assign display labels over stable anonymous refs; and
+- keep those labels durable and separate from rebuildable indexes.
 
-## 4. Search/research workspace UX
+## 3. Search/research workspace UX over aligned coordinates
 
-The retrieval engine now supports lexical, semantic, and hybrid ranking. Real corpus use
-should drive the next interface layer:
+The retrieval engine now supports lexical, semantic, and hybrid ranking, while canonical
+transcripts now have finer word timing coordinates. Real corpus use should drive the next
+interface layer:
 
-- better snippets/highlighting;
+- exact phrase/word highlighting inside a retrieved passage;
 - result-context expansion;
 - facets;
 - exportable result sets;
 - precise jump-to-audio;
 - saved searches/collections; and
-- durable tags, notes, and annotations.
+- durable tags, notes, and annotations anchored to durable evidence coordinates.
 
 The ownership rule is non-negotiable: user-authored state does not share deletion
 semantics with rebuildable indexes.
 
-## 5. Qualify semantic dependency and managed embedding custody
+## 4. Qualify semantic dependency and managed embedding custody
 
 Before semantic search is advertised as a normal source install, qualify a locked
 optional semantic dependency set.
@@ -288,7 +283,7 @@ Target direction:
 
 Do not bypass `uv.lock` coherence to make the feature look more finished.
 
-## 6. Representative-device and enhancement qualification
+## 5. Representative-device and enhancement qualification
 
 Collect repeated benchmark evidence from at least:
 
@@ -307,30 +302,29 @@ Calibrate from measurements, not hardware marketing names.
 # Beginner-ready milestone
 
 The backend is already beginner-oriented in many internal decisions: resource discovery,
-model custody, recovery, provenance, and search are designed so the user does **not**
-need to manually operate those systems.
+model custody, recovery, provenance, alignment, and search are designed so the user does
+**not** need to manually operate those systems.
 
 But a beginner-friendly product also needs a beginner-friendly delivery surface.
 
 A reasonable pre-1.0 usability milestone is:
 
-1. word/fine alignment for precise evidence navigation;
-2. richer media time provenance;
-3. clearer speaker labels/overlap behavior;
-4. semantic dependency/model setup that no longer requires advanced manual environment
+1. richer original-media time provenance;
+2. clearer speaker labels/overlap behavior over aligned evidence;
+3. semantic dependency/model setup that no longer requires advanced manual environment
    preparation;
-5. representative qualification on ordinary hardware;
-6. polished error/recovery language;
-7. an installer/package path that does not require a developer environment; and
-8. a thin graphical shell over the existing application services.
+4. representative qualification on ordinary hardware;
+5. polished error/recovery language;
+6. an installer/package path that does not require a developer environment; and
+7. a thin graphical shell over the existing application services.
 
 The GUI should be a presentation adapter, not a second implementation of transcription,
 search, or model policy.
 
 # Later capability: speech/source separation for overlapping speakers
 
-Source separation is valuable, but it is intentionally **later** than better alignment
-and overlap representation.
+Source separation is valuable, but it is intentionally **later** than alignment and
+honest overlap representation.
 
 Separating mixed speech into estimated source signals adds:
 
@@ -355,7 +349,7 @@ but unqualified checkbox.
 
 Use real multi-recording corpora to exercise:
 
-- interruption/resume;
+- interruption/resume with aligned word evidence;
 - stale-process reconciliation;
 - progress rendering;
 - accelerator re-admission;
@@ -404,8 +398,9 @@ actual persisted fixtures from that boundary.
 
 Interesting later investigations include:
 
+- independent forced alignment or phoneme-level timing if native word timing proves
+  insufficient for a real use case;
 - finer intra-clause/romanized language attribution;
-- richer original-media capture/timecode provenance;
 - improved overlap rendering and source separation;
 - alternative qualified multilingual embedding models;
 - character n-gram/fuzzy retrieval for ASR names/acronyms/misspellings;

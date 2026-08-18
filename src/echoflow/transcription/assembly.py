@@ -1,6 +1,8 @@
 import math
 from collections.abc import Sequence
+from dataclasses import replace
 
+from echoflow.transcription.alignment import AlignedWord, aligned_words
 from echoflow.transcription.errors import TranscriptionError
 from echoflow.transcription.models import (
     AudioSegmentWindow,
@@ -83,8 +85,9 @@ class TranscriptAssembler:
                 )
             previous = window
 
-    @staticmethod
+    @classmethod
     def _append_window(
+        cls,
         output: list[RecognizedSegment],
         window: AudioSegmentWindow,
         result: EngineTranscript,
@@ -114,18 +117,37 @@ class TranscriptAssembler:
                 end_seconds = window.end_seconds
             else:
                 end_seconds = window.start_seconds + segment.end_seconds
-            output.append(
-                RecognizedSegment(
+
+            words = tuple(
+                cls._rebase_word(word, window) for word in aligned_words(segment)
+            )
+            if words:
+                rebased = replace(
+                    segment,
                     index=len(output),
                     start_seconds=start_seconds,
                     end_seconds=end_seconds,
-                    text=segment.text,
-                    average_log_probability=segment.average_log_probability,
-                    no_speech_probability=segment.no_speech_probability,
-                    detected_language=segment.detected_language,
-                    language_probability=segment.language_probability,
-                    language=segment.language,
-                    language_spans=segment.language_spans,
-                    speaker_ref=segment.speaker_ref,
+                    words=words,
                 )
-            )
+            else:
+                rebased = replace(
+                    segment,
+                    index=len(output),
+                    start_seconds=start_seconds,
+                    end_seconds=end_seconds,
+                )
+            output.append(rebased)
+
+    @staticmethod
+    def _rebase_word(word: AlignedWord, window: AudioSegmentWindow) -> AlignedWord:
+        return AlignedWord(
+            start_seconds=min(
+                window.end_seconds, window.start_seconds + word.start_seconds
+            ),
+            end_seconds=min(
+                window.end_seconds, window.start_seconds + word.end_seconds
+            ),
+            text=word.text,
+            probability=word.probability,
+            speaker_ref=word.speaker_ref,
+        )

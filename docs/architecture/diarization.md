@@ -133,44 +133,57 @@ features.
 
 ## Why EchoFlow is conservative about putting a speaker name on text
 
-ASR segments and diarization turns are produced independently.
+ASR and diarization still come from independent evidence streams. Word-level timing
+simply gives EchoFlow finer coordinates for reconciling them.
 
-Without word-level alignment, one ASR segment may cross a speaker handoff or overlap two
-speakers. EchoFlow therefore assigns `RecognizedSegment.speaker_ref` only when exactly
-one unique diarized speaker overlaps that segment.
+When native word timing exists, EchoFlow compares **each word interval** with the
+speaker-turn timeline:
 
 ```text
-ASR segment overlaps speaker-01 only
-    → speaker_ref = speaker-01
+word overlaps speaker-01 only
+    → word.speaker_ref = speaker-01
 
-ASR segment crosses speaker-01 → speaker-02
-    → speaker_ref = null
+word overlaps speaker-01 + speaker-02
+    → word.speaker_ref = null
 
-ASR segment overlaps speaker-01 + speaker-02
-    → speaker_ref = null
+all words in one ASR segment resolve to speaker-01
+    → segment.speaker_ref = speaker-01
+
+words in one ASR segment resolve to speaker-01 → speaker-02
+    → segment.speaker_ref = null
 ```
 
-The exact speaker-turn timeline is still preserved when projection is ambiguous.
+If word evidence is absent, EchoFlow preserves the older conservative whole-segment
+rule: the segment gets a speaker only when exactly one unique diarized speaker overlaps
+that segment.
+
+The exact speaker-turn timeline is preserved either way.
 
 That refusal matters. It is better to preserve “we know these voices overlap here” than
 to confidently put the wrong speaker label in front of a sentence.
 
-## Why word/timestamp alignment is the next important seam ✨
+See [word-level timestamp alignment](word-alignment.md) for the timing, checkpoint, and
+source-relative assembly contract.
 
-Word-level or fine-grained timestamp alignment would give EchoFlow smaller evidence
-coordinates than an entire ASR segment.
+## What alignment now unlocks ✨
 
-That unlocks several improvements at once:
+Word timing lets EchoFlow stop treating a long ASR segment as the smallest practical
+text coordinate.
 
-- finer speaker attribution near handoffs;
-- better presentation of overlapping turns;
+The first payoff is already structural: a speaker handoff can be represented inside one
+recognized segment without assigning the entire segment to either person.
+
+The same evidence seam can later support:
+
 - precise transcript highlighting;
 - more exact jump-to-audio behavior;
-- durable annotations anchored to smaller evidence spans; and
+- durable annotations anchored to smaller evidence spans;
+- clearer overlap presentation; and
 - cleaner future speaker-label UX.
 
-Alignment does not solve every overlap problem, but it lets EchoFlow stop treating a
-long ASR segment as the smallest practical text unit.
+Alignment does **not** solve simultaneous speech. If two active speakers overlap the same
+word interval, the word remains unattributed. Later source separation may provide more
+evidence, but EchoFlow does not manufacture certainty in the meantime.
 
 ## User-assigned display labels without biometric identity
 
@@ -206,11 +219,11 @@ recording understandable.
 
 ## Better overlap handling before source separation
 
-Overlap deserves two distinct product steps.
+Overlap still deserves two distinct product steps.
 
-First, EchoFlow should improve **representation and presentation** of overlap using
-better temporal alignment, clearer multi-speaker evidence, and UI/export behavior that
-does not force one speaker when multiple voices are active.
+First, EchoFlow improves **representation and presentation** using finer word timing,
+explicit multi-speaker turn evidence, and UI/export behavior that does not force one
+speaker when multiple voices are active.
 
 Only later should EchoFlow consider **speech/source separation**, where the audio itself
 is decomposed into estimated sources before or during recognition.
@@ -223,25 +236,28 @@ recordings after the simpler evidence model is strong.
 
 ## Canonical and derived output behavior
 
-When a segment has one unambiguous `speaker_ref`, derived TXT/SRT/WebVTT views may prefix
-that anonymous speaker label.
+When every aligned word in a segment resolves to one anonymous speaker, the segment can
+retain that same `speaker_ref` as a convenience label and derived TXT/SRT/WebVTT views
+may prefix it.
 
-Ambiguous segments remain unlabeled. Export rendering never changes timestamps or
-becomes canonical custody.
+Mixed or ambiguous segments remain unlabeled at the segment level even when some words
+have useful speaker evidence. Export rendering never changes timestamps or becomes
+canonical custody.
 
 Future user-assigned display labels should remain a presentation layer over stable
 anonymous speaker references and durable transcript coordinates.
 
 ## Qualification boundary
 
-The current deterministic test surface covers:
+The deterministic test surface covers:
 
 - adapter/cache-only versus download policy;
 - telemetry-disable behavior;
 - deterministic label normalization;
 - canonical schema integration;
 - executor integration;
-- conservative speaker projection;
+- conservative word/segment speaker projection;
+- mixed-speaker handoffs and ambiguous word overlap;
 - derived exports; and
 - the fail-closed Lightning security gate.
 
@@ -260,7 +276,7 @@ This capability does not currently provide:
 - biometric speaker identification;
 - cross-recording speaker linking;
 - user-assigned display labels;
-- guaranteed word-level speaker attribution;
+- a guarantee that engine word timing or diarization is always correct;
 - polished overlap presentation;
 - simultaneous-speaker/source separation; or
 - a claim that the dependency footprint is suitable for every low-memory device.

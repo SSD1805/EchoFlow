@@ -10,6 +10,7 @@ For the narrower contracts, see:
 
 - [adaptive heterogeneous execution](adaptive-heterogeneous-execution.md);
 - [media and timeline](media-and-timeline.md);
+- [word-level timestamp alignment](word-alignment.md);
 - [model management](model-management.md);
 - [speech enhancement](speech-enhancement.md);
 - [diarization](diarization.md); and
@@ -37,7 +38,7 @@ flowchart LR
     C --> D[Build immutable plan]
     D --> E[Normalize / enhance if needed]
     E --> F[Segment + local ASR]
-    F --> G[Checkpoint ordered work]
+    F --> G[Word timing + ordered checkpoints]
     G --> H[Language + optional speaker evidence]
     H --> I[Canonical transcript]
     I --> J[Derived exports]
@@ -137,7 +138,7 @@ accepting the derivative so preprocessing cannot quietly shift the transcript ti
 Anonymous diarization deliberately continues to read the unmodified canonical decode in
 enhancement v1.
 
-## 6. Segmentation and checkpointing: make interruption survivable
+## 6. Segmentation, word timing, and checkpointing: make interruption survivable
 
 EchoFlow owns deterministic segmentation:
 
@@ -148,18 +149,27 @@ EchoFlow owns deterministic segmentation:
 - one job-scoped ASR session; and
 - strictly ordered checkpoint commits.
 
+The faster-whisper session requests native word timestamps. Each engine-produced word is
+validated inside its ASR segment and later rebased from work-window time onto the same
+source-relative timeline as the canonical segment.
+
+Per-window checkpoints persist that word evidence. The checkpoint manifest records an
+explicit alignment identity so a pre-alignment checkpoint cannot silently resume into a
+partially aligned transcript.
+
 Accelerated execution may materialize at most one future segment while the current one
 is being inferred.
 
 A completed checkpoint set must remain a contiguous prefix of the deterministic work
 plan.
 
-Resume restores the original source/model/device/decode/enhancement/segmentation contract
-and re-admits current resources.
+Resume restores the original source/model/device/decode/enhancement/segmentation and
+alignment contract and re-admits current resources.
 
-## 7. Recognition and multilingual attribution
+## 7. Recognition, word alignment, and multilingual attribution
 
-The faster-whisper backend performs managed local ASR.
+The faster-whisper backend performs managed local ASR and preserves its native per-word
+timing evidence. EchoFlow does not run a separate forced-alignment model in this tranche.
 
 With no explicit language, the current multilingual behavior can reconsider language
 within durable work units rather than latching one job-wide acoustic prompt forever.
@@ -178,24 +188,28 @@ The current pyannote capability is security-gated because the locked Lightning
 dependency is affected by a compensated advisory. EchoFlow refuses the vulnerable path
 before pyannote import/model acquisition.
 
-When operationally qualified, diarization contributes an exact speaker-turn timeline
-and conservative per-segment speaker references.
+When operationally qualified, diarization contributes an exact speaker-turn timeline.
+Word timing now gives projection a finer evidence coordinate than an entire ASR segment:
+a word receives a speaker only when exactly one diarized speaker overlaps its interval.
 
-The next useful seam is finer word/timestamp alignment, which can improve handoff and
-overlap projection without pretending the underlying speaker evidence is more certain
-than it is.
+The enclosing segment keeps a convenience `speaker_ref` only when every aligned word is
+attributed to the same speaker. Mixed handoffs and ambiguous overlap therefore remain
+explicit instead of being flattened into one guessed label.
 
 ## 9. Canonical transcript and derived exports
 
 Canonical JSON is authoritative transcript evidence.
 
 The current contract records source/stream provenance, execution plan identity,
-managed model revision, timestamps, language evidence, optional enhancement provenance,
-and optional diarization evidence.
+managed model revision, source-relative segment timestamps, nested source-relative word
+timing evidence, language evidence, optional enhancement provenance, and optional
+diarization evidence.
 
-TXT, SRT, and WebVTT are deterministic publication views.
+TXT, SRT, and WebVTT remain deterministic segment-oriented publication views.
 
-They are useful. They are not recognition truth.
+They are useful. They are not recognition truth. More expressive word/speaker rendering
+belongs to later presentation work rather than quietly changing caption semantics in the
+alignment tranche.
 
 ## 10. Transcript library and search 🦝
 
@@ -211,6 +225,10 @@ refusal.
 
 `TranscriptSearch` can combine lexical and semantic ranks with RRF while preserving
 lexical, semantic, and fused provenance in one evidence-bearing `SearchResponse`.
+
+The current search projection deliberately ignores nested word evidence and indexes
+canonical segment text once. Future highlighting/jump-to-audio UX may consume word
+coordinates without changing the ranking contract.
 
 Search infrastructure must never become the only home of future user-authored notes,
 labels, tags, collections, or annotations.
@@ -243,9 +261,9 @@ erasure.
 | `FfmpegAudioDecoder` | selected-stream canonicalization | enhancement |
 | `FfmpegAfftdnEnhancer` | optional noise suppression | source authority |
 | `WaveAudioSegmenter` | exact work windows/materialization | recognition |
-| `FasterWhisperSession` | local ASR recognition | model download |
-| `LocalCheckpointStore` | private resumable evidence | public artifacts |
-| `TranscriptAssembler` | source-relative assembly | filesystem policy |
+| `FasterWhisperSession` | local ASR + native word timing | model download or forced alignment |
+| `LocalCheckpointStore` | private resumable segment/word evidence | public artifacts |
+| `TranscriptAssembler` | source-relative segment/word assembly | filesystem policy |
 | `LinguaLanguageAttributor` | conservative text-language labels | acoustic decoding |
 | `SpeakerDiarizer` | anonymous speaker-turn evidence | biometric identity |
 | `TranscriptExporter` | derived TXT/SRT/VTT | recognition truth |
@@ -268,6 +286,7 @@ EchoFlow does not currently claim:
 - every visible accelerator is useful/faster;
 - alternate ASR engines;
 - arbitrary word-level code-switch attribution;
+- independent forced alignment or phoneme-level timing;
 - biometric speaker identity;
 - user-assigned speaker display labels;
 - polished overlap handling;
@@ -275,7 +294,6 @@ EchoFlow does not currently claim:
 - generative restoration;
 - automatic enhancement selection;
 - original SMPTE/container/capture-time provenance beyond source-relative elapsed time;
-- word-level alignment;
 - storage durability across sudden power loss;
 - malicious same-user TOCTOU resistance;
 - secure erasure;
@@ -286,12 +304,13 @@ EchoFlow does not currently claim:
 
 ## What is becoming the next product layer?
 
-The backend foundation is broad. The next high-value work is increasingly about making
-evidence **finer and easier to navigate**:
+Word timing establishes the first finer-grained evidence coordinate below an ASR segment.
+The next high-value work is increasingly about using and extending that evidence:
 
-1. word/timestamp alignment;
-2. original-media timecode and capture-time provenance;
-3. better speaker overlap presentation and user-assigned display labels; and
+1. original-media timecode and capture-time provenance;
+2. better speaker overlap presentation and user-assigned display labels;
+3. search highlighting, precise jump-to-audio, and durable annotation UX over aligned
+   coordinates; and
 4. later, source separation for genuinely overlapping speech when evidence and measured
    benefit justify the additional model/compute complexity.
 

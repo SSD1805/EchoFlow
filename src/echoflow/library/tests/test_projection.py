@@ -31,6 +31,15 @@ def _document() -> dict[str, object]:
                 "language": "fr",
                 "detected_language": "en",
                 "speaker_ref": "speaker-01",
+                "words": [
+                    {
+                        "start_seconds": 0.0,
+                        "end_seconds": 1.0,
+                        "text": " hello",
+                        "probability": 0.91,
+                        "speaker_ref": "speaker-01",
+                    }
+                ],
             },
             {
                 "segment_id": "segment-000001",
@@ -67,6 +76,7 @@ def test_projection_extracts_only_searchable_canonical_evidence(tmp_path: Path) 
     assert indexed.source_path == str(source.resolve())
     assert [segment.language for segment in indexed.segments] == ["fr", "de", "en"]
     assert indexed.segments[0].speaker_ref == "speaker-01"
+    assert indexed.segments[0].text == "hello"
 
 
 def test_projection_accepts_unknown_source_path(tmp_path: Path) -> None:

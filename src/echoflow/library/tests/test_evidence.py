@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from echoflow.interfaces.local_file_manager import LocalFileManager
-from echoflow.library.evidence import EvidenceLocator
 from echoflow.library.errors import EvidenceNavigationError
+from echoflow.library.evidence import EvidenceLocator
 from echoflow.library.index import SearchQuery
 from echoflow.library.retrieval import RetrievalMode, SearchPassage, SearchResponse
 from echoflow.library.semantic import EmbeddingProfile

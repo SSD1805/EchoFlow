@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from echoflow.library.index import EvidenceScopeKey
 from echoflow.library.research_state import ResearchProjectionRecord
+
+
+type EvidenceScopeKey = tuple[str, str, str]
 
 
 @dataclass(frozen=True, slots=True)

@@ -311,7 +311,10 @@ class LocalCheckpointStore:
             enhancement = cast("dict[str, object]", contract["enhancement"])
             segmentation = cast("dict[str, object]", contract["segmentation"])
             resources = cast("dict[str, object]", contract["resources"])
-            if int(cast("int", alignment["schema_version"])) != _ALIGNMENT_SCHEMA_VERSION:
+            if (
+                int(cast("int", alignment["schema_version"]))
+                != _ALIGNMENT_SCHEMA_VERSION
+            ):
                 raise ValueError("unsupported word-alignment schema version")
             if alignment["word_timestamps"] is not True:
                 raise ValueError("word alignment must remain enabled for resume")

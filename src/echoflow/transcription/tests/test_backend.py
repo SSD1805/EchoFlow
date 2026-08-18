@@ -122,7 +122,10 @@ def test_local_cpu_session_uses_exact_managed_plan_and_consumes_generator(tmp_pa
         " hello",
         " world",
     ]
-    assert [item.probability for item in aligned_words(result.segments[0])] == [0.9, 0.8]
+    assert [item.probability for item in aligned_words(result.segments[0])] == [
+        0.9,
+        0.8,
+    ]
     assert result.language == "en"
     assert result.language_probability == 0.95
     assert result.engine_version == "1.2.1"

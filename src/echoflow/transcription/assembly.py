@@ -123,7 +123,7 @@ class TranscriptAssembler:
                 end_seconds = window.start_seconds + segment.end_seconds
 
             if isinstance(segment, AlignedRecognizedSegment):
-                rebased = replace(
+                aligned_rebased = replace(
                     segment,
                     index=len(output),
                     start_seconds=start_seconds,
@@ -133,14 +133,16 @@ class TranscriptAssembler:
                         for word in aligned_words(segment)
                     ),
                 )
-            else:
-                rebased = replace(
-                    segment,
-                    index=len(output),
-                    start_seconds=start_seconds,
-                    end_seconds=end_seconds,
-                )
-            output.append(rebased)
+                output.append(aligned_rebased)
+                continue
+
+            base_rebased = replace(
+                segment,
+                index=len(output),
+                start_seconds=start_seconds,
+                end_seconds=end_seconds,
+            )
+            output.append(base_rebased)
 
     @staticmethod
     def _rebase_word(word: AlignedWord, window: AudioSegmentWindow) -> AlignedWord:

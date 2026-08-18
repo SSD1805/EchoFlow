@@ -88,7 +88,9 @@ def test_sqlite_crud_preserves_relationships_order_and_outbox(tmp_path: Path) ->
     assert len(first.tag_ids) == 2
     assert len(first.collection_ids) == 1
     assert state.notes_by_ids(("note-2", "note-1")) == (second, first)
-    assert tuple(note.note_id for note in state.notes(document_id="job-1")) == ("note-1",)
+    assert tuple(note.note_id for note in state.notes(document_id="job-1")) == (
+        "note-1",
+    )
     assert state.notes_by_ids(("missing", "note-1")) == (first,)
 
     updated = state.update_note("note-1", "Revised observation")
@@ -108,7 +110,11 @@ def test_sqlite_crud_preserves_relationships_order_and_outbox(tmp_path: Path) ->
     assert state.resolve_tag_ids(("does-not-exist",)) is None
     assert state.resolve_collection_ids(("does-not-exist",)) is None
     assert state.current_sequence() == 5
-    assert [change.sequence_id for change in state.changes_after(2, limit=10)] == [3, 4, 5]
+    assert [change.sequence_id for change in state.changes_after(2, limit=10)] == [
+        3,
+        4,
+        5,
+    ]
 
     state.delete_note("note-1")
 
@@ -120,7 +126,9 @@ def test_sqlite_crud_preserves_relationships_order_and_outbox(tmp_path: Path) ->
     )
 
 
-def test_sqlite_duplicate_create_rolls_back_user_state_and_journal(tmp_path: Path) -> None:
+def test_sqlite_duplicate_create_rolls_back_user_state_and_journal(
+    tmp_path: Path,
+) -> None:
     state = _state(tmp_path)
     original = state.create_note(_anchor(), "Original", note_id="note-1")
 
@@ -215,7 +223,9 @@ def test_sqlite_detects_unsupported_schema_and_corrupt_database(tmp_path: Path) 
     assert state.current_sequence() == 0
 
     with sqlite3.connect(path) as connection:
-        connection.execute("UPDATE metadata SET schema_version = 999 WHERE singleton = 1")
+        connection.execute(
+            "UPDATE metadata SET schema_version = 999 WHERE singleton = 1"
+        )
         connection.commit()
 
     with pytest.raises(ResearchStateError, match="schema is unsupported"):
@@ -231,7 +241,9 @@ def test_sqlite_detects_unsupported_schema_and_corrupt_database(tmp_path: Path) 
         )
 
 
-def test_duckdb_projection_composes_filters_summaries_and_deletion(tmp_path: Path) -> None:
+def test_duckdb_projection_composes_filters_summaries_and_deletion(
+    tmp_path: Path,
+) -> None:
     state = _state(tmp_path)
     projection = _projection(tmp_path)
     note_1 = state.create_note(
@@ -273,12 +285,13 @@ def test_duckdb_projection_composes_filters_summaries_and_deletion(tmp_path: Pat
             require_notes=True,
         )
     ) == ("note-1",)
-    assert projection.matching_note_ids(
-        ResearchProjectionFilter(document_ids=("job-2",), note_text="methodology")
-    ) == ()
-    assert projection.matching_note_ids(
-        ResearchProjectionFilter(note_text="!!!")
-    ) == ()
+    assert (
+        projection.matching_note_ids(
+            ResearchProjectionFilter(document_ids=("job-2",), note_text="methodology")
+        )
+        == ()
+    )
+    assert projection.matching_note_ids(ResearchProjectionFilter(note_text="!!!")) == ()
 
     keys = (
         ("job-1", "1" * 64, "segment-000041"),
@@ -332,9 +345,9 @@ def test_duckdb_projection_transactions_preserve_previous_state_on_invalid_batch
         projection.rebuild((record, duplicate), through_sequence=5)
 
     assert projection.projected_through_sequence() == 4
-    assert projection.matching_note_ids(ResearchProjectionFilter(require_notes=True)) == (
-        "note-1",
-    )
+    assert projection.matching_note_ids(
+        ResearchProjectionFilter(require_notes=True)
+    ) == ("note-1",)
 
 
 def test_duckdb_projection_clear_close_and_schema_guards(tmp_path: Path) -> None:
@@ -351,7 +364,9 @@ def test_duckdb_projection_clear_close_and_schema_guards(tmp_path: Path) -> None
 
     projection.clear()
     assert projection.projected_through_sequence() == 0
-    assert projection.matching_note_ids(ResearchProjectionFilter(require_notes=True)) == ()
+    assert (
+        projection.matching_note_ids(ResearchProjectionFilter(require_notes=True)) == ()
+    )
     projection.close()
     projection.close()
     with pytest.raises(ResearchProjectionError, match="closed"):
@@ -368,7 +383,9 @@ def test_duckdb_projection_clear_close_and_schema_guards(tmp_path: Path) -> None
         )
 
 
-def test_projector_batches_to_convergence_compacts_and_then_noops(tmp_path: Path) -> None:
+def test_projector_batches_to_convergence_compacts_and_then_noops(
+    tmp_path: Path,
+) -> None:
     state = _state(tmp_path)
     projection = _projection(tmp_path)
     state.create_note(_anchor(), "one", note_id="note-1")

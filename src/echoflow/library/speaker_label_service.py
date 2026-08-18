@@ -84,18 +84,16 @@ class SpeakerLabelService:
         speaker_refs: tuple[str, ...],
     ) -> dict[str, str]:
         """Resolve only labels bound to the exact evidence generation in a result."""
-        return {
-            speaker_ref: label
-            for speaker_ref in speaker_refs
-            if (
-                label := self.store.resolve(
-                    document_id=document_id,
-                    canonical_sha256=canonical_sha256,
-                    speaker_ref=speaker_ref,
-                )
+        resolved: dict[str, str] = {}
+        for speaker_ref in speaker_refs:
+            label = self.store.resolve(
+                document_id=document_id,
+                canonical_sha256=canonical_sha256,
+                speaker_ref=speaker_ref,
             )
-            is not None
-        }
+            if label is not None:
+                resolved[speaker_ref] = label
+        return resolved
 
     def _document(self, document_id: str) -> IndexedDocument:
         document = next(

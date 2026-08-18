@@ -151,7 +151,9 @@ def test_manifest_restores_original_execution_settings_without_local_paths(tmp_p
     assert restored_engine.model_cache_path == (tmp_path / "new-model-cache").resolve()
 
 
-def test_completed_segment_round_trips_with_detected_language_and_word_alignment(tmp_path):
+def test_completed_segment_round_trips_with_detected_language_and_word_alignment(
+    tmp_path,
+):
     store, job, plan, windows, _ = context(tmp_path)
     store.initialize(job, plan, windows)
     store.save_segment(job, plan, windows, windows[0], result("sensitive words"))

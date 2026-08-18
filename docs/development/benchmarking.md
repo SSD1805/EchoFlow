@@ -3,17 +3,15 @@
 EchoFlow's resource estimates and relative strategy ranks are intentionally conservative
 heuristics until real machines prove them right or wrong.
 
-The benchmarking subsystem exists to collect that evidence **without creating a second
-transcription implementation**.
-
-The important separation is:
+The existing benchmarking subsystem collects transcription evidence **without creating a
+second transcription implementation**. The next performance work extends the same
+measurement philosophy to the library and research workspace rather than adding policy by
+vibes.
 
 > **Benchmarks describe what happened. A later reviewed policy change decides whether
-> those observations justify different planner behavior.**
+> those observations justify different application behavior.**
 
-One fast laptop run does not get to rewrite the product's memory policy by vibes.
-
-## Quick start
+## Quick start: transcription benchmark
 
 ASR models must already be installed through normal model management. Benchmarking never
 authorizes a hidden faster-whisper download.
@@ -29,37 +27,34 @@ Measure a resumed attempt separately:
 uv run python -m echoflow.benchmarking /path/to/recording.wav --resume JOB_ID
 ```
 
-The harness is experimental. Once its schema and behavior survive real-device use, it
-may graduate into the primary `echoflow` command surface.
+The harness is experimental. Once its schema and behavior survive real-device use, it may
+graduate into the primary `echoflow` command surface.
 
 ## What problem are we trying to solve?
 
-The planner currently estimates whether a strategy fits and ranks eligible choices.
-Those estimates should become better because of **measured behavior on representative
-machines**, not because somebody remembers that one GPU sounded fast in a product page.
+There are now two performance questions.
+
+**Execution performance:** does a chosen transcription strategy fit the machine and
+complete at an acceptable cost?
+
+**Workspace performance:** does a growing local evidence library remain interactive when
+it is refreshed, searched, filtered through research state, projected, and eventually
+used through a GUI?
+
+Neither should be tuned from one heroic laptop run.
 
 ```mermaid
 flowchart LR
-    A[Planner prediction] --> B[Real execution]
-    B --> C[Local benchmark report]
-    C --> D[Compare predicted vs observed]
-    D --> E[Reviewed calibration change]
+    A[Conservative prediction] --> B[Representative workload]
+    B --> C[Measured result]
+    C --> D[Compare expected and observed]
+    D --> E[Reviewed calibration or optimization]
     E --> A
-
-    classDef predict fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-    classDef measure fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
-    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
-    classDef policy fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
-
-    class A predict
-    class B measure
-    class C,D evidence
-    class E policy
 ```
 
-## What one benchmark report records
+## What one transcription benchmark records
 
-A report describes one execution attempt and currently includes:
+A current report describes one execution attempt and includes:
 
 - EchoFlow and Python versions;
 - path-minimized source provenance: SHA-256, size, modification timestamp, container,
@@ -73,22 +68,10 @@ A report describes one execution attempt and currently includes:
 - aggregate named execution-stage durations/failure counts;
 - segment totals/restored/completed counts when available;
 - canonical transcript artifact size after successful publication; and
-- the ratio between observed peak process-tree RSS and the planner's peak-memory
-  estimate.
+- the ratio between observed peak process-tree RSS and the planner's peak-memory estimate.
 
 Repeated stages are named aggregates rather than fixed columns. Future capabilities can
-add stages such as:
-
-```text
-enhancement.apply
-speaker.diarize
-alignment
-embedding.index
-search.index
-gpu.transfer
-```
-
-without redesigning the benchmark schema.
+add stages without redesigning the report schema.
 
 CPU percentages may exceed 100% because sampled process-tree CPU is summed across cores.
 RSS is also summed across the process tree and may conservatively double-count shared
@@ -98,71 +81,49 @@ pages. These are comparative measurements, not perfect OS accounting.
 
 Benchmarking does not transmit reports. EchoFlow has no benchmark telemetry.
 
-Reports are user-owned JSON files in the selected output directory.
+Reports are user-owned JSON files in the selected output directory. They intentionally
+omit source paths/filenames, model-cache paths, transcript text, research-note text, and
+exception messages unless a future benchmark explicitly requires and documents such
+content.
 
-They intentionally omit:
+They retain source digest and enough provenance to compare equivalent runs. A source
+digest can still be linkable if another party has the same recording, so a benchmark
+report from sensitive media is not automatically anonymous.
 
-- source paths/filenames;
-- model-cache paths;
-- transcript text; and
-- exception messages.
-
-They retain source digest and enough provenance to compare equivalent runs.
-
-A source digest can still be linkable if another party has the same recording, so a
-benchmark report from sensitive media is not automatically anonymous.
-
-Public sharing should use synthetic/redistributable media or a future deliberately
-shareable report format with reduced provenance.
+Public sharing should use synthetic/redistributable media or a deliberately shareable
+report format with reduced provenance.
 
 ## Interruption and resume
 
-Ctrl+C and ordinary Python-level failures persist a partial benchmark report before exit
-when finalization can run.
+Ctrl+C and ordinary Python-level failures persist a partial transcription benchmark report
+before exit when finalization can run.
 
-The report marks the attempt interrupted/failed, includes only the exception type, and
-preserves measurements already recorded.
-
-The transcription checkpoint contract remains authoritative for recovery. Completed
-segments are checkpointed before they count as complete.
-
-A later `--resume` benchmark therefore measures the resumed attempt without redefining
-resume semantics.
+The transcription checkpoint contract remains authoritative for recovery. A later
+`--resume` benchmark measures the resumed attempt without redefining resume semantics.
 
 Hard kills, power loss, kernel termination, or machine crashes cannot run benchmark
 finalization code, so a final benchmark report is not promised for those cases. Durable
-transcription checkpoints/lifecycle state remain the recovery evidence.
+checkpoint/lifecycle state remains the recovery evidence.
 
 ## Three qualification layers
 
 ### 1. Deterministic unit and contract tests
 
-These prove the measurement machinery itself behaves correctly:
-
-- normal transcription uses a no-op observer without semantic changes;
-- repeated stage measurements aggregate correctly;
-- failed stages are recorded without swallowing the primary error;
-- reports omit sensitive paths/transcript text;
-- interruption/failure produce partial reports;
-- process-tree sampling tolerates disappearing child processes;
-- resume uses the checkpointed current contract; and
-- invalid report/schema values fail closed.
+These prove the measurement machinery itself behaves correctly: observers do not change
+product semantics, repeated stages aggregate, failures do not swallow primary errors,
+reports respect privacy minimization, and invalid report values fail closed.
 
 ### 2. Cross-platform CI
 
-Linux, macOS, and Windows GitHub Actions runners exercise tests, packaging,
-clean-wheel behavior, psutil sampling, file handling, native media tools, and CLI
-contracts.
+Linux, macOS, and Windows GitHub Actions exercise tests, packaging, clean-wheel behavior,
+file handling, native media tools, and CLI contracts.
 
-Hosted-runner timing is **not calibration truth**.
-
-Runner generations, virtualization, neighboring workloads, frequency policy, caches, and
-infrastructure can change outside the project. CI is useful for regression evidence, not
-for fitting device policy.
+Hosted-runner timing is **not calibration truth**. Runner generations, virtualization,
+neighboring workloads, caches, and infrastructure can change outside the project.
 
 ### 3. Representative real-device runs
 
-The initial physical matrix should include:
+The physical matrix should include at least:
 
 - an 8 GB Windows consumer machine;
 - a 16 GB commodity Windows/Linux machine;
@@ -170,84 +131,138 @@ The initial physical matrix should include:
 - a discrete-GPU laptop; and
 - a larger 32/64 GB workstation.
 
-For comparisons, hold constant the input bytes, EchoFlow version, managed model revision,
-profile/strategy, enhancement condition, and relevant configuration.
+For comparisons, hold constant relevant input bytes, EchoFlow version, model revision,
+strategy/profile, enhancement condition, corpus generation, and query set. Record
+cold/warm state and prefer repeated trials plus medians/spread over one fastest result.
 
-Record cold/warm cache state. Prefer repeated trials and medians/spread over one heroic
-fastest result.
-
-Thermal throttling, battery/power mode, background applications, storage speed, and OS
-updates are legitimate consumer conditions. Record them as experimental context when
-known instead of pretending they do not exist.
-
-🧜‍♀️ A benchmark without context is just a number wearing a lab coat.
+Thermal throttling, battery mode, background applications, storage speed, and OS updates
+are legitimate consumer conditions. Record them when known rather than pretending they do
+not exist.
 
 ## Raw ASR versus enhancement + ASR
 
 Noise suppression should be qualified by **transcription outcome and total cost**, not
-whether the processed file sounds nicer to a listener.
+whether the processed file sounds nicer.
 
-Use matched conditions:
+Use matched conditions with enhancement off/on under the same managed model/revision and
+strategy. Where reference transcripts exist, compare WER and, where useful, CER.
 
-1. the same managed model/revision/strategy with enhancement off;
-2. the same setup with `--enhance`; and
-3. repeated runs when variance matters.
+Also compare total/stage wall-clock time, real-time factor, CPU/RAM pressure, accelerator
+impact, private disk overhead, checkpoint/resume behavior, and failures across realistic
+acoustic conditions.
 
-Where reference transcripts exist, compare WER and, where useful, CER.
+The current FFmpeg `afftdn` provider is a fixed deterministic condition. Its existence is
+not a claim that it improves every recording.
 
-Also compare:
+## Library and research-workspace qualification
 
-- total/stage wall-clock time;
-- real-time factor;
-- CPU/RAM pressure;
-- accelerator impact;
-- private disk overhead;
-- checkpoint/resume behavior; and
-- failures on silence, clipping, stationary/non-stationary noise, music, and mixed
-  acoustic conditions.
+The merged research workspace creates a second measurement surface. The important tests
+are user-shaped workloads, not raw database microbenchmarks.
 
-The current FFmpeg `afftdn` provider is a fixed deterministic condition. Its existence in
-EchoFlow is not a claim that it improves every recording.
+### Corpus refresh
 
-An automatic enhancement mode should wait until measurements show a sufficiently
-reliable relationship between observable input conditions and end-to-end ASR benefit.
+Today `library rebuild` is an explicit full-repair path. The roadmap proposes incremental
+refresh keyed by stable transcript generation identity such as
+`(document_id, canonical_sha256)`.
 
-## Future alignment, diarization, search, and source-separation measurements
+Measure:
 
-The same observer/stage model can eventually measure newer capabilities without
-inventing parallel harnesses.
+- no-op refresh when nothing changed;
+- one new transcript;
+- one changed canonical generation;
+- one removed transcript;
+- batches of new/changed/removed transcripts; and
+- full rebuild of the same corpus as the comparison baseline.
 
-Useful future dimensions include:
+The goal is to prove that normal corpus growth avoids unnecessary work while full rebuild
+remains deterministic recovery.
 
-- alignment wall time and memory cost;
-- diarization real-time factor/peak memory after the security gate is cleared;
-- embedding-index build cost;
-- semantic-query latency at increasing corpus size;
-- exact-scan break-even points before considering ANN/HNSW; and
-- source-separation cost/recognition benefit on genuine overlap cases.
+### Search and unified discovery
 
-Source separation in particular should be judged on end-to-end evidence quality, not on
-whether separated audio sounds technologically impressive.
+Use fixed query sets over representative corpora and measure both cold and warm behavior:
+
+- lexical BM25 queries;
+- semantic exact-scan queries;
+- hybrid RRF queries;
+- transcript/document/language/speaker constraints;
+- tag/collection/note-text/with-notes research constraints;
+- notebook-only note queries; and
+- future unified discovery across transcript evidence, notes, tags, collections, and saved
+  searches.
+
+Measure latency distribution, not only the best run. The first goal is interactive local
+use, not a marketing benchmark.
+
+### Research projection
+
+Measure:
+
+- one-note mutation plus projector catch-up;
+- edit/tag/collection/delete mutations;
+- bounded batches of 100/1,000/10,000 changes where practical;
+- idempotent replay cost;
+- projection catch-up after restart;
+- journal-gap full rebuild; and
+- projection size relative to authoritative SQLite state.
+
+The benchmark must preserve the architecture: SQLite remains authoritative and DuckDB
+remains rebuildable. A faster benchmark is not permission to bypass that custody model.
+
+### GUI-facing responsiveness
+
+Once the thin GUI exists, include end-to-end user-visible timings for:
+
+- opening a library;
+- typing/search debounce to first stable results;
+- switching transcript/note/tag facets;
+- opening a transcript result;
+- creating/editing a note from selected evidence; and
+- seeking local media to `seek_seconds`.
+
+The GUI should be measured through the same application services it uses in production.
+Do not create a benchmark-only fast path.
+
+## Suggested corpus sizes
+
+Synthetic corpora are useful for repeatability, but should be paired with real dogfood
+where privacy permits.
+
+A practical progression is:
+
+```text
+small      10 transcripts / 1,000 segments / 100 notes
+medium    100 transcripts / 10,000 segments / 3,000 notes
+large   1,000 transcripts / 100,000 segments / 30,000 notes
+```
+
+Those are **qualification shapes, not supported-limit claims**. Increase them only when
+the application remains useful and measurements justify the next scale.
+
+## Semantic and later capability measurements
+
+Useful semantic dimensions include embedding-index build cost, query latency at increasing
+corpus size, research-scope reduction effects, and exact-scan break-even points before
+considering ANN/HNSW.
+
+Later optional work can measure diarization after its security gate clears, source
+separation on genuine overlap, or alternative embedding profiles. Each should be judged
+on end-to-end product benefit, not whether a new model produces an impressive demo.
 
 ## How measurements become policy
 
 The harness is for **measurement first, self-tuning never by accident**.
 
-After a sufficient matrix exists, compare predicted and observed:
-
-- peak system/device memory;
-- real-time factor;
-- model initialization;
-- decode/enhancement/alignment cost;
-- segmentation/inference/checkpoint cost;
-- cold/warm behavior; and
-- accuracy outcomes where reference text exists.
+After a sufficient matrix exists, compare predicted and observed memory, real-time factor,
+initialization, decode/enhancement/alignment cost, segmentation/inference/checkpoint cost,
+cold/warm behavior, library/query latency, projection behavior, and accuracy where
+reference data exists.
 
 Only then should a separate reviewed change propose new constants, safety margins,
-hardware classes, or automatic preprocessing heuristics.
+hardware classes, indexing strategies, automatic preprocessing heuristics, or approximate
+search structures.
 
-Benchmark reports say what happened. Policy changes explain why that evidence justifies
-a different decision.
+Benchmark reports say what happened. Policy changes explain why that evidence justifies a
+different decision.
 
 That separation keeps calibration auditable and prevents the planner from becoming a
 self-modifying raccoon with a stopwatch. 🦝

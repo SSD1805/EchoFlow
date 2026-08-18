@@ -12,21 +12,23 @@ Local-first describes where EchoFlow performs work. It is not a claim that the h
 operating system, selected storage, third-party libraries, model files, native media
 parsers, or external executables are trusted.
 
-Recording names and local paths are potentially sensitive. Routine logs redact paths by
-default. Full path logging requires explicit `ECHOFLOW_LOG_PATHS=full`.
+Recording names, transcript content, research notes, tags/collections, and local paths
+may all be sensitive. Routine logs redact paths by default. Full path logging requires
+explicit `ECHOFLOW_LOG_PATHS=full`.
 
-Public failure messages omit input/artifact paths. Human and JSON command results may
-include paths when paths are an intentional command result; callers control where those
-results are stored or forwarded.
+Public failure messages omit input/artifact paths and should not expose note bodies or
+other unexpected internal research content. Human and JSON command results may include
+paths, transcript evidence, or note content when those values are an intentional command
+result; callers control where those results are stored or forwarded.
 
 ## Private local storage
 
-Private state, cache, model, and per-job directories use platform-specific access
-controls. POSIX private directories/files are tightened and verified as `0700`/`0600`.
-On Windows, EchoFlow uses built-in identity/ACL utilities to resolve the current user,
-remove inherited access, grant the current SID access, and verify the resulting DACL.
-A private operation fails rather than silently continuing when the required identity or
-ACL enforcement cannot be established.
+Private state, cache, model, per-job, and research-state directories use platform-specific
+access controls. POSIX private directories/files are tightened and verified as
+`0700`/`0600`. On Windows, EchoFlow uses built-in identity/ACL utilities to resolve the
+current user, remove inherited access, grant the current SID access, and verify the
+resulting DACL. A private operation fails rather than silently continuing when the
+required identity or ACL enforcement cannot be established.
 
 These controls protect the normal current-user filesystem boundary. They are not
 application-level encryption. Local administrators, equivalent privileged processes,
@@ -35,6 +37,43 @@ private state. EchoFlow does not claim secure erasure.
 
 Public transcript artifacts remain ordinary user files. At-rest encryption is an OS,
 volume, or storage responsibility today.
+
+## Research-state privacy boundary
+
+Research notes, tags, collections, and evidence anchors are durable private user-authored
+state. They may reveal participant identities, research hypotheses, interpretations,
+case themes, or other information that is at least as sensitive as transcript text.
+
+EchoFlow stores this state in an authoritative private SQLite database. The database may
+contain:
+
+- note prose;
+- tag and collection names;
+- note-to-tag and note-to-collection relationships;
+- exact source/canonical evidence anchors; and
+- the monotonic change journal used to drive projection convergence.
+
+The separate DuckDB research database is a **rebuildable private projection**, not public
+or disposable in the privacy sense. It may contain note IDs, canonical evidence keys,
+tag/collection IDs, projected relationships, and deterministic lexical terms derived from
+note text. Those values can still disclose research semantics even though authoritative
+note prose remains in SQLite.
+
+SQLite and DuckDB are not attached and do not share a cross-database transaction. User
+mutations commit only to authoritative SQLite with their journal event; a deterministic
+projector later updates DuckDB. Deleting or rebuilding the DuckDB research projection must
+never delete SQLite user state.
+
+Neither database is encrypted by EchoFlow today. They rely on the private filesystem
+boundary described above and any OS/volume encryption the user configures.
+
+Research indexing/search does not upload notes, tags, collections, evidence anchors, or
+projection contents. EchoFlow has no hosted note synchronization or research telemetry.
+
+If a canonical transcript generation changes, existing notes remain durable historical
+state and are not silently re-anchored onto new evidence. Future saved searches and
+curated result sets should inherit the same durable-user-state privacy class unless their
+contract explicitly says otherwise.
 
 ## Supported versions
 
@@ -48,9 +87,9 @@ dogfooded compatibility boundary exists.
 
 ## Reporting a vulnerability
 
-Use GitHub private vulnerability reporting/security advisories. Do not include
-sensitive recordings, transcripts, participant identifiers, tokens, or private
-filesystem layouts in a public issue.
+Use GitHub private vulnerability reporting/security advisories. Do not include sensitive
+recordings, transcripts, participant identifiers, research notes, tags, collection names,
+tokens, or private filesystem layouts in a public issue.
 
 Include the affected commit/version, operating system, minimal reproduction, impact,
 and whether exploitation requires a malicious local file, another local process, or
@@ -149,8 +188,8 @@ checkpoints do not use OS temporary directories because they must survive proces
 restarts/reboots. Disposable segment and derived audio files remain transient
 implementation state.
 
-The current checkpoint manifest omits source path, source filename, and model-cache
-path while binding:
+The current checkpoint manifest omits source path, source filename, and model-cache path
+while binding:
 
 - source fingerprint/media identity and selected audio stream;
 - profile/provisional state;
@@ -160,8 +199,8 @@ path while binding:
 - segmentation settings and exact PCM frame windows; and
 - resource requirements.
 
-Completed checkpoint payloads contain exact recognized text required for recovery.
-That text is not masked because masking would change the recovered transcript.
+Completed checkpoint payloads contain exact recognized text required for recovery. That
+text is not masked because masking would change the recovered transcript.
 
 Resume accepts only a contiguous prefix whose manifest, windows, payload integrity,
 source identity, engine version, and current resource admission all agree. It never
@@ -219,9 +258,9 @@ guarantees.
 
 ## Risks outside the implemented boundary
 
-FFmpeg, FFprobe, ASR, and optional model/native dependencies execute in the current
-process/user security context rather than an OS sandbox. EchoFlow does not currently
-provide:
+FFmpeg, FFprobe, ASR, optional model/native dependencies, SQLite, and DuckDB execute in
+the current process/user security context rather than an OS sandbox. EchoFlow does not
+currently provide:
 
 - independent upstream model signatures/allowlists;
 - process-wide network egress enforcement;
@@ -232,5 +271,6 @@ provide:
 - malicious same-user TOCTOU protection; or
 - protection from a compromised account or local administrator.
 
-Resource admission and private-storage controls are meaningful safety boundaries, but
-none of the stronger properties above should be inferred from “local-first.”
+Resource admission, private-storage controls, and the authority/projection custody split
+are meaningful safety boundaries, but none of the stronger properties above should be
+inferred from “local-first.”

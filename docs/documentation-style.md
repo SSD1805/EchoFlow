@@ -4,8 +4,8 @@ EchoFlow documentation should be **rigorous enough to maintain and pleasant enou
 finish reading**.
 
 The project deals with privacy, provenance, media pipelines, model custody, recovery,
-search, and security. Those subjects deserve precision. They do not require the prose to
-sound like drywall.
+search, research state, and security. Those subjects deserve precision. They do not
+require the prose to sound like drywall.
 
 This guide exists so future documentation changes preserve one recognizable voice
 without turning every page into a novelty README.
@@ -15,13 +15,13 @@ without turning every page into a novelty README.
 **Personality may decorate or clarify a contract. It may not replace one.**
 
 If a sentence controls deletion, privacy, security, provenance, compatibility, recovery,
-or failure behavior, state the exact rule plainly. A joke can follow it. The joke may
-not be the only way to discover what the software does.
+or failure behavior, state the exact rule plainly. A joke can follow it. The joke may not
+be the only way to discover what the software does.
 
 Good:
 
-> Semantic vectors are rebuildable derived state. Deleting them must not delete the
-> canonical transcript or future user-authored annotations.
+> DuckDB research projections are rebuildable derived state. Deleting them must not
+> delete authoritative SQLite notes.
 >
 > The raccoon may rebuild the index. The raccoon may not eat your notes.
 
@@ -35,32 +35,29 @@ That is charming and operationally useless.
 
 ### 💃 1. Human-facing guides: high personality
 
-Examples:
-
-- `docs/README.md`
-- `docs/getting-started.md`
-- `docs/semantic-search.md`
-- future guides for speakers, noisy audio, search, recovery, and privacy
+Examples include `docs/README.md`, `docs/getting-started.md`,
+`docs/semantic-search.md`, `docs/research-notes.md`, and feature guides for speakers,
+time, recovery, and privacy.
 
 These documents should:
 
 - begin with what the user is trying to accomplish;
 - explain unfamiliar terms before using them as shorthand;
-- use examples drawn from real recordings, interviews, meetings, lectures, and research;
-- use occasional playful headings, raccoons, mermaids, dancing women, stars, or other
-  visual punctuation;
+- use examples drawn from recordings, interviews, meetings, lectures, and research;
+- use occasional playful headings or visual punctuation;
 - prefer diagrams over long prose when the idea is structural; and
 - tell the reader *why* EchoFlow behaves a certain way, not merely which command exists.
 
-The user should not have to know what CTranslate2, BM25, RRF, a vector dimension, or a
-cgroup is unless they deliberately open the maintenance hatch.
+The user should not have to know what CTranslate2, BM25, RRF, a vector dimension, a
+projection watermark, or a cgroup is unless they deliberately open the maintenance hatch.
 
 ### 🧜‍♀️ 2. Architecture and development docs: medium personality
 
 These documents are for maintainers and technically curious readers.
 
-They may use exact terms such as `FLOAT[]`, `SearchResponse`, cgroup limits, immutable
-revisions, or reciprocal-rank fusion. They should still provide:
+They may use exact terms such as `FLOAT[]`, `SearchResponse`, `EvidenceAnchor`, SQLite
+WAL, cgroup limits, immutable revisions, or reciprocal-rank fusion. They should still
+provide:
 
 1. a plain-English doorway;
 2. a visual model where one helps;
@@ -86,61 +83,61 @@ Light warmth or a memorable heading is fine. Decorative language must never obsc
 - which advisory or dependency gate is active.
 
 Dated audit records are archival evidence. Do not retroactively rewrite them merely to
-match the current voice.
+match the current voice or product roadmap.
 
 ## Recurring visual language
 
 Use motifs sparingly enough that they stay useful.
 
-- **🦝 Raccoon**: rebuildable machinery, caches, indexes, internal floorboards, or a
-  memorable explanation of what can safely be regenerated.
-- **💃 Dancing woman**: orchestration, bringing multiple components together, or a
-  celebratory transition after a successful workflow.
-- **🧜‍♀️ Mermaid**: occasional decorative interruption, especially around diagrams or
-  deep technical water. It does not need to represent a service.
-- **✨ Sparkles**: optional/enhanced capability, reveal, or conceptual payoff.
+- **🦝 Raccoon**: rebuildable machinery, caches, indexes, or a memorable explanation of
+  what can safely be regenerated.
+- **💃 Dancing woman**: orchestration or a celebratory transition after a workflow.
+- **🧜‍♀️ Mermaid**: occasional decorative interruption, especially around diagrams or deep
+  technical water. It does not represent a service.
+- **✨ Sparkles**: optional/enhanced capability or conceptual payoff.
 - **🔐 Lock**: actual privacy/security boundary, not generic decoration.
 
 Do not put emoji into every diagram node simply because Mermaid and mermaid sound alike.
 The diagram should communicate structure first.
 
-## Mermaid diagrams: make the color mean something
+## Mermaid diagrams: portability before decoration
 
-Black-and-white diagrams are valid but should not be the automatic default when color
-can explain ownership or lifecycle.
+EchoFlow documentation is read in IDE previews, GitHub web/mobile clients, generated
+views, and other Markdown renderers with uneven Mermaid support. A diagram that works only
+in one renderer is not doing enough work.
 
-Prefer a small semantic palette. For example:
+For high-traffic and load-bearing diagrams:
+
+- prefer basic `flowchart LR`, `flowchart TD`, and simple node/edge syntax;
+- avoid HTML labels, embedded markup, exotic shapes, or renderer-specific directives
+  unless they are essential;
+- avoid relying on `classDef`, custom colors, or theme behavior for meaning;
+- keep node labels short and literal;
+- put the important relationship in the edge/node text, not only visual styling; and
+- add a one- or two-sentence **text fallback** below diagrams whose structure carries a
+  load-bearing architectural point.
+
+Portable example:
 
 ```mermaid
 flowchart LR
-    A[Original recording] --> B[Canonical transcript]
-    B --> C[Derived search state]
-    C --> D[Search result]
-
-    classDef evidence fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
-    classDef derived fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-    classDef result fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
-
-    class A,B evidence
-    class C derived
-    class D result
+    A[Canonical transcript] --> B[Rebuildable search projection]
+    B --> C[Ranked passage]
+    C --> D[Verified canonical evidence]
+    D --> E[Durable research anchor]
 ```
 
-Suggested meanings:
+The text immediately below might say:
 
-| Treatment | Meaning |
-|---|---|
-| warm pink | user-owned / authoritative evidence |
-| blue | compute, machine capability, or rebuildable infrastructure |
-| lavender | processing / enrichment |
-| gold | canonical publication / provenance |
-| green | result, success, or user-facing retrieval |
-| red | failure, refusal, stale state, or safety gate |
+> Canonical transcript evidence feeds rebuildable search; ranked passages are verified
+> against canonical bytes before they may become durable research anchors.
 
-Exact hex values may evolve. Consistency matters more than color-brand perfection.
+Color and custom styling may still be used in a narrow technical page when the renderer is
+known and the diagram remains understandable without it. They are decoration, not the
+semantic contract.
 
-Diagrams must still be understandable from their labels and surrounding prose for
-readers who cannot distinguish the colors.
+If Mermaid fails to render entirely, surrounding prose should still let a reader
+understand the architecture.
 
 ## Jargon has to earn rent
 
@@ -174,20 +171,12 @@ Architecture docs can invert steps 4 and 5, but should still start with purpose.
 
 ## Humor should help memory
 
-A joke earns its place when it:
+A joke earns its place when it makes a distinction memorable, relieves a dense transition,
+gives a difficult concept a concrete mental model, or makes the reader want to continue.
 
-- makes a distinction memorable;
-- relieves a dense transition;
-- gives a difficult concept a concrete mental model; or
-- makes the reader want to continue.
-
-It does not earn its place when it:
-
-- makes an error ambiguous;
-- trivializes a security or privacy failure;
-- appears in every paragraph;
-- relies on an in-group reference to understand the technical point; or
-- sounds like a corporate account trying to impersonate a person.
+It does not earn its place when it makes an error ambiguous, trivializes a security or
+privacy failure, appears in every paragraph, relies on an in-group reference to understand
+the technical point, or sounds like a corporate account impersonating a person.
 
 Camp needs negative space.
 
@@ -219,16 +208,17 @@ The latter may be funny in prose. They are poor anchors for someone searching a 
 
 ## The desired reader experience
 
-A reader should be able to enter EchoFlow knowing almost nothing about local ML and
-leave understanding:
+A reader should be able to enter EchoFlow knowing almost nothing about local ML and leave
+understanding:
 
 - what the application does;
 - what happens to their recording;
 - which artifacts are authoritative;
 - what can safely be rebuilt;
+- what research state survives those rebuilds;
 - what stays local;
-- how to resume and search work; and
+- how to resume, search, and annotate work; and
 - where to go when they want the exact engineering contract.
 
-If they accidentally learn a little systems architecture while a scholarly raccoon
-points at a provenance table, that is considered a feature.
+If they accidentally learn a little systems architecture while a scholarly raccoon points
+at a provenance table, that is considered a feature.

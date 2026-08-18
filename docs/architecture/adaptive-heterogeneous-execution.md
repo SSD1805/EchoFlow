@@ -1,207 +1,278 @@
-# Adaptive heterogeneous execution
+# Adaptive heterogeneous execution 🖥️✨
 
-Status: implemented architecture, representative-device qualification pending  
+Status: implemented architecture; representative-device qualification pending  
 Last updated: August 17, 2026
 
-## Purpose
+## The human version
 
-EchoFlow should use the machine a recording is actually running on without turning
-transcription into a collection of vendor-specific conditionals. A commodity laptop
-may have useful CPU capacity, system RAM, and an accelerator that its owner rarely
-uses directly. Those resources are not interchangeable, and merely detecting a GPU
-does not prove that the installed transcription engine can execute on it.
+EchoFlow should use the computer in front of it **without asking the user to become a
+hardware scheduler**.
 
-The adaptive-execution architecture therefore separates four decisions:
+A small Windows laptop, an Apple Silicon machine, a desktop with a discrete GPU, and a
+large workstation do not have the same resources. More importantly, “a GPU exists” does
+not mean the installed speech engine can actually use it.
 
-1. discover process-visible compute and memory topology;
-2. ask each engine adapter which execution targets its installed runtime can really
-   use;
-3. admit and rank concrete strategies against the current resource budgets; and
-4. overlap independent CPU-side preparation with accelerator inference without
-   weakening checkpoint ordering or resumability.
+So EchoFlow separates the problem into four questions:
 
-This is deliberately not a general tensor-sharding or distributed-compute system.
+1. **What compute and memory can this process really see?**
+2. **What can the installed engine/runtime really execute on?**
+3. **Which concrete strategy safely fits the current budgets?**
+4. **Can we overlap a little preparation work without breaking resume or ordering?**
 
-## Resources are not all compute
+For an ordinary user, the intended outcome is simple: EchoFlow chooses a sensible local
+strategy, refuses impossible explicit requests, and does not pretend that a detected
+accelerator is magic extra RAM.
 
-CPU cores and accelerators execute work. System RAM and accelerator memory provide
-capacity and bandwidth for model weights, buffers, audio, queues, and intermediate
-state. EchoFlow models those roles separately.
+```mermaid
+flowchart LR
+    A[Inspect this machine] --> B[CPU + system memory]
+    A --> C[Physical accelerators]
+    C --> D[Ask engine what it can really use]
+    B --> E[Admit safe strategies]
+    D --> E
+    E --> F[Rank eligible choices]
+    F --> G[Run locally]
+    G --> H[Checkpoint in order]
 
-The existing `RunnerInspector` remains authoritative for process-visible CPU and
-system-memory capacity. It already accounts for CPU affinity, Linux cgroup CPU
-quotas, Linux cgroup memory ceilings, and current process-visible free memory. The
-new `HardwareTopologyInspector` composes that stable inspection with an independent
-accelerator probe.
+    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef decision fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef run fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+
+    class A,B,C,D inspect
+    class E,F decision
+    class G run
+    class H evidence
+```
+
+No tensor-sharding opera is hiding behind this diagram. The current system is
+purposefully narrower.
+
+## Why the distinction matters
+
+CPU cores and accelerators **execute work**. System RAM and accelerator memory provide
+capacity for model weights, buffers, audio, queues, and intermediate state. Those roles
+are related but not interchangeable.
+
+A machine with 16 GiB of unified memory does not suddenly contain 32 GiB because the GPU
+can also see it. EchoFlow models the physical budget rather than summoning fictional
+memory from the spreadsheet dimension.
+
+## Resource discovery
+
+`RunnerInspector` is authoritative for process-visible CPU and system-memory capacity.
+It accounts for relevant constraints including:
+
+- CPU affinity;
+- Linux cgroup CPU quotas;
+- Linux cgroup memory ceilings; and
+- current process-visible free memory.
+
+`HardwareTopologyInspector` adds independent accelerator evidence.
 
 Accelerator memory has an explicit topology:
 
-- **dedicated** memory is a distinct device-memory pool, such as discrete NVIDIA
-  VRAM;
-- **shared** and **unified** memory consume the same physical capacity available to
-  the host and therefore must also count against the system-memory budget;
-- **unknown** memory is not guessed. Strategies that require an unknown device-memory
-  budget fail closed.
+- **dedicated**: a distinct device-memory pool such as discrete NVIDIA VRAM;
+- **shared/unified**: consumes the same physical capacity available to the host and must
+  also count against the system-memory budget; and
+- **unknown**: not guessed safe. A strategy requiring unknown device-memory capacity
+  fails admission.
 
-EchoFlow must never add shared or unified accelerator memory to system RAM and call
-the result extra capacity. A machine with 16 GiB of unified memory still has 16 GiB
-of physical memory, not 16 GiB plus a fictional GPU allocation.
+That distinction protects ordinary machines from double-counting memory simply because
+an accelerator API reports a second view of the same pool.
 
-## Physical visibility is not engine capability
+## Physical hardware is not engine capability
 
 A visible accelerator is necessary but not sufficient for accelerated execution.
-The current engine may not support its driver/runtime, compute type, operating
-system, or device API.
 
-`EngineCapabilityRegistry` keeps that question inside engine-specific providers.
-The application planner asks for capabilities by engine name and receives concrete
-execution targets such as:
+The runtime may not support the driver, operating system, device API, or compute type.
+EchoFlow therefore keeps engine-specific capability knowledge behind
+`EngineCapabilityRegistry` providers.
 
-- `cpu:0` with `int8`;
-- `cuda:0` with `float16`; or
-- `cuda:0` with `int8_float16`.
+The planner receives concrete execution targets such as:
 
-The planner does not contain NVIDIA, CUDA, Metal, DirectML, ROCm, or OpenVINO policy.
-A future engine adapter can advertise different targets without changing the
-strategy evaluator.
+```text
+cpu:0   + int8
+cuda:0  + float16
+cuda:0  + int8_float16
+```
+
+The application planner itself does not contain NVIDIA, CUDA, Metal, DirectML, ROCm, or
+OpenVINO policy.
 
 The first physical accelerator probe uses `nvidia-smi` because faster-whisper's
-CTranslate2 runtime can consume CUDA. Discovery is intentionally lightweight and
-optional. A missing command, broken driver, timeout, malformed response, or runtime
-import failure degrades to a CPU-capable machine instead of preventing EchoFlow from
-starting.
+CTranslate2 runtime can consume CUDA. Discovery is optional and lightweight. A missing
+command, broken driver, timeout, malformed response, or runtime import failure degrades
+to a CPU-capable machine instead of preventing EchoFlow from starting.
 
-CTranslate2 capability inspection is separate from physical discovery. A CUDA
-strategy is eligible only when both the physical device and the installed runtime
-agree on the exact device and compute type. EchoFlow never treats a detected but
-unsupported GPU as useful acceleration.
+CTranslate2 capability inspection remains separate. A CUDA strategy is eligible only
+when physical device evidence **and** installed runtime capability agree on the exact
+device and compute type.
+
+🦝 A GPU may live under the floorboards. EchoFlow still asks whether it has a job.
 
 ## Strategy admission
 
-`StrategyDefinition` describes execution placement as well as model quality and cache
-cost. A strategy has an engine, model, device, compute type, optional accelerator
-backend, system-memory estimate, optional device-memory estimate, quality rank, and
-performance rank.
+`StrategyDefinition` describes a concrete execution choice:
 
-The evaluator remains deterministic. It does not benchmark during planning and does
-not use marketing names as hardware heuristics. It asks whether the declared strategy
-fits the current evidence.
+- engine;
+- model;
+- device;
+- compute type;
+- optional accelerator backend;
+- estimated system-memory requirement;
+- optional device-memory requirement;
+- quality rank; and
+- performance rank.
+
+`StrategyEvaluator` is deterministic. It does not benchmark during planning and does not
+infer performance from marketing names.
 
 For dedicated accelerator memory, EchoFlow reserves headroom before admission. The
-initial device-memory budget is 80 percent of currently free device memory. This is a
-conservative heuristic until representative-machine measurements justify a different
-value.
+initial budget is **80% of currently free device memory**. This is a conservative
+heuristic pending representative-device measurements.
 
-For shared or unified memory, the accelerator requirement is also charged against the
-system-memory budget. Unknown memory topology or unknown available device memory fails
-closed for strategies that require device memory.
+For shared/unified memory, the accelerator requirement is also charged against system
+RAM. Unknown device-memory availability is not treated as safe.
 
-An explicit strategy selection is never silently replaced. If the requested target
-is unavailable or no longer safe, EchoFlow returns a typed resource-admission failure.
-Automatic selection may fall back to an equally suitable CPU strategy.
+### Explicit means explicit
 
-## Why pipeline parallelism comes before model sharding
+If a user explicitly selects a strategy and it is no longer available or safe, EchoFlow
+returns a typed resource-admission failure.
+
+It does **not** silently swap the explicit request for something else.
+
+Automatic selection may choose a suitable CPU strategy when acceleration is unavailable.
+CPU/int8 remains the reference compatibility path.
+
+## Why bounded pipeline overlap comes before model sharding
 
 EchoFlow owns media preparation, deterministic segmentation, checkpointing, transcript
 assembly, enrichment, and publication. It does not own the tensor graph inside every
 speech engine.
 
-Splitting one model between CPU and GPU would couple the application to engine-specific
-partitioning behavior, add memory-transfer overhead, complicate packaging, and make
-recovery semantics harder to reason about. It may eventually be useful for a specific
-engine, but it is not the first optimization boundary.
+Splitting one model across CPU and GPU would couple the application to engine-specific
+partitioning behavior, introduce transfer overhead, complicate packaging, and make
+recovery semantics harder to reason about.
 
-The first concurrency optimization is therefore bounded pipeline overlap:
+The first concurrency optimization is therefore much less glamorous and much easier to
+prove:
 
-1. the accelerator transcribes segment N;
-2. one CPU worker may materialize segment N+1 concurrently;
-3. the main execution path checkpoints N before it can commit N+1; and
-4. at most one unconsumed materialized segment exists.
+```mermaid
+sequenceDiagram
+    participant M as Main execution path
+    participant G as Accelerator inference
+    participant P as One CPU prefetch worker
+    participant C as Checkpoint store
 
-A prefetch worker is not free. When an accelerated plan has more than one safe CPU
-thread, EchoFlow reserves one thread of headroom for segment preparation and gives the
-remaining threads to the inference engine. If only one effective CPU thread is
-available, accelerated inference may still run, but prefetch depth becomes zero and
-materialization remains sequential. EchoFlow does not oversubscribe a CPU quota merely
-to claim parallelism.
+    M->>G: transcribe segment N
+    par while N is in flight
+        M->>P: materialize segment N+1
+    end
+    G-->>M: result N
+    M->>C: commit checkpoint N
+    P-->>M: prepared N+1
+    M->>G: transcribe N+1
+```
 
-The same boundedness applies to storage. A CPU plan admits disk for one materialized
-segment. An accelerated plan with prefetch enabled admits disk for the current segment
-plus one future materialized segment. If prefetch is disabled for lack of CPU
-headroom, the storage estimate returns to one segment. Storage admission therefore
-matches the maximum temporary files the scheduler can actually own.
+The invariants are:
 
-There is still one job-scoped inference session and one ordered checkpoint writer.
-Prefetch depth is a local scheduling decision, not transcript identity. On resume,
-EchoFlow restores the original engine/device/compute contract and can reduce prefetch
-depth if the current runner has less spare CPU capacity without invalidating completed
-checkpoints.
+1. at most one future materialized segment exists;
+2. segment `N` is checkpointed before `N+1` can become committed work;
+3. there remains one job-scoped inference session and one ordered checkpoint writer; and
+4. completed checkpoints form a contiguous prefix of the deterministic segment plan.
 
-If future work has not started when a failure occurs, it can be canceled without a
-file ever existing. If future materialization has started or completed, its unconsumed
-segment is cleaned during unwinding. Cleanup failure does not mask the primary error.
+## CPU and storage accounting for prefetch
+
+Prefetch is not free.
+
+When an accelerated strategy has more than one safe CPU thread, EchoFlow may reserve one
+thread for segment preparation and give the remaining threads to inference.
+
+If only one effective CPU thread is available, acceleration may still run, but prefetch
+depth becomes zero and materialization stays sequential. EchoFlow does not oversubscribe
+a cgroup or affinity-constrained CPU budget merely so a diagram can contain the word
+“parallel.”
+
+Storage admission mirrors that boundedness:
+
+- CPU/sequential execution admits one materialized segment;
+- accelerated execution with prefetch admits current + one future materialized segment;
+- if prefetch is disabled, the estimate returns to one segment.
+
+The storage estimate therefore describes the maximum temporary segment files the
+scheduler can actually own.
+
+## Failure cleanup
+
+If future work has not started when a failure occurs, it can be canceled before a file
+exists.
+
+If future materialization has started or completed, unconsumed prepared audio is cleaned
+while unwinding. Cleanup failure is logged but does not mask the primary error.
+
 The current segment remains owned by the main execution path and is cleaned there.
 
-This preserves the existing resume invariant: completed checkpoints are a contiguous
-prefix of the deterministic segment plan.
+This protects the resume invariant rather than treating speculative work as completed
+state.
 
-## Re-admission and changing machines
+## Re-admission when the world changes
 
-Planning is not a permanent reservation of hardware. EchoFlow already rechecks CPU
-and system-memory capacity before model initialization. Accelerated execution adds a
-fresh accelerator probe and engine-capability check before model load.
+Planning is not a permanent reservation.
+
+Before model initialization, EchoFlow rechecks CPU/system-memory capacity. Accelerated
+execution also performs fresh accelerator and engine-capability checks.
 
 A GPU that disappears, loses enough free VRAM, or becomes unsupported after planning
-causes a safe refusal. Resume similarly restores the original engine/device/compute
-contract and re-admits it against the current machine rather than silently changing
-execution placement. Scheduling optimizations such as prefetch can become more
-conservative when current CPU headroom shrinks, provided the immutable engine and
-checkpoint requirements still fit.
+causes a safe refusal.
 
-## Benchmarking and calibration
+Resume restores the original engine/device/compute contract and re-admits it on the
+current machine rather than silently changing execution placement.
 
-The strategy estimates in this first implementation are deliberately conservative
-heuristics. They are not a claim that a particular GPU, laptop, or compute type is
-faster than another in sustained use.
+Scheduling details that are **not transcript identity**, such as prefetch depth, may
+become more conservative when current CPU headroom shrinks, provided the immutable
+engine and checkpoint requirements still fit.
 
-Representative-device qualification should measure at least:
+## What still needs empirical qualification
+
+Current memory estimates and performance ranks are conservative heuristics. They are not
+a claim that a particular laptop/GPU/compute type is faster under sustained real use.
+
+Representative-device qualification should measure:
 
 - engine/model/device/compute type;
-- cold and warm model-cache behavior;
-- process-tree peak RSS and CPU usage;
-- stage timings, including materialization and inference;
-- real-time factor over recordings long enough to expose thermal throttling;
-- peak accelerator memory and utilization when the backend exposes those values
-  reliably;
-- whether one reserved CPU preparation thread improves sustained throughput on the
-  target machine; and
-- failure/recovery behavior under CPU, RAM, and device-memory contraction.
+- cold and warm model behavior;
+- process-tree peak RSS and CPU use;
+- stage timings and real-time factor;
+- thermal effects on longer recordings;
+- accelerator memory/utilization where reliable counters exist;
+- whether reserving a CPU preparation thread improves throughput; and
+- recovery behavior when CPU, RAM, or device-memory availability contracts.
 
-Those measurements can later drive private local calibration. The planner should
-prefer observed evidence over hard-coded hardware-name rules. If measurements show
-that overlap is counterproductive on a particular topology, the scheduling layer can
-become more conservative without changing canonical transcript semantics.
+The intended future rule is **measure the machine, not the logo on the machine**.
 
 ## Privacy and security
 
 Topology and capability detection are local. EchoFlow does not need to upload hardware
 inventory, recordings, transcripts, or benchmark results to choose a strategy.
 
-Accelerator discovery uses fixed argument vectors without a shell. Probe failures are
-not allowed to expose arbitrary driver output in routine user-facing errors. Engine
-capability checks are read-only and do not authorize model downloads.
+Accelerator discovery uses fixed argument vectors without a shell. Routine user-facing
+errors do not expose arbitrary driver output. Capability inspection does not authorize
+model downloads.
 
-The same explicit download authorization and private model-cache boundaries apply to
-CPU and accelerated strategies.
+Model acquisition remains a separate explicit boundary under local model management.
 
 ## Compatibility rule
 
-The CPU/int8 execution path remains the fallback and the reference compatibility
-contract. Future accelerator backends should plug into the same topology, capability,
-strategy, observer, checkpoint, and application-runner seams instead of teaching the
-CLI or transcription core about hardware brands.
+CPU/int8 remains the fallback and reference compatibility contract.
 
-The stable architectural rule is:
+Future accelerator backends should plug into the same topology, capability, strategy,
+observer, checkpoint, and application-runner seams instead of teaching the CLI or
+transcription core about hardware brands.
 
-> detect resources, negotiate capabilities, admit a concrete strategy, and keep
-> checkpoint semantics independent of where inference runs.
+The stable rule is:
+
+> **detect resources → negotiate real engine capability → admit a concrete strategy →
+> keep checkpoint semantics independent of where inference runs.**
+
+That is the whole little hardware cabaret. 💃

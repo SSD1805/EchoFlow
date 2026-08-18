@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from hypothesis import given, strategies as st
 
 from echoflow.library.index import IndexedSegment, IndexedTranscript
 from echoflow.library.semantic import (
@@ -80,6 +81,75 @@ def test_chunking_never_turns_a_long_source_segment_into_fake_evidence(
     assert chunks[1].segment_ids == ("short",)
 
 
+@given(
+    word_counts=st.lists(
+        st.integers(min_value=1, max_value=24), min_size=1, max_size=16
+    ),
+    target_words=st.integers(min_value=1, max_value=12),
+    slack=st.integers(min_value=0, max_value=12),
+)
+def test_chunking_property_preserves_every_evidence_segment_exactly_once(
+    tmp_path: Path,
+    word_counts: list[int],
+    target_words: int,
+    slack: int,
+) -> None:
+    segments = tuple(
+        IndexedSegment(
+            f"s{index}",
+            float(index),
+            float(index + 1),
+            " ".join([f"w{index}"] * word_count),
+            "en" if index % 2 == 0 else "fr",
+            f"speaker-{index % 3:02d}",
+        )
+        for index, word_count in enumerate(word_counts)
+    )
+    transcript = _transcript(tmp_path, segments=segments)
+    profile = ChunkingProfile(
+        "property-test",
+        target_words=target_words,
+        max_words=target_words + slack,
+    )
+
+    chunks = build_search_chunks((transcript,), profile=profile)
+
+    assert tuple(
+        segment_id for chunk in chunks for segment_id in chunk.segment_ids
+    ) == tuple(segment.segment_id for segment in segments)
+    assert chunks == build_search_chunks((transcript,), profile=profile)
+
+    by_id = {segment.segment_id: segment for segment in segments}
+    for chunk in chunks:
+        first = by_id[chunk.segment_ids[0]]
+        last = by_id[chunk.segment_ids[-1]]
+        assert chunk.start_seconds == first.start_seconds
+        assert chunk.end_seconds == last.end_seconds
+        if len(chunk.text.split()) > profile.max_words:
+            assert len(chunk.segment_ids) == 1
+            assert len(first.text.split()) > profile.max_words
+
+
+@pytest.mark.parametrize(
+    ("target_words", "max_words", "message"),
+    (
+        (0, 1, "target_words"),
+        (2, 1, "max_words"),
+    ),
+)
+def test_chunking_profile_rejects_invalid_boundaries(
+    target_words: int,
+    max_words: int,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        ChunkingProfile(
+            "invalid",
+            target_words=target_words,
+            max_words=max_words,
+        )
+
+
 def test_corpus_fingerprint_tracks_canonical_evidence_not_only_source_media(
     tmp_path: Path,
 ) -> None:
@@ -135,6 +205,47 @@ def _module_loader(name: str) -> Any:
     return SimpleNamespace(SentenceTransformer=_FakeModel)
 
 
+def _module_loader_with_rows(rows: list[list[float]]) -> Any:
+    class _ConfiguredModel:
+        def __init__(
+            self,
+            path: str,
+            *,
+            local_files_only: bool,
+            trust_remote_code: bool,
+        ) -> None:
+            assert path
+            assert local_files_only is True
+            assert trust_remote_code is False
+
+        def encode(
+            self,
+            texts: list[str],
+            *,
+            normalize_embeddings: bool,
+            show_progress_bar: bool,
+        ) -> _FakeEncoded:
+            assert normalize_embeddings is True
+            assert show_progress_bar is False
+            return _FakeEncoded(rows)
+
+    def loader(name: str) -> Any:
+        assert name == "sentence_transformers"
+        return SimpleNamespace(SentenceTransformer=_ConfiguredModel)
+
+    return loader
+
+
+def _provider_with_rows(tmp_path: Path, rows: list[list[float]]) -> SentenceTransformersE5Provider:
+    snapshot = tmp_path / ("b" * 40)
+    snapshot.mkdir(exist_ok=True)
+    return SentenceTransformersE5Provider(
+        snapshot_path=snapshot,
+        resolved_revision=snapshot.name,
+        module_loader=_module_loader_with_rows(rows),
+    )
+
+
 def test_e5_provider_keeps_query_and_passage_semantics_explicit_and_local(
     tmp_path: Path,
 ) -> None:
@@ -160,7 +271,7 @@ def test_e5_provider_keeps_query_and_passage_semantics_explicit_and_local(
     assert provider.profile.resolved_revision == snapshot.name
 
 
-def test_e5_provider_rejects_non_snapshot_path_and_wrong_vector_shape(
+def test_e5_provider_rejects_non_snapshot_path_and_revision_mismatch(
     tmp_path: Path,
 ) -> None:
     with pytest.raises(ValueError, match="unavailable"):
@@ -176,3 +287,47 @@ def test_e5_provider_rejects_non_snapshot_path_and_wrong_vector_shape(
             snapshot_path=snapshot,
             resolved_revision="other",
         )
+
+
+def test_e5_provider_rejects_wrong_vector_shape(tmp_path: Path) -> None:
+    provider = _provider_with_rows(tmp_path, [[1.0]])
+
+    with pytest.raises(RuntimeError, match="dimension"):
+        provider.embed_queries(("housing",))
+
+
+def test_e5_provider_rejects_non_finite_vectors(tmp_path: Path) -> None:
+    row = [0.0] * 384
+    row[0] = float("nan")
+    provider = _provider_with_rows(tmp_path, [row])
+
+    with pytest.raises(RuntimeError, match="non-finite"):
+        provider.embed_queries(("housing",))
+
+
+def test_e5_provider_rejects_non_normalized_vectors(tmp_path: Path) -> None:
+    row = [0.0] * 384
+    row[0] = 2.0
+    provider = _provider_with_rows(tmp_path, [row])
+
+    with pytest.raises(RuntimeError, match="l2-normalized"):
+        provider.embed_queries(("housing",))
+
+
+def test_e5_provider_rejects_wrong_output_count(tmp_path: Path) -> None:
+    row = [0.0] * 384
+    row[0] = 1.0
+    provider = _provider_with_rows(tmp_path, [row])
+
+    with pytest.raises(RuntimeError, match="wrong number"):
+        provider.embed_queries(("housing", "rent"))
+
+
+def test_e5_provider_rejects_blank_text_and_short_circuits_empty_batch(
+    tmp_path: Path,
+) -> None:
+    provider = _provider_with_rows(tmp_path, [])
+
+    assert provider.embed_queries(()) == ()
+    with pytest.raises(ValueError, match="empty text"):
+        provider.embed_queries(("   ",))

@@ -7,11 +7,11 @@ import pytest
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.library.errors import SpeakerLabelStateError
 from echoflow.library.index import IndexedDocument
+from echoflow.library.speaker_labels import SpeakerLabelStore
 from echoflow.library.speaker_presentation import (
     SpeakerPresentationKind,
     SpeakerPresentationService,
 )
-from echoflow.library.speaker_labels import SpeakerLabelStore
 
 
 class DocumentIndex:

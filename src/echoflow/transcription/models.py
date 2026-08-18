@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-from echoflow.media.models import MediaInfo
+from echoflow.media.models import MediaInfo, MediaTemporalTag
 from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
 from echoflow.transcription.enhancement_models import (
     EnhancementConfiguration,
@@ -425,6 +425,7 @@ class TranscriptSource:
     container_format: str
     duration_seconds: float
     audio_stream_index: int
+    temporal_tags: tuple[MediaTemporalTag, ...] = field(default=(), compare=False)
 
     def __post_init__(self) -> None:
         if len(self.sha256) != 64 or any(
@@ -451,9 +452,11 @@ class TranscriptSource:
             container_format=media.container_format,
             duration_seconds=media.duration_seconds,
             audio_stream_index=media.primary_audio_stream_index,
+            temporal_tags=media.temporal_tags,
         )
 
     def to_dict(self) -> dict[str, object]:
+        """Return source identity facts used by checkpoint/resume contracts."""
         return {
             "sha256": self.sha256,
             "size_bytes": self.size_bytes,
@@ -462,6 +465,13 @@ class TranscriptSource:
             "duration_seconds": self.duration_seconds,
             "audio_stream_index": self.audio_stream_index,
         }
+
+    def canonical_dict(self) -> dict[str, object]:
+        """Return source identity plus non-identity temporal provenance."""
+        document = self.to_dict()
+        if self.temporal_tags:
+            document["temporal_tags"] = [tag.to_dict() for tag in self.temporal_tags]
+        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -631,7 +641,7 @@ class CanonicalTranscript:
         return {
             "schema_version": self.schema_version,
             "job_id": self.job_id,
-            "source": self.source.to_dict(),
+            "source": self.source.canonical_dict(),
             "profile": self.profile.value,
             "provisional": self.provisional,
             "decode_strategy": self.decode_strategy.value,

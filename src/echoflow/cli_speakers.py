@@ -60,6 +60,91 @@ def _render_roster(
     console.print(table)
 
 
+def _list_speakers(
+    context: typer.Context,
+    transcript_id: str,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        roster = (
+            container_factory(_root_context(context)).speaker_labels().roster(transcript_id)
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(
+            json.dumps([_roster_dict(item) for item in roster], sort_keys=True)
+        )
+        return
+    _render_roster(transcript_id, roster, Console())
+
+
+def _name_speaker(
+    context: typer.Context,
+    transcript_id: str,
+    speaker_ref: str,
+    label: str,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        service = container_factory(_root_context(context)).speaker_labels()
+        binding = service.set_label(
+            transcript_id,
+            speaker_ref=speaker_ref,
+            label=label,
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(binding.to_dict(), sort_keys=True))
+        return
+    typer.echo(
+        f"{binding.speaker_ref} will be shown as "
+        f"{binding.label} ({binding.speaker_ref})."
+    )
+
+
+def _forget_speaker_name(
+    context: typer.Context,
+    transcript_id: str,
+    speaker_ref: str,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        removed = (
+            container_factory(_root_context(context))
+            .speaker_labels()
+            .remove_label(transcript_id, speaker_ref=speaker_ref)
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(
+            json.dumps(
+                {
+                    "transcript_id": transcript_id,
+                    "speaker_ref": speaker_ref,
+                    "removed": removed,
+                },
+                sort_keys=True,
+            )
+        )
+        return
+    if removed:
+        typer.echo(f"Forgot the display name for {speaker_ref}.")
+    else:
+        typer.echo(f"{speaker_ref} did not have a current display name.")
+
+
 def register_speaker_commands(
     app: typer.Typer,
     container_factory: ContainerFactory,
@@ -75,19 +160,12 @@ def register_speaker_commands(
         transcript_id: str = typer.Argument(..., metavar="TRANSCRIPT_ID"),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        try:
-            roster = (
-                container_factory(_root_context(context))
-                .speaker_labels()
-                .roster(transcript_id)
-            )
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if json_output:
-            typer.echo(json.dumps([_roster_dict(item) for item in roster], sort_keys=True))
-            return
-        _render_roster(transcript_id, roster, Console())
+        _list_speakers(
+            context,
+            transcript_id,
+            json_output=json_output,
+            container_factory=container_factory,
+        )
 
     @speakers_app.command("name")
     def name_speaker(
@@ -97,22 +175,13 @@ def register_speaker_commands(
         label: str = typer.Argument(..., metavar="DISPLAY_LABEL"),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        try:
-            service = container_factory(_root_context(context)).speaker_labels()
-            binding = service.set_label(
-                transcript_id,
-                speaker_ref=speaker_ref,
-                label=label,
-            )
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if json_output:
-            typer.echo(json.dumps(binding.to_dict(), sort_keys=True))
-            return
-        typer.echo(
-            f"{binding.speaker_ref} will be shown as "
-            f"{binding.label} ({binding.speaker_ref})."
+        _name_speaker(
+            context,
+            transcript_id,
+            speaker_ref,
+            label,
+            json_output=json_output,
+            container_factory=container_factory,
         )
 
     @speakers_app.command("forget-name")
@@ -122,30 +191,12 @@ def register_speaker_commands(
         speaker_ref: str = typer.Argument(..., metavar="SPEAKER_REF"),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
-        try:
-            removed = (
-                container_factory(_root_context(context))
-                .speaker_labels()
-                .remove_label(transcript_id, speaker_ref=speaker_ref)
-            )
-        except Exception as exc:
-            _handle_error(exc)
-            return
-        if json_output:
-            typer.echo(
-                json.dumps(
-                    {
-                        "transcript_id": transcript_id,
-                        "speaker_ref": speaker_ref,
-                        "removed": removed,
-                    },
-                    sort_keys=True,
-                )
-            )
-            return
-        if removed:
-            typer.echo(f"Forgot the display name for {speaker_ref}.")
-        else:
-            typer.echo(f"{speaker_ref} did not have a current display name.")
+        _forget_speaker_name(
+            context,
+            transcript_id,
+            speaker_ref,
+            json_output=json_output,
+            container_factory=container_factory,
+        )
 
     app.add_typer(speakers_app, name="speakers")

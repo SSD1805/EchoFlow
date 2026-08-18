@@ -314,10 +314,12 @@ class ResearchWorkspaceService:
             collection_ids.update(summary.collection_ids)
         return ResearchEvidenceView(
             note_ids=tuple(sorted(note_ids)),
-            tags=tuple(
-                sorted(tag_names[tag_id] for tag_id in tag_ids)
+            tags=tuple(sorted(tag_names[tag_id] for tag_id in tag_ids)),
+            collections=tuple(
+                sorted(
+                    collection_names[collection_id] for collection_id in collection_ids
+                )
             ),
-            collections=tuple(sorted(collection_names[collection_id] for collection_id in collection_ids)),
         )
 
     def _note_view(self, note: ResearchNote) -> ResearchNoteView:
@@ -365,8 +367,7 @@ class ResearchWorkspaceService:
             current=current,
             tags=tuple(tag_names[tag_id] for tag_id in note.tag_ids),
             collections=tuple(
-                collection_names[collection_id]
-                for collection_id in note.collection_ids
+                collection_names[collection_id] for collection_id in note.collection_ids
             ),
         )
 

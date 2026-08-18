@@ -157,11 +157,13 @@ class MediaInfo:
         )
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        document: dict[str, object] = {
             "input": self.input.to_dict(),
             "container_format": self.container_format,
             "duration_seconds": self.duration_seconds,
             "streams": [stream.to_dict() for stream in self.streams],
             "primary_audio_stream_index": self.primary_audio_stream_index,
-            "temporal_tags": [tag.to_dict() for tag in self.temporal_tags],
         }
+        if self.temporal_tags:
+            document["temporal_tags"] = [tag.to_dict() for tag in self.temporal_tags]
+        return document

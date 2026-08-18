@@ -9,12 +9,13 @@ transcription service.
 
 The application does more than run a speech model. It inspects the machine it is running
 on, chooses a safe execution strategy, manages local model custody, survives interrupted
-work, preserves source provenance, publishes portable transcripts, keeps engine-produced
-word timing evidence, and builds a private searchable library over completed recordings.
+work, preserves source provenance, publishes portable transcripts, keeps word-level
+timing evidence, handles anonymous speaker evidence conservatively, and builds a private
+searchable library that can navigate results back to the canonical transcript.
 
 The original recording remains read-only input. Canonical transcript JSON is the
-authoritative transcript artifact. Working audio and search databases are derived state
-that can be regenerated.
+authoritative transcript artifact. User-authored knowledge stays separate from both.
+Working audio and search databases are derived state that can be regenerated.
 
 > **EchoFlow's product rule:** do complicated work locally, keep the evidence
 > understandable, portable, and owned by the user.
@@ -27,8 +28,8 @@ For the shortest path from clone to transcript, use
 
 ## What can it do right now?
 
-EchoFlow is pre-production, but the current backend already covers a surprisingly large
-part of the local recording lifecycle.
+EchoFlow is pre-production, but the backend already covers a surprisingly large part of
+the local recording-to-research lifecycle.
 
 | Area | Current foundation |
 |---|---|
@@ -36,18 +37,20 @@ part of the local recording lifecycle.
 | Hardware awareness | process-visible CPU/RAM, affinity/cgroup limits, accelerator topology, engine capability negotiation, and resource admission |
 | Media handling | FFprobe inspection, deterministic audio-stream selection, FFmpeg canonicalization, exact source-relative frame windows |
 | Word timing | native faster-whisper per-word timestamps validated, rebased to source-relative time, and preserved through resume |
+| Time provenance | human `HH:MM:SS.mmm` elapsed coordinates plus source-declared `timecode` / `creation_time` provenance when available |
 | Reliability | durable private checkpoints, validated resume, contiguous checkpoint ordering, bounded accelerated prefetch |
 | Languages | multilingual decoding plus conservative local text-language attribution |
-| Speakers | optional anonymous recording-scoped diarization, with word-level projection when timing evidence exists; currently blocked when its locked dependency security gate is unsafe |
+| Speakers | optional anonymous recording-scoped diarization, word-level handoffs, durable user display labels, and honest overlap/mixed presentation; diarization execution is currently security-held when its locked dependency gate is unsafe |
 | Difficult audio | optional deterministic local FFmpeg noise suppression with provenance and timeline-preservation checks |
 | Model custody | explicit inventory, recommendation, install, local revalidation, immutable revision pinning, and exact-revision removal |
 | Transcript output | canonical JSON plus deterministic TXT, SRT, and WebVTT derived views |
 | Search | private local BM25 lexical retrieval, optional semantic retrieval, and inspectable hybrid RRF ranking |
+| Evidence navigation | canonical-hash verification, aligned lexical highlights, bounded context expansion, speaker display integration, and deterministic source seek coordinates |
 | Evidence | source/canonical SHA-256, segment/word timestamps, speaker/language context, provenance, stale-index detection, and integrity receipts |
 | Portability | Linux, macOS, and Windows CI plus clean-wheel/package verification |
 
-The point of this list is not that users should learn every subsystem. It is that most
-of the annoying decisions around local transcription are becoming application behavior
+The point of this list is not that users should learn every subsystem. It is that most of
+the annoying decisions around local transcription are becoming application behavior
 instead of homework.
 
 ## The journey from recording to something useful
@@ -59,10 +62,9 @@ flowchart LR
     C --> D[Transcribe + word timing + checkpoint]
     D --> E[Canonical transcript]
     E --> F[TXT / SRT / WebVTT]
-    E --> G[Lexical search]
-    E --> H[Optional semantic search]
-    G --> I[Evidence-bearing results]
-    H --> I
+    E --> G[Lexical / semantic / hybrid search]
+    G --> H[Verify canonical evidence]
+    H --> I[Highlight + context + seek]
 
     classDef evidence fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef compute fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
@@ -77,9 +79,9 @@ flowchart LR
     class G,H,I result
 ```
 
-That flow is intentionally evidence-first. Search results still point back to passages,
-timestamps, speakers/languages, and canonical transcript coordinates instead of
-replacing the corpus with an uncited generated answer.
+Search ranking is intentionally not treated as source truth. A ranked result points back
+to canonical transcript coordinates, and the navigation layer verifies that canonical
+generation before presenting precise word evidence.
 
 ## Install the current source build
 
@@ -104,11 +106,6 @@ uv run echoflow runner
 
 ```bash
 uv run echoflow models recommend
-```
-
-Install the model you intend to use:
-
-```bash
 uv run echoflow models install small
 ```
 
@@ -119,7 +116,7 @@ EchoFlow records and locally revalidates the immutable model revision it manages
 cached model does not become trusted application state merely because some bytes happen
 to exist in a Hugging Face cache.
 
-## Plan before you run
+## Plan, transcribe, and resume
 
 A dry run inspects the source and machine and shows the intended execution plan without
 starting recognition:
@@ -144,11 +141,6 @@ Add derived publication formats when useful:
 uv run echoflow transcribe interview.m4a --export txt --export srt --export vtt
 ```
 
-The recording is not overwritten. Canonical JSON remains authoritative; TXT/SRT/VTT can
-be deleted and regenerated.
-
-## Resume interrupted work
-
 If an in-progress job is interrupted, EchoFlow can restore its validated checkpoint
 contract:
 
@@ -157,11 +149,8 @@ uv run echoflow transcribe interview.m4a --resume JOB_ID
 ```
 
 Resume rechecks source identity and current resource admission. It does not silently
-change model revision, selected audio stream, enhancement contract, alignment contract,
-or execution target just to get moving again.
-
-Aligned word evidence already checkpointed for completed work is restored rather than
-recomputed under a potentially different execution contract.
+change model revision, selected audio stream, preprocessing, alignment, or execution
+target just to get moving again.
 
 ## Optional noise suppression
 
@@ -190,19 +179,28 @@ uv run echoflow transcribe interview.wav --diarize
 Diarization produces anonymous recording-scoped labels such as `speaker-01`; it does not
 perform biometric identity or cross-recording speaker linking.
 
-When word timing evidence exists, EchoFlow can reconcile speaker turns at the word level.
-A word receives a speaker only when exactly one diarized speaker overlaps that word. A
-segment that crosses a speaker handoff therefore stays unlabeled at the segment level
-rather than being assigned to the wrong person.
+When word timing exists, EchoFlow can preserve speaker handoffs without forcing one
+speaker onto the enclosing segment. The derived speaker transcript also distinguishes
+true simultaneous overlap from sequential mixed/unresolved text.
+
+After a transcript is in the library, you can assign your own durable display name:
+
+```bash
+uv run echoflow library speakers name JOB_ID speaker-02 "Dr. Chen"
+uv run echoflow library speakers transcript JOB_ID
+```
+
+`Dr. Chen` is user-authored presentation state. `speaker-02` remains the anonymous
+evidence ref underneath it.
 
 The current pyannote dependency path is **security-held** while its locked Lightning
 version is affected by a compensated advisory. EchoFlow fails closed before pyannote
 execution/model acquisition while that condition remains true. See
-**[Anonymous speaker diarization](docs/architecture/diarization.md)**,
-**[Word-level timestamp alignment](docs/architecture/word-alignment.md)**, and
+**[Give the anonymous speakers names](docs/speaker-names.md)**,
+**[Anonymous speaker diarization](docs/architecture/diarization.md)**, and
 **[SECURITY.md](SECURITY.md)**.
 
-## Search your transcript library
+## Search and navigate your transcript library
 
 Build the private lexical library:
 
@@ -216,7 +214,13 @@ Search for exact or related words:
 uv run echoflow library search "housing insecurity"
 ```
 
-Filter by transcript evidence when needed:
+Ask for neighboring canonical context without changing the ranking:
+
+```bash
+uv run echoflow library search "housing insecurity" --context-segments 1
+```
+
+Filter by transcript evidence when useful:
 
 ```bash
 uv run echoflow library search \
@@ -225,15 +229,24 @@ uv run echoflow library search \
   --language en
 ```
 
+If `speaker-02` has a current user label, human search presentation can show
+`Dr. Chen (speaker-02)` while machine-readable output keeps the raw ref.
+
+Lexical results can now resolve matching aligned words back to canonical evidence and use
+the first exact match as a source seek coordinate. Semantic-only results deliberately
+stay passage-level because an embedding does not identify one magical matching word.
+Hybrid results preserve both retrieval provenance and exact lexical highlights when
+lexical evidence contributed.
+
 Inspect one transcript's custody and source-integrity evidence:
 
 ```bash
 uv run echoflow library show JOB_ID
 ```
 
-Word timing does not change ranking semantics. The current library still indexes
-canonical segment text once; the finer coordinates are available for later precise
-highlighting, jump-to-audio, and annotation UX.
+Read **[From search result to the exact evidence](docs/evidence-navigation.md)** for the
+human version and **[Evidence-first corpus search](docs/architecture/corpus-search.md)**
+for the implementation contract.
 
 ### ✨ Optional semantic and hybrid search
 
@@ -261,8 +274,8 @@ requirements.
 Hybrid retrieval combines BM25 and dense ranks using reciprocal rank fusion instead of
 pretending their raw scores share one scale.
 
-Read **[Semantic search, without the mystery box](docs/semantic-search.md)** before
-opening the deeper **[corpus-search architecture](docs/architecture/corpus-search.md)**.
+Read **[Semantic search, without the mystery box](docs/semantic-search.md)** for the
+plain-language explanation.
 
 ## What belongs to you? 🦝
 
@@ -272,11 +285,13 @@ The custody boundary is intentionally simple:
 |---|---|---|
 | Original recording | source evidence | **No** |
 | Canonical transcript JSON, including word timing evidence | authoritative transcript artifact | **No** |
-| Future notes/tags/annotations | user-authored knowledge | **No** |
+| Speaker display labels | user-authored knowledge | **No** |
+| Future notes/tags/annotations/collections | user-authored knowledge | **No** |
 | TXT/SRT/WebVTT | publication views | Yes |
 | Normalized/enhanced working audio | private processing material | Yes |
 | Lexical search database | private search projection | Yes |
 | Semantic chunks/vectors | private search projection | Yes |
+| Evidence-navigation context/highlight views | derived presentation over canonical evidence | Yes |
 
 A database is allowed to make evidence useful. It is not allowed to become the only
 place the evidence exists.
@@ -286,7 +301,7 @@ place the evidence exists.
 The architecture is organized around narrow capabilities rather than one universal
 pipeline manager. Start with **[docs/architecture/README.md](docs/architecture/README.md)**.
 
-The most important references are:
+The most useful references are:
 
 - **[Processing capabilities](docs/architecture/processing-capabilities.md)** for the
   end-to-end execution map.
@@ -298,14 +313,12 @@ The most important references are:
   word timing, source-relative rebasing, checkpoint identity, and speaker handoffs.
 - **[Model management](docs/architecture/model-management.md)** for explicit acquisition,
   immutable revisions, and local custody.
-- **[Speech enhancement](docs/architecture/speech-enhancement.md)** for optional
-  preprocessing and provenance.
 - **[Diarization](docs/architecture/diarization.md)** for anonymous speaker evidence and
   the current security hold.
 - **[Corpus search](docs/architecture/corpus-search.md)** for lexical/semantic/hybrid
-  retrieval and data ownership.
+  retrieval, canonical navigation, and data ownership.
 
-Documentation itself has a contract now too. See
+Documentation itself has a contract too. See
 **[docs/documentation-style.md](docs/documentation-style.md)**.
 
 ## Quality and development
@@ -324,23 +337,23 @@ than a routine per-commit gate. See
 
 ## Where the project goes next
 
-The backend is broad enough that the next high-value work is increasingly about finer
-evidence navigation and ordinary-user delivery rather than inventing another ASR
-pipeline.
+The evidence plumbing is now much further along than the user-authored research
+workspace.
 
-Word timing is now part of the current faster-whisper evidence path. The next sequence is
-**original-media timecode/capture-time provenance**, then **better speaker
-overlap/display-label UX**, then richer research-workspace behavior over those aligned
-coordinates. Source separation for overlapping speakers remains a later, heavier
-capability once the simpler temporal evidence model is strong enough to support it.
+The next major product layer is **durable notes, tags, saved searches, collections, and
+annotation state anchored to verified canonical evidence locations**. After that, the
+highest-value work is qualifying semantic installation/model custody for ordinary source
+installs, dogfooding on representative consumer hardware, and building an installer plus
+thin graphical shell over the same application services.
 
-Installers and a thin graphical interface remain important for non-developer adoption.
-They should sit on top of the same application services, not fork the product into a
-second implementation.
+Source separation for genuinely overlapping speech remains later. EchoFlow can now
+represent overlap honestly, so separation should earn its model/compute/provenance cost
+by improving real recordings rather than appearing as an impressive checkbox.
 
 See **[ROADMAP.md](ROADMAP.md)** for the current sequencing and deliberate limits.
 
 ---
 
 **EchoFlow is trying to make sensitive local transcription boringly dependable, then
-make the resulting evidence easy to find without giving the corpus away.** 💃
+make the resulting evidence easy to find, navigate, and eventually annotate without
+giving the corpus away.** 💃

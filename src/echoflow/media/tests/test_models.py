@@ -215,6 +215,19 @@ def test_media_info_selects_primary_audio_and_serializes_all_streams(tmp_path):
             {"primary_audio_stream_index": 7},
             "primary_audio_stream_index must select one audio stream",
         ),
+        (
+            {
+                "temporal_tags": (
+                    MediaTemporalTag(
+                        TemporalTagKind.TIMECODE,
+                        "10:00:00:00",
+                        TemporalTagSource.STREAM,
+                        stream_index=7,
+                    ),
+                )
+            },
+            "stream temporal tag must reference a discovered stream",
+        ),
     ],
 )
 def test_media_info_rejects_incomplete_or_inconsistent_values(

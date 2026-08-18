@@ -137,7 +137,9 @@ class ResearchWorkspaceService:
                 resolved_filters,
                 document_ids=query.document_ids,
             )
-            scope = () if resolved is None else self.projection.matching_evidence(resolved)
+            scope = (
+                () if resolved is None else self.projection.matching_evidence(resolved)
+            )
             scoped_query = replace(query, evidence_scope=scope)
         navigation = self.navigation.search(
             scoped_query,

@@ -20,6 +20,8 @@ from echoflow.library.duckdb_index import DuckDbTranscriptIndex
 from echoflow.library.duckdb_semantic import DuckDbSemanticIndex
 from echoflow.library.semantic import EmbeddingProfile, SentenceTransformersE5Provider
 from echoflow.library.service import TranscriptLibraryService
+from echoflow.library.speaker_label_service import SpeakerLabelService
+from echoflow.library.speaker_labels import SpeakerLabelStore
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.media.selection import AudioStreamSelector
 from echoflow.model_management.catalog import faster_whisper_model_catalog
@@ -136,6 +138,15 @@ def _create_semantic_index(
     )
 
 
+def _create_speaker_label_store(
+    config: AppConfig, file_manager: FileManagerFacade
+) -> SpeakerLabelStore:
+    return SpeakerLabelStore(
+        config.STATE_DIR / "library" / "user-state" / "speaker-labels.json",
+        file_manager,
+    )
+
+
 def _restore_embedding_provider(
     profile: EmbeddingProfile,
 ) -> SentenceTransformersE5Provider:
@@ -225,6 +236,17 @@ class AppContainer(containers.DeclarativeContainer):
     semantic_index = providers.Singleton(
         _create_semantic_index,
         config=config,
+        file_manager=file_manager,
+    )
+    speaker_label_store = providers.Singleton(
+        _create_speaker_label_store,
+        config=config,
+        file_manager=file_manager,
+    )
+    speaker_labels = providers.Singleton(
+        SpeakerLabelService,
+        index=transcript_index,
+        store=speaker_label_store,
         file_manager=file_manager,
     )
     semantic_embedding_provider = providers.Factory(SentenceTransformersE5Provider)

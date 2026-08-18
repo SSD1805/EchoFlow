@@ -17,3 +17,9 @@ class SemanticSearchUnavailableError(TranscriptLibraryError):
     """Semantic capability is absent, unbuilt, stale, or cannot load locally."""
 
     exit_code = 2
+
+
+class SpeakerLabelStateError(TranscriptLibraryError):
+    """User-authored speaker label state is invalid, stale, or unavailable."""
+
+    exit_code = 2

@@ -173,13 +173,13 @@ text coordinate.
 The first payoff is already structural: a speaker handoff can be represented inside one
 recognized segment without assigning the entire segment to either person.
 
-The same evidence seam can later support:
+The same evidence seam can support:
 
 - precise transcript highlighting;
 - more exact jump-to-audio behavior;
 - durable annotations anchored to smaller evidence spans;
 - clearer overlap presentation; and
-- cleaner future speaker-label UX.
+- user-authored names over anonymous speaker evidence.
 
 Alignment does **not** solve simultaneous speech. If two active speakers overlap the same
 word interval, the word remains unattributed. Later source separation may provide more
@@ -187,43 +187,65 @@ evidence, but EchoFlow does not manufacture certainty in the meantime.
 
 ## User-assigned display labels without biometric identity
 
-A useful future feature is allowing the user to say:
+EchoFlow now lets the user say:
 
 ```text
 speaker-01 → Dr. Chen
 speaker-02 → Interviewer
 ```
 
-The important design rule is that this should be **display/user-authored state**, not a
-rewrite of the underlying anonymous diarization evidence.
+through the local transcript library:
 
-Conceptually:
+```bash
+echoflow library speakers list TRANSCRIPT_ID
+echoflow library speakers name TRANSCRIPT_ID speaker-01 "Dr. Chen"
+echoflow library speakers forget-name TRANSCRIPT_ID speaker-01
+```
+
+The design rule is that this is **display/user-authored state**, not a rewrite of the
+underlying anonymous diarization evidence.
 
 ```mermaid
 flowchart LR
     A[speaker-01 evidence] --> B[User-authored display label: Dr. Chen]
-    A --> C[Canonical speaker-turn coordinates]
+    A --> C[Canonical speaker coordinates]
+    B --> D[Dr. Chen (speaker-01)]
 
     classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
     classDef user fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
 
     class A,C evidence
     class B user
+    class D view
 ```
 
-The label is meaningful user knowledge and must **not** share the deletion semantics of
-a rebuildable search index.
+The label is meaningful user knowledge and does **not** share the deletion semantics of
+a rebuildable search index. It is written to private user state separately from lexical
+and semantic indexes.
 
-EchoFlow can remain anonymous-by-default while still letting a researcher make their own
-recording understandable.
+A label is bound to the transcript ID, exact canonical transcript SHA-256, and anonymous
+speaker reference. If the canonical transcript changes, the old label is retained as
+user-authored state but is treated as stale and is not silently applied to the new
+speaker generation.
+
+Before accepting a new label, EchoFlow verifies that the current canonical bytes still
+match the hash recorded in the library and that the anonymous speaker actually appears
+in canonical evidence. Both segment-level refs and aligned word-level refs count, so a
+speaker involved only in a mixed-speaker handoff remains nameable.
+
+EchoFlow can therefore stay anonymous-by-default while still letting a researcher make
+their own recording understandable.
+
+See [Give the anonymous speakers names](../speaker-names.md) for the human-facing guide.
 
 ## Better overlap handling before source separation
 
 Overlap still deserves two distinct product steps.
 
 First, EchoFlow improves **representation and presentation** using finer word timing,
-explicit multi-speaker turn evidence, and UI/export behavior that does not force one
-speaker when multiple voices are active.
+explicit multi-speaker turn evidence, user-controlled display labels, and UI/export
+behavior that does not force one speaker when multiple voices are active.
 
 Only later should EchoFlow consider **speech/source separation**, where the audio itself
 is decomposed into estimated sources before or during recognition.
@@ -244,8 +266,9 @@ Mixed or ambiguous segments remain unlabeled at the segment level even when some
 have useful speaker evidence. Export rendering never changes timestamps or becomes
 canonical custody.
 
-Future user-assigned display labels should remain a presentation layer over stable
-anonymous speaker references and durable transcript coordinates.
+User-assigned display labels remain a presentation layer over stable anonymous speaker
+references and durable transcript coordinates. The current naming commands do not bake
+the human label into canonical JSON or derived transcript exports.
 
 ## Qualification boundary
 
@@ -253,11 +276,14 @@ The deterministic test surface covers:
 
 - adapter/cache-only versus download policy;
 - telemetry-disable behavior;
-- deterministic label normalization;
+- deterministic anonymous-label normalization;
 - canonical schema integration;
 - executor integration;
 - conservative word/segment speaker projection;
 - mixed-speaker handoffs and ambiguous word overlap;
+- durable user display-label binding to exact canonical hashes;
+- word-only speaker discovery for mixed handoffs;
+- stale-generation isolation and corrupted-state rejection;
 - derived exports; and
 - the fail-closed Lightning security gate.
 
@@ -275,9 +301,10 @@ This capability does not currently provide:
 
 - biometric speaker identification;
 - cross-recording speaker linking;
-- user-assigned display labels;
+- automatic inference of a human speaker's real name;
 - a guarantee that engine word timing or diarization is always correct;
 - polished overlap presentation;
+- display labels baked into canonical or derived transcript artifacts;
 - simultaneous-speaker/source separation; or
 - a claim that the dependency footprint is suitable for every low-memory device.
 

@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from echoflow.app.app_container import AppContainer
+from echoflow.cli_speakers import register_speaker_commands
 from echoflow.core.errors import EchoFlowError
 from echoflow.library.index import (
     IndexedDocument,
@@ -575,4 +576,5 @@ def register_library_commands(
         )
 
     library_app.add_typer(embeddings_app, name="embeddings")
+    register_speaker_commands(library_app, container_factory)
     app.add_typer(library_app, name="library")

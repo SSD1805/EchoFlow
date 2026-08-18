@@ -13,7 +13,11 @@ from rich.table import Table
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
 from echoflow.library.research_projector import ResearchProjectionSyncReport
-from echoflow.library.research_workspace import ResearchNoteView, ResearchWorkspaceService
+from echoflow.library.research_workspace import (
+    ResearchNoteView,
+    ResearchQueryFilters,
+    ResearchWorkspaceService,
+)
 from echoflow.media.time_coordinates import format_elapsed_timestamp
 
 ContainerFactory = Callable[[typer.Context], AppContainer]
@@ -123,14 +127,25 @@ def register_research_commands(
     def notes_root(
         context: typer.Context,
         transcript: str | None = typer.Option(None, "--transcript"),
+        text: str | None = typer.Option(
+            None, "--text", help="Require all lexical terms in your note text."
+        ),
+        tags: Annotated[list[str] | None, typer.Option("--tag")] = None,
+        collections: Annotated[list[str] | None, typer.Option("--collection")] = None,
         limit: int = typer.Option(100, "--limit", min=1, max=10_000),
         json_output: bool = typer.Option(False, "--json"),
     ) -> None:
         if context.invoked_subcommand is not None:
             return
         try:
+            filters = ResearchQueryFilters(
+                tags=tuple(tags or ()),
+                collections=tuple(collections or ()),
+                note_text=text,
+            )
             notes = _workspace(context, container_factory).notes(
                 document_id=transcript,
+                filters=filters,
                 limit=limit,
             )
         except Exception as exc:

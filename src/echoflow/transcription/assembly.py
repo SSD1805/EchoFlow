@@ -1,11 +1,8 @@
 import math
 from collections.abc import Sequence
+from dataclasses import replace
 
-from echoflow.transcription.alignment import (
-    AlignedRecognizedSegment,
-    AlignedWord,
-    aligned_words,
-)
+from echoflow.transcription.alignment import AlignedWord, aligned_words
 from echoflow.transcription.errors import TranscriptionError
 from echoflow.transcription.models import (
     AudioSegmentWindow,
@@ -122,24 +119,22 @@ class TranscriptAssembler:
                 end_seconds = window.start_seconds + segment.end_seconds
 
             words = tuple(cls._rebase_word(word, window) for word in aligned_words(segment))
-            segment_type = AlignedRecognizedSegment if words else RecognizedSegment
-            keyword_arguments = {
-                "index": len(output),
-                "start_seconds": start_seconds,
-                "end_seconds": end_seconds,
-                "text": segment.text,
-                "average_log_probability": segment.average_log_probability,
-                "no_speech_probability": segment.no_speech_probability,
-                "detected_language": segment.detected_language,
-                "language_probability": segment.language_probability,
-                "language": segment.language,
-                "language_spans": segment.language_spans,
-                "speaker_ref": segment.speaker_ref,
-            }
             if words:
-                output.append(segment_type(**keyword_arguments, words=words))
+                rebased = replace(
+                    segment,
+                    index=len(output),
+                    start_seconds=start_seconds,
+                    end_seconds=end_seconds,
+                    words=words,
+                )
             else:
-                output.append(segment_type(**keyword_arguments))
+                rebased = replace(
+                    segment,
+                    index=len(output),
+                    start_seconds=start_seconds,
+                    end_seconds=end_seconds,
+                )
+            output.append(rebased)
 
     @staticmethod
     def _rebase_word(word: AlignedWord, window: AudioSegmentWindow) -> AlignedWord:

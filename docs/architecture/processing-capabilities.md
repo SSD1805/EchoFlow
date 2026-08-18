@@ -2,7 +2,7 @@
 
 EchoFlow is not one giant transcription function. It composes small local capabilities
 into a reproducible workflow whose source, execution choices, recovery state, transcript,
-search projections, and research-navigation views remain explainable afterward.
+search projections, navigation views, and research state remain explainable afterward.
 
 This page is the **family portrait** for maintainers.
 
@@ -13,8 +13,9 @@ For narrower contracts, see:
 - [word-level timestamp alignment](word-alignment.md);
 - [model management](model-management.md);
 - [speech enhancement](speech-enhancement.md);
-- [diarization](diarization.md); and
-- [corpus search](corpus-search.md).
+- [diarization](diarization.md);
+- [corpus search](corpus-search.md); and
+- [durable research state](research-state.md).
 
 ## What the user experiences
 
@@ -25,57 +26,50 @@ The intended experience is simpler than the machinery:
 3. install a recommended model explicitly if needed;
 4. transcribe locally;
 5. resume if interrupted;
-6. export useful views;
-7. search completed transcripts; and
-8. follow a result back to verified canonical evidence.
+6. publish useful transcript views;
+7. search completed transcripts;
+8. follow a result back to verified canonical evidence; and
+9. keep durable notes/tags/collections attached to that evidence.
 
-Underneath that, EchoFlow preserves enough evidence to explain how each result was
-produced.
+The next product work is making those existing capabilities easier to discover and use
+through one library surface and eventually a thin GUI.
 
 ```mermaid
 flowchart LR
-    A[Local recording] --> B[Inspect source]
-    B --> C[Inspect machine + runtime]
-    C --> D[Build immutable plan]
-    D --> E[Normalize / enhance if needed]
-    E --> F[Segment + local ASR]
-    F --> G[Word timing + checkpoints]
-    G --> H[Language + optional speaker evidence]
-    H --> I[Canonical transcript]
-    I --> J[Derived exports]
-    I --> K[Lexical / semantic search]
-    K --> N[Verify + highlight + context + seek]
-    U[User speaker labels] --> N
-
-    classDef evidence fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
-    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
-    classDef publish fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
-    classDef result fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
-
-    class A,I evidence
-    class B,C,D inspect
-    class E,F,G,H process
-    class J,U publish
-    class K,N result
+    A[Local recording] --> B[Inspect source and runtime]
+    B --> C[Immutable plan]
+    C --> D[Normalize enhance segment ASR]
+    D --> E[Word timing and checkpoints]
+    E --> F[Language and speaker evidence]
+    F --> G[Canonical transcript JSON]
+    G --> H[Derived exports]
+    G --> I[Lexical semantic hybrid search]
+    I --> J[Verified evidence navigation]
+    J --> K[SQLite notes tags collections]
+    K --> L[DuckDB research projection]
+    L --> I
 ```
+
+Text fallback: local execution produces canonical transcript evidence; rebuildable search
+ranks it; verified navigation resolves results; durable research state attaches to exact
+canonical evidence and can constrain later retrieval.
 
 ## 1. Media inspection: what is this file?
 
 `FfprobeMediaProbe` owns source facts, not transcoding. It reads bounded FFprobe metadata
-with file-only protocol access, fingerprints the complete source, and refuses a file
-whose observed identity changes during inspection.
+with file-only protocol access, fingerprints the complete source, and refuses a file whose
+observed identity changes during inspection.
 
 `AudioStreamSelector` chooses one deterministic audio stream. The choice becomes
 provenance and resume restores it instead of silently choosing another track.
 
-Source-declared `timecode` and `creation_time` tags are preserved with format/stream
-scope when available. They remain provenance, not canonical elapsed-time authority.
+Source-declared `timecode` and `creation_time` tags are preserved with format/stream scope
+when available. They remain provenance, not canonical elapsed-time authority.
 
 ## 2. Resource/runtime inspection: what can this computer really do?
 
-`RunnerInspector` observes CPU and system memory actually visible to the process,
-including relevant affinity/cgroup limits.
+`RunnerInspector` observes CPU and system memory actually visible to the process, including
+relevant affinity/cgroup limits.
 
 `HardwareTopologyInspector` adds physical accelerator evidence.
 `EngineCapabilityRegistry` separately asks the installed engine/runtime which concrete
@@ -85,9 +79,6 @@ against RAM, device memory, runtime capability, and profile intent.
 A visible GPU is not assumed usable. Shared/unified accelerator memory is not counted as
 bonus physical RAM. Explicit impossible strategies fail instead of being silently
 replaced.
-
-See [adaptive heterogeneous execution](adaptive-heterogeneous-execution.md) for the
-whole hardware cabaret. 💃
 
 ## 3. Model custody: which exact dependency may execute?
 
@@ -100,7 +91,7 @@ the exact revision already recorded in the plan.
 
 No transcription-time ASR download fallback exists.
 
-## 4. Canonical audio: one deterministic working representation
+## 4. Canonical audio and optional enhancement
 
 The current canonical processing format is:
 
@@ -114,22 +105,17 @@ mono
 Already-canonical WAV may use `DIRECT`; other supported audio-bearing media uses
 `FFMPEG_NORMALIZE`.
 
-Normalization changes representation, not the public transcript timeline. Exact PCM
-frame intervals define durable work windows.
-
-## 5. Optional enhancement: help ASR without rewriting the source
+Normalization changes representation, not the public transcript timeline. Exact PCM frame
+intervals define durable work windows.
 
 When `--enhance` is enabled, `FfmpegAfftdnEnhancer` creates private enhanced audio from
-canonical audio using the fixed current filter contract.
-
-ASR may consume the derivative. The original recording remains authoritative. EchoFlow
-checks channel count, sample width, sample rate, and frame count before accepting the
-derivative so preprocessing cannot quietly shift transcript time.
+canonical audio using the fixed current filter contract. The original recording remains
+authoritative, and EchoFlow verifies the derivative did not change the timeline shape.
 
 Anonymous diarization deliberately continues to read the unmodified canonical decode in
 enhancement v1.
 
-## 6. Segmentation, word timing, and checkpointing
+## 5. Segmentation, word timing, and checkpointing
 
 EchoFlow owns deterministic segmentation:
 
@@ -144,52 +130,38 @@ The faster-whisper session requests native word timestamps. Engine-produced word
 validated and rebased from work-window time onto the same source-relative timeline as
 canonical segments.
 
-Per-window checkpoints persist aligned word evidence. The manifest records alignment
-identity so incompatible pre-alignment state cannot silently resume into a mixed job.
+Per-window checkpoints persist aligned word evidence. Resume restores the
+source/model/device/decode/enhancement/segmentation/alignment contract and re-admits current
+resources.
 
-Accelerated execution may materialize at most one future segment while the current one
-is inferred. Completed checkpoints must remain a contiguous prefix of the deterministic
-work plan.
+Accelerated execution may materialize at most one future segment while the current one is
+inferred. Completed checkpoints remain a contiguous prefix of the deterministic work plan.
 
-Resume restores the source/model/device/decode/enhancement/segmentation/alignment
-contract and re-admits current resources.
-
-## 7. Recognition and multilingual attribution
+## 6. Recognition, language, and speaker evidence
 
 The faster-whisper backend performs managed local ASR plus native word timing. EchoFlow
 does not currently run a separate forced-alignment model.
 
 With no explicit language, multilingual behavior can reconsider language within durable
-work units rather than latching one job-wide prompt forever.
+work units rather than latching one job-wide prompt forever. Published text-language
+labels come from local deterministic attribution, which may leave ambiguous text
+unlabeled.
 
-Published text-language labels come from local deterministic attribution, which may leave
-ambiguous short text unlabeled rather than fabricating certainty.
-
-## 8. Optional anonymous speaker evidence
-
-Diarization is recording-scoped enrichment, not identity.
-
-The pyannote capability remains security-gated because the locked Lightning dependency
-is affected by a compensated advisory. EchoFlow refuses the vulnerable path before
-provider execution/model acquisition.
-
-When speaker evidence exists, word timing provides a finer projection coordinate than a
-whole ASR segment. A word receives a speaker only when exactly one diarized speaker
-overlaps that word interval.
+Diarization is recording-scoped enrichment, not identity. When speaker evidence exists,
+word timing provides a finer projection coordinate than a whole ASR segment. A word
+receives a speaker only when exactly one diarized speaker overlaps that word interval.
 
 The enclosing segment keeps a convenience `speaker_ref` only when aligned words support
 one uniform speaker. Mixed handoffs and ambiguous overlap stay explicit.
 
-The library adds two human-facing layers without rewriting that evidence:
+The library adds human-facing display labels such as `speaker-02 → Dr. Chen` without
+rewriting anonymous canonical evidence. No biometric or cross-recording person inference
+occurs.
 
-- durable user-authored names such as `speaker-02 → Dr. Chen`, bound to the exact canonical
-  transcript generation; and
-- an overlap-aware derived transcript that distinguishes `single-speaker`, `overlap`,
-  `mixed-unresolved`, and `unattributed` states.
+The current pyannote path remains security-gated while the locked Lightning dependency is
+affected by the compensated advisory described in `SECURITY.md`.
 
-No biometric identity or cross-recording person inference occurs.
-
-## 9. Canonical transcript and derived exports
+## 7. Canonical transcript and derived exports
 
 Canonical JSON is authoritative transcript evidence.
 
@@ -200,12 +172,12 @@ provenance, source-declared temporal tags, and optional diarization evidence.
 TXT, SRT, and WebVTT remain deterministic segment-oriented publication views. They are
 useful. They are not recognition truth.
 
-## 10. Transcript library and retrieval 🦝
+## 8. Transcript library and retrieval 🦝
 
 Canonical transcript JSON can be projected into private rebuildable search state.
 
-Lexical retrieval uses the database-neutral `TranscriptIndex` application port and
-DuckDB BM25 adapter. Semantic retrieval adds deterministic segment-anchored chunks,
+Lexical retrieval uses the database-neutral `TranscriptIndex` application port and DuckDB
+BM25 adapter. Semantic retrieval adds deterministic segment-anchored chunks,
 `EmbeddingProvider`/`EmbeddingProfile`, strict-local Multilingual E5 Small, private
 numeric vectors, exact dense similarity, and stale-corpus refusal.
 
@@ -215,7 +187,7 @@ lexical, semantic, and fused provenance in one `SearchResponse`.
 Nested word evidence remains outside ranking storage. Search indexes canonical segment
 text once.
 
-## 11. Canonical evidence navigation
+## 9. Canonical evidence navigation
 
 Retrieval and navigation are separate capabilities.
 
@@ -233,26 +205,43 @@ SHA/source identity before exposing precise coordinates. It can then:
 speaker display labels. Ranking/filtering still uses anonymous refs; presentation may
 show `Dr. Chen (speaker-02)`.
 
-This service is deliberately reusable by CLI, future GUI, Python, and other adapters.
-The terminal is not the owner of research-navigation semantics.
+## 10. Durable research workspace
 
-## 12. Private storage, user state, and observability
+Notes, tags, and collections are now implemented durable library-side state.
+
+`ResearchWorkspaceService` is the application-facing facade over:
+
+- transcript retrieval;
+- verified `EvidenceAnchor` creation;
+- authoritative SQLite research state;
+- the monotonic change journal;
+- `ResearchStateProjector` convergence;
+- rebuildable DuckDB research relationships/terms; and
+- transcript search constrained by research metadata.
+
+A note anchor includes document identity, source SHA-256, canonical transcript SHA-256,
+canonical segment IDs, and numeric source-relative time. Multi-segment anchors must be
+contiguous.
+
+If the canonical transcript generation changes, the note survives as durable historical
+user state but does not silently attach to the new generation.
+
+Research tag/collection/note-text constraints are resolved to canonical evidence scope
+**before** BM25 ranking or semantic vector scoring.
+
+SQLite user state is not rebuildable. The DuckDB research projection is.
+
+## 11. Private storage and observability
 
 Structured logging uses Structlog behind `ILogger`. Routine logs redact local paths by
 default.
 
 Private job/checkpoint state, model caches, normalized/enhanced audio, segment
-materializations, search databases, and user-authored state remain distinct from
-user-visible transcript artifacts.
-
-Speaker display labels are the first implemented durable library-side user state. Future
-notes/tags/collections/annotations must share the **durability class**, not necessarily
-the same physical JSON adapter. Higher-volume mutable/queryable research state will
-likely justify a transactional user-state store behind application ports.
+materializations, search databases, SQLite research authority, and rebuildable research
+projection remain distinct from user-visible transcript artifacts.
 
 POSIX private state uses owner-only mode policy; Windows uses current-user DACL policy.
-These are filesystem access controls, not application-level encryption or secure
-erasure.
+These are filesystem access controls, not application-level encryption or secure erasure.
 
 ## Capability ownership map
 
@@ -280,10 +269,14 @@ erasure.
 | `EmbeddingProvider` | query/passage embedding semantics | corpus custody |
 | `DuckDbSemanticIndex` | rebuildable vectors + exact similarity | canonical evidence |
 | `TranscriptSearch` | retrieval composition + RRF | storage implementation |
-| `TranscriptLibraryService` | discovery/rebuild/stale-state/retrieval/integrity receipts | user annotations |
-| `SpeakerLabelService` | durable human names over anonymous refs | diarization evidence |
-| `EvidenceLocator` | verified canonical result coordinates | ranking |
-| `ResearchNavigationService` | retrieval + location + display composition | canonical mutation |
+| `TranscriptLibraryService` | discovery/rebuild/stale-state/retrieval/integrity receipts | durable research authority |
+| `SpeakerLabelService` | durable human display names | diarization evidence |
+| `EvidenceLocator` | verified canonical result/anchor coordinates | ranking |
+| `ResearchNavigationService` | retrieval + location + speaker-display composition | canonical mutation |
+| `ResearchStateStore` | durable notes/tags/collections + evidence anchors | search ranking |
+| `ResearchStateProjector` | deterministic projection convergence | user truth |
+| `ResearchProjectionIndex` | fast research filtering/summaries | authoritative note content |
+| `ResearchWorkspaceService` | one application seam over research + evidence + retrieval | database topology leakage |
 | `WorkspaceService` | private/public path allocation | audio semantics |
 
 Protocols exist around real substitutable behavior, not because every class deserves a
@@ -303,29 +296,31 @@ EchoFlow does not currently claim:
 - generative restoration;
 - automatic enhancement selection;
 - trusted deterministic SMPTE/PTS mapping beyond preserved source declarations;
-- storage durability across sudden power loss;
 - malicious same-user TOCTOU resistance;
 - secure erasure;
 - a qualified locked semantic dependency extra;
 - ANN/HNSW, learned reranking, or generated corpus answers;
-- durable notes/tags/collections/annotations/saved searches; or
+- saved-search objects or curated/citable result sets;
+- automatic cross-generation note re-anchoring; or
 - a polished installer/desktop GUI.
 
 ## What is the next product layer?
 
-Word timing, time provenance, speaker naming, overlap presentation, and aligned search
-navigation are now foundation.
+The backend research workspace is now foundation.
 
-The next major product layer is **durable user-authored research state over verified
-evidence locations**: notes, tags, saved searches, collections, annotations, and
-exportable/citable selected result sets.
+The next sequence is:
 
-After that come semantic-install qualification, representative-device dogfooding, and a
-beginner-friendly installer/thin graphical shell over these same application services.
+1. **unified library discovery** across transcript evidence, notes, tags, collections, and
+   later saved searches;
+2. **saved searches and useful derived navigation**, such as most-used/recent tags and
+   facets computed from authoritative relationships rather than stored counters;
+3. **a thin GUI** over the same application services, evidence anchors, and seek contract;
+4. **research export + incremental library refresh + realistic corpus benchmarks**; and
+5. **semantic-install, representative-device, and installer qualification**.
 
-Source separation remains later and evidence-driven. EchoFlow can now represent overlap
-honestly; another model should earn its compute/custody/provenance burden with measured
-benefit.
+Source separation remains later and evidence-driven. EchoFlow can already represent
+overlap honestly; another model should earn its compute/custody/provenance burden with
+measured benefit.
 
 > **Source evidence stays authoritative. Derived machinery stays explainable. User
 > knowledge does not get mistaken for cache.**

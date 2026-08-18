@@ -158,7 +158,9 @@ class EvidenceAnchor:
         if not self.canonical_path.strip():
             raise ValueError("evidence anchor canonical path cannot be empty")
         if self.start_seconds < 0 or self.end_seconds < self.start_seconds:
-            raise ValueError("evidence anchor timestamps must be ordered and non-negative")
+            raise ValueError(
+                "evidence anchor timestamps must be ordered and non-negative"
+            )
 
 
 class EvidenceLocator:

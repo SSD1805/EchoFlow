@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from echoflow.transcription.alignment import aligned_words
 from echoflow.transcription.backend import FasterWhisperTranscriber
 from echoflow.transcription.errors import (
     ModelUnavailableError,
@@ -27,13 +28,30 @@ def configuration(tmp_path, *, revision="managed-revision", language=None):
     )
 
 
-def segment(start=0.0, end=1.0, text=" hello ", avg=-0.2, no_speech=0.1):
+def word(start=0.0, end=0.5, text=" hello", probability=0.9):
+    return SimpleNamespace(
+        start=start,
+        end=end,
+        word=text,
+        probability=probability,
+    )
+
+
+def segment(
+    start=0.0,
+    end=1.0,
+    text=" hello ",
+    avg=-0.2,
+    no_speech=0.1,
+    words=None,
+):
     return SimpleNamespace(
         start=start,
         end=end,
         text=text,
         avg_logprob=avg,
         no_speech_prob=no_speech,
+        words=words,
     )
 
 
@@ -57,9 +75,9 @@ def test_local_cpu_session_uses_exact_managed_plan_and_consumes_generator(tmp_pa
 
             def generated():
                 calls.append("iterated")
-                yield segment()
+                yield segment(words=(word(), word(0.5, 1.0, " world", 0.8)))
                 yield segment(1.0, 1.5, "   ")
-                yield segment(1.5, 2.0, "world", -0.4, 0.2)
+                yield segment(1.5, 2.0, "world", -0.4, 0.2, (word(1.5, 2.0, "world"),))
 
             return generated(), SimpleNamespace(
                 language=" en ", language_probability="0.95"
@@ -87,7 +105,7 @@ def test_local_cpu_session_uses_exact_managed_plan_and_consumes_generator(tmp_pa
         {
             "beam_size": 1,
             "language": None,
-            "word_timestamps": False,
+            "word_timestamps": True,
             "multilingual": True,
             "chunk_length": 8,
             "condition_on_previous_text": False,
@@ -100,6 +118,8 @@ def test_local_cpu_session_uses_exact_managed_plan_and_consumes_generator(tmp_pa
     assert [item.index for item in result.segments] == [0, 1]
     assert result.segments[0].average_log_probability == -0.2
     assert result.segments[1].no_speech_probability == 0.2
+    assert [item.text for item in aligned_words(result.segments[0])] == ["hello", "world"]
+    assert [item.probability for item in aligned_words(result.segments[0])] == [0.9, 0.8]
     assert result.language == "en"
     assert result.language_probability == 0.95
     assert result.engine_version == "1.2.1"
@@ -141,6 +161,7 @@ def test_explicit_language_disables_multilingual_detection_window(tmp_path):
     assert kwargs["multilingual"] is False
     assert kwargs["chunk_length"] is None
     assert kwargs["condition_on_previous_text"] is True
+    assert kwargs["word_timestamps"] is True
 
 
 @pytest.mark.parametrize(
@@ -204,11 +225,14 @@ def test_engine_iteration_failure_is_redacted(tmp_path):
 @pytest.mark.parametrize(
     "bad_segment",
     [
-        SimpleNamespace(text="words", start="bad", end=1),
-        SimpleNamespace(text="words", start=2, end=1),
+        SimpleNamespace(text="words", start="bad", end=1, words=None),
+        SimpleNamespace(text="words", start=2, end=1, words=None),
+        segment(words=(word(-1, 0.5, "bad"),)),
+        segment(words=(word(0.0, 1.1, "bad"),)),
+        segment(words=(word(0.0, 0.5, "one"), word(0.4, 0.8, "two"))),
     ],
 )
-def test_invalid_engine_segment_values_are_typed(tmp_path, bad_segment):
+def test_invalid_engine_segment_or_word_values_are_typed(tmp_path, bad_segment):
     class Model:
         def __init__(self, *_args, **_kwargs):
             pass

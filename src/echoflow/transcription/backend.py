@@ -177,8 +177,8 @@ class FasterWhisperTranscriber:
             return ()
         words: list[AlignedWord] = []
         for raw in raw_words:
-            text = str(getattr(raw, "word", "")).strip()
-            if not text:
+            text = str(getattr(raw, "word", ""))
+            if not text.strip():
                 continue
             words.append(
                 AlignedWord(

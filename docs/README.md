@@ -4,7 +4,7 @@ EchoFlow is a **local-first workspace for recorded evidence**.
 
 It can inspect a recording, choose a safe way to run on the computer you actually have,
 transcribe locally, survive interruptions, preserve provenance, enrich the transcript,
-and help you find the important bit again later.
+search a private corpus, and navigate a result back to verified canonical evidence.
 
 You do **not** need to understand CUDA, DuckDB, BM25, vector spaces, immutable model
 revisions, or why a raccoon has been granted library privileges to use the product.
@@ -12,36 +12,38 @@ Those details exist because somebody has to care about them. EchoFlow would like
 somebody to be EchoFlow.
 
 > **The short version:** your recording stays yours, the canonical transcript remains
-> inspectable evidence, and most of the machinery EchoFlow builds around it can be
-> thrown away and rebuilt.
+> inspectable evidence, your own labels remain your knowledge, and most machinery built
+> around those things can be thrown away and rebuilt.
 
 🧜‍♀️
 
 ## What can EchoFlow do today?
 
 EchoFlow is still pre-production, but the backend is no longer a toy transcription
-script. The current foundation already covers the full local journey from media to a
-searchable evidence corpus.
+script. The current foundation covers the local journey from media to a searchable,
+navigable evidence corpus.
 
 | You want to… | EchoFlow currently… |
 |---|---|
 | Transcribe a recording privately | runs faster-whisper locally from a verified managed model |
 | Avoid melting a smaller laptop | inspects process-visible CPU, RAM, and compatible acceleration before choosing a strategy |
-| Use a GPU when it is *actually* usable | separates physical hardware discovery from engine/runtime capability instead of assuming “GPU visible = GPU works” |
+| Use a GPU when it is actually usable | separates physical hardware discovery from engine/runtime capability |
 | Survive an interruption | checkpoints completed work and validates the original contract on resume |
 | Keep the original recording intact | treats source media as read-only evidence and writes processing artifacts separately |
 | Handle video files | deterministically selects an audio stream and transcribes the audio-bearing source |
 | Clean up a noisy recording | optionally applies deterministic local noise suppression with provenance and timeline checks |
 | Work with multiple languages | supports multilingual decoding plus conservative local language attribution |
-| Distinguish speakers | has optional anonymous recording-scoped diarization, currently held behind a dependency security gate |
+| Distinguish speakers | preserves optional anonymous recording-scoped speaker evidence without claiming identity |
 | Give anonymous speakers useful names | stores user-assigned display labels separately from canonical diarization evidence and rebuildable search state |
+| Read awkward handoffs honestly | distinguishes clean speaker spans, true overlap, mixed/unresolved text, and unattributed text |
 | Publish useful transcript formats | produces canonical JSON plus rebuildable TXT, SRT, and WebVTT views |
 | Find an exact phrase later | builds a private local lexical/BM25 transcript library |
-| Find an idea even when the wording changed | supports optional local semantic retrieval |
-| Get the best of both search styles | combines lexical and semantic results with inspectable reciprocal-rank fusion |
+| Find an idea when the wording changed | supports optional local semantic retrieval |
+| Combine both search styles | uses inspectable reciprocal-rank fusion |
 | Stop calculating giant second counts | renders source-relative evidence as human `HH:MM:SS.mmm` coordinates while keeping numeric seconds authoritative |
 | Preserve camera/container time clues | records source-declared `timecode` and `creation_time` tags with format/stream provenance when present |
-| Verify where a result came from | carries timestamps, speakers/languages, hashes, canonical coordinates, and retrieval provenance |
+| Follow a search result back to evidence | verifies the canonical transcript, resolves exact lexical word matches when justified, expands context, and exposes a source seek coordinate |
+| See your speaker names in search | decorates current search presentation with names such as `Dr. Chen (speaker-02)` without replacing the anonymous evidence ref |
 
 That is a lot of machinery. The point is not to make you operate the machinery. The
 point is to make sensitive local transcription feel boringly dependable.
@@ -60,18 +62,26 @@ without requiring an architecture degree.
 Read **[Transcript time without calculator gymnastics](time-navigation.md)**.
 
 It explains what word timestamps buy you, why `4788.37` seconds becomes
-`01:19:48.370`, how future click-to-seek and notes should anchor to evidence, and why a
-camera's embedded timecode is a different clock.
+`01:19:48.370`, why source-declared camera time is a different clock, and how canonical
+numeric coordinates support source seeking.
 
 ### 👥 I want `speaker-02` to have a human name
 
 Read **[Give the anonymous speakers names](speaker-names.md)**.
 
 It explains why `speaker-02` remains evidence while `Dr. Chen` is your durable display
-label, how to name or un-name a speaker, and why labels do not silently jump across a
+label, how overlap/handoffs are presented, and why names do not silently jump across a
 changed transcript generation.
 
-### 🔎 I want to search my transcripts
+### 🔎 I found something. Show me the actual evidence.
+
+Read **[From search result to the exact evidence](evidence-navigation.md)**.
+
+It explains canonical hash verification, exact lexical word highlighting, semantic
+restraint, neighboring context, speaker display names, source seek coordinates, and the
+anchor a future note can reuse.
+
+### ✨ I want to understand semantic search
 
 Read **[Semantic search, without the mystery box](semantic-search.md)** for the
 plain-language explanation of lexical, semantic, and hybrid search, including what an
@@ -87,7 +97,8 @@ Security claims should be boring enough to audit.
 Open the **[architecture maintenance hatch](architecture/README.md)**.
 
 Those documents contain the exact contracts for media handling, execution strategy,
-model custody, checkpoints, diarization, enhancement, and transcript retrieval.
+model custody, checkpoints, diarization, enhancement, transcript retrieval, and evidence
+navigation.
 
 ### 🧪 I am here to break things professionally
 
@@ -107,7 +118,8 @@ flowchart LR
     H --> T[Transcription engine room\nASR + checkpoints + enrichment]
     T --> A[Archivist\ncanonical transcript + exports]
     A --> L[Librarian\nlexical + semantic + hybrid search]
-    L --> E[Evidence you can inspect again]
+    L --> N[Navigator\nverify + highlight + context + seek]
+    N --> E[Evidence you can inspect again]
 
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef compute fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
@@ -119,7 +131,7 @@ flowchart LR
     class H compute
     class T process
     class A evidence
-    class L,E result
+    class L,N,E result
 ```
 
 The shared rule across the whole family is simple:
@@ -136,12 +148,13 @@ EchoFlow uses different custody rules for different kinds of data.
 | Original recording | source evidence | **No** |
 | Canonical transcript JSON | authoritative transcript artifact | **No** |
 | Speaker display labels | user-authored knowledge | **No** |
-| Future notes, tags, annotations | user-authored knowledge | **No** |
+| Future notes, tags, annotations, saved searches, collections | user-authored knowledge | **No** |
 | TXT / SRT / WebVTT | publication views | Yes |
 | Normalized/enhanced working audio | private processing material | Yes |
 | Checkpoint machinery after successful publication | execution/recovery state | Usually disposable after completion |
 | Lexical search database | derived search projection | Yes |
 | Semantic chunks and vectors | derived search projection | Yes |
+| Search context/highlight views | derived presentation over canonical evidence | Yes |
 
 If deleting a search index destroys unique user-authored information, something has gone
 very wrong.
@@ -163,26 +176,24 @@ The detailed editorial rules live in **[documentation-style.md](documentation-st
 
 ## What is next?
 
-The backend is now broad enough that the next work is less about inventing a
-transcription engine and more about making evidence easier to navigate and the product
-easier to enter.
+The evidence-navigation sequence that used to live here as future work is now mostly
+foundation:
 
-The evidence-navigation sequence has advanced:
+1. word/timestamp alignment is implemented;
+2. human elapsed time and source-declared temporal provenance are implemented;
+3. durable recording-scoped speaker display labels are implemented;
+4. handoff/overlap-aware speaker presentation is implemented; and
+5. search results can now resolve back to verified canonical segments/words, add bounded
+   context, show current speaker names, and expose a seek coordinate.
 
-1. **word/timestamp alignment** is in the foundation, so canonical evidence has finer
-   word coordinates;
-2. **human elapsed time + original-media temporal provenance** makes those coordinates
-   readable and preserves source-declared time clues without conflating clocks;
-3. **user-assigned speaker display labels** now keep human naming separate from anonymous
-   diarization evidence and rebuildable indexes;
-4. **better overlap presentation and aligned research-navigation UX** can exploit the
-   same coordinates for highlighting, click-to-audio, durable notes, and annotations;
-5. **later, source separation for overlapping speech** remains a measured capability,
-   not a premature checkbox.
+The next big product layer is therefore **durable research state**: notes, tags, saved
+searches, collections, and annotations anchored to those verified evidence locations.
+Semantic dependency/model setup, representative-device qualification, installers, and a
+thin graphical shell follow as major usability/qualification work.
 
-Packaging, installers, and a thin graphical interface remain important for ordinary
-non-developer use. The architecture is already intentionally arranged so those can sit
-on top of the same services rather than creating a second pipeline.
+Speech/source separation remains later. EchoFlow can now represent overlap honestly, so
+a separation model should earn its compute/model/provenance cost with measured benefit
+on real recordings.
 
 For the fuller sequencing and research boundary, see **[ROADMAP.md](../ROADMAP.md)**.
 

@@ -3,6 +3,7 @@ from importlib import import_module, metadata
 from pathlib import Path
 from typing import Any
 
+from echoflow.transcription.alignment import AlignedRecognizedSegment, AlignedWord
 from echoflow.transcription.errors import (
     ModelUnavailableError,
     TranscriptionDependencyError,
@@ -39,7 +40,7 @@ class FasterWhisperSession:
                 str(audio_path),
                 beam_size=self.configuration.beam_size,
                 language=requested_language,
-                word_timestamps=False,
+                word_timestamps=True,
                 multilingual=multilingual,
                 chunk_length=(
                     _LANGUAGE_DETECTION_WINDOW_SECONDS if multilingual else None
@@ -148,7 +149,7 @@ class FasterWhisperTranscriber:
                 continue
             try:
                 recognized.append(
-                    RecognizedSegment(
+                    AlignedRecognizedSegment(
                         index=len(recognized),
                         start_seconds=float(raw.start),
                         end_seconds=float(raw.end),
@@ -161,6 +162,7 @@ class FasterWhisperTranscriber:
                         ),
                         detected_language=detected_language,
                         language_probability=language_probability,
+                        words=cls._words(getattr(raw, "words", None)),
                     )
                 )
             except (AttributeError, TypeError, ValueError) as exc:
@@ -168,6 +170,25 @@ class FasterWhisperTranscriber:
                     "The transcription engine returned invalid segment data", cause=exc
                 ) from exc
         return tuple(recognized)
+
+    @classmethod
+    def _words(cls, raw_words: Iterable[Any] | None) -> tuple[AlignedWord, ...]:
+        if raw_words is None:
+            return ()
+        words: list[AlignedWord] = []
+        for raw in raw_words:
+            text = str(getattr(raw, "word", "")).strip()
+            if not text:
+                continue
+            words.append(
+                AlignedWord(
+                    start_seconds=float(raw.start),
+                    end_seconds=float(raw.end),
+                    text=text,
+                    probability=cls._optional_float(getattr(raw, "probability", None)),
+                )
+            )
+        return tuple(words)
 
     @staticmethod
     def _optional_text(value: object) -> str | None:

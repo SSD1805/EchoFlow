@@ -2,7 +2,11 @@ import math
 from collections.abc import Sequence
 from dataclasses import replace
 
-from echoflow.transcription.alignment import AlignedWord, aligned_words
+from echoflow.transcription.alignment import (
+    AlignedRecognizedSegment,
+    AlignedWord,
+    aligned_words,
+)
 from echoflow.transcription.errors import TranscriptionError
 from echoflow.transcription.models import (
     AudioSegmentWindow,
@@ -118,16 +122,16 @@ class TranscriptAssembler:
             else:
                 end_seconds = window.start_seconds + segment.end_seconds
 
-            words = tuple(
-                cls._rebase_word(word, window) for word in aligned_words(segment)
-            )
-            if words:
+            if isinstance(segment, AlignedRecognizedSegment):
                 rebased = replace(
                     segment,
                     index=len(output),
                     start_seconds=start_seconds,
                     end_seconds=end_seconds,
-                    words=words,
+                    words=tuple(
+                        cls._rebase_word(word, window)
+                        for word in aligned_words(segment)
+                    ),
                 )
             else:
                 rebased = replace(

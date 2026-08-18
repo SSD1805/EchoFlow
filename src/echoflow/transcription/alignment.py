@@ -67,10 +67,7 @@ class AlignedRecognizedSegment(RecognizedSegment):
                 raise ValueError("word timestamp starts before its segment")
             if word.end_seconds > self.end_seconds + _WORD_SEGMENT_TOLERANCE_SECONDS:
                 raise ValueError("word timestamp ends after its segment")
-            if (
-                word.start_seconds
-                < previous_end - _WORD_SEGMENT_TOLERANCE_SECONDS
-            ):
+            if word.start_seconds < previous_end - _WORD_SEGMENT_TOLERANCE_SECONDS:
                 raise ValueError("word timestamps must be ordered and non-overlapping")
             previous_end = max(previous_end, word.end_seconds)
 

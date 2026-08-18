@@ -129,7 +129,10 @@ class ResearchWorkspaceService:
         self.projector.sync()
         scoped_query = query
         if resolved_filters.active:
-            resolved = self._resolve_projection_filter(resolved_filters)
+            resolved = self._resolve_projection_filter(
+                resolved_filters,
+                document_ids=query.document_ids,
+            )
             scope = () if resolved is None else self.projection.matching_evidence(resolved)
             scoped_query = replace(query, evidence_scope=scope)
         navigation = self.navigation.search(
@@ -205,10 +208,29 @@ class ResearchWorkspaceService:
         return None if note is None else self._note_view(note)
 
     def notes(
-        self, *, document_id: str | None = None, limit: int = 1_000
+        self,
+        *,
+        document_id: str | None = None,
+        filters: ResearchQueryFilters | None = None,
+        limit: int = 1_000,
     ) -> tuple[ResearchNoteView, ...]:
-        notes = self.state.notes(document_id=document_id, limit=limit)
-        return self._note_views(notes)
+        if limit < 1 or limit > 10_000:
+            raise ValueError("note list limit must be between 1 and 10000")
+        resolved_filters = filters or ResearchQueryFilters()
+        if not resolved_filters.active:
+            notes = self.state.notes(document_id=document_id, limit=limit)
+            return self._note_views(notes)
+
+        self.projector.sync()
+        document_ids = () if document_id is None else (document_id,)
+        resolved = self._resolve_projection_filter(
+            resolved_filters,
+            document_ids=document_ids,
+        )
+        if resolved is None:
+            return ()
+        note_ids = self.projection.matching_note_ids(resolved)[:limit]
+        return self._note_views(self.state.notes_by_ids(note_ids))
 
     def tags(self) -> tuple[ResearchTag, ...]:
         return self.state.tags()
@@ -226,7 +248,10 @@ class ResearchWorkspaceService:
         return self.projector.rebuild()
 
     def _resolve_projection_filter(
-        self, filters: ResearchQueryFilters
+        self,
+        filters: ResearchQueryFilters,
+        *,
+        document_ids: tuple[str, ...] = (),
     ) -> ResearchProjectionFilter | None:
         tag_ids = self.state.resolve_tag_ids(filters.tags)
         if tag_ids is None:
@@ -237,6 +262,7 @@ class ResearchWorkspaceService:
         return ResearchProjectionFilter(
             tag_ids=tag_ids,
             collection_ids=collection_ids,
+            document_ids=tuple(sorted(set(document_ids))),
             note_text=filters.note_text,
             require_notes=filters.with_notes,
         )

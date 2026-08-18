@@ -55,7 +55,10 @@ class ResearchQueryFilters:
     @property
     def active(self) -> bool:
         return bool(
-            self.with_notes or self.tags or self.collections or self.note_text is not None
+            self.with_notes
+            or self.tags
+            or self.collections
+            or self.note_text is not None
         )
 
 
@@ -134,7 +137,11 @@ class ResearchWorkspaceService:
                 resolved_filters,
                 document_ids=query.document_ids,
             )
-            scope = () if resolved is None else self.projection.matching_evidence(resolved)
+            scope = (
+                ()
+                if resolved is None
+                else self.projection.matching_evidence(resolved)
+            )
             scoped_query = replace(query, evidence_scope=scope)
         navigation = self.navigation.search(
             scoped_query,
@@ -327,7 +334,8 @@ class ResearchWorkspaceService:
         if not notes:
             return ()
         current_documents = {
-            document.document_id: document for document in self.transcript_library.documents()
+            document.document_id: document
+            for document in self.transcript_library.documents()
         }
         tag_names = {item.tag_id: item.name for item in self.state.tags()}
         collection_names = {

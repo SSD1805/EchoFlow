@@ -5,7 +5,7 @@ from pathlib import Path
 import duckdb
 
 from echoflow.core.file_manager_facade import FileManagerFacade
-from echoflow.library.index import SearchOperator, SearchQuery
+from echoflow.library.index import EvidenceScopeKey, SearchOperator, SearchQuery
 from echoflow.library.semantic import (
     EmbeddingProfile,
     EmbeddingVector,
@@ -77,6 +77,15 @@ class DuckDbSemanticIndex:
                 languages_json VARCHAR NOT NULL,
                 speaker_refs_json VARCHAR NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS chunk_segments (
+                chunk_id VARCHAR NOT NULL,
+                document_id VARCHAR NOT NULL,
+                canonical_sha256 VARCHAR NOT NULL,
+                segment_id VARCHAR NOT NULL,
+                PRIMARY KEY (chunk_id, segment_id)
+            );
+            CREATE INDEX IF NOT EXISTS chunk_segments_evidence_idx
+                ON chunk_segments(document_id, canonical_sha256, segment_id);
             CREATE TABLE IF NOT EXISTS embeddings (
                 chunk_id VARCHAR NOT NULL,
                 profile_id VARCHAR NOT NULL,
@@ -85,6 +94,35 @@ class DuckDbSemanticIndex:
             );
             """
         )
+        self._backfill_chunk_segments()
+
+    def _backfill_chunk_segments(self) -> None:
+        rows = self._connection.execute(
+            """
+            SELECT c.chunk_id, c.document_id, c.canonical_sha256, c.segment_ids_json
+            FROM chunks c
+            LEFT JOIN chunk_segments s USING (chunk_id)
+            WHERE s.chunk_id IS NULL
+            ORDER BY c.chunk_id
+            """
+        ).fetchall()
+        if not rows:
+            return
+        self._connection.execute("BEGIN TRANSACTION")
+        try:
+            for row in rows:
+                segment_ids = self._string_tuple(row[3], "segment_ids")
+                self._connection.executemany(
+                    "INSERT INTO chunk_segments VALUES (?, ?, ?, ?)",
+                    [
+                        (str(row[0]), str(row[1]), str(row[2]), segment_id)
+                        for segment_id in segment_ids
+                    ],
+                )
+            self._connection.execute("COMMIT")
+        except Exception:
+            self._connection.execute("ROLLBACK")
+            raise
 
     def rebuild(
         self,
@@ -160,6 +198,18 @@ class DuckDbSemanticIndex:
                 json.dumps(chunk.speaker_refs),
             ],
         )
+        self._connection.executemany(
+            "INSERT INTO chunk_segments VALUES (?, ?, ?, ?)",
+            [
+                (
+                    chunk.chunk_id,
+                    chunk.document_id,
+                    chunk.canonical_sha256,
+                    segment_id,
+                )
+                for segment_id in chunk.segment_ids
+            ],
+        )
 
     def state(self) -> SemanticState | None:
         self._require_open()
@@ -205,8 +255,17 @@ class DuckDbSemanticIndex:
         if state is None:
             return ()
         self._validate_vector(query_vector, state.profile.dimensions)
+        scope = query.evidence_scope
+        scope_documents = [] if scope is None else [key[0] for key in scope]
+        scope_hashes = [] if scope is None else [key[1] for key in scope]
+        scope_segments = [] if scope is None else [key[2] for key in scope]
         rows = self._connection.execute(
             """
+            WITH evidence_scope AS (
+                SELECT UNNEST(?::VARCHAR[]) AS document_id,
+                       UNNEST(?::VARCHAR[]) AS canonical_sha256,
+                       UNNEST(?::VARCHAR[]) AS segment_id
+            )
             SELECT c.chunk_id, c.document_id, c.source_sha256, c.canonical_sha256,
                    c.canonical_path, c.source_path, c.segment_ids_json,
                    c.first_segment_id, c.last_segment_id, c.start_seconds,
@@ -216,8 +275,25 @@ class DuckDbSemanticIndex:
             FROM chunks c
             JOIN embeddings e USING (chunk_id)
             WHERE e.profile_id = ?
+              AND (
+                  ? = FALSE OR EXISTS (
+                      SELECT 1
+                      FROM chunk_segments cs
+                      JOIN evidence_scope requested
+                        ON requested.document_id = cs.document_id
+                       AND requested.canonical_sha256 = cs.canonical_sha256
+                       AND requested.segment_id = cs.segment_id
+                      WHERE cs.chunk_id = c.chunk_id
+                  )
+              )
             """,
-            [state.profile.profile_id],
+            [
+                scope_documents,
+                scope_hashes,
+                scope_segments,
+                state.profile.profile_id,
+                scope is not None,
+            ],
         ).fetchall()
 
         candidates: list[SemanticCandidate] = []
@@ -247,17 +323,29 @@ class DuckDbSemanticIndex:
         self._require_open()
         if not keys:
             return {}
-        wanted = set(keys)
+        documents = [key[0] for key in keys]
+        segments = [key[1] for key in keys]
         rows = self._connection.execute(
             """
-            SELECT chunk_id, document_id, source_sha256, canonical_sha256,
-                   canonical_path, source_path, segment_ids_json,
-                   first_segment_id, last_segment_id, start_seconds,
-                   end_seconds, text, content_sha256, chunking_profile_id,
-                   languages_json, speaker_refs_json
-            FROM chunks
-            """
+            WITH requested AS (
+                SELECT UNNEST(?::VARCHAR[]) AS document_id,
+                       UNNEST(?::VARCHAR[]) AS segment_id
+            )
+            SELECT DISTINCT c.chunk_id, c.document_id, c.source_sha256,
+                   c.canonical_sha256, c.canonical_path, c.source_path,
+                   c.segment_ids_json, c.first_segment_id, c.last_segment_id,
+                   c.start_seconds, c.end_seconds, c.text, c.content_sha256,
+                   c.chunking_profile_id, c.languages_json, c.speaker_refs_json
+            FROM chunks c
+            JOIN chunk_segments cs USING (chunk_id)
+            JOIN requested r
+              ON r.document_id = cs.document_id
+             AND r.segment_id = cs.segment_id
+            ORDER BY c.chunk_id
+            """,
+            [documents, segments],
         ).fetchall()
+        wanted = set(keys)
         result: dict[EvidenceKey, SearchChunk] = {}
         for row in rows:
             chunk = self._chunk(row)
@@ -355,6 +443,7 @@ class DuckDbSemanticIndex:
 
     def _clear_tables(self) -> None:
         self._connection.execute("DELETE FROM embeddings")
+        self._connection.execute("DELETE FROM chunk_segments")
         self._connection.execute("DELETE FROM chunks")
         self._connection.execute("DELETE FROM semantic_state")
         self._connection.execute("DELETE FROM embedding_profiles")

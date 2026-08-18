@@ -81,7 +81,15 @@ def _workspace(tmp_path: Path):
         projection,
         projector,
     )
-    return workspace, state, projection, projector, transcript_library, evidence_locator, navigation
+    return (
+        workspace,
+        state,
+        projection,
+        projector,
+        transcript_library,
+        evidence_locator,
+        navigation,
+    )
 
 
 def _located(*, segment_ids: tuple[str, ...] = ("segment-000042",)):
@@ -160,7 +168,9 @@ def test_workspace_unknown_research_label_compiles_to_empty_evidence_scope(
     assert response.results == ()
 
 
-def test_workspace_unfiltered_search_preserves_unrestricted_query(tmp_path: Path) -> None:
+def test_workspace_unfiltered_search_preserves_unrestricted_query(
+    tmp_path: Path,
+) -> None:
     workspace, _, _, projector, _, _, navigation = _workspace(tmp_path)
     located = _located()
     navigation.search.return_value = SimpleNamespace(results=(located,))
@@ -305,7 +315,9 @@ def test_workspace_exposes_tags_collections_and_projection_recovery_controls(
     assert not status_before.current
     assert synced.current
     assert tuple(tag.name for tag in workspace.tags()) == ("methodology",)
-    assert tuple(collection.name for collection in workspace.collections()) == ("Chapter 3",)
+    assert tuple(collection.name for collection in workspace.collections()) == (
+        "Chapter 3",
+    )
 
     projection.clear()
     rebuilt = workspace.rebuild_projection()

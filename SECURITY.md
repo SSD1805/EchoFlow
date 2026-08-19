@@ -38,19 +38,72 @@ private state. EchoFlow does not claim secure erasure.
 Public transcript artifacts remain ordinary user files. At-rest encryption is an OS,
 volume, or storage responsibility today.
 
+## Custody deletion and retention boundary
+
+Normal transcription, indexing, research, and navigation continue to treat the original
+recording as read-only source evidence. Deletion is a separate explicit custody operation,
+not a side effect of processing or library rebuild.
+
+`echoflow library delete` is plan-first. Without `--confirm`, it reports the exact current
+canonical generation, effective deletion scopes, concrete mutations, preserved attached
+notes, affected document-scoped saved searches, and a confirmation value. Execution
+recomputes the plan and refuses a stale confirmation.
+
+The `canonical-transcript` scope may remove canonical JSON plus its disposable descendants:
+active lexical/semantic retrieval state, regenerable TXT/SRT/VTT publications, and the
+private execution workspace. It does not imply deletion of attached research notes,
+saved searches, or source media.
+
+Deleting the original recording requires all of the following:
+
+- explicit `source-recording` scope;
+- the separate `--allow-source` safety switch;
+- an available source path; and
+- current source integrity equal to the source SHA-256 recorded for transcription.
+
+If bytes at the source path changed, EchoFlow refuses to delete them. A historical
+transcription provenance record is therefore not treated as authorization to delete new
+bytes that later occupied the same path.
+
+Immediately before canonical deletion, EchoFlow re-reads the canonical JSON and verifies
+its SHA-256 against the indexed generation. A changed or missing canonical artifact fails
+closed before any mutation.
+
+Age-based retention is narrower than explicit deletion. It can delete only private
+per-job execution workspaces. Completed jobs are eligible by default; failed/interrupted
+jobs require explicit inclusion because cleanup removes resume capability; running jobs
+are never eligible. Retention preserves canonical/public evidence, user-authored research
+state, source media, and lightweight lifecycle manifests.
+
+SQLite, DuckDB, public files, private workspaces, and arbitrary source paths cannot share
+one cross-filesystem ACID transaction. The custody executor therefore validates destructive
+inputs first and orders rebuildable/regenerable state before unique human-authored state.
+A later failure may leave earlier disposable cleanup already applied, but should not erase
+unique research first and hope filesystem cleanup succeeds afterward.
+
+The confirmation value is a plan-change detection primitive, not an authentication secret.
+It does not authorize a caller who lacks normal filesystem/application access.
+
+EchoFlow's deletion APIs remove paths/state through normal operating-system and database
+mechanisms. They do **not** claim cryptographically or physically verifiable secure erasure
+from SSD wear-levelled blocks, copy-on-write history, snapshots, backups, sync/version
+history, controller caches, or forensic recovery outside the active namespace.
+
 ## Research-state privacy boundary
 
-Research notes, tags, collections, and evidence anchors are durable private user-authored
-state. They may reveal participant identities, research hypotheses, interpretations,
-case themes, or other information that is at least as sensitive as transcript text.
+Research notes, tags, collections, evidence anchors, and saved searches are durable private
+user-authored state. They may reveal participant identities, research hypotheses,
+interpretations, case themes, or other information that is at least as sensitive as
+transcript text.
 
-EchoFlow stores this state in an authoritative private SQLite database. The database may
-contain:
+EchoFlow stores research state in an authoritative private SQLite database. The database
+may contain:
 
 - note prose;
 - tag and collection names;
 - note-to-tag and note-to-collection relationships;
-- exact source/canonical evidence anchors; and
+- exact source/canonical evidence anchors;
+- saved typed query intent; and
 - the monotonic change journal used to drive projection convergence.
 
 The separate DuckDB research database is a **rebuildable private projection**, not public
@@ -67,13 +120,14 @@ never delete SQLite user state.
 Neither database is encrypted by EchoFlow today. They rely on the private filesystem
 boundary described above and any OS/volume encryption the user configures.
 
-Research indexing/search does not upload notes, tags, collections, evidence anchors, or
-projection contents. EchoFlow has no hosted note synchronization or research telemetry.
+Research indexing/search does not upload notes, tags, collections, evidence anchors,
+saved searches, or projection contents. EchoFlow has no hosted note synchronization or
+research telemetry.
 
-If a canonical transcript generation changes, existing notes remain durable historical
-state and are not silently re-anchored onto new evidence. Future saved searches and
-curated result sets should inherit the same durable-user-state privacy class unless their
-contract explicitly says otherwise.
+If a canonical transcript generation changes or is explicitly deleted, existing notes
+remain durable historical state unless the user separately selects the `research-notes`
+deletion scope. They are not silently re-anchored or cascade-deleted. Saved searches are
+also preserved unless their own explicit deletion scope is selected.
 
 ## Supported versions
 
@@ -209,7 +263,7 @@ cannot be switched on/off or changed during resume because preprocessing identit
 part of the contract digest.
 
 After canonical publication, checkpoint payloads are removed on a best-effort basis.
-Interrupted jobs retain them. Ordinary deletion is not secure erasure.
+Interrupted jobs retain them. Ordinary filesystem deletion is not secure erasure.
 
 ## Canonical transcript provenance
 
@@ -267,10 +321,10 @@ currently provide:
 - hard CPU/RAM/disk runtime cages;
 - adversarial-media sandboxing;
 - application-level encryption;
-- secure deletion;
+- cryptographically or physically verifiable secure erasure;
 - malicious same-user TOCTOU protection; or
 - protection from a compromised account or local administrator.
 
-Resource admission, private-storage controls, and the authority/projection custody split
-are meaningful safety boundaries, but none of the stronger properties above should be
-inferred from “local-first.”
+Resource admission, private-storage controls, custody-aware deletion/retention, and the
+authority/projection split are meaningful safety boundaries, but none of the stronger
+properties above should be inferred from “local-first.”

@@ -7,15 +7,14 @@ exist, what each capability owns, what it refuses to own, and which invariants m
 survive refactors**.
 
 If you are trying to transcribe a file rather than maintain the system, use
-**[Getting started](../getting-started.md)**. There is no prize for learning cgroup
-accounting before lunch.
+**[Getting started](../getting-started.md)**.
 
 ## The shape of the system
 
-EchoFlow is built around narrow local capabilities instead of one universal pipeline or
-generic plugin framework. The composition root lives in
-`src/echoflow/app/app_container.py` and wires concrete implementations with Dependency
-Injector.
+EchoFlow is composed from narrow local capabilities in
+`src/echoflow/app/app_container.py`. The through-line is custody: source evidence,
+canonical transcript truth, private execution state, rebuildable projections, and durable
+human knowledge deliberately do not share deletion or recovery semantics.
 
 ```mermaid
 flowchart LR
@@ -37,32 +36,33 @@ flowchart LR
     I --> N
     M --> N
     N --> O[Unified discovery and navigation]
+    E --> P[LibraryCustodyService]
+    G --> P
+    J --> P
+    D --> P
+    P --> Q[Plan-bound deletion and retention]
 ```
 
-Text fallback: source media produces canonical transcript evidence; DuckDB search
-projections rank passages; evidence navigation verifies those passages; SQLite owns
-human-authored research state and saved searches; a deterministic projector builds
-disposable DuckDB query state; `ResearchWorkspaceService` is the application-facing seam
-across those boundaries.
-
-The architectural through-line is **custody**. Source evidence, canonical transcript
-truth, private execution state, managed model dependencies, rebuildable indexes, and
-durable human knowledge intentionally have different deletion and recovery semantics.
+Text fallback: canonical JSON is evidence; DuckDB ranks rebuildable views; canonical
+navigation verifies evidence; SQLite owns human research; `ResearchWorkspaceService`
+composes research interactions; `LibraryCustodyService` plans and applies deletion or
+private-state retention without merging those ownership classes.
 
 ## Where to look
 
 | Page | What question it answers |
 |---|---|
-| [Processing capabilities](processing-capabilities.md) | How does the whole local transcription/research system fit together? |
+| [Processing capabilities](processing-capabilities.md) | How does the local transcription/research system fit together? |
 | [Adaptive heterogeneous execution](adaptive-heterogeneous-execution.md) | How does EchoFlow decide what this machine can safely run? |
-| [Media and timeline](media-and-timeline.md) | What source did we inspect, which audio stream did we use, and what do timestamps mean? |
-| [Word-level timestamp alignment](word-alignment.md) | How do engine-produced word timings become source-relative evidence? |
+| [Media and timeline](media-and-timeline.md) | Which source/stream did we use, and what do timestamps mean? |
+| [Word-level timestamp alignment](word-alignment.md) | How do engine timings become source-relative evidence? |
 | [Local model management](model-management.md) | Which model revision is allowed to execute, and how did it get here? |
 | [Speech enhancement](speech-enhancement.md) | How can preprocessing affect ASR without becoming source truth? |
 | [Anonymous speaker diarization](diarization.md) | How are speaker turns represented without pretending anonymous labels are identities? |
-| [Corpus search](corpus-search.md) | How do lexical/semantic/hybrid ranking and verified canonical navigation stay separate? |
-| [Durable research state](research-state.md) | Why does SQLite own human research while DuckDB owns rebuildable acceleration, and how do they converge? |
-| [Library lifecycle](library-lifecycle.md) | Where does canonical JSON live, what does a library rebuild actually rescan, and which state is durable versus disposable? |
+| [Corpus search](corpus-search.md) | How do lexical/semantic/hybrid ranking and verified navigation stay separate? |
+| [Durable research state](research-state.md) | Why does SQLite own human research while DuckDB owns rebuildable acceleration? |
+| [Library lifecycle](library-lifecycle.md) | Where does canonical JSON live, what does rebuild rescan, and which state is durable? |
+| [Safe deletion and retention](safe-deletion-retention.md) | What exactly can be deleted, what is preserved, and how is destructive intent confirmed? |
 | [ROADMAP](../../ROADMAP.md) | What is implemented, what is next, and what remains research? |
 | [SECURITY](../../SECURITY.md) | What does the security boundary actually claim? |
 
@@ -75,51 +75,40 @@ durable human knowledge intentionally have different deletion and recovery seman
 | `interfaces` | Local filesystem/storage adapters and private-storage policy |
 | `media` | Read-only source inspection and deterministic audio-stream selection |
 | `runner` | Process-visible CPU/memory inspection and execution-budget policy |
-| `model_management` | Explicit local model inventory, acquisition, verification, provenance, and removal |
-| `transcription` | Planning, normalization, enhancement, segmentation, ASR, checkpoints, language attribution, word alignment, diarization, assembly, exports |
+| `model_management` | Model inventory, acquisition, verification, provenance, removal |
+| `transcription` | Planning, normalization, enhancement, segmentation, ASR, checkpoints, language, alignment, diarization, assembly, exports |
 | `workspace` | Private job paths and public artifact allocation |
 | `benchmarking` | Privacy-minimized local execution measurement |
-| `library` | Retrieval, canonical evidence navigation, speaker presentation, authoritative research state, saved-search intent, unified discovery, derived navigation, and rebuildable projections |
-
-`runner` means the local compute environment visible to the process; it is not a
-distributed task runner. `media.probe` performs inspection, not transcoding.
+| `library` | Retrieval, evidence navigation, research authority/projections, saved searches, discovery, and typed custody/deletion/retention policy |
 
 ## Capability boundaries
 
-EchoFlow prefers a small object with one clear job over a grand abstraction that owns
-everything vaguely adjacent to it.
+EchoFlow prefers a small object with one clear job over a universal manager.
 
-External/configuration/durable-data boundaries may use Pydantic where parsing and
-serialization are valuable. Small internal immutable values generally use frozen/slotted
-dataclasses. Services use narrow `Protocol` capabilities when substitution is real and
-useful.
+The search/research/custody area deliberately separates responsibilities:
 
-The search/research area has deliberately separate responsibilities:
-
-1. `TranscriptLibraryService` and retrieval services discover/rank rebuildable transcript
-   passages.
-2. `EvidenceLocator` verifies and resolves those passages back to canonical evidence.
+1. `TranscriptLibraryService` discovers and ranks rebuildable transcript passages.
+2. `EvidenceLocator` verifies ranked passages against canonical evidence.
 3. `SpeakerLabelService` owns durable recording-scoped human display names without
    rewriting diarization evidence.
-4. `ResearchStateStore` owns durable human-authored notes, tags, collections, and
-   evidence anchors.
-5. `ResearchStateProjector` owns convergence from authoritative SQLite state into the
-   rebuildable research projection.
+4. `ResearchStateStore` owns durable notes, tags, collections, and exact evidence anchors.
+5. `ResearchStateProjector` converges authoritative SQLite state into a disposable DuckDB
+   research projection.
 6. `ResearchProjectionIndex` owns fast derived research constraints and summaries.
 7. `WorkspaceMetadataStore` owns durable saved-search intent and computes disposable
-   frequent/recent navigation from current relationships.
-8. `ResearchWorkspaceService` composes those capabilities for presentation adapters.
+   navigation views.
+8. `ResearchWorkspaceService` composes those capabilities for CLI and future GUI adapters.
+9. `LibraryCustodyService` owns typed deletion planning/execution and age-based private
+   execution-state retention. It does not become a second research or transcript authority.
 
-That split should survive unified discovery and the GUI. Presentation convenience is not
-permission to merge custody boundaries.
+That split should survive the GUI. Presentation convenience is not permission to merge
+custody boundaries.
 
 ## Why SQLite and DuckDB both exist
 
-The two engines serve different workloads and different custody classes.
-
 SQLite is authoritative for irreplaceable, frequently mutated user research. DuckDB is
-used for rebuildable analytical/query projections over transcript and research data.
-There is **one authority**, not two masters.
+used for rebuildable analytical/query projections. There is one authority, not two
+masters.
 
 ```text
 SQLite authority
@@ -132,76 +121,75 @@ ResearchStateProjector
 DuckDB research projection
 ```
 
-If the research projection disappears, rebuild it. If SQLite user state disappears,
-unique human work is lost. That asymmetry is intentional.
+If a research projection disappears, rebuild it. If SQLite user state disappears, unique
+human work is lost. That asymmetry is intentional.
 
-Saved searches share the authoritative SQLite database because they are authored research
-intent. Their runtime evidence scope does not. Replaying a saved search re-resolves the
-current corpus and current research relationships.
-
-See [Durable research state](research-state.md) for the transaction, watermark, rebuild,
-and fail-closed contract. See [Library lifecycle](library-lifecycle.md) for the broader
-retention, output-path, rescan, and deletion boundaries.
+Saved searches live in authoritative SQLite because they are authored intent. Their
+runtime evidence scope does not. Replaying a saved search re-resolves the current corpus
+and current research relationships.
 
 ## The custody rules 🦝
 
 These rules are load-bearing:
 
-1. **Original media is source evidence and treated as read-only input.**
-2. **Canonical transcript JSON is authoritative transcript evidence.**
+1. **Original media is source evidence and read-only during normal processing.** Explicit
+   source deletion is a separate provenance-checked operation, never an implied cleanup.
+2. **Canonical transcript JSON is authoritative transcript evidence.** It is deleted only
+   through an explicit plan-bound canonical scope.
 3. **Managed model manifests describe verified local execution dependencies.**
-4. **Lexical, semantic, and research DuckDB databases are private rebuildable
-   projections.**
-5. **User-authored speaker labels, notes, tags, collections, saved searches, and curated
-   result sets do not share deletion semantics with indexes.**
-6. **Research-state joins include canonical generation identity, not a friendly segment ID
+4. **Lexical, semantic, and research DuckDB databases are rebuildable projections.**
+5. **Speaker labels, notes, tags, collections, and saved searches are human-authored
+   authority and do not inherit index deletion semantics.**
+6. **Research joins include canonical generation identity, not a friendly segment ID
    alone.**
-7. **Precise navigation resolves back to verified canonical evidence rather than trusting
-   a stale search projection.**
-8. **Research filters are applied before ranking/scoring when they define eligible
-   evidence.**
+7. **Precise navigation resolves to verified canonical evidence rather than trusting a
+   stale search projection.**
+8. **Research filters apply before ranking/scoring when they define eligible evidence.**
 9. **Saved searches persist typed query intent, not a frozen derived evidence scope.**
-10. **A convenience layer may not quietly become the only place unique evidence or user
-    knowledge lives.**
+10. **Canonical deletion preserves attached notes and document-scoped saved searches unless
+    their own destructive scopes are explicitly selected.**
+11. **Age-based retention can delete only private job workspaces.** It preserves canonical
+    evidence, human research, and lightweight lifecycle manifests.
+12. **EchoFlow does not claim secure erasure it cannot prove.**
 
-Search infrastructure is allowed to disappear. User-authored knowledge is not.
+Search infrastructure may disappear. User-authored knowledge may not disappear by
+accident.
 
-## Current application seam
+## Current application seams
 
-Unified discovery, saved searches, and frequent/recent navigation now all compose through
-`ResearchWorkspaceService` rather than creating another search engine or database
-authority.
+Unified discovery, saved searches, frequent/recent navigation, and research interactions
+compose through `ResearchWorkspaceService`.
 
-`echoflow library find QUERY` returns typed transcript, note, tag, and collection groups.
-`echoflow library saved ...` stores and replays typed workspace queries. `echoflow library
-navigation` derives useful tag/collection views from current relationships.
+Custody-sensitive operations compose separately through `LibraryCustodyService`:
 
-The system deliberately does not invent a universal relevance score across unlike
-objects. Transcript ranks remain transcript ranks. Notes, tags, collections, and saved
-searches retain their own semantics.
+```bash
+echoflow library delete TRANSCRIPT_ID --scope library-view
+echoflow library delete TRANSCRIPT_ID --scope canonical-transcript
+echoflow library retention --execution-days 30
+```
 
-The next presentation seam is the first thin GUI. It should consume the same discovery,
-`ResearchWorkspaceService`, `EvidenceAnchor`, saved-search, speaker, time, and playback-seek
-contracts. It must not create a second definition of where evidence or user state lives.
+Deletion and retention are dry-run by default. Applying a reviewed operation requires the
+plan-bound token returned by the dry run. The token binds the canonical generation,
+effective scopes, concrete actions, and relevant preserved note/saved-search dependencies,
+so a changed plan cannot reuse an old confirmation.
+
+The next backend seam is **incremental library refresh**. Normal corpus growth should
+upsert/remove changed transcript generations automatically; full `library rebuild` should
+remain the repair lever. The first thin GUI should then consume the same search, evidence,
+research, saved-search, custody, and refresh services instead of inventing parallel rules.
 
 ## New abstraction test
 
 Before adding a manager, framework, registry, adapter hierarchy, generalized plugin
-system, or “database wrapper,” ask which concrete capability or invariant it protects.
+system, or database wrapper, ask which concrete capability or invariant it protects.
 
 File count is not an architectural problem. Repeated policy, unclear ownership, and
 unprovable invariants are.
 
 ## Documentation contract
 
-Architecture pages should provide:
-
-- a plain-English doorway;
-- a visual model when structure matters;
-- the exact implementation contract;
-- ownership/failure semantics; and
-- explicit current limits or future seams.
+Architecture pages should provide a plain-English doorway, a structural model when useful,
+the exact implementation contract, ownership/failure semantics, and explicit current
+limits or future seams.
 
 See **[documentation-style.md](../documentation-style.md)** for the editorial contract.
-
-The code can be serious without the prose developing a fear of joy. 💃

@@ -89,6 +89,11 @@ max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S603"]
+# Custody tests use synthetic non-secret confirmation values and synthetic /tmp lifecycle
+# paths to exercise path/plan behavior. Scope the false-positive exceptions to these two
+# test modules rather than weakening the production or repository-wide security rules.
+"src/echoflow/library/tests/test_custody.py" = ["S106", "S108"]
+"src/echoflow/tests/test_cli_custody.py" = ["S106"]
 # The navigation adapter interpolates only closed internal table/order fragments selected
 # by code; every runtime/user value remains a bound SQLite parameter.
 "src/echoflow/library/workspace_metadata.py" = ["S608"]

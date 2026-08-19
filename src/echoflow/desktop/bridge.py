@@ -83,17 +83,17 @@ def _dispatch(request: _DesktopRequest, service: LibraryLocationService) -> obje
         return [item.to_dict() for item in service.locations()]
 
     if request.method == "locations.add":
-        params = _AddLocationParams.model_validate(request.params)
+        add_params = _AddLocationParams.model_validate(request.params)
         location = service.add(
-            params.path,
-            kind=params.kind,
-            processing_policy=params.processing_policy,
+            add_params.path,
+            kind=add_params.kind,
+            processing_policy=add_params.processing_policy,
         )
         return location.to_dict()
 
     if request.method == "recordings.discover":
         _NoParams.model_validate(request.params)
-        report = service.discover_recordings()
+        discovery_report = service.discover_recordings()
         return {
             "recordings": [
                 {
@@ -102,24 +102,26 @@ def _dispatch(request: _DesktopRequest, service: LibraryLocationService) -> obje
                     "location_ids": list(item.location_ids),
                     "automatic_processing_requested": item.automatic_processing_requested,
                 }
-                for item in report.recordings
+                for item in discovery_report.recordings
             ],
-            "unavailable_location_ids": list(report.unavailable_location_ids),
+            "unavailable_location_ids": list(
+                discovery_report.unavailable_location_ids
+            ),
         }
 
-    params = _RefreshParams.model_validate(request.params)
-    report = service.refresh_transcript_locations(verify=params.verify)
+    refresh_params = _RefreshParams.model_validate(request.params)
+    refresh_report = service.refresh_transcript_locations(verify=refresh_params.verify)
     return {
-        "backend_id": report.refresh.backend_id,
-        "indexed_documents": report.refresh.indexed_documents,
-        "added_document_ids": list(report.refresh.added_document_ids),
-        "updated_document_ids": list(report.refresh.updated_document_ids),
-        "removed_document_ids": list(report.refresh.removed_document_ids),
-        "unchanged_document_ids": list(report.refresh.unchanged_document_ids),
-        "skipped_files": report.refresh.skipped_files,
-        "semantic_invalidated": report.refresh.semantic_invalidated,
-        "verified_all_tracked": report.refresh.verified_all_tracked,
-        "unavailable_location_ids": list(report.unavailable_location_ids),
+        "backend_id": refresh_report.refresh.backend_id,
+        "indexed_documents": refresh_report.refresh.indexed_documents,
+        "added_document_ids": list(refresh_report.refresh.added_document_ids),
+        "updated_document_ids": list(refresh_report.refresh.updated_document_ids),
+        "removed_document_ids": list(refresh_report.refresh.removed_document_ids),
+        "unchanged_document_ids": list(refresh_report.refresh.unchanged_document_ids),
+        "skipped_files": refresh_report.refresh.skipped_files,
+        "semantic_invalidated": refresh_report.refresh.semantic_invalidated,
+        "verified_all_tracked": refresh_report.refresh.verified_all_tracked,
+        "unavailable_location_ids": list(refresh_report.unavailable_location_ids),
     }
 
 

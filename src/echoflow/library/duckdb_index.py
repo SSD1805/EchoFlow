@@ -4,6 +4,7 @@ from pathlib import Path
 import duckdb
 
 from echoflow.core.file_manager_facade import FileManagerFacade
+from echoflow.library.duckdb_safety import atomic_duckdb_transaction
 from echoflow.library.index import (
     IndexedDocument,
     IndexedTranscript,
@@ -162,15 +163,10 @@ class DuckDbTranscriptIndex:
 
     def rebuild(self, transcripts: tuple[IndexedTranscript, ...]) -> None:
         self._require_open()
-        self._connection.execute("BEGIN TRANSACTION")
-        try:
+        with atomic_duckdb_transaction(self._connection):
             self._clear_tables()
             for transcript in transcripts:
                 self._insert_transcript(transcript)
-            self._connection.execute("COMMIT")
-        except Exception:
-            self._connection.execute("ROLLBACK")
-            raise
 
     def apply_delta(
         self,
@@ -193,17 +189,12 @@ class DuckDbTranscriptIndex:
         if set(upsert_ids).intersection(removals):
             raise ValueError("a document cannot be both upserted and removed")
 
-        self._connection.execute("BEGIN TRANSACTION")
-        try:
+        with atomic_duckdb_transaction(self._connection):
             for document_id in removals:
                 self._delete_document(document_id)
             for transcript in upserts:
                 self._delete_document(transcript.document_id)
                 self._insert_transcript(transcript)
-            self._connection.execute("COMMIT")
-        except Exception:
-            self._connection.execute("ROLLBACK")
-            raise
 
     def upsert(self, transcript: IndexedTranscript) -> None:
         self.apply_delta(upserts=(transcript,), removals=())
@@ -375,7 +366,8 @@ class DuckDbTranscriptIndex:
 
     def clear(self) -> None:
         self._require_open()
-        self._clear_tables()
+        with atomic_duckdb_transaction(self._connection):
+            self._clear_tables()
 
     def _clear_tables(self) -> None:
         self._connection.execute("DELETE FROM terms")

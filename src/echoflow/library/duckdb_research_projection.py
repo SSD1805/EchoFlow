@@ -7,6 +7,7 @@ from pathlib import Path
 import duckdb
 
 from echoflow.core.file_manager_facade import FileManagerFacade
+from echoflow.library.duckdb_safety import atomic_duckdb_transaction
 from echoflow.library.errors import ResearchProjectionError
 from echoflow.library.research_projection import (
     EvidenceScopeKey,
@@ -104,17 +105,15 @@ class DuckDbResearchProjection:
         self._require_open()
         if through_sequence < 0:
             raise ValueError("projection sequence cannot be negative")
-        self._connection.execute("BEGIN TRANSACTION")
         try:
-            self._clear_rows()
-            for record in records:
-                self._insert_record(record)
-            self._set_watermark(through_sequence)
-            self._connection.execute("COMMIT")
+            with atomic_duckdb_transaction(self._connection):
+                self._clear_rows()
+                for record in records:
+                    self._insert_record(record)
+                self._set_watermark(through_sequence)
+        except ValueError:
+            raise
         except Exception as exc:
-            self._connection.execute("ROLLBACK")
-            if isinstance(exc, (KeyboardInterrupt, SystemExit, ValueError)):
-                raise
             raise ResearchProjectionError(
                 "Research query projection could not be rebuilt safely", cause=exc
             ) from exc
@@ -135,18 +134,16 @@ class DuckDbResearchProjection:
         touched = tuple(record.note_id for record in records) + deleted_note_ids
         if len(touched) != len(set(touched)):
             raise ValueError("projection batch contains duplicate note identities")
-        self._connection.execute("BEGIN TRANSACTION")
         try:
-            for note_id in touched:
-                self._delete_note(note_id)
-            for record in records:
-                self._insert_record(record)
-            self._set_watermark(through_sequence)
-            self._connection.execute("COMMIT")
+            with atomic_duckdb_transaction(self._connection):
+                for note_id in touched:
+                    self._delete_note(note_id)
+                for record in records:
+                    self._insert_record(record)
+                self._set_watermark(through_sequence)
+        except ValueError:
+            raise
         except Exception as exc:
-            self._connection.execute("ROLLBACK")
-            if isinstance(exc, (KeyboardInterrupt, SystemExit, ValueError)):
-                raise
             raise ResearchProjectionError(
                 "Research query projection could not apply a change batch safely",
                 cause=exc,
@@ -251,14 +248,9 @@ class DuckDbResearchProjection:
 
     def clear(self) -> None:
         self._require_open()
-        self._connection.execute("BEGIN TRANSACTION")
-        try:
+        with atomic_duckdb_transaction(self._connection):
             self._clear_rows()
             self._set_watermark(0)
-            self._connection.execute("COMMIT")
-        except Exception:
-            self._connection.execute("ROLLBACK")
-            raise
 
     def close(self) -> None:
         if self._closed:

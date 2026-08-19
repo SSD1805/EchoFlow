@@ -5,6 +5,7 @@ from pathlib import Path
 import duckdb
 
 from echoflow.core.file_manager_facade import FileManagerFacade
+from echoflow.library.duckdb_safety import atomic_duckdb_transaction
 from echoflow.library.index import SearchOperator, SearchQuery
 from echoflow.library.semantic import (
     EmbeddingProfile,
@@ -108,8 +109,7 @@ class DuckDbSemanticIndex:
         ).fetchall()
         if not rows:
             return
-        self._connection.execute("BEGIN TRANSACTION")
-        try:
+        with atomic_duckdb_transaction(self._connection):
             for row in rows:
                 segment_ids = self._string_tuple(row[3], "segment_ids")
                 self._connection.executemany(
@@ -119,10 +119,6 @@ class DuckDbSemanticIndex:
                         for segment_id in segment_ids
                     ],
                 )
-            self._connection.execute("COMMIT")
-        except Exception:
-            self._connection.execute("ROLLBACK")
-            raise
 
     def rebuild(
         self,
@@ -144,8 +140,7 @@ class DuckDbSemanticIndex:
         for vector in vectors:
             self._validate_vector(vector, state.profile.dimensions)
 
-        self._connection.execute("BEGIN TRANSACTION")
-        try:
+        with atomic_duckdb_transaction(self._connection):
             self._clear_tables()
             self._insert_profile(state.profile)
             self._connection.execute(
@@ -162,10 +157,6 @@ class DuckDbSemanticIndex:
                     "INSERT INTO embeddings VALUES (?, ?, ?)",
                     [chunk.chunk_id, state.profile.profile_id, list(vector)],
                 )
-            self._connection.execute("COMMIT")
-        except Exception:
-            self._connection.execute("ROLLBACK")
-            raise
 
     def _insert_profile(self, profile: EmbeddingProfile) -> None:
         self._connection.execute(
@@ -439,7 +430,8 @@ class DuckDbSemanticIndex:
 
     def clear(self) -> None:
         self._require_open()
-        self._clear_tables()
+        with atomic_duckdb_transaction(self._connection):
+            self._clear_tables()
 
     def _clear_tables(self) -> None:
         self._connection.execute("DELETE FROM embeddings")

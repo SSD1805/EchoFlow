@@ -118,7 +118,7 @@ jobs:
           echo '===ECHOFLOW_PACKAGE_LOCK_END==='
 
   frontend-playwright:
-    needs: frontend-static
+    needs: [static, frontend-static]
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

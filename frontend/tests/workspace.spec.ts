@@ -26,6 +26,30 @@ test("Susan can search grouped evidence and research state", async ({ page }) =>
   await expect(page.getByText("SQLite")).toHaveCount(0);
 });
 
+test("Susan can open verified context and move the evidence cursor by canonical words", async ({ page }) => {
+  await openLibrary(page);
+
+  await page.getByRole("searchbox", { name: "Search EchoFlow" }).fill("ABC");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("button", { name: "Open evidence at 14:22" }).click();
+
+  await expect(page.getByRole("heading", { name: "Evidence reader" })).toBeVisible();
+  await expect(page.locator("[data-result-segment='true']")).toBeVisible();
+  const highlighted = page.locator("[data-highlighted='true']");
+  await expect(highlighted).toHaveText("ABC");
+  await expect(page.locator("[data-playhead-seconds='862.43']")).toBeVisible();
+
+  await page.getByRole("button", { name: "Move evidence cursor to 14:22 at program" }).click();
+  await expect(page.locator("[data-playhead-seconds='862.72']")).toBeVisible();
+
+  await page.getByRole("button", { name: "Return to match" }).click();
+  await expect(page.locator("[data-playhead-seconds='862.43']")).toBeVisible();
+  await expect(page.getByText("/Users/susan/Research", { exact: false })).toHaveCount(0);
+
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test("workspace search is keyboard reachable and accessible after results render", async ({ page }) => {
   await openLibrary(page);
 
@@ -50,4 +74,8 @@ test("transcript and note markup remains inert text", async ({ page }) => {
   await expect(page.getByText(`We started the ${hostile} program after the second interview round.`)).toBeVisible();
   await expect(page.getByText(`Follow up on ${hostile} governance during the next interview.`)).toBeVisible();
   await expect(page.locator(".result-groups img")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Open evidence", exact: false }).click();
+  await expect(page.locator(".evidence-reader img")).toHaveCount(0);
+  await expect(page.locator("[data-highlighted='true']")).toHaveText(hostile);
 });

@@ -3,11 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { createDesktopClient } from "./api/desktop";
 import { type Theme } from "./components/WorkspaceHeader";
 import { IntakeWorkspace } from "./IntakeWorkspace";
+import { ResearchWorkspace } from "./ResearchWorkspace";
 import { SearchWorkspace } from "./SearchWorkspace";
 
 const client = createDesktopClient();
 
-type View = "intake" | "library";
+type View = "intake" | "library" | "research";
 
 export function App() {
   const [theme, setTheme] = useState<Theme>("archive");
@@ -17,21 +18,25 @@ export function App() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  const workspace = useMemo(
-    () =>
-      view === "intake" ? (
+  const workspace = useMemo(() => {
+    if (view === "intake") {
+      return (
         <IntakeWorkspace client={client} theme={theme} onThemeChange={setTheme} />
-      ) : (
-        <SearchWorkspace client={client} theme={theme} onThemeChange={setTheme} />
-      ),
-    [theme, view],
-  );
+      );
+    }
+    if (view === "library") {
+      return <SearchWorkspace client={client} theme={theme} onThemeChange={setTheme} />;
+    }
+    return <ResearchWorkspace client={client} theme={theme} onThemeChange={setTheme} />;
+  }, [theme, view]);
 
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Primary navigation">
         <div className="brand-block">
-          <div className="brand-mark" aria-hidden="true">E</div>
+          <div className="brand-mark" aria-hidden="true">
+            E
+          </div>
           <div>
             <p className="brand-name">EchoFlow</p>
             <p className="brand-subtitle">Private evidence workspace</p>
@@ -55,7 +60,12 @@ export function App() {
           >
             <span aria-hidden="true">⌕</span> Library
           </button>
-          <button className="nav-item" type="button" disabled>
+          <button
+            className={view === "research" ? "nav-item nav-item-active" : "nav-item"}
+            type="button"
+            aria-current={view === "research" ? "page" : undefined}
+            onClick={() => setView("research")}
+          >
             <span aria-hidden="true">✦</span> Research
           </button>
         </nav>

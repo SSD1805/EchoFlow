@@ -21,6 +21,7 @@ from echoflow.library.duckdb_index import DuckDbTranscriptIndex
 from echoflow.library.duckdb_research_projection import DuckDbResearchProjection
 from echoflow.library.duckdb_semantic import DuckDbSemanticIndex
 from echoflow.library.evidence import EvidenceLocator
+from echoflow.library.locations import JsonLibraryLocationStore, LibraryLocationService
 from echoflow.library.research import ResearchNavigationService
 from echoflow.library.research_projector import ResearchStateProjector
 from echoflow.library.research_workspace import ResearchWorkspaceService
@@ -155,6 +156,15 @@ def _create_speaker_label_store(
     )
 
 
+def _create_library_location_store(
+    config: AppConfig, file_manager: FileManagerFacade
+) -> JsonLibraryLocationStore:
+    return JsonLibraryLocationStore(
+        config.STATE_DIR / "library" / "user-state" / "library-locations.json",
+        file_manager,
+    )
+
+
 def _create_research_state_store(
     config: AppConfig, file_manager: FileManagerFacade
 ) -> SqliteResearchStateStore:
@@ -276,6 +286,11 @@ class AppContainer(containers.DeclarativeContainer):
         config=config,
         file_manager=file_manager,
     )
+    library_location_store = providers.Singleton(
+        _create_library_location_store,
+        config=config,
+        file_manager=file_manager,
+    )
     speaker_labels = providers.Singleton(
         SpeakerLabelService,
         index=transcript_index,
@@ -312,6 +327,13 @@ class AppContainer(containers.DeclarativeContainer):
         file_manager=file_manager,
         semantic_index=semantic_index,
         embedding_provider_factory=embedding_provider_factory,
+    )
+    library_locations = providers.Singleton(
+        LibraryLocationService,
+        store=library_location_store,
+        transcript_library=transcript_library,
+        file_manager=file_manager,
+        paths=workspace_paths,
     )
     library_custody = providers.Singleton(
         LibraryCustodyService,

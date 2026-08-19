@@ -114,18 +114,32 @@ The diagram should communicate structure first.
 
 ## Mermaid diagrams: portable, colorful, and legible
 
-EchoFlow documentation is read in IDE previews, GitHub web/mobile clients, generated
-views, and other Markdown renderers with uneven Mermaid support. The repository has a
-known-good house dialect: **direct fenced `flowchart` Mermaid**. Do not rewrite working
-`flowchart LR` / `flowchart TD` declarations to `graph ...;` as a “normalization” step.
-That exact repository-wide rewrite caused a rendering regression in August 2026.
+GitHub renders Mermaid when the syntax is placed directly inside a fenced code block whose
+language identifier is `mermaid`. GitHub's own documentation uses the classic
+`graph TD;` spelling. Mermaid's `flowchart LR` / `flowchart TD` spelling is also used
+throughout EchoFlow. **Do not mechanically rewrite one valid spelling into the other.**
+Portability is about the whole diagram, not a cosmetic keyword preference.
+
+The August 2026 documentation regression actually had two separate causes:
+
+1. a one-shot normalizer stripped `classDef` and class assignments from styled diagrams,
+   turning the established visual language into monochrome boxes; and
+2. a later “fallback” change made hand-written SVG files the primary visible diagrams and
+   moved the real Mermaid fences inside collapsed `<details>` blocks. The SVGs used
+   `currentColor`, which is unreliable as a page-theme inheritance mechanism when the SVG
+   is loaded as an external image, especially on dark GitHub themes.
+
+The repair is therefore to keep the Mermaid **directly visible**, keep a small compatible
+syntax surface, preserve the palette, and retain prose fallback for meaning. It is not to
+ban `graph`.
 
 For high-traffic and load-bearing diagrams:
 
 - use a fence that is exactly `````mermaid`` and keep the Mermaid visible directly in the
-  document rather than hiding the primary diagram source in a disclosure;
-- prefer `flowchart LR`, `flowchart TD`, and simple node/edge syntax;
-- avoid HTML labels, embedded markup, renderer directives, and `linkStyle` tricks;
+  document rather than hiding the primary diagram inside `<details>`;
+- use simple `graph LR` / `graph TD` or `flowchart LR` / `flowchart TD` syntax;
+- avoid HTML labels, embedded markup, renderer directives, and `linkStyle` tricks unless a
+  current GitHub Mermaid version has been deliberately qualified;
 - keep node labels short and literal;
 - put the important relationship in edge/node text, not only visual styling;
 - use the EchoFlow palette when color improves hierarchy; and
@@ -176,7 +190,7 @@ The labels remain meaningful without color. Color makes the structure faster to 
 Do **not** maintain a second hand-drawn SVG merely to duplicate a Mermaid diagram. That
 creates two visual sources that drift and tends to look foreign to the repository. A
 separately designed SVG is appropriate only when SVG itself is intentionally the source
-asset and has been designed for both light and dark presentation.
+asset and has been designed and qualified for both light and dark presentation.
 
 ## Jargon has to earn rent
 

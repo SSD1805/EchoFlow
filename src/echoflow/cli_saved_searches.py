@@ -100,9 +100,7 @@ def _navigation_dict(navigation: WorkspaceNavigation) -> dict[str, object]:
         "frequent_tags": [
             _navigation_item_dict(item) for item in navigation.frequent_tags
         ],
-        "recent_tags": [
-            _navigation_item_dict(item) for item in navigation.recent_tags
-        ],
+        "recent_tags": [_navigation_item_dict(item) for item in navigation.recent_tags],
         "frequent_collections": [
             _navigation_item_dict(item) for item in navigation.frequent_collections
         ],
@@ -242,7 +240,9 @@ def _list_saved(
         _handle_error(exc)
         return
     if json_output:
-        typer.echo(json.dumps([_saved_search_dict(item) for item in saved], sort_keys=True))
+        typer.echo(
+            json.dumps([_saved_search_dict(item) for item in saved], sort_keys=True)
+        )
         return
     _render_saved_searches(saved)
 

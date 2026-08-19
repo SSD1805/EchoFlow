@@ -42,6 +42,8 @@ CLASSDEF = re.compile(
     r"stroke-width:2px,color:(#[0-9A-Fa-f]{6});?$"
 )
 FALLBACK_SHA = re.compile(r"<!-- mermaid-sha256: ([0-9a-f]{64}) -->")
+DETAILS_OPEN = re.compile(r"(?m)^<details(?:\s[^>]*)?>\s*$")
+DETAILS_CLOSE = re.compile(r"(?m)^</details>\s*$")
 APPROVED_STYLES = frozenset(
     {
         ("#D8EEFF", "#2E617B", "#12222A"),  # inspect / information
@@ -84,8 +86,14 @@ def _classdef_errors(body: str, diagram_index: int) -> list[str]:
 
 
 def _inside_details(text: str, offset: int) -> bool:
+    """Return whether offset is inside an actual line-level HTML disclosure.
+
+    Literal documentation prose such as ``<details>`` must not be mistaken for a real
+    opening tag. EchoFlow's Markdown disclosures use standalone line-level tags.
+    """
+
     before = text[:offset]
-    return before.rfind("<details") > before.rfind("</details>")
+    return len(DETAILS_OPEN.findall(before)) > len(DETAILS_CLOSE.findall(before))
 
 
 def _diagram_errors(

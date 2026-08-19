@@ -32,14 +32,18 @@ flowchart LR
     J --> K[Deterministic projector]
     K --> L[DuckDB research projection]
     L --> H
-    J --> M[ResearchWorkspaceService]
-    I --> M
+    J --> M[Saved searches]
+    J --> N[ResearchWorkspaceService]
+    I --> N
+    M --> N
+    N --> O[Unified discovery and navigation]
 ```
 
 Text fallback: source media produces canonical transcript evidence; DuckDB search
 projections rank passages; evidence navigation verifies those passages; SQLite owns
-human-authored research state; a deterministic projector builds disposable DuckDB query
-state; `ResearchWorkspaceService` is the application-facing seam across those boundaries.
+human-authored research state and saved searches; a deterministic projector builds
+disposable DuckDB query state; `ResearchWorkspaceService` is the application-facing seam
+across those boundaries.
 
 The architectural through-line is **custody**. Source evidence, canonical transcript
 truth, private execution state, managed model dependencies, rebuildable indexes, and
@@ -58,6 +62,7 @@ durable human knowledge intentionally have different deletion and recovery seman
 | [Anonymous speaker diarization](diarization.md) | How are speaker turns represented without pretending anonymous labels are identities? |
 | [Corpus search](corpus-search.md) | How do lexical/semantic/hybrid ranking and verified canonical navigation stay separate? |
 | [Durable research state](research-state.md) | Why does SQLite own human research while DuckDB owns rebuildable acceleration, and how do they converge? |
+| [Library lifecycle](library-lifecycle.md) | Where does canonical JSON live, what does a library rebuild actually rescan, and which state is durable versus disposable? |
 | [ROADMAP](../../ROADMAP.md) | What is implemented, what is next, and what remains research? |
 | [SECURITY](../../SECURITY.md) | What does the security boundary actually claim? |
 
@@ -74,7 +79,7 @@ durable human knowledge intentionally have different deletion and recovery seman
 | `transcription` | Planning, normalization, enhancement, segmentation, ASR, checkpoints, language attribution, word alignment, diarization, assembly, exports |
 | `workspace` | Private job paths and public artifact allocation |
 | `benchmarking` | Privacy-minimized local execution measurement |
-| `library` | Retrieval, canonical evidence navigation, speaker presentation, authoritative research state, and rebuildable research projection |
+| `library` | Retrieval, canonical evidence navigation, speaker presentation, authoritative research state, saved-search intent, unified discovery, derived navigation, and rebuildable projections |
 
 `runner` means the local compute environment visible to the process; it is not a
 distributed task runner. `media.probe` performs inspection, not transcoding.
@@ -101,7 +106,9 @@ The search/research area has deliberately separate responsibilities:
 5. `ResearchStateProjector` owns convergence from authoritative SQLite state into the
    rebuildable research projection.
 6. `ResearchProjectionIndex` owns fast derived research constraints and summaries.
-7. `ResearchWorkspaceService` composes those capabilities for presentation adapters.
+7. `WorkspaceMetadataStore` owns durable saved-search intent and computes disposable
+   frequent/recent navigation from current relationships.
+8. `ResearchWorkspaceService` composes those capabilities for presentation adapters.
 
 That split should survive unified discovery and the GUI. Presentation convenience is not
 permission to merge custody boundaries.
@@ -128,8 +135,13 @@ DuckDB research projection
 If the research projection disappears, rebuild it. If SQLite user state disappears,
 unique human work is lost. That asymmetry is intentional.
 
-See [Durable research state](research-state.md) for the full transaction, watermark,
-rebuild, and fail-closed contract.
+Saved searches share the authoritative SQLite database because they are authored research
+intent. Their runtime evidence scope does not. Replaying a saved search re-resolves the
+current corpus and current research relationships.
+
+See [Durable research state](research-state.md) for the transaction, watermark, rebuild,
+and fail-closed contract. See [Library lifecycle](library-lifecycle.md) for the broader
+retention, output-path, rescan, and deletion boundaries.
 
 ## The custody rules 🦝
 
@@ -140,34 +152,37 @@ These rules are load-bearing:
 3. **Managed model manifests describe verified local execution dependencies.**
 4. **Lexical, semantic, and research DuckDB databases are private rebuildable
    projections.**
-5. **User-authored speaker labels, notes, tags, collections, future saved searches, and
-   curated result sets do not share deletion semantics with indexes.**
+5. **User-authored speaker labels, notes, tags, collections, saved searches, and curated
+   result sets do not share deletion semantics with indexes.**
 6. **Research-state joins include canonical generation identity, not a friendly segment ID
    alone.**
 7. **Precise navigation resolves back to verified canonical evidence rather than trusting
    a stale search projection.**
 8. **Research filters are applied before ranking/scoring when they define eligible
    evidence.**
-9. **A convenience layer may not quietly become the only place unique evidence or user
-   knowledge lives.**
+9. **Saved searches persist typed query intent, not a frozen derived evidence scope.**
+10. **A convenience layer may not quietly become the only place unique evidence or user
+    knowledge lives.**
 
 Search infrastructure is allowed to disappear. User-authored knowledge is not.
 
-## The next architectural seam
+## Current application seam
 
-The next user-facing feature is **unified library discovery**. It should compose existing
-services rather than create another database or search engine.
+Unified discovery, saved searches, and frequent/recent navigation now all compose through
+`ResearchWorkspaceService` rather than creating another search engine or database
+authority.
 
-A future discovery service may return grouped typed results such as transcript evidence,
-notes, tags, collections, and saved searches. It should preserve each result type's own
-semantics rather than inventing one universal relevance score across unlike objects.
+`echoflow library find QUERY` returns typed transcript, note, tag, and collection groups.
+`echoflow library saved ...` stores and replays typed workspace queries. `echoflow library
+navigation` derives useful tag/collection views from current relationships.
 
-Saved searches belong to durable SQLite user state because they are authored workspace
-intent. Frequent/recent tag rankings are derived convenience views and should not become
-precious counters.
+The system deliberately does not invent a universal relevance score across unlike
+objects. Transcript ranks remain transcript ranks. Notes, tags, collections, and saved
+searches retain their own semantics.
 
-The first GUI then becomes a thin presentation adapter over the same discovery,
-`ResearchWorkspaceService`, `EvidenceAnchor`, speaker, time, and playback-seek contracts.
+The next presentation seam is the first thin GUI. It should consume the same discovery,
+`ResearchWorkspaceService`, `EvidenceAnchor`, saved-search, speaker, time, and playback-seek
+contracts. It must not create a second definition of where evidence or user state lives.
 
 ## New abstraction test
 

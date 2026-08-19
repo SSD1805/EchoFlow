@@ -119,7 +119,9 @@ def test_saved_search_rejects_derived_evidence_scope() -> None:
         )
 
 
-def test_saved_search_names_are_casefold_unique_without_overwrite(tmp_path: Path) -> None:
+def test_saved_search_names_are_casefold_unique_without_overwrite(
+    tmp_path: Path,
+) -> None:
     _, metadata, _ = _stores(tmp_path)
     original = metadata.create_saved_search(
         "Methods",

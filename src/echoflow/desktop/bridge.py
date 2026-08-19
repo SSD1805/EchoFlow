@@ -123,7 +123,9 @@ def _dispatch(request: _DesktopRequest, service: LibraryLocationService) -> obje
     }
 
 
-def handle_request(payload: object, service: LibraryLocationService) -> dict[str, object]:
+def handle_request(
+    payload: object, service: LibraryLocationService
+) -> dict[str, object]:
     request_id = "unknown"
     if isinstance(payload, dict) and isinstance(payload.get("request_id"), str):
         request_id = payload["request_id"][:128]

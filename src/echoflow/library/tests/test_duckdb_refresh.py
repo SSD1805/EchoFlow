@@ -70,7 +70,9 @@ def test_apply_delta_rolls_back_entire_refresh_when_one_upsert_fails(
     tmp_path: Path,
 ) -> None:
     index = _index(tmp_path)
-    original = _transcript(tmp_path, "original", "original evidence", canonical_char="1")
+    original = _transcript(
+        tmp_path, "original", "original evidence", canonical_char="1"
+    )
     index.rebuild((original,))
     valid = _transcript(tmp_path, "valid", "valid evidence", canonical_char="2")
     duplicate_segment = IndexedTranscript(

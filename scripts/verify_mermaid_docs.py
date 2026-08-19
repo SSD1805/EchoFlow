@@ -66,7 +66,9 @@ def _errors_for(path: Path) -> list[str]:
         if path in FRONT_DOORS:
             tail = text[match.end() : match.end() + 1_200]
             if "Text fallback:" not in tail:
-                errors.append(f"diagram {index} needs a nearby 'Text fallback:' paragraph")
+                errors.append(
+                    f"diagram {index} needs a nearby 'Text fallback:' paragraph"
+                )
 
     return errors
 

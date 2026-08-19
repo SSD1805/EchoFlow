@@ -156,7 +156,8 @@ def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object
                     for speaker in item.located.speakers
                 ],
                 "matched_words": [
-                    _serialize_word(word) for word in item.located.evidence.matched_words
+                    _serialize_word(word)
+                    for word in item.located.evidence.matched_words
                 ],
                 "context_segments": [
                     _serialize_context_segment(segment)

@@ -1,0 +1,67 @@
+name: Patch visible diagram fallbacks
+
+on:
+  push:
+    branches:
+      - agent/salvage-visible-diagrams-cursor
+    paths:
+      - .github/workflows/patch-visible-diagram-fallbacks.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-front-doors:
+    if: github.repository == 'SSD1805/EchoFlow'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/salvage-visible-diagrams-cursor
+          fetch-depth: 0
+
+      - name: Put SVG fallback before Mermaid source
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          targets = {
+              Path("README.md"): "![EchoFlow recording-to-evidence flow](docs/diagrams/recording-to-evidence.svg)",
+              Path("ROADMAP.md"): "![EchoFlow product roadmap](docs/diagrams/product-roadmap.svg)",
+              Path("docs/README.md"): "![EchoFlow family portrait](diagrams/docs-family-portrait.svg)",
+              Path("docs/architecture/README.md"): "![EchoFlow system architecture](../diagrams/system-architecture.svg)",
+          }
+          pattern = re.compile(r"```mermaid\n(?P<body>.*?)\n```", re.DOTALL)
+          for path, image in targets.items():
+              text = path.read_text(encoding="utf-8")
+              if image in text:
+                  continue
+              match = pattern.search(text)
+              if match is None:
+                  raise SystemExit(f"{path} has no Mermaid block")
+              source = match.group("body")
+              replacement = (
+                  f"{image}\n\n"
+                  "<details>\n"
+                  "<summary>Mermaid source</summary>\n\n"
+                  "```mermaid\n"
+                  f"{source}\n"
+                  "```\n\n"
+                  "</details>"
+              )
+              path.write_text(
+                  text[: match.start()] + replacement + text[match.end() :],
+                  encoding="utf-8",
+              )
+
+      - name: Commit only documentation front doors
+        run: |
+          test -z "$(git status --porcelain -- . ':!README.md' ':!ROADMAP.md' ':!docs/README.md' ':!docs/architecture/README.md')"
+          git diff --check -- README.md ROADMAP.md docs/README.md docs/architecture/README.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- README.md ROADMAP.md docs/README.md docs/architecture/README.md
+          git commit -m "docs: show SVG fallbacks on GitHub"
+          git push origin HEAD:agent/salvage-visible-diagrams-cursor

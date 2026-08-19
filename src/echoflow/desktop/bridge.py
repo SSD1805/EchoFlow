@@ -23,6 +23,7 @@ from echoflow.library.locations import (
     RecordingProcessingPolicy,
 )
 from echoflow.library.research_workspace import (
+    ResearchNoteView,
     ResearchWorkspaceService,
     WorkspaceDiscoveryResponse,
 )
@@ -50,6 +51,7 @@ class _DesktopRequest(BaseModel):
         "recordings.discover",
         "transcripts.refresh",
         "workspace.discover",
+        "workspace.research.overview",
     ]
     params: dict[str, object] = Field(default_factory=dict)
 
@@ -133,6 +135,23 @@ def _serialize_context_segment(segment: EvidenceContextSegment) -> dict[str, obj
     }
 
 
+def _serialize_note(item: ResearchNoteView) -> dict[str, object]:
+    return {
+        "note_id": item.note.note_id,
+        "body": item.note.body,
+        "document_id": item.note.anchor.document_id,
+        "canonical_sha256": item.note.anchor.canonical_sha256,
+        "segment_ids": list(item.note.anchor.segment_ids),
+        "start_seconds": item.note.anchor.start_seconds,
+        "end_seconds": item.note.anchor.end_seconds,
+        "current": item.current,
+        "tags": list(item.tags),
+        "collections": list(item.collections),
+        "created_at": item.note.created_at,
+        "updated_at": item.note.updated_at,
+    }
+
+
 def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object]:
     return {
         "query": report.query,
@@ -169,25 +188,36 @@ def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object
             }
             for item in report.transcripts.results
         ],
-        "notes": [
-            {
-                "note_id": item.note.note_id,
-                "body": item.note.body,
-                "document_id": item.note.anchor.document_id,
-                "canonical_sha256": item.note.anchor.canonical_sha256,
-                "segment_ids": list(item.note.anchor.segment_ids),
-                "start_seconds": item.note.anchor.start_seconds,
-                "end_seconds": item.note.anchor.end_seconds,
-                "current": item.current,
-                "tags": list(item.tags),
-                "collections": list(item.collections),
-            }
-            for item in report.notes
-        ],
+        "notes": [_serialize_note(item) for item in report.notes],
         "tags": [{"tag_id": item.tag_id, "name": item.name} for item in report.tags],
         "collections": [
             {"collection_id": item.collection_id, "name": item.name}
             for item in report.collections
+        ],
+    }
+
+
+def _serialize_research_overview(workspace: ResearchWorkspaceService) -> dict[str, object]:
+    saved_searches = workspace.saved_searches(limit=200)
+    return {
+        "notes": [_serialize_note(item) for item in workspace.notes(limit=200)],
+        "tags": [
+            {"tag_id": item.tag_id, "name": item.name} for item in workspace.tags()
+        ],
+        "collections": [
+            {"collection_id": item.collection_id, "name": item.name}
+            for item in workspace.collections()
+        ],
+        "saved_searches": [
+            {
+                "saved_search_id": item.saved_search_id,
+                "name": item.name,
+                "description": item.description,
+                "query_text": item.intent.query.text,
+                "retrieval_mode": item.intent.mode.value,
+                "updated_at": item.updated_at,
+            }
+            for item in saved_searches
         ],
     }
 
@@ -230,6 +260,10 @@ def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
             context_segments=discover_params.context_segments,
         )
         return _serialize_discovery(discovery)
+
+    if request.method == "workspace.research.overview":
+        _NoParams.model_validate(request.params)
+        return _serialize_research_overview(services.workspace)
 
     refresh_params = _RefreshParams.model_validate(request.params)
     refresh_report = services.locations.refresh_transcript_locations(

@@ -8,7 +8,7 @@ portable on ordinary computers while keeping source evidence and human-authored 
 under clear custody.
 
 Modern EchoFlow restarted on August 2, 2026. The project has moved from “can we transcribe
-a file?” through a substantial backend foundation and into the first real desktop research
+a file?” through a substantial backend foundation and into the first real desktop evidence
 workflows.
 
 ```mermaid
@@ -27,12 +27,11 @@ flowchart LR
     K --> L[Tauri React desktop]
     L --> M[Import and Library UI]
     M --> N[Verified evidence reader]
-    N --> O[Research overview]
-    O --> P[Research editing]
-    P --> Q[Local media playback]
-    Q --> R[Desktop packaging]
-    R --> S[Backup restore portability]
-    S --> T[Release qualification]
+    N --> O[Research workspace UI]
+    O --> P[Local media playback]
+    P --> Q[Desktop packaging]
+    Q --> R[Backup restore portability]
+    R --> S[Release qualification]
 
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
@@ -44,15 +43,15 @@ flowchart LR
     class B process
     class C,E,F evidence
     class D,G,H,I,J,K view
-    class L,M,N,O inspect
-    class P,Q,R,S,T process
+    class L,M,N inspect
+    class O,P,Q,R,S process
 ```
 
 Text fallback: EchoFlow already spans local media, reliable transcription, canonical
 evidence, retrieval, verified navigation, durable research, lifecycle controls, incremental
-refresh, remembered locations, and the first desktop import/search/evidence/research
-surfaces. The next work makes that desktop research workflow editable and playable, then
-packages and qualifies it for ordinary machines.
+refresh, remembered locations, and the first desktop import/search/evidence-reader
+surfaces. The next work turns the existing research authority into a real desktop
+workspace, then adds local playback, packaging, portability, and release qualification.
 
 # What is foundation now
 
@@ -156,25 +155,13 @@ mutation capability.
 
 ## Library discovery and evidence reader
 
-The Library surface now has Susan-style grouped discovery across transcript evidence,
-notes, tags, and collections. It does not fabricate one relevance score across unlike
-object types.
+The Library surface now has grouped discovery across transcript evidence, notes, tags, and
+collections. It does not fabricate one relevance score across unlike object types.
 
 A search result can open a verified canonical context window. Backend-justified matched
 words retain exact source-relative timing; selecting a canonical word moves an evidence
 cursor, and “Return to match” restores the backend-verified seek coordinate. Raw source
 and canonical filesystem paths stay out of the webview.
-
-## Research overview
-
-The Research navigation door is now a real typed workspace rather than a disabled future
-placeholder. Its first slice reads authoritative notes, tags, collections, and saved
-searches through `ResearchWorkspaceService` and presents current-versus-older evidence
-generation state.
-
-This first Research screen is intentionally **browse-first**. It establishes the authority,
-IPC, layout, accessibility, and path-minimization contract before editing mutations are
-added.
 
 # Current quality contract
 
@@ -195,21 +182,21 @@ behavioral gates rather than a number that becomes stale with the next test.
 
 # Near-term product sequence
 
-## 1. Research interaction UI
+## 1. Research workspace UI
 
-Turn the browse-first Research foundation into an authoring workflow without creating a
-second frontend data model.
+The research authority already exists in Python. The next tranche should make it usable
+from the desktop without creating a second frontend data model.
 
-The next research slice should add:
+The first Research slice should:
 
+- enable the Research navigation door;
+- browse authoritative notes, tags, collections, and saved searches;
+- distinguish current evidence anchors from older canonical generations;
 - create a note from a verified evidence window;
-- edit and delete a note through the typed workspace authority;
-- assign/remove tags and collections;
+- edit/delete notes and assign/remove tags and collections;
 - create, run, rename, and delete saved searches;
-- navigate a research object back to its current verified evidence when the generation is
-  still available;
-- preserve older-generation anchors visibly when they are no longer current; and
-- keep every mutation inside narrow versioned desktop bridge methods with no frontend SQL
+- navigate a research object back to verified current evidence when possible; and
+- keep every operation inside narrow versioned desktop bridge methods with no frontend SQL
   or direct SQLite access.
 
 Advanced typed search controls for phrase/ANY/ALL, speaker, language, transcript,

@@ -108,10 +108,10 @@ jobs:
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts --no-fund --no-audit
           git diff --check -- package-lock.json
-          git diff --quiet -- package-lock.json && {
-            echo "npm produced no lockfile change";
-            exit 2;
-          }
+          if git diff --quiet -- package-lock.json; then
+            echo "npm produced no lockfile change"
+            exit 2
+          fi
 
       - name: Commit regenerated lockfile only
         shell: bash
@@ -119,10 +119,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- package-lock.json
-          git diff --cached --quiet && {
-            echo "No lockfile change was staged";
-            exit 2;
-          }
+          if git diff --cached --quiet; then
+            echo "No lockfile change was staged"
+            exit 2
+          fi
           git commit -m "build(frontend): regenerate npm lockfile"
           git push origin "HEAD:${GITHUB_HEAD_REF}"
           exit 1

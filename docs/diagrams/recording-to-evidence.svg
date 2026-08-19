@@ -1,0 +1,37 @@
+<!-- generated from Mermaid source; sha256=dc428e0ce5629f331ef4dc83844b5aeda654354a39bd2bdbee9c4250b1510591 -->
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 2746 288">
+<title id="title">EchoFlow recording-to-evidence flow</title>
+<desc id="desc">A recording is inspected, transcribed locally into canonical evidence, searched, verified, annotated, discovered, saved, and managed through custody-aware lifecycle planning.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+<g fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.65" marker-end="url(#arrow)">
+<path d="M238.0,144.0 C288.0,144.0 288.0,144.0 332.0,144.0"/>
+<path d="M548.0,144.0 C598.0,144.0 598.0,144.0 642.0,144.0"/>
+<path d="M858.0,144.0 C908.0,144.0 908.0,144.0 952.0,144.0"/>
+<path d="M1168.0,144.0 C1218.0,144.0 1218.0,144.0 1262.0,144.0"/>
+<path d="M1478.0,144.0 C1528.0,144.0 1528.0,56.0 1572.0,56.0"/>
+<path d="M1478.0,144.0 C1528.0,144.0 1528.0,144.0 1572.0,144.0"/>
+<path d="M1788.0,144.0 C1838.0,144.0 1838.0,100.0 1882.0,100.0"/>
+<path d="M2098.0,100.0 C2148.0,100.0 2148.0,100.0 2192.0,100.0"/>
+<path d="M2408.0,100.0 C2458.0,100.0 2458.0,144.0 2502.0,144.0"/>
+<path d="M2718.0,144.0 C2748.0,144.0 2748.0,276.0 2718.0,276.0 L1558.0,276.0 C1548.0,276.0 1548.0,144.0 1572.0,144.0"/>
+<path d="M1788.0,144.0 C1838.0,144.0 1838.0,188.0 1882.0,188.0"/>
+<path d="M2718.0,144.0 C2748.0,144.0 2748.0,276.0 2718.0,276.0 L1868.0,276.0 C1858.0,276.0 1858.0,188.0 1882.0,188.0"/>
+<path d="M2098.0,188.0 C2148.0,188.0 2148.0,188.0 2192.0,188.0"/>
+<path d="M1478.0,144.0 C1528.0,144.0 1528.0,232.0 1572.0,232.0"/>
+<path d="M2718.0,144.0 C2748.0,144.0 2748.0,276.0 2718.0,276.0 L1558.0,276.0 C1548.0,276.0 1548.0,232.0 1572.0,232.0"/>
+<path d="M1168.0,144.0 C1373.0,144.0 1373.0,232.0 1572.0,232.0"/>
+</g><g font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="14" fill="currentColor">
+<rect x="28.0" y="116.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="133.0" y="144.0" text-anchor="middle" dominant-baseline="middle">Original recording</text>
+<rect x="338.0" y="116.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="443.0" y="144.0" text-anchor="middle" dominant-baseline="middle">Inspect source and machine</text>
+<rect x="648.0" y="116.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="753.0" y="144.0" text-anchor="middle" dominant-baseline="middle">Choose safe local strategy</text>
+<rect x="958.0" y="116.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="1063.0" y="144.0" text-anchor="middle" dominant-baseline="middle">Transcribe and checkpoint</text>
+<rect x="1268.0" y="116.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="1373.0" y="144.0" text-anchor="middle" dominant-baseline="middle">Canonical transcript JSON</text>
+<rect x="1578.0" y="28.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="1683.0" y="56.0" text-anchor="middle" dominant-baseline="middle">TXT SRT WebVTT</text>
+<rect x="1578.0" y="116.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="1683.0" y="135.0" text-anchor="middle" dominant-baseline="middle">Lexical semantic hybrid</text><text x="1683.0" y="153.0" text-anchor="middle" dominant-baseline="middle">search</text>
+<rect x="1888.0" y="72.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="1993.0" y="100.0" text-anchor="middle" dominant-baseline="middle">Verify canonical evidence</text>
+<rect x="2198.0" y="72.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="2303.0" y="91.0" text-anchor="middle" dominant-baseline="middle">Context highlights and</text><text x="2303.0" y="109.0" text-anchor="middle" dominant-baseline="middle">seek</text>
+<rect x="2508.0" y="116.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="2613.0" y="135.0" text-anchor="middle" dominant-baseline="middle">Durable notes tags</text><text x="2613.0" y="153.0" text-anchor="middle" dominant-baseline="middle">collections</text>
+<rect x="1888.0" y="160.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="1993.0" y="188.0" text-anchor="middle" dominant-baseline="middle">Unified discovery</text>
+<rect x="2198.0" y="160.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="2303.0" y="188.0" text-anchor="middle" dominant-baseline="middle">Saved searches navigation</text>
+<rect x="1578.0" y="204.0" width="210" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="1683.0" y="223.0" text-anchor="middle" dominant-baseline="middle">Custody-aware deletion</text><text x="1683.0" y="241.0" text-anchor="middle" dominant-baseline="middle">planning</text>
+</g></svg>

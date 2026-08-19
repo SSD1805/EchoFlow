@@ -163,9 +163,7 @@ def test_workspace_navigation_reads_live_relationships_not_saved_counters(
         ("methods", 2),
         ("housing", 1),
     ]
-    assert [
-        (item.name, item.usage_count) for item in after.frequent_collections
-    ] == [
+    assert [(item.name, item.usage_count) for item in after.frequent_collections] == [
         ("Appendix", 1),
         ("Chapter 1", 1),
     ]

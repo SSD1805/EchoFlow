@@ -120,6 +120,8 @@ class DuckDbTranscriptIndex:
                 document_id VARCHAR PRIMARY KEY,
                 source_sha256 VARCHAR NOT NULL,
                 canonical_sha256 VARCHAR,
+                canonical_size_bytes BIGINT,
+                canonical_modified_ns BIGINT,
                 transcript_schema_version INTEGER NOT NULL,
                 detected_language VARCHAR,
                 canonical_path VARCHAR NOT NULL,
@@ -151,6 +153,12 @@ class DuckDbTranscriptIndex:
         self._connection.execute(
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS canonical_sha256 VARCHAR"
         )
+        self._connection.execute(
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS canonical_size_bytes BIGINT"
+        )
+        self._connection.execute(
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS canonical_modified_ns BIGINT"
+        )
 
     def rebuild(self, transcripts: tuple[IndexedTranscript, ...]) -> None:
         self._require_open()
@@ -164,16 +172,41 @@ class DuckDbTranscriptIndex:
             self._connection.execute("ROLLBACK")
             raise
 
-    def upsert(self, transcript: IndexedTranscript) -> None:
+    def apply_delta(
+        self,
+        *,
+        upserts: tuple[IndexedTranscript, ...],
+        removals: tuple[str, ...],
+    ) -> None:
         self._require_open()
+        upsert_ids = tuple(item.document_id for item in upserts)
+        if len(upsert_ids) != len(set(upsert_ids)):
+            raise ValueError(
+                "incremental upserts cannot contain duplicate document IDs"
+            )
+        if any(not document_id.strip() for document_id in removals):
+            raise ValueError("incremental removals cannot contain empty document IDs")
+        if len(removals) != len(set(removals)):
+            raise ValueError(
+                "incremental removals cannot contain duplicate document IDs"
+            )
+        if set(upsert_ids).intersection(removals):
+            raise ValueError("a document cannot be both upserted and removed")
+
         self._connection.execute("BEGIN TRANSACTION")
         try:
-            self._delete_document(transcript.document_id)
-            self._insert_transcript(transcript)
+            for document_id in removals:
+                self._delete_document(document_id)
+            for transcript in upserts:
+                self._delete_document(transcript.document_id)
+                self._insert_transcript(transcript)
             self._connection.execute("COMMIT")
         except Exception:
             self._connection.execute("ROLLBACK")
             raise
+
+    def upsert(self, transcript: IndexedTranscript) -> None:
+        self.apply_delta(upserts=(transcript,), removals=())
 
     def _insert_transcript(self, transcript: IndexedTranscript) -> None:
         self._connection.execute(
@@ -182,18 +215,22 @@ class DuckDbTranscriptIndex:
                 document_id,
                 source_sha256,
                 canonical_sha256,
+                canonical_size_bytes,
+                canonical_modified_ns,
                 transcript_schema_version,
                 detected_language,
                 canonical_path,
                 source_path,
                 source_size_bytes,
                 source_modified_ns
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 transcript.document_id,
                 transcript.source_sha256,
                 transcript.canonical_sha256,
+                transcript.canonical_size_bytes,
+                transcript.canonical_modified_ns,
                 transcript.transcript_schema_version,
                 transcript.detected_language,
                 transcript.canonical_path,
@@ -230,16 +267,9 @@ class DuckDbTranscriptIndex:
                 )
 
     def remove(self, document_id: str) -> None:
-        self._require_open()
         if not document_id.strip():
             raise ValueError("document_id cannot be empty")
-        self._connection.execute("BEGIN TRANSACTION")
-        try:
-            self._delete_document(document_id)
-            self._connection.execute("COMMIT")
-        except Exception:
-            self._connection.execute("ROLLBACK")
-            raise
+        self.apply_delta(upserts=(), removals=(document_id,))
 
     def _delete_document(self, document_id: str) -> None:
         self._connection.execute(
@@ -264,11 +294,13 @@ class DuckDbTranscriptIndex:
         rows = self._connection.execute(
             """
             SELECT d.document_id, d.source_sha256, d.canonical_sha256,
+                   d.canonical_size_bytes, d.canonical_modified_ns,
                    d.detected_language, d.canonical_path, d.source_path,
                    COUNT(s.segment_id)
             FROM documents d
             LEFT JOIN segments s USING (document_id)
             GROUP BY d.document_id, d.source_sha256, d.canonical_sha256,
+                     d.canonical_size_bytes, d.canonical_modified_ns,
                      d.detected_language, d.canonical_path, d.source_path
             ORDER BY d.document_id
             """
@@ -278,10 +310,12 @@ class DuckDbTranscriptIndex:
                 document_id=str(row[0]),
                 source_sha256=str(row[1]),
                 canonical_sha256=None if row[2] is None else str(row[2]),
-                detected_language=None if row[3] is None else str(row[3]),
-                canonical_path=str(row[4]),
-                source_path=None if row[5] is None else str(row[5]),
-                segment_count=int(row[6]),
+                canonical_size_bytes=None if row[3] is None else int(row[3]),
+                canonical_modified_ns=None if row[4] is None else int(row[4]),
+                detected_language=None if row[5] is None else str(row[5]),
+                canonical_path=str(row[6]),
+                source_path=None if row[7] is None else str(row[7]),
+                segment_count=int(row[8]),
             )
             for row in rows
         )

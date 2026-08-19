@@ -58,6 +58,8 @@ class IndexedTranscript:
     source_modified_ns: int
     segments: tuple[IndexedSegment, ...]
     canonical_sha256: str | None = None
+    canonical_size_bytes: int | None = None
+    canonical_modified_ns: int | None = None
 
     def __post_init__(self) -> None:
         if not self.document_id.strip():
@@ -77,9 +79,20 @@ class IndexedTranscript:
             raise ValueError("source_size_bytes must be positive")
         if self.source_modified_ns < 0:
             raise ValueError("source_modified_ns cannot be negative")
+        self._validate_canonical_signature()
         segment_ids = tuple(segment.segment_id for segment in self.segments)
         if len(segment_ids) != len(set(segment_ids)):
             raise ValueError("segment IDs must be unique within a document")
+
+    def _validate_canonical_signature(self) -> None:
+        if (self.canonical_size_bytes is None) != (self.canonical_modified_ns is None):
+            raise ValueError(
+                "canonical size and modified time must either both be set or both be absent"
+            )
+        if self.canonical_size_bytes is not None and self.canonical_size_bytes < 1:
+            raise ValueError("canonical_size_bytes must be positive")
+        if self.canonical_modified_ns is not None and self.canonical_modified_ns < 0:
+            raise ValueError("canonical_modified_ns cannot be negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +104,8 @@ class IndexedDocument:
     source_path: str | None
     segment_count: int
     canonical_sha256: str | None = None
+    canonical_size_bytes: int | None = None
+    canonical_modified_ns: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,6 +185,15 @@ class TranscriptIndex(Protocol):
 
     def rebuild(self, transcripts: tuple[IndexedTranscript, ...]) -> None:
         """Replace the complete derived index atomically."""
+        ...
+
+    def apply_delta(
+        self,
+        *,
+        upserts: tuple[IndexedTranscript, ...],
+        removals: tuple[str, ...],
+    ) -> None:
+        """Apply one incremental corpus delta atomically."""
         ...
 
     def upsert(self, transcript: IndexedTranscript) -> None: ...

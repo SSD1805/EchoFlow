@@ -16,6 +16,14 @@ class ReadStore:
         return self.payload
 
 
+class MutatingReadStore:
+    def read_file(self, file_path: str | Path) -> bytes:
+        path = Path(file_path)
+        payload = path.read_bytes()
+        path.write_bytes(payload + b" ")
+        return payload
+
+
 def _document() -> dict[str, object]:
     return {
         "schema_version": 1,
@@ -59,9 +67,15 @@ def _document() -> dict[str, object]:
     }
 
 
+def _canonical(tmp_path: Path, payload: bytes) -> Path:
+    path = tmp_path / "transcript.json"
+    path.write_bytes(payload)
+    return path
+
+
 def test_projection_extracts_only_searchable_canonical_evidence(tmp_path: Path) -> None:
     payload = json.dumps(_document()).encode()
-    canonical = tmp_path / "transcript.json"
+    canonical = _canonical(tmp_path, payload)
     source = tmp_path / "audio.wav"
 
     indexed = load_indexed_transcript(
@@ -74,16 +88,20 @@ def test_projection_extracts_only_searchable_canonical_evidence(tmp_path: Path) 
     assert indexed.source_sha256 == "0" * 64
     assert indexed.canonical_path == str(canonical.resolve())
     assert indexed.source_path == str(source.resolve())
+    assert indexed.canonical_size_bytes == len(payload)
+    assert indexed.canonical_modified_ns == canonical.stat().st_mtime_ns
     assert [segment.language for segment in indexed.segments] == ["fr", "de", "en"]
     assert indexed.segments[0].speaker_ref == "speaker-01"
     assert indexed.segments[0].text == "hello"
 
 
 def test_projection_accepts_unknown_source_path(tmp_path: Path) -> None:
+    payload = json.dumps(_document()).encode()
+    canonical = _canonical(tmp_path, payload)
     indexed = load_indexed_transcript(
-        tmp_path / "transcript.json",
+        canonical,
         source_path=None,
-        file_manager=ReadStore(json.dumps(_document()).encode()),  # type: ignore[arg-type]
+        file_manager=ReadStore(payload),  # type: ignore[arg-type]
     )
     assert indexed.source_path is None
 
@@ -118,9 +136,10 @@ def test_projection_accepts_unknown_source_path(tmp_path: Path) -> None:
 def test_projection_fails_closed_on_malformed_canonical_data(
     tmp_path: Path, payload: bytes, message: str
 ) -> None:
+    canonical = _canonical(tmp_path, payload)
     with pytest.raises(TranscriptProjectionError, match=message):
         load_indexed_transcript(
-            tmp_path / "transcript.json",
+            canonical,
             source_path=None,
             file_manager=ReadStore(payload),  # type: ignore[arg-type]
         )
@@ -130,9 +149,25 @@ def test_projection_rejects_oversized_artifact_before_json_parse(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(projection, "_MAX_CANONICAL_BYTES", 4)
+    payload = b"12345"
+    canonical = _canonical(tmp_path, payload)
     with pytest.raises(TranscriptProjectionError, match="too large"):
         load_indexed_transcript(
-            tmp_path / "transcript.json",
+            canonical,
             source_path=None,
-            file_manager=ReadStore(b"12345"),  # type: ignore[arg-type]
+            file_manager=ReadStore(payload),  # type: ignore[arg-type]
+        )
+
+
+def test_projection_fails_closed_if_canonical_changes_during_read(
+    tmp_path: Path,
+) -> None:
+    payload = json.dumps(_document()).encode()
+    canonical = _canonical(tmp_path, payload)
+
+    with pytest.raises(TranscriptProjectionError, match="changed while"):
+        load_indexed_transcript(
+            canonical,
+            source_path=None,
+            file_manager=MutatingReadStore(),  # type: ignore[arg-type]
         )

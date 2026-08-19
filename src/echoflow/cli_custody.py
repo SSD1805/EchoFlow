@@ -1,4 +1,4 @@
-"""CLI for custody-aware deletion and private execution-state retention."""
+"""CLI for custody-aware deletion, retention, and library maintenance registration."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from echoflow.app.app_container import AppContainer
+from echoflow.cli_refresh import register_refresh_command
 from echoflow.core.errors import EchoFlowError
 from echoflow.library.custody import (
     DeletionAction,
@@ -278,7 +279,7 @@ def register_custody_commands(
     library_app: typer.Typer,
     container_factory: ContainerFactory,
 ) -> None:
-    """Register deletion planning/execution and private retention controls."""
+    """Register custody controls and adjacent library maintenance commands."""
 
     @library_app.command("delete")
     def delete_transcript(
@@ -352,3 +353,5 @@ def register_custody_commands(
             confirm=confirm,
             json_output=json_output,
         )
+
+    register_refresh_command(library_app, container_factory)

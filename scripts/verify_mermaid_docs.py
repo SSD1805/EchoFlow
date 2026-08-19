@@ -1,12 +1,13 @@
 """Verify EchoFlow Mermaid docs stay GitHub-friendly and visually intentional.
 
-The repository once had working, styled ``flowchart`` diagrams. A later normalization
-rewrote them to ``graph ...;`` and stripped their class definitions, so this check protects
-the known-good dialect instead of trying to reduce Mermaid to monochrome boxes.
+GitHub documents Mermaid fenced blocks directly and accepts the classic ``graph TD;``
+form. EchoFlow also uses Mermaid's ``flowchart`` spelling. The verifier therefore protects
+visibility, simple portable structure, and the established palette rather than rewriting
+one valid spelling into another.
 
-Color is presentation, never the only carrier of meaning. Diagram labels and edges must
-remain understandable without it, while approved class styles keep the documentation
-visually consistent with EchoFlow's established palette.
+A previous regression stripped class styles and later placed hand-maintained SVG fallbacks
+above Mermaid blocks while collapsing the actual Mermaid inside ``<details>``. This check
+prevents those presentation regressions from becoming the new contract.
 """
 
 from __future__ import annotations
@@ -23,14 +24,20 @@ FRONT_DOORS = frozenset(
         ROOT / "docs" / "architecture" / "README.md",
     }
 )
+DEPRECATED_FALLBACK_REFERENCES = {
+    ROOT / "README.md": "docs/diagrams/recording-to-evidence.svg",
+    ROOT / "ROADMAP.md": "docs/diagrams/product-roadmap.svg",
+    ROOT / "docs" / "README.md": "diagrams/docs-family-portrait.svg",
+    ROOT / "docs" / "architecture" / "README.md": "../diagrams/system-architecture.svg",
+}
 MERMAID_BLOCK = re.compile(r"```mermaid\n(?P<body>.*?)\n```", re.DOTALL)
 PORTABLE_START = re.compile(
-    r"^flowchart\s+(?:LR|RL|TD|TB|BT)$|^sequenceDiagram$|^info$"
+    r"^(?:graph|flowchart)\s+(?:LR|RL|TD|TB|BT);?$|^sequenceDiagram$|^info$"
 )
 CLASSDEF = re.compile(
     r"^classDef\s+[A-Za-z][A-Za-z0-9_-]*\s+"
     r"fill:(#[0-9A-Fa-f]{6}),stroke:(#[0-9A-Fa-f]{6}),"
-    r"stroke-width:2px,color:(#[0-9A-Fa-f]{6})$"
+    r"stroke-width:2px,color:(#[0-9A-Fa-f]{6});?$"
 )
 APPROVED_STYLES = frozenset(
     {
@@ -78,6 +85,11 @@ def _classdef_errors(body: str, diagram_index: int) -> list[str]:
     return errors
 
 
+def _inside_details(text: str, offset: int) -> bool:
+    before = text[:offset]
+    return before.rfind("<details") > before.rfind("</details>")
+
+
 def _diagram_errors(
     path: Path, text: str, match: re.Match[str], index: int
 ) -> list[str]:
@@ -86,8 +98,10 @@ def _diagram_errors(
     errors: list[str] = []
     if not lines or not PORTABLE_START.fullmatch(lines[0]):
         errors.append(
-            f"diagram {index} must start with the known-good flowchart/sequence syntax"
+            f"diagram {index} must start with portable graph/flowchart/sequence syntax"
         )
+    if _inside_details(text, match.start()):
+        errors.append(f"diagram {index} must be directly visible, not nested in <details>")
     for token in FORBIDDEN:
         if token in body:
             errors.append(f"diagram {index} uses non-portable construct {token!r}")
@@ -111,6 +125,12 @@ def _errors_for(path: Path) -> list[str]:
     if "```mermaid " in text or "``` mermaid" in text:
         errors.append("Mermaid fences must be exactly ```mermaid")
 
+    deprecated = DEPRECATED_FALLBACK_REFERENCES.get(path)
+    if deprecated is not None and deprecated in text:
+        errors.append(
+            "must not restore the hand-maintained SVG fallback in front of the Mermaid"
+        )
+
     for index, match in enumerate(blocks, start=1):
         errors.extend(_diagram_errors(path, text, match, index))
     return errors
@@ -133,8 +153,8 @@ def main() -> int:
         return 1
 
     print(
-        "Mermaid documentation uses the known-good flowchart dialect; "
-        "approved styling and front-door text fallbacks are intact."
+        "Mermaid documentation is directly visible, uses portable graph/flowchart syntax, "
+        "and preserves the approved EchoFlow palette."
     )
     return 0
 

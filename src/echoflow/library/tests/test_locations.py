@@ -82,17 +82,16 @@ def test_add_location_persists_normalized_private_state(tmp_path):
     assert location.processing_policy is RecordingProcessingPolicy.MANUAL
     assert service.locations() == (location,)
     state_path = (
-        _paths(tmp_path).state_dir
-        / "library"
-        / "user-state"
-        / "library-locations.json"
+        _paths(tmp_path).state_dir / "library" / "user-state" / "library-locations.json"
     )
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["schema_version"] == 1
     assert state["locations"][0]["location_id"] == "location-transcripts"
 
 
-def test_same_directory_can_have_distinct_transcript_and_recording_permissions(tmp_path):
+def test_same_directory_can_have_distinct_transcript_and_recording_permissions(
+    tmp_path,
+):
     root = tmp_path / "research"
     root.mkdir()
     service, _ = _service(tmp_path)
@@ -305,9 +304,7 @@ def test_remove_forgets_permission_without_deleting_directory(tmp_path):
 
 def test_corrupt_location_state_fails_closed(tmp_path):
     paths = _paths(tmp_path)
-    state_path = (
-        paths.state_dir / "library" / "user-state" / "library-locations.json"
-    )
+    state_path = paths.state_dir / "library" / "user-state" / "library-locations.json"
     state_path.parent.mkdir(parents=True)
     state_path.write_text('{"schema_version": 1, "locations": [', encoding="utf-8")
     service, _ = _service(tmp_path)
@@ -318,9 +315,7 @@ def test_corrupt_location_state_fails_closed(tmp_path):
 
 def test_unsupported_location_schema_fails_closed(tmp_path):
     paths = _paths(tmp_path)
-    state_path = (
-        paths.state_dir / "library" / "user-state" / "library-locations.json"
-    )
+    state_path = paths.state_dir / "library" / "user-state" / "library-locations.json"
     state_path.parent.mkdir(parents=True)
     state_path.write_text(
         json.dumps({"schema_version": 999, "locations": []}),

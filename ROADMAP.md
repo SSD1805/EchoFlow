@@ -47,6 +47,13 @@ flowchart LR
     class O,P,Q,R,S process
 ```
 
+<details>
+<summary>Static diagram fallback if rich rendering is unavailable</summary>
+
+![EchoFlow product-roadmap static diagram](docs/diagrams/product-roadmap.svg)
+
+</details>
+
 Text fallback: EchoFlow already spans local media, reliable transcription, canonical
 evidence, retrieval, verified navigation, durable research, lifecycle controls, incremental
 refresh, remembered locations, and the first desktop import/search/evidence-reader

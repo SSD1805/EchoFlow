@@ -11,6 +11,11 @@ Modern EchoFlow restarted on August 2, 2026. The project has moved from “can w
 a file?” to “can a person build, research, and safely maintain a private evidence library
 without giving the corpus away?”
 
+![EchoFlow product roadmap](docs/diagrams/product-roadmap.svg)
+
+<details>
+<summary>Mermaid source</summary>
+
 ```mermaid
 flowchart LR
     A[Local media] --> B[Reliable local transcription]
@@ -30,6 +35,8 @@ flowchart LR
     N --> O[Backup restore and portability]
     O --> P[Release qualification]
 ```
+
+</details>
 
 # Current foundation
 

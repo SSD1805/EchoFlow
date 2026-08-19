@@ -77,7 +77,7 @@ export function EvidenceReader({ evidence, onClose }: EvidenceReaderProps) {
 
       <div className="evidence-context" aria-label="Verified transcript context">
         {evidence.context_segments.length === 0 ? (
-          <section className="context-segment result-segment" aria-label="Search result">
+          <section className="context-segment result-segment">
             <div className="context-meta">
               <time dateTime={`PT${evidence.start_seconds}S`}>
                 {formatEvidenceTime(evidence.start_seconds)}
@@ -91,7 +91,6 @@ export function EvidenceReader({ evidence, onClose }: EvidenceReaderProps) {
             <section
               className={`context-segment${segment.is_result_segment ? " result-segment" : ""}`}
               key={segment.segment_id}
-              aria-label={segment.is_result_segment ? "Search result" : "Context"}
             >
               <div className="context-meta">
                 <time dateTime={`PT${segment.start_seconds}S`}>

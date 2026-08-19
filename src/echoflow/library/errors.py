@@ -41,3 +41,9 @@ class ResearchProjectionError(TranscriptLibraryError):
     """Disposable research-state projection cannot be reconciled safely."""
 
     exit_code = 2
+
+
+class CustodyOperationError(TranscriptLibraryError):
+    """A deletion or retention request cannot be executed safely as planned."""
+
+    exit_code = 2

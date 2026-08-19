@@ -17,7 +17,7 @@ It asks a narrower question:
 > without changing source custody, timeline semantics, or resume behavior?
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Original recording] --> B[Canonical decode]
     B --> C{Enhancement requested?}
     C -->|no| D[ASR]
@@ -25,6 +25,16 @@ graph LR;
     E --> F[Timeline identity checks]
     F --> D
     D --> G[Canonical transcript + provenance]
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef check fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef result fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+
+    class A source
+    class B,C,D,E process
+    class F check
+    class G result
 ```
 
 ## User surface

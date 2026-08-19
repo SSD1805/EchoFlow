@@ -84,11 +84,19 @@ Qualification should not require downloading a model or sending text anywhere.
 One especially important invariant is transactional replacement of semantic state.
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Existing valid generation] --> B[Attempt rebuild]
     B --> C{Embedding / validation succeeds?}
     C -->|yes| D[Commit new generation]
     C -->|no| E[Keep previous valid generation]
+
+    classDef good fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+    classDef work fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef stop fill:#FFD6D6,stroke:#9E3434,stroke-width:2px,color:#351616
+
+    class A,D good
+    class B,C work
+    class E stop
 ```
 
 Tests cover embedding failure and invalid semantic replacement so a failed rebuild does

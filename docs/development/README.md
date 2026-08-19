@@ -43,7 +43,7 @@ anchoring, transactional user state, projection recovery, and privacy boundaries
 Line/branch coverage alone cannot prove those decisions are correct.
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Named behavioral tests] --> B[Negative and boundary cases]
     B --> C[Property tests]
     C --> D[Integration and package tests]

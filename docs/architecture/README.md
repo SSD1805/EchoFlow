@@ -16,13 +16,8 @@ EchoFlow is composed from narrow local capabilities in
 canonical transcript truth, private execution state, rebuildable projections, and durable
 human knowledge deliberately do not share deletion or recovery semantics.
 
-![EchoFlow system architecture](../diagrams/system-architecture.svg)
-
-<details>
-<summary>Mermaid source</summary>
-
 ```mermaid
-graph LR;
+flowchart LR
     A[Source media] --> B[Media and resource inspection]
     B --> C[Immutable local plan]
     C --> D[Transcription and checkpoints]
@@ -47,8 +42,6 @@ graph LR;
     D --> P
     P --> Q[Plan-bound deletion and retention]
 ```
-
-</details>
 
 Text fallback: canonical JSON is evidence; DuckDB ranks rebuildable views; canonical
 navigation verifies evidence; SQLite owns human research; `ResearchWorkspaceService`

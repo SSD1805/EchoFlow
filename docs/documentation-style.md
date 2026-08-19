@@ -120,7 +120,7 @@ For high-traffic and load-bearing diagrams:
 Portable example:
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Canonical transcript] --> B[Rebuildable search projection]
     B --> C[Ranked passage]
     C --> D[Verified canonical evidence]

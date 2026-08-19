@@ -100,13 +100,8 @@ semantic qualification, and targeted mutation testing.
 
 ## The EchoFlow family portrait
 
-![EchoFlow family portrait](diagrams/docs-family-portrait.svg)
-
-<details>
-<summary>Mermaid source</summary>
-
 ```mermaid
-graph LR;
+flowchart LR
     A[Your recording] --> B[Local transcription]
     B --> C[Canonical transcript]
     C --> D[Lexical semantic hybrid search]
@@ -121,8 +116,6 @@ graph LR;
     B --> I
     H --> J[Incremental refresh and GUI]
 ```
-
-</details>
 
 Text fallback: canonical evidence feeds rebuildable search; search resolves back to
 verified evidence; durable notes/tags/collections attach to evidence; saved searches retain

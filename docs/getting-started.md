@@ -14,7 +14,7 @@ EchoFlow is still pre-production. There is no polished desktop installer yet, so
 current path uses Python 3.12, `uv`, and the command line.
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Your recording] --> B[Inspect source and computer]
     B --> C[Choose safe local plan]
     C --> D[Transcribe]
@@ -260,7 +260,7 @@ plain-language explanation.
 ## What EchoFlow stores 🦝
 
 ```mermaid
-graph TD;
+flowchart TD
     A[Original recording] --> B[Canonical transcript JSON]
     B --> C[TXT SRT WebVTT]
     B --> D[DuckDB lexical and semantic projections]

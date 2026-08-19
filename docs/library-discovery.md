@@ -26,7 +26,7 @@ number. EchoFlow keeps the result types separate and useful.
 ## The simple mental model
 
 ```mermaid
-graph LR;
+flowchart LR
     Q[One library query] --> T[Transcript evidence]
     Q --> N[Your notes]
     Q --> G[Tags]

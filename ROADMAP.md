@@ -11,13 +11,8 @@ Modern EchoFlow restarted on August 2, 2026. The project has moved from “can w
 a file?” to “can a person build, research, and safely maintain a private evidence library
 without giving the corpus away?”
 
-![EchoFlow product roadmap](docs/diagrams/product-roadmap.svg)
-
-<details>
-<summary>Mermaid source</summary>
-
 ```mermaid
-graph LR;
+flowchart LR
     A[Local media] --> B[Reliable local transcription]
     B --> C[Canonical evidence]
     C --> D[Lexical semantic hybrid retrieval]
@@ -35,10 +30,6 @@ graph LR;
     N --> O[Backup restore and portability]
     O --> P[Release qualification]
 ```
-
-</details>
-
-Text fallback: EchoFlow progresses from local media through reliable local transcription, canonical evidence, retrieval, verified navigation, durable research, discovery, safe lifecycle controls, incremental refresh, desktop workflows, packaging, portability, and release qualification.
 
 # Current foundation
 

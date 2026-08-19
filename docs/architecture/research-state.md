@@ -15,7 +15,7 @@ The databases do not share a transaction and do not attach to one another. EchoF
 coordinates them through stable evidence identities and a deterministic projector.
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Canonical transcript] --> B[Verified EvidenceAnchor]
     B --> C[SQLite authority]
     C --> D[Monotonic change journal]

@@ -35,7 +35,7 @@ The next product work is making those existing capabilities easier to discover a
 through one library surface and eventually a thin GUI.
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Local recording] --> B[Inspect source and runtime]
     B --> C[Immutable plan]
     C --> D[Normalize enhance segment ASR]

@@ -27,7 +27,7 @@ knowledge is transcript truth.
 > DuckDB search/research databases are rebuildable projections.**
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Canonical transcript JSON] --> B[Lexical projection]
     A --> C[Semantic chunks and vectors]
     B --> D[BM25 ranking]
@@ -98,7 +98,7 @@ JSON and verifies its SHA-256, document identity, and source SHA against the ran
 passage. Stale indexed evidence fails closed instead of presenting fake precision.
 
 ```mermaid
-graph TD;
+flowchart TD
     A[Ranked passage] --> B{Canonical generation still matches}
     B -->|No| C[Refuse precise navigation]
     B -->|Yes| D{Segment IDs still exist}

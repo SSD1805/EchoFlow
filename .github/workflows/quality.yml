@@ -83,12 +83,6 @@ jobs:
           --progress-spinner off
 
   frontend-static:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.head_ref == 'agent/desktop-import-ui' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 8
 
@@ -97,35 +91,23 @@ jobs:
         working-directory: frontend
 
     steps:
-      - name: Check out branch head
+      - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.head_ref }}
 
-      - name: Regenerate npm lockfile from pinned manifest
-        shell: bash
-        run: |
-          rm -f package-lock.json
-          npm install --package-lock-only --ignore-scripts --no-fund --no-audit
-          git diff --check -- package-lock.json
-          if git diff --quiet -- package-lock.json; then
-            echo "npm produced no lockfile change"
-            exit 2
-          fi
+      - name: Verify Node runtime
+        run: node --version && npm --version
 
-      - name: Commit regenerated lockfile only
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- package-lock.json
-          if git diff --cached --quiet; then
-            echo "No lockfile change was staged"
-            exit 2
-          fi
-          git commit -m "build(frontend): regenerate npm lockfile"
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
-          exit 1
+      - name: Install locked frontend dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Audit production frontend dependencies
+        run: npm audit --omit=dev --audit-level=high
 
   frontend-playwright:
     needs: [static, frontend-static]

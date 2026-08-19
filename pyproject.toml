@@ -89,6 +89,9 @@ max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S603"]
+# The navigation adapter interpolates only closed internal table/order fragments selected
+# by code; every runtime/user value remains a bound SQLite parameter.
+"src/echoflow/library/workspace_metadata.py" = ["S608"]
 
 [tool.radon]
 # Report B-or-worse complexity; Ruff enforces the hard score-above-10 gate.

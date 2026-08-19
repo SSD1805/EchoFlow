@@ -28,6 +28,7 @@ from echoflow.library.service import TranscriptLibraryService
 from echoflow.library.speaker_label_service import SpeakerLabelService
 from echoflow.library.speaker_labels import SpeakerLabelStore
 from echoflow.library.sqlite_research_state import SqliteResearchStateStore
+from echoflow.library.workspace_metadata import SqliteWorkspaceMetadataStore
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.media.selection import AudioStreamSelector
 from echoflow.model_management.catalog import faster_whisper_model_catalog
@@ -162,6 +163,13 @@ def _create_research_state_store(
     )
 
 
+def _create_workspace_metadata_store(
+    research_state: SqliteResearchStateStore,
+    file_manager: FileManagerFacade,
+) -> SqliteWorkspaceMetadataStore:
+    return SqliteWorkspaceMetadataStore(research_state.database_path, file_manager)
+
+
 def _create_research_projection(
     config: AppConfig, file_manager: FileManagerFacade
 ) -> DuckDbResearchProjection:
@@ -278,6 +286,11 @@ class AppContainer(containers.DeclarativeContainer):
         config=config,
         file_manager=file_manager,
     )
+    workspace_metadata_store = providers.Singleton(
+        _create_workspace_metadata_store,
+        research_state=research_state_store,
+        file_manager=file_manager,
+    )
     research_projection = providers.Singleton(
         _create_research_projection,
         config=config,
@@ -314,6 +327,7 @@ class AppContainer(containers.DeclarativeContainer):
         state=research_state_store,
         projection=research_projection,
         projector=research_projector,
+        metadata=workspace_metadata_store,
     )
     checkpoint_store = providers.Factory(
         LocalCheckpointStore, file_manager=file_manager

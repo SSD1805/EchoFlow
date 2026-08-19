@@ -37,6 +37,21 @@ export interface WorkspaceMatchedWord {
   speaker_ref: string | null;
 }
 
+export interface WorkspaceContextWord extends WorkspaceMatchedWord {
+  highlighted: boolean;
+}
+
+export interface WorkspaceEvidenceContextSegment {
+  segment_id: string;
+  start_seconds: number;
+  end_seconds: number;
+  text: string;
+  speaker_refs: string[];
+  words: WorkspaceContextWord[];
+  is_result_segment: boolean;
+  lexical_match: boolean;
+}
+
 export interface WorkspaceEvidenceResult {
   document_id: string;
   source_sha256: string;
@@ -49,6 +64,7 @@ export interface WorkspaceEvidenceResult {
   languages: string[];
   speakers: WorkspaceSpeaker[];
   matched_words: WorkspaceMatchedWord[];
+  context_segments: WorkspaceEvidenceContextSegment[];
   note_count: number;
   tags: string[];
   collections: string[];
@@ -314,6 +330,112 @@ class MockDesktopClient implements DesktopClient {
               end_seconds: 862.72,
               text: query,
               speaker_ref: "speaker-1",
+            },
+          ],
+          context_segments: [
+            {
+              segment_id: "segment-16",
+              start_seconds: 856.2,
+              end_seconds: 861.9,
+              text: "The earlier interviews focused on access and timing.",
+              speaker_refs: ["speaker-1"],
+              is_result_segment: false,
+              lexical_match: false,
+              words: [
+                {
+                  segment_id: "segment-16",
+                  word_index: 0,
+                  start_seconds: 856.2,
+                  end_seconds: 856.5,
+                  text: "The",
+                  speaker_ref: "speaker-1",
+                  highlighted: false,
+                },
+                {
+                  segment_id: "segment-16",
+                  word_index: 1,
+                  start_seconds: 856.5,
+                  end_seconds: 856.9,
+                  text: "earlier",
+                  speaker_ref: "speaker-1",
+                  highlighted: false,
+                },
+              ],
+            },
+            {
+              segment_id: "segment-17",
+              start_seconds: 862.1,
+              end_seconds: 870.4,
+              text: `We started the ${query} program after the second interview round.`,
+              speaker_refs: ["speaker-1"],
+              is_result_segment: true,
+              lexical_match: true,
+              words: [
+                {
+                  segment_id: "segment-17",
+                  word_index: 0,
+                  start_seconds: 862.1,
+                  end_seconds: 862.2,
+                  text: "We",
+                  speaker_ref: "speaker-1",
+                  highlighted: false,
+                },
+                {
+                  segment_id: "segment-17",
+                  word_index: 1,
+                  start_seconds: 862.2,
+                  end_seconds: 862.3,
+                  text: "started",
+                  speaker_ref: "speaker-1",
+                  highlighted: false,
+                },
+                {
+                  segment_id: "segment-17",
+                  word_index: 2,
+                  start_seconds: 862.3,
+                  end_seconds: 862.42,
+                  text: "the",
+                  speaker_ref: "speaker-1",
+                  highlighted: false,
+                },
+                {
+                  segment_id: "segment-17",
+                  word_index: 3,
+                  start_seconds: 862.43,
+                  end_seconds: 862.72,
+                  text: query,
+                  speaker_ref: "speaker-1",
+                  highlighted: true,
+                },
+                {
+                  segment_id: "segment-17",
+                  word_index: 4,
+                  start_seconds: 862.72,
+                  end_seconds: 863.2,
+                  text: "program",
+                  speaker_ref: "speaker-1",
+                  highlighted: false,
+                },
+                {
+                  segment_id: "segment-17",
+                  word_index: 5,
+                  start_seconds: 863.2,
+                  end_seconds: 863.5,
+                  text: "after",
+                  speaker_ref: "speaker-1",
+                  highlighted: false,
+                },
+              ],
+            },
+            {
+              segment_id: "segment-18",
+              start_seconds: 870.5,
+              end_seconds: 875.0,
+              text: "That changed how the team scheduled follow-up work.",
+              speaker_refs: ["speaker-1"],
+              is_result_segment: false,
+              lexical_match: false,
+              words: [],
             },
           ],
           note_count: 1,

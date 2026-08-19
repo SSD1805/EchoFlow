@@ -97,12 +97,15 @@ jobs:
       - name: Verify Node runtime
         run: node --version && npm --version
 
-      - name: Resolve suspect registry integrity metadata
+      - name: Emit npm-authored lockfile bytes
         shell: bash
         run: |
-          echo "jsesc=$(npm view jsesc@3.1.0 dist.integrity)"
-          echo "babel_core=$(npm view @babel/core@7.29.7 dist.integrity)"
-          echo "babel_traverse=$(npm view @babel/traverse@7.29.8 dist.integrity)"
+          rm package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-fund --no-audit
+          echo '===ECHOFLOW_LOCK_B64_BEGIN==='
+          base64 -w 0 package-lock.json
+          echo
+          echo '===ECHOFLOW_LOCK_B64_END==='
           exit 1
 
       - name: Type check

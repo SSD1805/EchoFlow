@@ -234,7 +234,9 @@ def test_saved_search_cli_reports_missing_public_and_internal_failures_safely() 
     )
 
     public = Mock()
-    public.saved_searches.side_effect = ResearchStateError("Saved-search state unavailable")
+    public.saved_searches.side_effect = ResearchStateError(
+        "Saved-search state unavailable"
+    )
     public_result = runner.invoke(_app(public), ["library", "saved"])
 
     internal = Mock()

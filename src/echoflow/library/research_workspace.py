@@ -32,6 +32,12 @@ from echoflow.library.research_state import (
 from echoflow.library.retrieval import RetrievalMode
 from echoflow.library.service import TranscriptLibraryService
 from echoflow.library.text import lexical_tokens
+from echoflow.library.workspace_metadata import (
+    SavedSearch,
+    SavedSearchIntent,
+    WorkspaceMetadataStore,
+    WorkspaceNavigation,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +146,7 @@ class ResearchWorkspaceService:
         state: ResearchStateStore,
         projection: ResearchProjectionIndex,
         projector: ResearchStateProjector,
+        metadata: WorkspaceMetadataStore | None = None,
     ) -> None:
         self.transcript_library = transcript_library
         self.evidence_locator = evidence_locator
@@ -147,6 +154,7 @@ class ResearchWorkspaceService:
         self.state = state
         self.projection = projection
         self.projector = projector
+        self.metadata = metadata
 
     def search(
         self,
@@ -231,6 +239,65 @@ class ResearchWorkspaceService:
             tags=tags,
             collections=collections,
         )
+
+    def save_search(
+        self,
+        name: str,
+        query: SearchQuery,
+        *,
+        filters: ResearchQueryFilters | None = None,
+        mode: RetrievalMode = RetrievalMode.LEXICAL,
+        context_segments: int = 0,
+        description: str | None = None,
+        saved_search_id: str | None = None,
+    ) -> SavedSearch:
+        """Persist typed search intent, never a rendered CLI command or result scope."""
+        resolved_filters = filters or ResearchQueryFilters()
+        intent = SavedSearchIntent(
+            query=query,
+            mode=mode,
+            context_segments=context_segments,
+            tags=resolved_filters.tags,
+            collections=resolved_filters.collections,
+            note_text=resolved_filters.note_text,
+            with_notes=resolved_filters.with_notes,
+        )
+        return self._metadata_store().create_saved_search(
+            name,
+            intent,
+            description=description,
+            saved_search_id=saved_search_id,
+        )
+
+    def saved_search(self, identifier: str) -> SavedSearch | None:
+        return self._metadata_store().saved_search(identifier)
+
+    def saved_searches(self, *, limit: int = 1_000) -> tuple[SavedSearch, ...]:
+        return self._metadata_store().saved_searches(limit=limit)
+
+    def delete_saved_search(self, identifier: str) -> None:
+        saved = self._require_saved_search(identifier)
+        self._metadata_store().delete_saved_search(saved.saved_search_id)
+
+    def run_saved_search(self, identifier: str) -> WorkspaceSearchResponse:
+        """Replay durable intent through the same current workspace-search path."""
+        saved = self._require_saved_search(identifier)
+        intent = saved.intent
+        return self.search(
+            intent.query,
+            filters=ResearchQueryFilters(
+                tags=intent.tags,
+                collections=intent.collections,
+                note_text=intent.note_text,
+                with_notes=intent.with_notes,
+            ),
+            mode=intent.mode,
+            context_segments=intent.context_segments,
+        )
+
+    def workspace_navigation(self, *, limit: int = 10) -> WorkspaceNavigation:
+        """Return disposable frequent/recent views over current research relationships."""
+        return self._metadata_store().navigation(limit=limit)
 
     def add_note(
         self,
@@ -471,6 +538,17 @@ class ResearchWorkspaceService:
                 collection_names[collection_id] for collection_id in note.collection_ids
             ),
         )
+
+    def _metadata_store(self) -> WorkspaceMetadataStore:
+        if self.metadata is None:
+            raise ResearchStateError("Saved-search workspace state is not configured")
+        return self.metadata
+
+    def _require_saved_search(self, identifier: str) -> SavedSearch:
+        saved = self._metadata_store().saved_search(identifier)
+        if saved is None:
+            raise ResearchStateError("Saved search does not exist")
+        return saved
 
     def _document(self, document_id: str) -> IndexedDocument:
         document = next(

@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import type { DesktopClient, WorkspaceDiscoveryReport } from "./api/desktop";
+import type {
+  DesktopClient,
+  WorkspaceDiscoveryReport,
+  WorkspaceEvidenceResult,
+} from "./api/desktop";
 import { WorkspaceHeader, type Theme } from "./components/WorkspaceHeader";
+import { EvidenceReader } from "./EvidenceReader";
+import { formatEvidenceTime } from "./format";
 import "./search.css";
 
 interface SearchWorkspaceProps {
@@ -11,24 +17,18 @@ interface SearchWorkspaceProps {
   onThemeChange: (theme: Theme) => void;
 }
 
-function formatTime(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const remaining = total % 60;
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
-  }
-  return `${minutes}:${String(remaining).padStart(2, "0")}`;
-}
-
 export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspaceProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [report, setReport] = useState<WorkspaceDiscoveryReport | null>(null);
+  const [selectedEvidence, setSelectedEvidence] = useState<WorkspaceEvidenceResult | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState("Search transcripts and the research knowledge attached to them.");
+  const [status, setStatus] = useState(
+    "Search transcripts and the research knowledge attached to them.",
+  );
 
   useEffect(() => {
     function focusSearch(event: KeyboardEvent) {
@@ -51,6 +51,7 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
     }
     setBusy(true);
     setError(null);
+    setSelectedEvidence(null);
     try {
       const next = await client.discoverWorkspace(text);
       setReport(next);
@@ -59,10 +60,21 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
       );
     } catch (caught) {
       setReport(null);
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not search the local workspace.");
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "EchoFlow could not search the local workspace.",
+      );
     } finally {
       setBusy(false);
     }
+  }
+
+  function openEvidence(item: WorkspaceEvidenceResult) {
+    setSelectedEvidence(item);
+    setStatus(
+      `Opened verified evidence from ${item.document_id} at ${formatEvidenceTime(item.seek_seconds)}.`,
+    );
   }
 
   return (
@@ -80,14 +92,19 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
           <h2 id="search-title">One search across transcripts and your research layer.</h2>
         </div>
         <p>
-          Results stay grouped by type. EchoFlow does not invent a common score between transcript evidence, notes, tags, and collections.
+          Results stay grouped by type. EchoFlow does not invent a common score between
+          transcript evidence, notes, tags, and collections.
         </p>
       </section>
 
       <form className="global-search" role="search" onSubmit={(event) => void search(event)}>
-        <label htmlFor="workspace-search" className="search-label">Search EchoFlow</label>
+        <label htmlFor="workspace-search" className="search-label">
+          Search EchoFlow
+        </label>
         <div className="search-control">
-          <span aria-hidden="true" className="search-glyph">⌕</span>
+          <span aria-hidden="true" className="search-glyph">
+            ⌕
+          </span>
           <input
             id="workspace-search"
             ref={inputRef}
@@ -99,12 +116,27 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
             onChange={(event) => setQuery(event.target.value)}
           />
           <kbd>Ctrl K</kbd>
-          <button type="submit" disabled={busy}>{busy ? "Searching…" : "Search"}</button>
+          <button type="submit" disabled={busy}>
+            {busy ? "Searching…" : "Search"}
+          </button>
         </div>
       </form>
 
-      <p className="search-status" role="status">{status}</p>
-      {error && <p className="error-banner search-error" role="alert">{error}</p>}
+      <p className="search-status" role="status">
+        {status}
+      </p>
+      {error && (
+        <p className="error-banner search-error" role="alert">
+          {error}
+        </p>
+      )}
+
+      {selectedEvidence && (
+        <EvidenceReader
+          evidence={selectedEvidence}
+          onClose={() => setSelectedEvidence(null)}
+        />
+      )}
 
       {report && (
         <div className="result-groups" aria-label={`Search results for ${report.query}`}>
@@ -114,7 +146,10 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
                 <p className="mini-label">Verified transcript evidence</p>
                 <h2 id="evidence-results">Evidence</h2>
               </div>
-              <span className="result-count" aria-label={`${report.evidence.length} evidence results`}>
+              <span
+                className="result-count"
+                aria-label={`${report.evidence.length} evidence results`}
+              >
                 {report.evidence.length}
               </span>
             </div>
@@ -123,16 +158,27 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
             ) : (
               <div className="result-list">
                 {report.evidence.map((item) => (
-                  <article className="evidence-result" key={`${item.document_id}:${item.segment_ids.join(",")}`}>
+                  <article
+                    className="evidence-result"
+                    key={`${item.document_id}:${item.segment_ids.join(",")}`}
+                  >
                     <div className="result-meta">
                       <span>{item.document_id}</span>
-                      <time dateTime={`PT${item.seek_seconds}S`}>{formatTime(item.seek_seconds)}</time>
+                      <time dateTime={`PT${item.seek_seconds}S`}>
+                        {formatEvidenceTime(item.seek_seconds)}
+                      </time>
                       <span>{item.languages.join(", ") || "language unknown"}</span>
                     </div>
                     <p className="result-text">{item.text}</p>
-                    <div className="evidence-coordinate" data-seek-seconds={item.seek_seconds}>
+                    <div
+                      className="evidence-coordinate"
+                      data-seek-seconds={item.seek_seconds}
+                    >
                       <strong>Verified seek point</strong>
-                      <span>{formatTime(item.seek_seconds)} · {item.segment_ids.length} canonical segment{item.segment_ids.length === 1 ? "" : "s"}</span>
+                      <span>
+                        {formatEvidenceTime(item.seek_seconds)} · {item.segment_ids.length}{" "}
+                        canonical segment{item.segment_ids.length === 1 ? "" : "s"}
+                      </span>
                     </div>
                     <div className="result-pills" aria-label="Evidence metadata">
                       {item.speakers.map((speaker) => (
@@ -141,9 +187,23 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
                           {speaker.display_label ? ` · ${speaker.speaker_ref}` : ""}
                         </span>
                       ))}
-                      {item.note_count > 0 && <span>{item.note_count} note{item.note_count === 1 ? "" : "s"}</span>}
-                      {item.tags.map((tag) => <span key={`tag:${tag}`}>#{tag}</span>)}
+                      {item.note_count > 0 && (
+                        <span>
+                          {item.note_count} note{item.note_count === 1 ? "" : "s"}
+                        </span>
+                      )}
+                      {item.tags.map((tag) => (
+                        <span key={`tag:${tag}`}>#{tag}</span>
+                      ))}
                     </div>
+                    <button
+                      type="button"
+                      className="open-evidence-button"
+                      aria-label={`Open verified evidence from ${item.document_id} at ${formatEvidenceTime(item.seek_seconds)}`}
+                      onClick={() => openEvidence(item)}
+                    >
+                      Open verified evidence
+                    </button>
                   </article>
                 ))}
               </div>
@@ -156,7 +216,12 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
                 <p className="mini-label">Human-authored knowledge</p>
                 <h2 id="note-results">Notes</h2>
               </div>
-              <span className="result-count" aria-label={`${report.notes.length} note results`}>{report.notes.length}</span>
+              <span
+                className="result-count"
+                aria-label={`${report.notes.length} note results`}
+              >
+                {report.notes.length}
+              </span>
             </div>
             {report.notes.length === 0 ? (
               <p className="empty-result">No notes matched.</p>
@@ -166,13 +231,21 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
                   <article className="note-result" key={item.note_id}>
                     <div className="result-meta">
                       <span>{item.document_id}</span>
-                      <time dateTime={`PT${item.start_seconds}S`}>{formatTime(item.start_seconds)}</time>
-                      <span>{item.current ? "current evidence" : "older evidence generation"}</span>
+                      <time dateTime={`PT${item.start_seconds}S`}>
+                        {formatEvidenceTime(item.start_seconds)}
+                      </time>
+                      <span>
+                        {item.current ? "current evidence" : "older evidence generation"}
+                      </span>
                     </div>
                     <p className="result-text">{item.body}</p>
                     <div className="result-pills">
-                      {item.tags.map((tag) => <span key={`note-tag:${tag}`}>#{tag}</span>)}
-                      {item.collections.map((collection) => <span key={`note-collection:${collection}`}>{collection}</span>)}
+                      {item.tags.map((tag) => (
+                        <span key={`note-tag:${tag}`}>#{tag}</span>
+                      ))}
+                      {item.collections.map((collection) => (
+                        <span key={`note-collection:${collection}`}>{collection}</span>
+                      ))}
                     </div>
                   </article>
                 ))}
@@ -181,22 +254,50 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
           </section>
 
           <div className="named-result-grid">
-            <section className="result-group compact-group" aria-labelledby="tag-results">
+            <section
+              className="result-group compact-group"
+              aria-labelledby="tag-results"
+            >
               <div className="result-group-heading">
                 <h2 id="tag-results">Tags</h2>
-                <span className="result-count" aria-label={`${report.tags.length} tag results`}>{report.tags.length}</span>
+                <span
+                  className="result-count"
+                  aria-label={`${report.tags.length} tag results`}
+                >
+                  {report.tags.length}
+                </span>
               </div>
               <div className="named-results">
-                {report.tags.length === 0 ? <p className="empty-result">No tags matched.</p> : report.tags.map((item) => <span key={item.tag_id}>#{item.name}</span>)}
+                {report.tags.length === 0 ? (
+                  <p className="empty-result">No tags matched.</p>
+                ) : (
+                  report.tags.map((item) => (
+                    <span key={item.tag_id}>#{item.name}</span>
+                  ))
+                )}
               </div>
             </section>
-            <section className="result-group compact-group" aria-labelledby="collection-results">
+            <section
+              className="result-group compact-group"
+              aria-labelledby="collection-results"
+            >
               <div className="result-group-heading">
                 <h2 id="collection-results">Collections</h2>
-                <span className="result-count" aria-label={`${report.collections.length} collection results`}>{report.collections.length}</span>
+                <span
+                  className="result-count"
+                  aria-label={`${report.collections.length} collection results`}
+                >
+                  {report.collections.length}
+                </span>
               </div>
               <div className="named-results">
-                {report.collections.length === 0 ? <p className="empty-result">No collections matched.</p> : report.collections.map((item) => <span key={item.collection_id}>{item.name}</span>)}
+                {report.collections.length === 0 ? (
+                  <p className="empty-result">No collections matched.</p>
+                ) : (
+                  report.collections.map((item) => (
+                    <span key={item.collection_id}>{item.name}</span>
+                  ))
+                )}
               </div>
             </section>
           </div>

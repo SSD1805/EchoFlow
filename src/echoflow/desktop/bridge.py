@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
+from echoflow.library.evidence import EvidenceContextSegment, EvidenceWord
 from echoflow.library.locations import (
     LibraryLocationKind,
     LibraryLocationService,
@@ -107,6 +108,31 @@ def _failure(request_id: str, *, code: str, message: str) -> dict[str, object]:
     }
 
 
+def _serialize_word(word: EvidenceWord) -> dict[str, object]:
+    return {
+        "segment_id": word.segment_id,
+        "word_index": word.word_index,
+        "start_seconds": word.start_seconds,
+        "end_seconds": word.end_seconds,
+        "text": word.text,
+        "speaker_ref": word.speaker_ref,
+        "highlighted": word.highlighted,
+    }
+
+
+def _serialize_context_segment(segment: EvidenceContextSegment) -> dict[str, object]:
+    return {
+        "segment_id": segment.segment_id,
+        "start_seconds": segment.start_seconds,
+        "end_seconds": segment.end_seconds,
+        "text": segment.text,
+        "speaker_refs": list(segment.speaker_refs),
+        "words": [_serialize_word(word) for word in segment.words],
+        "is_result_segment": segment.is_result_segment,
+        "lexical_match": segment.lexical_match,
+    }
+
+
 def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object]:
     return {
         "query": report.query,
@@ -130,15 +156,11 @@ def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object
                     for speaker in item.located.speakers
                 ],
                 "matched_words": [
-                    {
-                        "segment_id": word.segment_id,
-                        "word_index": word.word_index,
-                        "start_seconds": word.start_seconds,
-                        "end_seconds": word.end_seconds,
-                        "text": word.text,
-                        "speaker_ref": word.speaker_ref,
-                    }
-                    for word in item.located.evidence.matched_words
+                    _serialize_word(word) for word in item.located.evidence.matched_words
+                ],
+                "context_segments": [
+                    _serialize_context_segment(segment)
+                    for segment in item.located.evidence.context_segments
                 ],
                 "note_count": item.research.note_count,
                 "tags": list(item.research.tags),

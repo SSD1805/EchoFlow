@@ -35,6 +35,18 @@ export interface WorkspaceMatchedWord {
   end_seconds: number;
   text: string;
   speaker_ref: string | null;
+  highlighted: boolean;
+}
+
+export interface WorkspaceContextSegment {
+  segment_id: string;
+  start_seconds: number;
+  end_seconds: number;
+  text: string;
+  speaker_refs: string[];
+  words: WorkspaceMatchedWord[];
+  is_result_segment: boolean;
+  lexical_match: boolean;
 }
 
 export interface WorkspaceEvidenceResult {
@@ -49,6 +61,7 @@ export interface WorkspaceEvidenceResult {
   languages: string[];
   speakers: WorkspaceSpeaker[];
   matched_words: WorkspaceMatchedWord[];
+  context_segments: WorkspaceContextSegment[];
   note_count: number;
   tags: string[];
   collections: string[];
@@ -291,6 +304,45 @@ class MockDesktopClient implements DesktopClient {
   async discoverWorkspace(text: string): Promise<WorkspaceDiscoveryReport> {
     const query = text.trim();
     if (!query) throw new Error("Search text cannot be empty");
+    const matchedWord: WorkspaceMatchedWord = {
+      segment_id: "segment-17",
+      word_index: 2,
+      start_seconds: 862.43,
+      end_seconds: 862.72,
+      text: query,
+      speaker_ref: "speaker-1",
+      highlighted: true,
+    };
+    const resultWords: WorkspaceMatchedWord[] = [
+      {
+        segment_id: "segment-17",
+        word_index: 0,
+        start_seconds: 862.1,
+        end_seconds: 862.35,
+        text: "We",
+        speaker_ref: "speaker-1",
+        highlighted: false,
+      },
+      {
+        segment_id: "segment-17",
+        word_index: 1,
+        start_seconds: 862.35,
+        end_seconds: 862.7,
+        text: "started",
+        speaker_ref: "speaker-1",
+        highlighted: false,
+      },
+      matchedWord,
+      {
+        segment_id: "segment-17",
+        word_index: 3,
+        start_seconds: 862.75,
+        end_seconds: 863.1,
+        text: "program",
+        speaker_ref: "speaker-1",
+        highlighted: false,
+      },
+    ];
     return {
       query,
       total_count: 4,
@@ -306,14 +358,37 @@ class MockDesktopClient implements DesktopClient {
           seek_seconds: 862.43,
           languages: ["en"],
           speakers: [{ speaker_ref: "speaker-1", display_label: "Participant A" }],
-          matched_words: [
+          matched_words: [matchedWord],
+          context_segments: [
+            {
+              segment_id: "segment-16",
+              start_seconds: 851.2,
+              end_seconds: 862.0,
+              text: "We had already completed two rounds of interviews.",
+              speaker_refs: ["speaker-1"],
+              words: [],
+              is_result_segment: false,
+              lexical_match: false,
+            },
             {
               segment_id: "segment-17",
-              word_index: 3,
-              start_seconds: 862.43,
-              end_seconds: 862.72,
-              text: query,
-              speaker_ref: "speaker-1",
+              start_seconds: 862.1,
+              end_seconds: 870.4,
+              text: `We started the ${query} program after the second interview round.`,
+              speaker_refs: ["speaker-1"],
+              words: resultWords,
+              is_result_segment: true,
+              lexical_match: true,
+            },
+            {
+              segment_id: "segment-18",
+              start_seconds: 870.5,
+              end_seconds: 879.8,
+              text: "The first cohort joined the following month.",
+              speaker_refs: ["speaker-1"],
+              words: [],
+              is_result_segment: false,
+              lexical_match: false,
             },
           ],
           note_count: 1,

@@ -70,7 +70,7 @@ def test_refresh_human_output_explains_delta_skip_and_semantic_invalidation() ->
     assert "1 unchanged" in result.output
     assert "Skipped 2" in result.output
     assert "Semantic embeddings were invalidated" in result.output
-    assert "re-hashed and validated" in result.output
+    assert "Re-hashed and validated" in result.output
 
 
 def test_refresh_noop_human_output_does_not_claim_semantic_invalidation() -> None:

@@ -62,6 +62,13 @@ flowchart LR
     class P,Q stop
 ```
 
+<details>
+<summary>Static diagram fallback if rich rendering is unavailable</summary>
+
+![EchoFlow system-architecture static diagram](../diagrams/system-architecture.svg)
+
+</details>
+
 Text fallback: canonical JSON is evidence; DuckDB ranks rebuildable views; canonical
 navigation verifies evidence; SQLite owns human research; `ResearchWorkspaceService`
 composes research interactions; the current desktop bridge feeds Library/evidence

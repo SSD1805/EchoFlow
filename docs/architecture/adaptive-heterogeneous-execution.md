@@ -24,7 +24,7 @@ strategy, refuses impossible explicit requests, and does not pretend that a dete
 accelerator is magic extra RAM.
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Inspect this machine] --> B[CPU + system memory]
     A --> C[Physical accelerators]
     C --> D[Ask engine what it can really use]
@@ -33,16 +33,6 @@ flowchart LR
     E --> F[Rank eligible choices]
     F --> G[Run locally]
     G --> H[Checkpoint in order]
-
-    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-    classDef decision fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
-    classDef run fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
-    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
-
-    class A,B,C,D inspect
-    class E,F decision
-    class G run
-    class H evidence
 ```
 
 No tensor-sharding opera is hiding behind this diagram. The current system is

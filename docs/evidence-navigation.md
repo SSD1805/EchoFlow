@@ -12,7 +12,7 @@ That distinction is important. A search database may point at evidence. It does 
 to become the evidence.
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Your query] --> B[Lexical semantic hybrid ranking]
     B --> C[Ranked passage]
     C --> D[Verify canonical transcript]
@@ -180,7 +180,7 @@ The note body remains separate durable user knowledge. That means:
 - CLI, future GUI, export, and citation workflows can share one anchoring contract.
 
 ```mermaid
-flowchart TD
+graph TD;
     A[Canonical transcript evidence] --> B[Verified evidence location]
     B --> C[Search result view]
     B --> D[Durable EvidenceAnchor]

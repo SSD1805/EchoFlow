@@ -3,7 +3,12 @@ from typing import Any, cast
 
 from echoflow.desktop.bridge import DesktopServices, handle_request
 from echoflow.library.errors import LibraryLocationError
-from echoflow.library.evidence import EvidenceAnchor, EvidenceLocation, EvidenceWord
+from echoflow.library.evidence import (
+    EvidenceAnchor,
+    EvidenceContextSegment,
+    EvidenceLocation,
+    EvidenceWord,
+)
 from echoflow.library.index import SearchQuery
 from echoflow.library.locations import (
     DiscoveredRecording,
@@ -104,6 +109,84 @@ def _services(
     )
 
 
+def _evidence_context(query_text: str) -> tuple[EvidenceContextSegment, ...]:
+    previous_word = EvidenceWord(
+        segment_id="segment-0",
+        word_index=0,
+        start_seconds=850.0,
+        end_seconds=850.4,
+        text="Earlier",
+        speaker_ref="speaker-1",
+    )
+    result_words = (
+        EvidenceWord(
+            segment_id="segment-1",
+            word_index=0,
+            start_seconds=862.0,
+            end_seconds=862.3,
+            text="The",
+            speaker_ref="speaker-1",
+        ),
+        EvidenceWord(
+            segment_id="segment-1",
+            word_index=1,
+            start_seconds=862.5,
+            end_seconds=862.8,
+            text=query_text,
+            speaker_ref="speaker-1",
+            highlighted=True,
+        ),
+        EvidenceWord(
+            segment_id="segment-1",
+            word_index=2,
+            start_seconds=862.9,
+            end_seconds=863.4,
+            text="program",
+            speaker_ref="speaker-1",
+        ),
+    )
+    next_word = EvidenceWord(
+        segment_id="segment-2",
+        word_index=0,
+        start_seconds=871.0,
+        end_seconds=871.4,
+        text="Later",
+        speaker_ref="speaker-1",
+    )
+    return (
+        EvidenceContextSegment(
+            segment_id="segment-0",
+            start_seconds=850.0,
+            end_seconds=861.0,
+            text="Earlier context before the result.",
+            speaker_refs=("speaker-1",),
+            words=(previous_word,),
+            is_result_segment=False,
+            lexical_match=False,
+        ),
+        EvidenceContextSegment(
+            segment_id="segment-1",
+            start_seconds=862.0,
+            end_seconds=870.0,
+            text=f"The {query_text} program started here.",
+            speaker_refs=("speaker-1",),
+            words=result_words,
+            is_result_segment=True,
+            lexical_match=True,
+        ),
+        EvidenceContextSegment(
+            segment_id="segment-2",
+            start_seconds=871.0,
+            end_seconds=880.0,
+            text="Later context after the result.",
+            speaker_refs=("speaker-1",),
+            words=(next_word,),
+            is_result_segment=False,
+            lexical_match=False,
+        ),
+    )
+
+
 def _workspace_discovery(query_text: str = "ABC") -> WorkspaceDiscoveryResponse:
     source_sha = "b" * 64
     canonical_sha = "a" * 64
@@ -156,7 +239,7 @@ def _workspace_discovery(query_text: str = "ABC") -> WorkspaceDiscoveryResponse:
         seek_seconds=862.5,
         result_speaker_refs=("speaker-1",),
         matched_words=(matched_word,),
-        context_segments=(),
+        context_segments=_evidence_context(query_text),
     )
     located = LocatedSearchPassage(
         passage=passage,
@@ -324,7 +407,7 @@ def test_transcript_refresh_respects_verify_flag():
     assert response["result"]["verified_all_tracked"] is True
 
 
-def test_workspace_discovery_returns_verified_coordinates_without_paths():
+def test_workspace_discovery_returns_verified_context_without_paths():
     workspace = _WorkspaceService()
     response = handle_request(
         _request(
@@ -339,8 +422,17 @@ def test_workspace_discovery_returns_verified_coordinates_without_paths():
     result = response["result"]
     assert result["query"] == "ABC"
     assert result["total_count"] == 4
-    assert result["evidence"][0]["seek_seconds"] == 862.5
-    assert result["evidence"][0]["matched_words"][0]["text"] == "ABC"
+    evidence = result["evidence"][0]
+    assert evidence["seek_seconds"] == 862.5
+    assert evidence["matched_words"][0]["text"] == "ABC"
+    assert evidence["matched_words"][0]["highlighted"] is True
+    assert [item["segment_id"] for item in evidence["context_segments"]] == [
+        "segment-0",
+        "segment-1",
+        "segment-2",
+    ]
+    assert evidence["context_segments"][1]["is_result_segment"] is True
+    assert evidence["context_segments"][1]["words"][1]["highlighted"] is True
     assert result["notes"][0]["current"] is True
     assert result["tags"] == [{"tag_id": "tag-1", "name": "program"}]
     assert "/sensitive" not in str(result)

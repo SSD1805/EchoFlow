@@ -17,7 +17,7 @@ canonical transcript truth, private execution state, rebuildable projections, an
 human knowledge deliberately do not share deletion or recovery semantics.
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Source media] --> B[Media and resource inspection]
     B --> C[Immutable local plan]
     C --> D[Transcription and checkpoints]

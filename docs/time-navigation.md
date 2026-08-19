@@ -43,7 +43,7 @@ and render them as:
 ```
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Canonical word time 4788.370 seconds] --> B[Human display 01:19:48.370]
     A --> C[Search seek coordinate]
     A --> D[Durable note anchor]
@@ -161,7 +161,7 @@ clocks, copied metadata, conflicting stream tags, or timecode with frame-rate/dr
 semantics that require more information before arithmetic is safe.
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Original media] --> B[Canonical elapsed seconds]
     A --> C[Declared timecode if present]
     A --> D[Declared creation time if present]

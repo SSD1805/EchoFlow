@@ -14,7 +14,7 @@ That gives ordinary users a simpler experience and gives maintainers something t
 actually reason about.
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Model catalog] --> B[Recommend]
     B --> C[Explicit install]
     C --> D[Disk admission]
@@ -23,16 +23,6 @@ flowchart LR
     F --> G[Private managed manifest]
     G --> H[Local transcription plan]
     H --> I[Local-only execution]
-
-    classDef info fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-    classDef network fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
-    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
-    classDef run fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
-
-    class A,B,D info
-    class C,E network
-    class F,G evidence
-    class H,I run
 ```
 
 ## Why EchoFlow does not just trust whatever is in a cache

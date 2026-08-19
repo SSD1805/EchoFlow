@@ -18,6 +18,13 @@ coverage.xml
 dist/
 mutants-not-found.txt
 
+# Frontend / desktop artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+frontend/src-tauri/target/
+
 # Editor/IDE files
 .vscode/
 .idea/

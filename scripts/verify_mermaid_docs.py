@@ -53,6 +53,37 @@ def _markdown_files() -> tuple[Path, ...]:
     )
 
 
+def _fallback_errors(path: Path, text: str) -> list[str]:
+    fallback = FRONT_DOOR_FALLBACKS.get(path)
+    if fallback is None:
+        return []
+
+    image_markdown, asset = fallback
+    errors: list[str] = []
+    if image_markdown not in text:
+        errors.append("needs its checked-in SVG fallback before the Mermaid source")
+    if not asset.is_file():
+        errors.append(f"missing SVG fallback asset {asset.relative_to(ROOT)}")
+    return errors
+
+
+def _diagram_errors(path: Path, text: str, match: re.Match[str], index: int) -> list[str]:
+    body = match.group("body")
+    lines = [line.strip() for line in body.splitlines() if line.strip()]
+    errors: list[str] = []
+    if not lines or not PORTABLE_START.fullmatch(lines[0]):
+        errors.append(f"diagram {index} must start with portable graph/flowchart/sequence syntax")
+    for token in FORBIDDEN:
+        if token in body:
+            errors.append(f"diagram {index} uses non-portable construct {token!r}")
+
+    if path in FRONT_DOORS:
+        tail = text[match.end() : match.end() + 1_200]
+        if "Text fallback:" not in tail:
+            errors.append(f"diagram {index} needs a nearby 'Text fallback:' paragraph")
+    return errors
+
+
 def _errors_for(path: Path) -> list[str]:
     text = path.read_text(encoding="utf-8")
     blocks = list(MERMAID_BLOCK.finditer(text))
@@ -65,31 +96,8 @@ def _errors_for(path: Path) -> list[str]:
         errors.append("Mermaid fences must be exactly ```mermaid")
 
     for index, match in enumerate(blocks, start=1):
-        body = match.group("body")
-        lines = [line.strip() for line in body.splitlines() if line.strip()]
-        if not lines or not PORTABLE_START.fullmatch(lines[0]):
-            errors.append(
-                f"diagram {index} must start with portable graph/flowchart/sequence syntax"
-            )
-        for token in FORBIDDEN:
-            if token in body:
-                errors.append(f"diagram {index} uses non-portable construct {token!r}")
-
-        if path in FRONT_DOORS:
-            tail = text[match.end() : match.end() + 1_200]
-            if "Text fallback:" not in tail:
-                errors.append(
-                    f"diagram {index} needs a nearby 'Text fallback:' paragraph"
-                )
-
-    fallback = FRONT_DOOR_FALLBACKS.get(path)
-    if fallback is not None:
-        image_markdown, asset = fallback
-        if image_markdown not in text:
-            errors.append("needs its checked-in SVG fallback before the Mermaid source")
-        if not asset.is_file():
-            errors.append(f"missing SVG fallback asset {asset.relative_to(ROOT)}")
-
+        errors.extend(_diagram_errors(path, text, match, index))
+    errors.extend(_fallback_errors(path, text))
     return errors
 
 

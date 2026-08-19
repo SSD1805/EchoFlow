@@ -4,14 +4,12 @@ EchoFlow is becoming a **private local workspace for recorded evidence**.
 
 Its job is not to out-engine every speech-recognition runtime. Its job is to make local
 transcription dependable, resumable, inspectable, searchable, navigable, annotatable, and
-portable on ordinary computers while keeping source evidence and user-authored knowledge
+portable on ordinary computers while keeping source evidence and human-authored knowledge
 under clear custody.
 
-Modern EchoFlow restarted on August 2, 2026. The project has already moved from “can we
-transcribe a file?” to “can a person build and use a private local evidence library without
-giving the corpus away?”
-
-That is now the useful product boundary.
+Modern EchoFlow restarted on August 2, 2026. The project has moved from “can we transcribe
+a file?” to “can a person build, research, and safely maintain a private evidence library
+without giving the corpus away?”
 
 ```mermaid
 flowchart LR
@@ -20,416 +18,274 @@ flowchart LR
     C --> D[Lexical semantic hybrid retrieval]
     D --> E[Verified evidence navigation]
     E --> F[Durable research workspace]
-    D --> G[Unified library discovery]
+    D --> G[Unified discovery]
     F --> G
     G --> H[Saved searches and derived navigation]
-    H --> I[Safe lifecycle controls]
-    I --> J[Thin graphical shell]
+    H --> I[Safe deletion and retention]
+    I --> J[Incremental refresh]
+    J --> K[Thin graphical shell]
 ```
-
-Text fallback: transcription, evidence preservation, retrieval, navigation, durable
-research state, unified discovery, saved searches, and derived navigation are foundation.
-The next work should make retention/deletion semantics explicit and then place a thin GUI
-on those same services rather than inventing another application.
 
 # Current foundation
 
-The backend is broad enough that the next work is increasingly about **human workflow,
-qualification, packaging, and interface quality**, not inventing another transcription
-pipeline.
+The backend is broad enough that near-term work should improve **human workflow,
+qualification, delivery, and ordinary-library ergonomics**, not reopen solved custody or
+search contracts.
 
 ## Local execution and media processing
 
-EchoFlow currently provides:
+EchoFlow currently provides process-visible CPU/memory inspection, physical accelerator
+topology, resource-admitted faster-whisper strategies, deterministic FFprobe inspection,
+audio-stream selection, canonical mono 16 kHz PCM16 normalization when needed, exact work
+windows, optional deterministic noise suppression with provenance, and bounded preparation
+overlap while preserving checkpoint order.
 
-- process-visible CPU and memory inspection, including relevant affinity/cgroup limits;
-- physical accelerator topology kept separate from actual engine/runtime capability;
-- resource-admitted faster-whisper CPU/int8 and CUDA-capable strategies;
-- explicit refusal instead of silent substitution for infeasible user-selected strategies;
-- dedicated/shared/unified accelerator-memory accounting;
-- FFprobe inspection with file-only protocol access and complete source SHA-256;
-- deterministic audio-stream selection;
-- FFmpeg canonicalization to mono 16 kHz PCM16 WAV when required;
-- exact integer-frame work windows;
-- optional deterministic FFmpeg noise suppression with provenance and timeline checks; and
-- bounded one-segment CPU preparation overlap during accelerated inference while preserving
-  ordered checkpoints.
-
-Performance ranks and memory estimates remain conservative heuristics pending
+Performance ranks and memory estimates remain conservative heuristics pending broader
 representative-device qualification.
 
 ## Reliability, model custody, and timeline evidence
 
-The execution contract includes:
-
-- explicit faster-whisper model inventory/recommendation/installation;
-- immutable resolved model revisions and local revalidation;
-- no silent ASR model download during transcription;
-- private per-work-unit checkpoints and validated resume;
-- source/model/stream/preprocessing/execution/alignment contract binding;
-- contiguous-prefix checkpoint semantics;
-- native faster-whisper word timestamps rebased onto one source-relative canonical
-  timeline;
-- aligned word evidence persisted through checkpoint/resume;
-- deterministic `HH:MM:SS.mmm` human elapsed presentation without 24-hour wrapping; and
-- preservation of source-declared `timecode` and `creation_time` metadata when FFprobe
-  reports it.
+The execution contract includes explicit model inventory/recommendation/installation,
+immutable resolved model revisions, no silent ASR model download during transcription,
+private checkpoints and validated resume, source/model/stream/preprocessing/execution
+binding, source-relative word timestamps, deterministic elapsed-time presentation, and
+source-declared temporal metadata when FFprobe reports it.
 
 Numeric source-relative seconds remain authoritative navigation coordinates. Human clock
-strings are presentation. Source-declared media clocks are parallel provenance unless a
-future media qualification proves a trustworthy mapping.
+strings are presentation.
 
 ## Language and speaker evidence
 
-EchoFlow supports:
+EchoFlow supports multilingual decoding, conservative local language attribution, optional
+recording-scoped anonymous diarization, deterministic speaker refs, word-level speaker
+projection where timing supports it, overlap-aware presentation, and durable human display
+labels without biometric identity inference or silent cross-recording linkage.
 
-- multilingual faster-whisper decoding;
-- conservative local text-language attribution that may leave ambiguous text unlabeled;
-- optional recording-scoped anonymous speaker diarization;
-- deterministic anonymous speaker refs;
-- word-level speaker projection when timing evidence supports it;
-- conservative null/mixed behavior instead of forcing one speaker across a handoff;
-- durable user-authored display labels such as `speaker-02 → Dr. Chen`; and
-- derived overlap-aware presentation distinguishing `single-speaker`, `overlap`,
-  `mixed-unresolved`, and `unattributed` states.
-
-Speaker display names are bound to the exact canonical transcript generation. EchoFlow
-does not perform biometric identity inference or silently link anonymous speakers across
-recordings.
-
-The pyannote execution path remains **security-held** while its locked Lightning
-dependency is affected by the compensated advisory described in `SECURITY.md`.
+The pyannote execution path remains security-held while its locked Lightning dependency is
+affected by the compensated advisory documented in `SECURITY.md`.
 
 ## Canonical transcript and publications
 
-Canonical JSON is authoritative transcript evidence. It carries source/execution
-provenance, source-relative segment and word timestamps, source-declared temporal tags
-when present, language evidence, optional enhancement provenance, and optional speaker
-turn/word speaker evidence.
+Canonical JSON is authoritative transcript evidence with source/execution provenance,
+source-relative timestamps, language evidence, optional enhancement provenance, and
+optional speaker evidence.
 
-By default, user-visible canonical JSON and derived publications are written under the
-platform Downloads directory in `EchoFlow/`. A transcription may select another
-`--output-dir`, and `ECHOFLOW_OUTPUT_DIR` may define another default through an explicitly
-selected EchoFlow configuration file.
+By default, public artifacts live under the platform Downloads `EchoFlow/` directory. A
+transcription can choose `--output-dir`, and an explicit EchoFlow configuration may define
+`ECHOFLOW_OUTPUT_DIR`.
 
-TXT, SRT, and WebVTT are deterministic derived publication views. They can be deleted and
-regenerated without rerunning recognition.
+TXT, SRT, and WebVTT are deterministic derived publications. They are not transcript
+authority.
 
-See `docs/architecture/library-lifecycle.md` for the exact output, refresh, retention, and
-deletion boundaries.
+## Transcript library, retrieval, and evidence navigation
 
-## Transcript library, search, and aligned navigation
+The local library includes a database-neutral lexical contract, DuckDB document/segment/
+term projections, deterministic BM25-style ranking, phrase/ANY/ALL and typed filters,
+canonical/source SHA-256 identity, deterministic semantic chunks, strict-local E5
+embeddings, reciprocal-rank hybrid retrieval, stale-vector refusal, verified canonical
+navigation, aligned-word highlighting where justified, neighboring context, and stable
+source seek coordinates.
 
-The local library now includes:
+Search ranking and evidence navigation remain separate. An index ranks a passage;
+navigation verifies the canonical evidence before presenting precision.
 
-- a database-neutral lexical search contract;
-- private DuckDB document/segment/term projections;
-- deterministic offline BM25-style ranking;
-- phrase, ANY/ALL, speaker, language, transcript, and timeline constraints;
-- canonical transcript SHA-256 plus source-media SHA-256;
-- deterministic segment-anchored semantic search chunks;
-- a provider-neutral embedding contract and strict-local Multilingual E5 Small profile;
-- private numeric semantic vectors and exact local dense similarity;
-- reciprocal-rank hybrid BM25 + dense retrieval;
-- stale-vector refusal when canonical transcript bytes change;
-- verified canonical evidence lookup after ranking;
-- exact aligned-word highlighting when lexical evidence justifies it;
-- semantic-only passage navigation without fabricated exact-word matches;
-- bounded neighboring canonical context expansion;
-- deterministic seek coordinates for future local media playback; and
-- current speaker display labels layered onto presentation while raw anonymous refs remain
-  visible evidence.
-
-Search ranking and evidence navigation remain separate operations. A rebuildable index
-ranks a passage; navigation verifies canonical evidence before presenting precision.
-
-`echoflow library rebuild` is a discovery/index-rebuild operation over existing canonical
-JSON. It does not re-transcribe audio. A rescan is useful when the corpus changes, a
-canonical generation changes, a transcript moves/disappears, a rebuildable database is
-lost or damaged, or a later EchoFlow build changes derived index representation.
+`echoflow library rebuild` reads existing canonical JSON and rebuilds discovery/index
+projections. It never re-runs ASR.
 
 ## Durable research workspace
 
-This is **foundation**, not future work.
+Authoritative SQLite owns notes, tags, collections, evidence anchors, and saved-search
+intent. Exact canonical generation identity is retained in anchors. A monotonic
+transactional journal drives a rebuildable DuckDB research projection with bounded,
+idempotent replay and fail-closed convergence rules.
 
-EchoFlow provides:
+`ResearchWorkspaceService` is the shared application seam for CLI and future GUI adapters.
+Research filters apply before transcript ranking when they define eligible evidence.
 
-- authoritative private SQLite state for notes, tags, collections, evidence anchors, and
-  saved-search intent;
-- exact source/canonical generation identity in durable note anchors;
-- contiguous canonical segment-span validation before a note is accepted;
-- optional sub-segment source-relative start/end coordinates;
-- durable stale-generation retention rather than silent note teleportation;
-- a monotonic transactional SQLite change journal;
-- bounded idempotent projection replay;
-- a rebuildable DuckDB research projection with an atomic convergence watermark;
-- fail-closed handling when a projection claims to be ahead of authority;
-- deterministic full rebuild when retained journal history cannot bridge a gap;
-- note/tag/collection notebook filtering;
-- tag/collection/note-text/with-notes constraints applied before transcript ranking or
-  semantic scoring; and
-- one `ResearchWorkspaceService` application boundary for CLI and future GUI adapters.
-
-The custody hierarchy is now:
+The custody hierarchy is:
 
 | Class | Examples | Rule |
 |---|---|---|
-| Authoritative evidence | original recording, canonical transcript JSON | never treat as cache |
-| Authoritative user knowledge | speaker labels, notes, tags, collections, saved searches, future curated result sets | must survive index rebuilds |
-| Rebuildable projection | lexical index, semantic chunks/vectors, research query projection, derived exports | may be regenerated |
-| Private execution state | normalization, enhancement, checkpoints, temporary segments | lifecycle-managed, not source truth |
+| Authoritative evidence | original recording, canonical JSON | never treat as cache; destructive deletion must be explicit |
+| Authoritative human knowledge | speaker labels, notes, tags, collections, saved searches | must survive index rebuilds and unrelated deletion |
+| Rebuildable projection | lexical/semantic/research DuckDB, derived exports | may be regenerated |
+| Private execution state | checkpoints, normalization/enhancement intermediates | lifecycle-managed; not source truth |
+| Lightweight lifecycle metadata | job manifests/discovery pointers | retained when heavyweight execution state is cleaned |
 
-🦝 The raccoon may rebuild an index. The raccoon may not eat your annotations.
+## Unified discovery, saved searches, and navigation
 
-## Unified library discovery
+`echoflow library find QUERY` returns typed transcript, note, tag, and collection groups
+without fabricating one cross-type relevance score.
 
-This is **foundation** too.
+Saved searches are durable **questions**, not result snapshots. They preserve typed query
+semantics and explicitly refuse derived `evidence_scope`; replay re-resolves current
+research relationships and current canonical evidence.
 
-`ResearchWorkspaceService.discover()` and `echoflow library find QUERY` provide one human
-query across four typed result groups:
+Frequent/recent tag and collection navigation is derived from current relationships. It
+does not create authoritative popularity counters.
 
-- transcript evidence through existing lexical/semantic/hybrid retrieval and verified
-  canonical navigation;
-- note prose through the research projection followed by authoritative SQLite hydration;
-- matching tag names; and
-- matching collection names.
+## Safe deletion and retention controls
 
-The discovery layer deliberately does not create a universal relevance score across
-unlike objects. Transcript ranks remain transcript ranks. Notes, tags, and collections
-remain their own object types.
+This is now **foundation**.
 
-Name matching for tags/collections is deterministic and group-local. Exact names sort
-before prefix/substring matches, then token overlap. That ordering is a disposable view,
-not authoritative state.
-
-Per-group limits, canonical context, stale-note state, speaker presentation, evidence
-identity, and source seek coordinates remain visible through the same application
-contracts a future GUI can consume.
-
-## Saved searches and useful derived navigation
-
-This is now **foundation** as part of PR #67.
-
-Saved searches are durable user-authored workspace state in authoritative SQLite. They
-preserve typed query intent rather than rendered CLI text or a frozen set of search
-results.
-
-A saved search records transcript query semantics, retrieval mode, context width, and
-research constraints. It explicitly does not persist derived `evidence_scope`. Replaying a
-saved search therefore re-resolves current research relationships and current canonical
-evidence through `ResearchWorkspaceService.search()`.
-
-EchoFlow also derives:
-
-- most-used tags from current note/tag relationships;
-- recently used tags;
-- most-used collections; and
-- recently used collections.
-
-Those counts and timestamps are views. EchoFlow does not add authoritative popularity or
-recency counters to tag/collection records.
-
-Current CLI surfaces are:
+`LibraryCustodyService` provides a plan-first typed deletion system. The CLI is a dry run
+unless the exact plan token is returned with `--confirm`:
 
 ```bash
-echoflow library saved
-echoflow library saved save "Housing chapter" "rent burden" --tag housing --mode hybrid
-echoflow library saved show "Housing chapter"
-echoflow library saved run "Housing chapter"
-echoflow library saved delete "Housing chapter"
-echoflow library navigation
+echoflow library delete TRANSCRIPT_ID --scope library-view
+echoflow library delete TRANSCRIPT_ID --scope canonical-transcript
+echoflow library delete TRANSCRIPT_ID --scope research-notes
+echoflow library delete TRANSCRIPT_ID --scope saved-searches
+echoflow library delete TRANSCRIPT_ID --scope source-recording --allow-source
+echoflow library retention --execution-days 30
 ```
+
+Deletion scopes separate:
+
+- active-library membership/rebuildable retrieval state;
+- regenerable TXT/SRT/VTT publications;
+- private checkpoints/intermediates;
+- canonical transcript evidence;
+- notes attached to the exact canonical generation;
+- saved searches explicitly constrained to the transcript; and
+- the original recording.
+
+`canonical-transcript` expands only across disposable descendants: library view, derived
+publications, and private execution state. It does **not** imply note, saved-search, or
+source deletion.
+
+A confirmation token binds the exact canonical generation, requested/effective scopes,
+mutation set, and relevant preserved note/saved-search dependency list. Canonical bytes are
+re-hashed before mutation. Source deletion requires a second explicit switch and current
+source bytes must still match transcription provenance.
+
+Age-based retention is intentionally narrower. It deletes only old private job workspaces;
+completed jobs are eligible by default, failed/interrupted jobs require
+`--include-incomplete`, and running jobs are never eligible. Canonical evidence, human
+research, source media, and lightweight lifecycle manifests survive retention cleanup.
+
+EchoFlow does not claim secure erasure on storage where SSD wear levelling, snapshots,
+copy-on-write history, backups, or sync/versioning make that guarantee unverifiable.
+
+See `docs/architecture/safe-deletion-retention.md` and
+`docs/architecture/library-lifecycle.md` for exact semantics.
+
+## Test/quality debt repaired after saved-search merge
+
+The saved-search/navigation PR was merged while its Linux branch-coverage gate was still
+below the repository threshold even though all 1,000 tests passed. This tranche adds the
+missing edge/failure and human-rendering tests instead of lowering the 90% requirement.
+
+Coverage additions exercise invalid durable saved-search objects, storage bounds, corrupt
+persisted state, missing mutation targets, closed navigation dispatch, human CLI rendering,
+and safe missing-state behavior. The custody tranche adds its own positive, negative,
+stale-plan, provenance, partial-state, and retention tests.
 
 # Near-term product sequence
 
-The next work should make the existing backend **safe and pleasant to operate** rather than
-reopening solved custody/search contracts.
+## 1. Incremental library refresh and corpus-scale qualification
 
-## 1. Safe deletion and explicit retention controls
+A whole-corpus rebuild remains the correct repair path, but normal growth should not
+require re-reading every transcript when one generation changes.
 
-Deletion must follow custody class rather than treating every local file as equivalent.
+Add incremental refresh keyed by stable generation identity, likely
+`(document_id, canonical_sha256)`:
 
-The first safe-deletion surface should distinguish:
+```text
+new generation       -> upsert
+changed generation   -> replace/upsert
+removed transcript   -> remove
+unchanged transcript -> skip
+```
 
-- deleting a rebuildable index/cache;
-- deleting a derived TXT/SRT/VTT publication;
-- deleting private checkpoint/execution state and therefore resume capability;
-- deleting human-authored notes or saved searches;
-- removing a canonical transcript from active library membership without necessarily
-  deleting the evidence file; and
-- destructively deleting canonical transcript evidence.
+Keep full rebuild as explicit repair/recovery. Normal GUI-era UX should feel like “the
+library noticed my transcript,” not “please rebuild a database.”
 
-Canonical-evidence deletion must surface dependent annotations/anchors before committing.
-“Remove from search” must never quietly mean “erase my only transcript and its research.”
-
-EchoFlow should not claim secure erasure or crypto-shredding for ordinary files when SSD
-wear levelling, copy-on-write filesystems, snapshots, backups, or sync clients make that
-claim unverifiable. The product can provide precise deletion semantics without promising
-physical-media destruction it cannot prove.
+Then qualify realistic corpora: startup, cold/warm search, filtered lexical/semantic
+queries, unified discovery, saved-search replay, projection catch-up, incremental refresh,
+and full repair rebuild.
 
 ## 2. First thin GUI
 
 The GUI has earned its place because the backend is ahead of the human interface.
 
-The first graphical vertical slice should remain deliberately small and beautiful rather
-than becoming a second application implementation.
+The first graphical slice should browse/open transcripts, use unified discovery, show
+speaker/time evidence, create/edit/delete notes, apply tags/collections with derived
+suggestions, browse saved searches, jump to source-relative media coordinates, and expose
+the same typed deletion/retention plans.
 
-It should support:
-
-- browse/open local transcripts;
-- unified library search/discovery;
-- readable transcript evidence with speaker/time context;
-- click or select evidence and create/edit/delete a note;
-- apply/create tags and collections, with frequent/recent suggestions;
-- browse notes and saved searches; and
-- jump to the existing source-relative seek coordinate in local media playback.
-
-The GUI must consume existing application services and `EvidenceAnchor`. It must not own a
-second search engine, second note schema, second speaker policy, or second definition of
-where evidence lives.
-
-Visual direction can be refined later, but the intended shell is light, calm, legible,
-and evidence-first rather than dashboard-heavy.
+It must consume existing application services. It must not invent a second search engine,
+note schema, speaker policy, custody model, or evidence location rule.
 
 ## 3. Research portability and selected-result export
 
-Portability is part of EchoFlow's ownership thesis, not decorative export polish.
+Portability is part of the ownership thesis. Target CSV, JSON/JSONL, and Markdown first,
+then a whole-workspace/user-state export manifest when the durable schema is ready.
 
-Target first formats:
+Exports should retain document ID, source/canonical SHA-256, segment IDs, and numeric
+evidence coordinates where applicable.
 
-- CSV for ordinary tabular interoperability;
-- JSON/JSONL for machine-readable structure;
-- Markdown for human-readable research bundles; and
-- a whole-workspace/user-state export manifest when the schema is ready.
+## 4. Qualify semantic dependency and managed embedding custody
 
-Exports should retain evidence coordinates such as document ID, source/canonical SHA-256,
-segment IDs, and numeric start/end seconds where applicable.
+Before semantic search is advertised as a normal source install, qualify one locked
+optional semantic dependency set with managed immutable E5 snapshot acquisition, private
+cache placement, disk/resource admission, no silent search-time download, offline
+execution after installation, and clean-wheel/platform qualification.
 
-Native XLSX is optional later. CSV already opens in Excel, Numbers, LibreOffice, R,
-pandas, and many research tools without adding a workbook dependency.
+## 5. Representative-device dogfooding and delivery
 
-## 4. Incremental library refresh and corpus-scale qualification
+Exercise real corpora on 8 GB Windows, 16 GB commodity hardware, Apple Silicon, a
+discrete-GPU laptop, and larger 32/64 GB workstations. Measure real-time factor,
+cold/warm model behavior, thermal/memory pressure, private disk cost, enhancement benefit,
+embedding build cost, refresh cost, and interactive query latency.
 
-`library rebuild` remains the correct repair path, but normal growth should not require
-re-reading an entire large corpus because one transcript changed.
-
-Add an incremental refresh path keyed by stable transcript generation identity, likely
-`document_id + canonical_sha256`, using the existing lexical index `upsert/remove`
-capabilities:
-
-- new transcript → upsert;
-- changed canonical generation → replace/upsert;
-- removed transcript → remove;
-- unchanged transcript → skip.
-
-Keep full rebuild as explicit recovery.
-
-Then measure realistic corpora rather than optimizing by instinct. Representative
-qualification should include startup, warm/cold search, filtered lexical/semantic queries,
-unified-discovery latency, notebook queries, saved-search replay, one-edit projection
-catch-up, large-batch projection catch-up, and full rebuild behavior.
-
-## 5. Qualify semantic dependency and managed embedding custody
-
-Before semantic search is advertised as a normal source install, qualify a locked
-optional semantic dependency set with:
-
-- one explicit semantic extra;
-- managed acquisition of the exact qualified E5 snapshot;
-- immutable revision custody;
-- private cache placement;
-- disk/resource admission;
-- no silent model download during search/indexing;
-- offline execution after installation; and
-- clean-wheel/platform qualification.
-
-Do not bypass `uv.lock` coherence merely to make the feature look finished.
-
-## 6. Representative-device dogfooding and delivery
-
-Exercise real multi-recording corpora on at least:
-
-- 8 GB Windows consumer hardware;
-- 16 GB commodity hardware;
-- Apple Silicon;
-- a discrete-GPU laptop; and
-- larger 32/64 GB workstations.
-
-Measure real-time factor, cold/warm model behavior, thermal effects, memory pressure,
-private disk cost, enhancement cost/benefit, embedding build cost, library refresh cost,
-and interactive query latency.
-
-Use those measurements to calibrate strategy recommendations and installer defaults.
-
-A pre-1.0 delivery milestone should include polished recovery/error language and an
-installer/package path that does not require a developer environment.
+A pre-1.0 delivery milestone should include polished recovery/error language and a package
+or installer path that does not require a developer environment.
 
 # Conditional later capabilities
 
 ## Deeper original-media clock qualification
 
-Only add production/media-clock mapping when real recordings require it. Candidate work
-includes non-zero stream origins, rational frame/timecode rates, drop-frame semantics,
-PTS/DTS mapping, and explicit synchronization relationships across independent sources.
-
-“Metadata exists” and “metadata is trustworthy enough to map onto transcript evidence”
-remain different states.
+Only add production/media-clock mapping when real recordings require it: non-zero stream
+origins, rational frame/timecode rates, drop-frame semantics, PTS/DTS mapping, and explicit
+synchronization across independent sources.
 
 ## Speech/source separation for overlapping speakers
 
 Source separation remains later than honest overlap representation. It adds substantial
-compute/model custody, uncertainty, derived-audio provenance, and failure modes.
-
-It should demonstrate measurable end-to-end recognition benefit on representative overlap
-cases before entering the normal product path.
-
-# Other engineering work, when evidence asks for it
+compute/model custody, uncertainty, derived-audio provenance, and failure modes. It should
+demonstrate measurable end-to-end recognition benefit before entering the normal path.
 
 ## Typed query evolution
 
-The unified discovery/search surface compiles into typed query contracts. Do not let CLI
-flags, GUI chips, saved searches, and a future natural-language convenience layer grow
-separate semantics.
-
-Add date/duration/fuzzy/facet constraints only when real use needs them.
+Do not let CLI flags, GUI chips, saved searches, and a future natural-language convenience
+layer grow separate semantics. Add date/duration/fuzzy/facet constraints only when real
+usage requires them.
 
 ## Bounded failure recovery
 
 Audio bisection/retry should be added only if representative long-recording failures show
 it is needed. Do not front-load a recovery labyrinth for hypothetical failures.
 
-## Pre-production durable-contract policy
+## Durable-contract policy
 
-EchoFlow has not yet had a released/dogfooded durable compatibility boundary. Internal
-durable contracts therefore use one current canonical shape rather than accumulating
-migration branches for every unreleased intermediate state.
-
-Unsupported schema versions still fail closed. When a real compatibility obligation
-exists, migrations should be introduced against actual persisted fixtures from that
-boundary.
+EchoFlow has not yet had a released/dogfooded compatibility boundary. Internal durable
+contracts therefore use one current canonical shape rather than accumulating migrations
+for unreleased intermediate states. Unsupported schema versions still fail closed.
 
 # Research candidates, not promises
 
-Interesting later investigations include:
-
-- independent forced alignment or phoneme-level timing if native word timing proves
-  insufficient;
-- finer intra-clause/romanized language attribution;
-- character n-gram/fuzzy retrieval for ASR names/acronyms/misspellings;
-- a small local cross-encoder reranker if measured benefit justifies it;
-- resource-admitted HNSW only when exact-search latency justifies approximation;
-- constrained deterministic natural-language query grammar;
-- optional local query translation that shows the interpreted typed query;
-- optional summarization only over an explicitly selected/citable evidence set;
-- explicit user-authored cross-recording person relationships, without biometric identity
-  inference;
-- additional ASR engines when they provide a concrete advantage; and
-- additional accelerator backends when a real engine can consume them.
+Interesting later investigations include independent forced alignment, finer language
+attribution, character n-gram/fuzzy retrieval for ASR names, a small local reranker if
+measured benefit justifies it, resource-admitted HNSW only when exact search latency
+justifies approximation, deterministic natural-language query grammar, optional local
+query translation that exposes the interpreted typed query, citation-bound local
+summarization over explicit evidence sets, user-authored cross-recording person
+relationships without biometric inference, additional ASR engines, and additional
+accelerator backends when concrete advantage exists.
 
 The order can change when security review, dogfooding, hardware evidence, or complexity
-contradicts an assumption.
-
-The stable direction is narrower:
+contradicts an assumption. The stable direction is narrower:
 
 > **Make sensitive local transcription boringly dependable. Make its evidence easy to
 > navigate and annotate. Do not give the corpus away.** 💃

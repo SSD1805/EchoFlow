@@ -6,56 +6,50 @@ EchoFlow is a local-first Python application for turning recordings into durable
 searchable evidence and keeping research work attached to that evidence without handing
 the corpus to a hosted transcription service.
 
-It does more than run a speech model. EchoFlow inspects the machine it is running on,
-chooses a safe execution strategy, manages local model custody, survives interrupted
-work, preserves source provenance, publishes portable transcripts, keeps word-level
-timing evidence, handles anonymous speaker evidence conservatively, searches a private
-local corpus, navigates results back to verified canonical evidence, stores durable
-notes/tags/collections separately from rebuildable search machinery, and now gives those
-capabilities one grouped library-discovery doorway.
+It does more than run a speech model. EchoFlow inspects the machine, chooses a safe local
+execution strategy, manages model custody, survives interrupted work, preserves source
+provenance, publishes portable transcripts, keeps word-level timing and anonymous-speaker
+evidence, searches a private corpus, verifies results against canonical evidence, stores
+human research separately from rebuildable indexes, saves reusable research questions,
+and now gives deletion the same explicit custody rules as creation.
 
-The original recording remains read-only source evidence. Canonical transcript JSON is
-the authoritative transcript artifact. Human-authored research state is authoritative
-user knowledge. DuckDB search and research projections are acceleration structures that
-may be deleted and rebuilt.
+Canonical transcript JSON is authoritative transcript evidence. Human-authored research
+state is authoritative user knowledge. DuckDB search/research projections and publication
+formats are rebuildable. The original recording is read-only throughout normal processing
+and can only be deleted through a separate explicit provenance-checked operation.
 
 > **EchoFlow's product rule:** do complicated work locally, keep the evidence
 > understandable, portable, and owned by the user.
 
-For the human-friendly documentation lobby, start at **[docs/README.md](docs/README.md)**.
-For the shortest path from clone to transcript, use
-**[Getting started](docs/getting-started.md)**.
+Start with **[docs/README.md](docs/README.md)** for human-facing documentation or
+**[Getting started](docs/getting-started.md)** for the shortest clone-to-transcript path.
 
 ## What can it do right now?
 
-EchoFlow is pre-production, but the backend now covers most of the local
+EchoFlow is pre-production, but the backend covers most of the local
 recording-to-research lifecycle.
 
 | Area | Current foundation |
 |---|---|
 | Local transcription | faster-whisper CPU/int8 and CUDA-capable strategies with explicit managed model revisions |
-| Hardware awareness | process-visible CPU/RAM, affinity/cgroup limits, accelerator topology, engine capability negotiation, and resource admission |
-| Media handling | FFprobe inspection, deterministic audio-stream selection, FFmpeg canonicalization, exact source-relative frame windows |
-| Word timing | native faster-whisper word timestamps validated, rebased to source-relative time, and preserved through resume |
-| Time provenance | human `HH:MM:SS.mmm` elapsed coordinates plus source-declared `timecode` / `creation_time` provenance when available |
-| Reliability | durable private checkpoints, validated resume, contiguous checkpoint ordering, bounded accelerated prefetch |
+| Hardware awareness | process-visible CPU/RAM, affinity/cgroup limits, accelerator topology, engine capability negotiation, resource admission |
+| Media handling | FFprobe inspection, deterministic stream selection, FFmpeg canonicalization, exact source-relative work windows |
+| Word/time evidence | source-relative word timestamps, preserved temporal provenance, deterministic human elapsed coordinates |
+| Reliability | private checkpoints, validated resume, contiguous checkpoint ordering, bounded accelerated prefetch |
 | Languages | multilingual decoding plus conservative local text-language attribution |
-| Speakers | optional anonymous recording-scoped diarization, word-level handoffs, durable display labels, and honest overlap/mixed presentation; diarization remains security-held when its locked dependency gate is unsafe |
-| Difficult audio | optional deterministic local FFmpeg noise suppression with provenance and timeline-preservation checks |
-| Model custody | explicit inventory, recommendation, install, local revalidation, immutable revision pinning, and exact-revision removal |
-| Transcript output | canonical JSON plus deterministic TXT, SRT, and WebVTT derived views |
-| Search | private local BM25 lexical retrieval, optional semantic retrieval, and inspectable hybrid RRF ranking |
-| Evidence navigation | canonical-hash verification, aligned lexical highlights, bounded context expansion, speaker display integration, and deterministic source seek coordinates |
-| Research workspace | authoritative SQLite notes/tags/collections anchored to exact canonical evidence, plus a rebuildable DuckDB research projection |
-| Research-aware search | tag, collection, note-text, and with-notes constraints applied before lexical ranking or semantic scoring |
-| Unified discovery | one grouped query across transcript evidence, notes, tags, and collections with no fabricated cross-type relevance score |
-| Quality | Linux/macOS/Windows CI, strict typing, lint/format/security rules, complexity/dead-code checks, branch coverage, dependency audit, package build, and clean-wheel verification |
+| Speakers | optional anonymous recording-scoped diarization, word-level handoffs, durable display labels, honest overlap/mixed presentation |
+| Difficult audio | optional deterministic FFmpeg noise suppression with provenance/timeline checks |
+| Model custody | explicit inventory, recommendation, install, revalidation, immutable revision pinning/removal |
+| Transcript output | canonical JSON plus deterministic TXT, SRT, WebVTT publication views |
+| Search | private BM25 lexical retrieval, optional semantic retrieval, hybrid reciprocal-rank fusion |
+| Evidence navigation | canonical-hash verification, aligned highlights, bounded context, speaker presentation, source seek coordinates |
+| Research workspace | authoritative SQLite notes/tags/collections plus rebuildable DuckDB research projection |
+| Unified discovery | grouped transcript/note/tag/collection query without fabricated cross-type scores |
+| Saved searches | durable typed query intent that re-resolves current evidence instead of freezing result snapshots |
+| Safe lifecycle | typed plan-bound deletion scopes plus private execution-state retention that preserves evidence/human work by default |
+| Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, package verification |
 
-The point is not that users should learn every subsystem. It is that most of the annoying
-choices around local transcription, provenance, search, and research-state custody are
-becoming application behavior instead of homework.
-
-## The journey from recording to something useful
+## From recording to useful evidence
 
 ```mermaid
 flowchart LR
@@ -69,18 +63,17 @@ flowchart LR
     H --> I[Context highlights and seek]
     I --> J[Durable notes tags collections]
     J --> G
-    G --> K[Unified library discovery]
+    G --> K[Unified discovery]
     J --> K
+    K --> L[Saved searches navigation]
+    E --> M[Custody-aware deletion planning]
+    J --> M
+    D --> M
 ```
 
-Text fallback: the original recording produces a canonical transcript; rebuildable search
-ranks passages; canonical navigation verifies those passages; durable research state is
-attached to exact evidence and can constrain later searches; unified discovery composes
-transcript evidence and research objects into one grouped human-facing query.
-
-Search ranking is intentionally not source truth. A ranked result points back to canonical
-transcript coordinates, and the navigation layer verifies that canonical generation
-before presenting precise word evidence or accepting a durable note anchor.
+Search ranking is not source truth. A result points back to canonical transcript
+coordinates, and navigation verifies that generation before presenting precise evidence
+or accepting a durable note anchor.
 
 ## Install the current source build
 
@@ -104,7 +97,7 @@ uv run echoflow transcribe interview.m4a --dry-run
 uv run echoflow transcribe interview.m4a
 ```
 
-Add derived publication formats when useful:
+Add publication formats when useful:
 
 ```bash
 uv run echoflow transcribe interview.m4a --export txt --export srt --export vtt
@@ -116,64 +109,33 @@ Resume a validated interrupted job with the original input and job ID:
 uv run echoflow transcribe interview.m4a --resume JOB_ID
 ```
 
-Model acquisition is explicit and network-bearing. Transcription itself does not silently
+Model acquisition is explicit and network-bearing. Transcription does not silently
 download faster-whisper weights. Resume rechecks source identity and current resource
-admission rather than silently changing the original execution contract.
+admission rather than silently changing the execution contract.
 
 ## Optional anonymous speakers
 
 ```bash
 uv run echoflow transcribe interview.wav --diarize
-```
-
-Diarization produces anonymous recording-scoped refs such as `speaker-01`; it does not
-perform biometric identity or cross-recording speaker linking. After a transcript is in
-the library, a user can assign a durable display label:
-
-```bash
 uv run echoflow library speakers name JOB_ID speaker-02 "Dr. Chen"
 uv run echoflow library speakers transcript JOB_ID
 ```
 
-`Dr. Chen` is user-authored presentation state. `speaker-02` remains the evidence ref.
-The current pyannote dependency path remains security-held while its locked Lightning
-version is affected by the compensated advisory described in **[SECURITY.md](SECURITY.md)**.
+A display name is user-authored presentation state. Anonymous speaker refs remain the
+evidence identity. EchoFlow does not perform biometric identity inference or silent
+cross-recording speaker linking.
 
-## Search, navigate, and annotate the local library
+## Search, navigate, annotate, and save useful questions
 
-Build the private lexical library:
+Build the private lexical library and search it:
 
 ```bash
 uv run echoflow library rebuild
-```
-
-Search transcript evidence directly:
-
-```bash
 uv run echoflow library search "housing insecurity"
-```
-
-Or use the one-box grouped library doorway:
-
-```bash
-uv run echoflow library find "housing insecurity"
-```
-
-`library find` returns separate transcript-evidence, note, tag, and collection groups.
-Transcript evidence keeps its own lexical/semantic/hybrid ranking provenance. Notes and
-labels remain their own object types rather than receiving a made-up universal score.
-
-Add neighboring canonical context without changing transcript ranking:
-
-```bash
 uv run echoflow library find "housing insecurity" --context-segments 1
 ```
 
-If local semantic state is available, `--mode semantic` or `--mode hybrid` changes only
-the transcript-evidence group. Note, tag, and collection lookup remains deterministic
-local text lookup.
-
-Research metadata can also constrain transcript retrieval before scoring:
+Research metadata can constrain transcript retrieval before scoring:
 
 ```bash
 uv run echoflow library search \
@@ -187,34 +149,73 @@ The notebook itself is durable user state:
 
 ```bash
 uv run echoflow library notes
-
 uv run echoflow library notes add JOB_ID segment-000042 \
   --body "Compare this with the 2024 survey." \
   --tag methodology \
   --collection "Chapter 3"
 ```
 
-The CLI currently exposes canonical segment IDs because it needs a real evidence address.
-A future graphical shell can turn transcript selection into the same verified
-`EvidenceAnchor` without asking a normal person to type IDs.
+Saved searches persist the question, not today's answer:
 
-Read **[Find things across the whole local library](docs/library-discovery.md)**,
-**[Your notes should survive the machinery](docs/research-notes.md)**, and
-**[From search result to the exact evidence](docs/evidence-navigation.md)** for the human
-versions of those contracts.
+```bash
+uv run echoflow library saved save "Housing chapter" "rent burden" \
+  --tag housing --mode hybrid
+uv run echoflow library saved
+uv run echoflow library saved run "Housing chapter"
+uv run echoflow library navigation
+```
 
-### Optional semantic and hybrid search
+## Delete exactly what you mean
 
-Semantic search can find related wording while lexical search remains the dependency-light
-default. Hybrid retrieval combines BM25 and dense ranks using reciprocal rank fusion
-instead of pretending their raw scores share one scale.
+Deletion is dry-run first. This only removes the transcript from rebuildable active search
+state:
 
-The current semantic foundation uses a strict-local Multilingual E5 Small profile and
-private rebuildable vectors. The locked base project still does not declare Sentence
-Transformers as a normal semantic extra, so semantic setup remains advanced rather than
-part of the ordinary source install.
+```bash
+uv run echoflow library delete JOB_ID --scope library-view
+```
 
-Read **[Semantic search, without the mystery box](docs/semantic-search.md)**.
+The plan prints every action, preserved attached notes, affected document-scoped saved
+searches, and a confirmation token. Nothing changes until the same request is repeated
+with that token:
+
+```bash
+uv run echoflow library delete JOB_ID \
+  --scope library-view \
+  --confirm 'delete:...'
+```
+
+Available transcript-scoped custody operations include:
+
+```text
+library-view          remove rebuildable retrieval membership
+derived-artifacts     delete regenerable TXT/SRT/VTT
+execution-state       delete private checkpoints/intermediates
+canonical-transcript  delete canonical JSON plus disposable descendants
+research-notes        delete notes anchored to this exact canonical generation
+saved-searches        delete saved searches explicitly constrained to this transcript
+source-recording      delete original recording only with --allow-source + provenance match
+```
+
+`canonical-transcript` does **not** imply `research-notes`, `saved-searches`, or
+`source-recording`. Shared tags/collections are never cascade-deleted merely because one
+transcript or note disappears.
+
+Age-based retention is narrower still:
+
+```bash
+uv run echoflow library retention --execution-days 30
+```
+
+It can delete only old private job workspaces. Completed jobs are eligible by default;
+failed/interrupted jobs require `--include-incomplete` because cleanup removes resume
+capability. Running jobs are never eligible. Canonical transcripts, human research, source
+media, and lightweight lifecycle manifests are preserved.
+
+EchoFlow does not claim that ordinary file deletion proves secure physical erasure on
+SSDs, snapshots, backups, sync history, or copy-on-write storage.
+
+Read **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)** for
+the exact contract.
 
 ## What belongs to you? 🦝
 
@@ -223,61 +224,45 @@ Read **[Semantic search, without the mystery box](docs/semantic-search.md)**.
 | Original recording | source evidence | **No** |
 | Canonical transcript JSON | authoritative transcript evidence | **No** |
 | Speaker display labels | user-authored knowledge | **No** |
-| Research notes, tags, collections, evidence anchors | user-authored knowledge | **No** |
-| Future saved searches / curated result sets | user-authored knowledge | **No** |
+| Notes, tags, collections, evidence anchors | user-authored knowledge | **No** |
+| Saved searches | user-authored query intent | **No** |
 | TXT/SRT/WebVTT | publication views | Yes |
 | Normalized/enhanced working audio | private processing material | Yes |
-| Lexical search database | private search projection | Yes |
-| Semantic chunks/vectors | private search projection | Yes |
-| Research query projection | derived relationships/terms over durable research state | Yes |
-| Evidence-navigation/discovery views | derived presentation over canonical evidence and durable user state | Yes |
+| Lexical/semantic search state | private search projections | Yes |
+| Research query projection | rebuildable view over durable research state | Yes |
 
 A database is allowed to make evidence useful. It is not allowed to become the only place
 unique evidence or human research exists.
 
 ## For maintainers
 
-Start with **[docs/architecture/README.md](docs/architecture/README.md)**. Particularly
-useful references are:
-
-- **[Processing capabilities](docs/architecture/processing-capabilities.md)** for the
-  end-to-end capability map;
-- **[Corpus search](docs/architecture/corpus-search.md)** for lexical/semantic/hybrid
-  retrieval and canonical navigation;
-- **[Durable research state](docs/architecture/research-state.md)** for SQLite authority,
-  the monotonic change journal, DuckDB projection, watermark, and research filtering;
-- **[Model management](docs/architecture/model-management.md)** for explicit model
-  acquisition and immutable revision custody; and
-- **[SECURITY.md](SECURITY.md)** for the actual local-first threat boundary.
+Start with **[docs/architecture/README.md](docs/architecture/README.md)**, especially
+**[Corpus search](docs/architecture/corpus-search.md)**,
+**[Durable research state](docs/architecture/research-state.md)**,
+**[Library lifecycle](docs/architecture/library-lifecycle.md)**,
+**[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)**, and
+**[SECURITY.md](SECURITY.md)**.
 
 Normal qualification includes Ruff lint/format/security rules, strict mypy, Vulture,
-Radon, branch coverage, locked dependency verification/auditing, package builds,
-clean-wheel verification, and Linux/macOS/Windows CI. Targeted mutation testing with
-Poodle is reserved for load-bearing decision logic rather than routine per-commit work.
+Radon, branch coverage, locked dependency audit, package builds, clean-wheel verification,
+and Linux/macOS/Windows CI. Targeted mutation testing is reserved for load-bearing logic.
 
 ## Where the project goes next
 
-The backend research-state foundation and unified library doorway are built. The
-highest-value next work is now **remembering useful views and reducing navigation
-friction**, not adding another storage engine.
+Safe lifecycle controls now sit beside the research/search foundation. The next sequence
+is:
 
-The sequence is now:
+1. **Incremental library refresh** so ordinary growth upserts/removes changed canonical
+   generations and full rebuild becomes the repair lever.
+2. **First thin GUI** consuming the existing evidence, research, saved-search, and custody
+   services.
+3. **Research portability** with evidence-bearing CSV/JSONL/Markdown and eventual workspace
+   export.
+4. **Semantic dependency/model qualification** for a normal install path.
+5. **Representative-device qualification and productization** across 8/16 GB systems,
+   Apple Silicon, discrete GPUs, and larger workstations.
 
-1. **Saved searches and useful derived navigation**: durable saved query intent plus
-   derived frequent/recent tags, facets, and selected/citable result sets where they help.
-2. **First thin GUI**: browse/find transcripts, select evidence, add/edit notes and tags,
-   and jump to source media by reusing existing application services and evidence anchors.
-3. **Research portability and corpus-scale ergonomics**: durable research export,
-   incremental library refresh, and measured performance on realistic corpora.
-4. **Representative-device qualification**: verify interaction and processing behavior on
-   ordinary 8/16 GB systems, Apple Silicon, discrete-GPU machines, and larger workstations.
-5. **Productization**: qualify semantic installation/model custody, installers, and
-   polished recovery language.
-
-Source separation for genuinely overlapping speech remains later. It should earn its
-model/compute/provenance cost with measured benefit on real recordings.
-
-See **[ROADMAP.md](ROADMAP.md)** for the detailed sequence and deliberate limits.
+See **[ROADMAP.md](ROADMAP.md)** for the detailed sequence.
 
 ---
 

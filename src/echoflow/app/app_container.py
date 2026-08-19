@@ -16,6 +16,7 @@ from echoflow.core.ilogger import ILogger
 from echoflow.core.logger import configure_logging
 from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
+from echoflow.library.custody import LibraryCustodyService
 from echoflow.library.duckdb_index import DuckDbTranscriptIndex
 from echoflow.library.duckdb_research_projection import DuckDbResearchProjection
 from echoflow.library.duckdb_semantic import DuckDbSemanticIndex
@@ -311,6 +312,17 @@ class AppContainer(containers.DeclarativeContainer):
         file_manager=file_manager,
         semantic_index=semantic_index,
         embedding_provider_factory=embedding_provider_factory,
+    )
+    library_custody = providers.Singleton(
+        LibraryCustodyService,
+        transcript_library=transcript_library,
+        lexical_index=transcript_index,
+        semantic_index=semantic_index,
+        lifecycle_store=job_lifecycle_store,
+        research_state=research_state_store,
+        workspace_metadata=workspace_metadata_store,
+        paths=workspace_paths,
+        file_manager=file_manager,
     )
     evidence_locator = providers.Singleton(EvidenceLocator, file_manager=file_manager)
     research_navigation = providers.Singleton(

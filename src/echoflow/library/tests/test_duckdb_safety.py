@@ -25,9 +25,10 @@ def test_atomic_duckdb_transaction_commits_complete_mutation() -> None:
 def test_atomic_duckdb_transaction_rolls_back_complete_mutation() -> None:
     connection = _connection()
 
-    with pytest.raises(
-        RuntimeError, match="forced failure"
-    ), atomic_duckdb_transaction(connection):
+    with (
+        pytest.raises(RuntimeError, match="forced failure"),
+        atomic_duckdb_transaction(connection),
+    ):
         connection.execute("INSERT INTO values_for_test VALUES (1)")
         raise RuntimeError("forced failure")
 

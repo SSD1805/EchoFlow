@@ -104,9 +104,7 @@ def _dispatch(request: _DesktopRequest, service: LibraryLocationService) -> obje
                 }
                 for item in discovery_report.recordings
             ],
-            "unavailable_location_ids": list(
-                discovery_report.unavailable_location_ids
-            ),
+            "unavailable_location_ids": list(discovery_report.unavailable_location_ids),
         }
 
     refresh_params = _RefreshParams.model_validate(request.params)

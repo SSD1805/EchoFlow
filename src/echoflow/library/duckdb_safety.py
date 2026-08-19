@@ -30,8 +30,5 @@ def atomic_duckdb_transaction(
         try:
             connection.execute("ROLLBACK")
         except duckdb.Error as rollback_exc:
-            exc.add_note(
-                "DuckDB rollback also failed: "
-                f"{type(rollback_exc).__name__}"
-            )
+            exc.add_note(f"DuckDB rollback also failed: {type(rollback_exc).__name__}")
         raise

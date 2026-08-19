@@ -23,7 +23,9 @@ def _first_mermaid_source(path: Path) -> str:
 
 def _svg_source_hash(path: Path) -> str:
     match = _SVG_SOURCE_HASH.search(path.read_text(encoding="utf-8"))
-    assert match is not None, f"{path.relative_to(_REPO_ROOT)} has no Mermaid source hash"
+    assert match is not None, (
+        f"{path.relative_to(_REPO_ROOT)} has no Mermaid source hash"
+    )
     return match.group("digest")
 
 

@@ -221,8 +221,7 @@ class JsonLibraryLocationStore:
                 {
                     "schema_version": _STATE_SCHEMA_VERSION,
                     "locations": [
-                        item.to_dict()
-                        for item in sorted(locations, key=self._sort_key)
+                        item.to_dict() for item in sorted(locations, key=self._sort_key)
                     ],
                 },
                 indent=2,
@@ -340,7 +339,10 @@ class LibraryLocationService:
         roots: list[Path] = []
         unavailable: list[str] = []
         for location in self.store.locations():
-            if not location.enabled or location.kind is not LibraryLocationKind.TRANSCRIPT_LIBRARY:
+            if (
+                not location.enabled
+                or location.kind is not LibraryLocationKind.TRANSCRIPT_LIBRARY
+            ):
                 continue
             root = self._resolved(location.path)
             if not root.is_dir():
@@ -357,7 +359,10 @@ class LibraryLocationService:
         discovered: dict[Path, tuple[int, set[str], bool]] = {}
         unavailable: list[str] = []
         for location in self.store.locations():
-            if not location.enabled or location.kind is not LibraryLocationKind.RECORDING_SOURCE:
+            if (
+                not location.enabled
+                or location.kind is not LibraryLocationKind.RECORDING_SOURCE
+            ):
                 continue
             root = self._resolved(location.path)
             if not root.is_dir():
@@ -365,7 +370,10 @@ class LibraryLocationService:
                 continue
             for candidate in self.file_manager.list_files(root):
                 resolved = candidate.resolve(strict=False)
-                if resolved.name.startswith(".") or resolved.suffix.lower() not in _RECORDING_EXTENSIONS:
+                if (
+                    resolved.name.startswith(".")
+                    or resolved.suffix.lower() not in _RECORDING_EXTENSIONS
+                ):
                     continue
                 metadata = self.file_manager.get_file_metadata(resolved)
                 size = int(metadata["size"])
@@ -417,7 +425,9 @@ class LibraryLocationService:
             updated_at=self._now(),
         )
         self.store.replace_all(
-            tuple(updated if item.location_id == location_id else item for item in current)
+            tuple(
+                updated if item.location_id == location_id else item for item in current
+            )
         )
         return updated
 

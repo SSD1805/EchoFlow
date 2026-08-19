@@ -100,6 +100,13 @@ flowchart LR
     class L process
 ```
 
+<details>
+<summary>Static diagram fallback if rich rendering is unavailable</summary>
+
+![EchoFlow family portrait static diagram](diagrams/docs-family-portrait.svg)
+
+</details>
+
 Text fallback: canonical evidence feeds rebuildable search; search resolves back to verified
 evidence; durable notes/tags/collections and saved searches remain authoritative human
 knowledge; lifecycle and refresh reuse those identities; the current desktop Library uses

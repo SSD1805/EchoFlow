@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import json
 import sys
-from dataclasses import dataclass
 from contextlib import redirect_stdout
+from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator

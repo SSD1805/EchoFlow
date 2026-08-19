@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import type { DesktopClient, WorkspaceDiscoveryReport } from "./api/desktop";
+import type {
+  DesktopClient,
+  WorkspaceDiscoveryReport,
+  WorkspaceEvidenceResult,
+} from "./api/desktop";
 import { WorkspaceHeader, type Theme } from "./components/WorkspaceHeader";
+import { EvidenceReader } from "./EvidenceReader";
 import "./search.css";
 
 interface SearchWorkspaceProps {
@@ -26,6 +31,7 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [report, setReport] = useState<WorkspaceDiscoveryReport | null>(null);
+  const [selectedEvidence, setSelectedEvidence] = useState<WorkspaceEvidenceResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Search transcripts and the research knowledge attached to them.");
@@ -51,6 +57,7 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
     }
     setBusy(true);
     setError(null);
+    setSelectedEvidence(null);
     try {
       const next = await client.discoverWorkspace(text);
       setReport(next);
@@ -63,6 +70,11 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
     } finally {
       setBusy(false);
     }
+  }
+
+  function openEvidence(item: WorkspaceEvidenceResult) {
+    setSelectedEvidence(item);
+    setStatus(`Opened verified evidence at ${formatTime(item.seek_seconds)}.`);
   }
 
   return (
@@ -107,99 +119,114 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
       {error && <p className="error-banner search-error" role="alert">{error}</p>}
 
       {report && (
-        <div className="result-groups" aria-label={`Search results for ${report.query}`}>
-          <section className="result-group" aria-labelledby="evidence-results">
-            <div className="result-group-heading">
-              <div>
-                <p className="mini-label">Verified transcript evidence</p>
-                <h2 id="evidence-results">Evidence</h2>
-              </div>
-              <span className="result-count" aria-label={`${report.evidence.length} evidence results`}>
-                {report.evidence.length}
-              </span>
-            </div>
-            {report.evidence.length === 0 ? (
-              <p className="empty-result">No transcript evidence matched.</p>
-            ) : (
-              <div className="result-list">
-                {report.evidence.map((item) => (
-                  <article className="evidence-result" key={`${item.document_id}:${item.segment_ids.join(",")}`}>
-                    <div className="result-meta">
-                      <span>{item.document_id}</span>
-                      <time dateTime={`PT${item.seek_seconds}S`}>{formatTime(item.seek_seconds)}</time>
-                      <span>{item.languages.join(", ") || "language unknown"}</span>
-                    </div>
-                    <p className="result-text">{item.text}</p>
-                    <div className="evidence-coordinate" data-seek-seconds={item.seek_seconds}>
-                      <strong>Verified seek point</strong>
-                      <span>{formatTime(item.seek_seconds)} · {item.segment_ids.length} canonical segment{item.segment_ids.length === 1 ? "" : "s"}</span>
-                    </div>
-                    <div className="result-pills" aria-label="Evidence metadata">
-                      {item.speakers.map((speaker) => (
-                        <span key={speaker.speaker_ref}>
-                          {speaker.display_label ?? speaker.speaker_ref}
-                          {speaker.display_label ? ` · ${speaker.speaker_ref}` : ""}
-                        </span>
-                      ))}
-                      {item.note_count > 0 && <span>{item.note_count} note{item.note_count === 1 ? "" : "s"}</span>}
-                      {item.tags.map((tag) => <span key={`tag:${tag}`}>#{tag}</span>)}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="result-group" aria-labelledby="note-results">
-            <div className="result-group-heading">
-              <div>
-                <p className="mini-label">Human-authored knowledge</p>
-                <h2 id="note-results">Notes</h2>
-              </div>
-              <span className="result-count" aria-label={`${report.notes.length} note results`}>{report.notes.length}</span>
-            </div>
-            {report.notes.length === 0 ? (
-              <p className="empty-result">No notes matched.</p>
-            ) : (
-              <div className="result-list">
-                {report.notes.map((item) => (
-                  <article className="note-result" key={item.note_id}>
-                    <div className="result-meta">
-                      <span>{item.document_id}</span>
-                      <time dateTime={`PT${item.start_seconds}S`}>{formatTime(item.start_seconds)}</time>
-                      <span>{item.current ? "current evidence" : "older evidence generation"}</span>
-                    </div>
-                    <p className="result-text">{item.body}</p>
-                    <div className="result-pills">
-                      {item.tags.map((tag) => <span key={`note-tag:${tag}`}>#{tag}</span>)}
-                      {item.collections.map((collection) => <span key={`note-collection:${collection}`}>{collection}</span>)}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <div className="named-result-grid">
-            <section className="result-group compact-group" aria-labelledby="tag-results">
+        <div className={selectedEvidence ? "search-workbench search-workbench-open" : "search-workbench"}>
+          <div className="result-groups" aria-label={`Search results for ${report.query}`}>
+            <section className="result-group" aria-labelledby="evidence-results">
               <div className="result-group-heading">
-                <h2 id="tag-results">Tags</h2>
-                <span className="result-count" aria-label={`${report.tags.length} tag results`}>{report.tags.length}</span>
+                <div>
+                  <p className="mini-label">Verified transcript evidence</p>
+                  <h2 id="evidence-results">Evidence</h2>
+                </div>
+                <span className="result-count" aria-label={`${report.evidence.length} evidence results`}>
+                  {report.evidence.length}
+                </span>
               </div>
-              <div className="named-results">
-                {report.tags.length === 0 ? <p className="empty-result">No tags matched.</p> : report.tags.map((item) => <span key={item.tag_id}>#{item.name}</span>)}
-              </div>
+              {report.evidence.length === 0 ? (
+                <p className="empty-result">No transcript evidence matched.</p>
+              ) : (
+                <div className="result-list">
+                  {report.evidence.map((item) => (
+                    <article className="evidence-result" key={`${item.document_id}:${item.segment_ids.join(",")}`}>
+                      <div className="result-meta">
+                        <span>{item.document_id}</span>
+                        <time dateTime={`PT${item.seek_seconds}S`}>{formatTime(item.seek_seconds)}</time>
+                        <span>{item.languages.join(", ") || "language unknown"}</span>
+                      </div>
+                      <p className="result-text">{item.text}</p>
+                      <div className="evidence-coordinate" data-seek-seconds={item.seek_seconds}>
+                        <strong>Verified seek point</strong>
+                        <span>{formatTime(item.seek_seconds)} · {item.segment_ids.length} canonical segment{item.segment_ids.length === 1 ? "" : "s"}</span>
+                      </div>
+                      <div className="result-actions">
+                        <button
+                          type="button"
+                          onClick={() => openEvidence(item)}
+                          aria-label={`Open evidence at ${formatTime(item.seek_seconds)}`}
+                        >
+                          Open evidence
+                        </button>
+                      </div>
+                      <div className="result-pills" aria-label="Evidence metadata">
+                        {item.speakers.map((speaker) => (
+                          <span key={speaker.speaker_ref}>
+                            {speaker.display_label ?? speaker.speaker_ref}
+                            {speaker.display_label ? ` · ${speaker.speaker_ref}` : ""}
+                          </span>
+                        ))}
+                        {item.note_count > 0 && <span>{item.note_count} note{item.note_count === 1 ? "" : "s"}</span>}
+                        {item.tags.map((tag) => <span key={`tag:${tag}`}>#{tag}</span>)}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
-            <section className="result-group compact-group" aria-labelledby="collection-results">
+
+            <section className="result-group" aria-labelledby="note-results">
               <div className="result-group-heading">
-                <h2 id="collection-results">Collections</h2>
-                <span className="result-count" aria-label={`${report.collections.length} collection results`}>{report.collections.length}</span>
+                <div>
+                  <p className="mini-label">Human-authored knowledge</p>
+                  <h2 id="note-results">Notes</h2>
+                </div>
+                <span className="result-count" aria-label={`${report.notes.length} note results`}>{report.notes.length}</span>
               </div>
-              <div className="named-results">
-                {report.collections.length === 0 ? <p className="empty-result">No collections matched.</p> : report.collections.map((item) => <span key={item.collection_id}>{item.name}</span>)}
-              </div>
+              {report.notes.length === 0 ? (
+                <p className="empty-result">No notes matched.</p>
+              ) : (
+                <div className="result-list">
+                  {report.notes.map((item) => (
+                    <article className="note-result" key={item.note_id}>
+                      <div className="result-meta">
+                        <span>{item.document_id}</span>
+                        <time dateTime={`PT${item.start_seconds}S`}>{formatTime(item.start_seconds)}</time>
+                        <span>{item.current ? "current evidence" : "older evidence generation"}</span>
+                      </div>
+                      <p className="result-text">{item.body}</p>
+                      <div className="result-pills">
+                        {item.tags.map((tag) => <span key={`note-tag:${tag}`}>#{tag}</span>)}
+                        {item.collections.map((collection) => <span key={`note-collection:${collection}`}>{collection}</span>)}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
+
+            <div className="named-result-grid">
+              <section className="result-group compact-group" aria-labelledby="tag-results">
+                <div className="result-group-heading">
+                  <h2 id="tag-results">Tags</h2>
+                  <span className="result-count" aria-label={`${report.tags.length} tag results`}>{report.tags.length}</span>
+                </div>
+                <div className="named-results">
+                  {report.tags.length === 0 ? <p className="empty-result">No tags matched.</p> : report.tags.map((item) => <span key={item.tag_id}>#{item.name}</span>)}
+                </div>
+              </section>
+              <section className="result-group compact-group" aria-labelledby="collection-results">
+                <div className="result-group-heading">
+                  <h2 id="collection-results">Collections</h2>
+                  <span className="result-count" aria-label={`${report.collections.length} collection results`}>{report.collections.length}</span>
+                </div>
+                <div className="named-results">
+                  {report.collections.length === 0 ? <p className="empty-result">No collections matched.</p> : report.collections.map((item) => <span key={item.collection_id}>{item.name}</span>)}
+                </div>
+              </section>
+            </div>
           </div>
+
+          {selectedEvidence && (
+            <EvidenceReader evidence={selectedEvidence} onClose={() => setSelectedEvidence(null)} />
+          )}
         </div>
       )}
     </>

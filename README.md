@@ -88,6 +88,13 @@ flowchart LR
     class M stop
 ```
 
+<details>
+<summary>Static diagram fallback if rich rendering is unavailable</summary>
+
+![EchoFlow recording-to-evidence static diagram](docs/diagrams/recording-to-evidence.svg)
+
+</details>
+
 Text fallback: source media is inspected and transcribed locally into canonical JSON;
 rebuildable search finds passages; canonical verification turns results back into evidence;
 durable human research attaches to that evidence; custody planning keeps destructive work

@@ -280,7 +280,7 @@ def test_transcript_refresh_uses_available_enabled_roots_and_reports_missing(tmp
 
     result = service.refresh_transcript_locations(verify=True)
 
-    assert library.calls == (((available.resolve(),), True),)
+    assert library.calls == [((available.resolve(),), True)]
     assert result.unavailable_location_ids == ("missing",)
     assert result.refresh.verified_all_tracked is True
 

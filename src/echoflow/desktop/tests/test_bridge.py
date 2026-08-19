@@ -2,8 +2,8 @@ from pathlib import Path
 from typing import Any, cast
 
 from echoflow.desktop.bridge import DesktopServices, handle_request
-from echoflow.library.evidence import EvidenceAnchor, EvidenceLocation, EvidenceWord
 from echoflow.library.errors import LibraryLocationError
+from echoflow.library.evidence import EvidenceAnchor, EvidenceLocation, EvidenceWord
 from echoflow.library.index import SearchQuery
 from echoflow.library.locations import (
     DiscoveredRecording,

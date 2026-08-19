@@ -68,7 +68,7 @@ def test_refresh_human_output_explains_delta_skip_and_semantic_invalidation() ->
     assert "1 updated" in result.output
     assert "1 removed" in result.output
     assert "1 unchanged" in result.output
-    assert "skipped 2" in result.output
+    assert "Skipped 2" in result.output
     assert "Semantic embeddings were invalidated" in result.output
     assert "re-hashed and validated" in result.output
 
@@ -108,7 +108,7 @@ def test_refresh_cli_reports_public_errors_and_masks_internal_details() -> None:
     internal.refresh.side_effect = RuntimeError("secret /private/library.duckdb")
     internal_result = runner.invoke(_app(internal), ["library", "refresh"])
 
-    assert public_result.exit_code == 3
+    assert public_result.exit_code == 2
     assert "tracked canonical transcript" in public_result.output
     assert internal_result.exit_code == 3
     assert "failed internally (RuntimeError)" in internal_result.output

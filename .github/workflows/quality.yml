@@ -13,7 +13,84 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: true
+
+      - name: Check lockfile
+        run: uv lock --check
+
+      # Static analysis needs EchoFlow's runtime dependencies and developer tools,
+      # but not optional ASR/diarization engines or native ffmpeg binaries.
+      - name: Install static analysis dependencies
+        run: uv sync --locked --group dev
+
+      - name: Lint
+        run: uv run ruff check . --output-format=github
+
+      # Ruff's diff mode is non-mutating and prints the exact proposed changes.
+      - name: Check formatting
+        run: uv run ruff format --diff .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Find certain dead code
+        run: uv run vulture
+
+      - name: Report complexity
+        run: |
+          uv run radon cc src/echoflow --total-average
+          uv run radon mi src/echoflow
+
+      - name: Export locked runtime and optional capability dependencies
+        run: >-
+          uv export
+          --locked
+          --no-dev
+          --extra transcription
+          --extra diarization
+          --no-emit-project
+          --no-hashes
+          --format requirements-txt
+          --output-file ${{ runner.temp }}/echoflow-runtime-requirements.txt
+
+      # Lightning 2.6.5 is currently pulled by pyannote and is affected by
+      # CVE-2026-58659 / PYSEC-2026-3624. EchoFlow's diarization adapter blocks
+      # affected/unproven Lightning releases before importing pyannote or resolving
+      # a model. Keep this one advisory visible here until upstream ships its merged fix.
+      - name: Verify compensated Lightning advisory scope
+        shell: bash
+        run: >-
+          grep -Eq '^lightning==2\.6\.5([ ;]|$)'
+          "${{ runner.temp }}/echoflow-runtime-requirements.txt"
+
+      - name: Audit locked runtime dependencies
+        run: >-
+          uvx --from pip-audit==2.10.1 pip-audit
+          --requirement ${{ runner.temp }}/echoflow-runtime-requirements.txt
+          --no-deps
+          --disable-pip
+          --ignore-vuln PYSEC-2026-3624
+          --progress-spinner off
+
   quality:
+    needs: static
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -55,59 +132,6 @@ jobs:
           missing=[name for name in ('ffmpeg','ffprobe') if shutil.which(name) is None];
           assert not missing, f'Missing native media tools: {missing}'"
 
-      - name: Check lockfile
-        run: uv lock --check
-
-      - name: Export locked runtime and optional capability dependencies
-        run: >-
-          uv export
-          --locked
-          --no-dev
-          --extra transcription
-          --extra diarization
-          --no-emit-project
-          --no-hashes
-          --format requirements-txt
-          --output-file ${{ runner.temp }}/echoflow-runtime-requirements.txt
-
-      # Lightning 2.6.5 is currently pulled by pyannote and is affected by
-      # CVE-2026-58659 / PYSEC-2026-3624. EchoFlow's diarization adapter blocks
-      # affected/unproven Lightning releases before importing pyannote or resolving
-      # a model. Keep this one advisory visible here until upstream ships its merged fix.
-      - name: Verify compensated Lightning advisory scope
-        shell: bash
-        run: >-
-          grep -Eq '^lightning==2\.6\.5([ ;]|$)'
-          "${{ runner.temp }}/echoflow-runtime-requirements.txt"
-
-      - name: Audit locked runtime dependencies
-        run: >-
-          uvx --from pip-audit==2.10.1 pip-audit
-          --requirement ${{ runner.temp }}/echoflow-runtime-requirements.txt
-          --no-deps
-          --disable-pip
-          --ignore-vuln PYSEC-2026-3624
-          --progress-spinner off
-
-      - name: Lint
-        run: uv run ruff check . --output-format=github
-
-      # Ruff's diff mode is still a non-mutating formatting gate, but unlike the
-      # plain check it prints the exact proposed changes when CI rejects formatting.
-      - name: Check formatting
-        run: uv run ruff format --diff .
-
-      - name: Type check
-        run: uv run mypy
-
-      - name: Find certain dead code
-        run: uv run vulture
-
-      - name: Report complexity
-        run: |
-          uv run radon cc src/echoflow --total-average
-          uv run radon mi src/echoflow
-
       - name: Test with branch coverage
         run: >-
           uv run pytest
@@ -123,6 +147,7 @@ jobs:
         run: uv run python scripts/verify_distribution.py dist
 
   platform-smoke:
+    needs: static
     strategy:
       fail-fast: false
       matrix:

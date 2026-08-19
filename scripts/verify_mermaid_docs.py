@@ -1,9 +1,13 @@
-"""Verify Mermaid documentation remains portable across GitHub and local previews.
+"""Verify EchoFlow Mermaid docs stay GitHub-friendly and visually intentional.
 
-GitHub renders Mermaid fenced Markdown, while IDE extensions may accept additional syntax
-or styling. EchoFlow keeps diagrams inside a deliberately small Mermaid subset and requires
-both text and checked-in SVG fallbacks on the repository's load-bearing documentation front
-doors.
+GitHub documents Mermaid fenced blocks directly and accepts the classic ``graph TD;``
+form. EchoFlow also uses Mermaid's ``flowchart`` spelling. The verifier therefore protects
+visibility, simple portable structure, and the established palette rather than rewriting
+one valid spelling into another.
+
+A previous regression stripped class styles and later placed hand-maintained SVG fallbacks
+above Mermaid blocks while collapsing the actual Mermaid inside ``<details>``. This check
+prevents those presentation regressions from becoming the new contract.
 """
 
 from __future__ import annotations
@@ -12,31 +16,40 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FRONT_DOOR_FALLBACKS = {
-    ROOT / "README.md": (
-        "![EchoFlow recording-to-evidence flow](docs/diagrams/recording-to-evidence.svg)",
-        ROOT / "docs" / "diagrams" / "recording-to-evidence.svg",
-    ),
-    ROOT / "ROADMAP.md": (
-        "![EchoFlow product roadmap](docs/diagrams/product-roadmap.svg)",
-        ROOT / "docs" / "diagrams" / "product-roadmap.svg",
-    ),
-    ROOT / "docs" / "README.md": (
-        "![EchoFlow family portrait](diagrams/docs-family-portrait.svg)",
-        ROOT / "docs" / "diagrams" / "docs-family-portrait.svg",
-    ),
-    ROOT / "docs" / "architecture" / "README.md": (
-        "![EchoFlow system architecture](../diagrams/system-architecture.svg)",
-        ROOT / "docs" / "diagrams" / "system-architecture.svg",
-    ),
+FRONT_DOORS = frozenset(
+    {
+        ROOT / "README.md",
+        ROOT / "ROADMAP.md",
+        ROOT / "docs" / "README.md",
+        ROOT / "docs" / "architecture" / "README.md",
+    }
+)
+DEPRECATED_FALLBACK_REFERENCES = {
+    ROOT / "README.md": "docs/diagrams/recording-to-evidence.svg",
+    ROOT / "ROADMAP.md": "docs/diagrams/product-roadmap.svg",
+    ROOT / "docs" / "README.md": "diagrams/docs-family-portrait.svg",
+    ROOT / "docs" / "architecture" / "README.md": "../diagrams/system-architecture.svg",
 }
-FRONT_DOORS = frozenset(FRONT_DOOR_FALLBACKS)
 MERMAID_BLOCK = re.compile(r"```mermaid\n(?P<body>.*?)\n```", re.DOTALL)
 PORTABLE_START = re.compile(
     r"^(?:graph|flowchart)\s+(?:LR|RL|TD|TB|BT);?$|^sequenceDiagram$|^info$"
 )
+CLASSDEF = re.compile(
+    r"^classDef\s+[A-Za-z][A-Za-z0-9_-]*\s+"
+    r"fill:(#[0-9A-Fa-f]{6}),stroke:(#[0-9A-Fa-f]{6}),"
+    r"stroke-width:2px,color:(#[0-9A-Fa-f]{6});?$"
+)
+APPROVED_STYLES = frozenset(
+    {
+        ("#D8EEFF", "#2E617B", "#12222A"),  # inspect / information
+        ("#E8D9FF", "#68469B", "#1F1630"),  # process / decision
+        ("#DDF5E3", "#347A46", "#142719"),  # success / derived view
+        ("#FFF0B8", "#8A6B18", "#2C260F"),  # evidence / attention
+        ("#F9D5E5", "#7B2E52", "#22151B"),  # source / human-authored
+        ("#FFD6D6", "#9E3434", "#351616"),  # refusal / destructive state
+    }
+)
 FORBIDDEN = (
-    "classDef",
     "linkStyle",
     "%%{",
     "<br",
@@ -53,18 +66,28 @@ def _markdown_files() -> tuple[Path, ...]:
     )
 
 
-def _fallback_errors(path: Path, text: str) -> list[str]:
-    fallback = FRONT_DOOR_FALLBACKS.get(path)
-    if fallback is None:
-        return []
-
-    image_markdown, asset = fallback
+def _classdef_errors(body: str, diagram_index: int) -> list[str]:
     errors: list[str] = []
-    if image_markdown not in text:
-        errors.append("needs its checked-in SVG fallback before the Mermaid source")
-    if not asset.is_file():
-        errors.append(f"missing SVG fallback asset {asset.relative_to(ROOT)}")
+    for line in (line.strip() for line in body.splitlines()):
+        if not line.startswith("classDef "):
+            continue
+        match = CLASSDEF.fullmatch(line)
+        if match is None:
+            errors.append(
+                f"diagram {diagram_index} has a classDef outside the approved simple syntax"
+            )
+            continue
+        style = tuple(value.upper() for value in match.groups())
+        if style not in APPROVED_STYLES:
+            errors.append(
+                f"diagram {diagram_index} uses colors outside the EchoFlow Mermaid palette"
+            )
     return errors
+
+
+def _inside_details(text: str, offset: int) -> bool:
+    before = text[:offset]
+    return before.rfind("<details") > before.rfind("</details>")
 
 
 def _diagram_errors(
@@ -77,9 +100,12 @@ def _diagram_errors(
         errors.append(
             f"diagram {index} must start with portable graph/flowchart/sequence syntax"
         )
+    if _inside_details(text, match.start()):
+        errors.append(f"diagram {index} must be directly visible, not nested in <details>")
     for token in FORBIDDEN:
         if token in body:
             errors.append(f"diagram {index} uses non-portable construct {token!r}")
+    errors.extend(_classdef_errors(body, index))
 
     if path in FRONT_DOORS:
         tail = text[match.end() : match.end() + 1_200]
@@ -99,9 +125,14 @@ def _errors_for(path: Path) -> list[str]:
     if "```mermaid " in text or "``` mermaid" in text:
         errors.append("Mermaid fences must be exactly ```mermaid")
 
+    deprecated = DEPRECATED_FALLBACK_REFERENCES.get(path)
+    if deprecated is not None and deprecated in text:
+        errors.append(
+            "must not restore the hand-maintained SVG fallback in front of the Mermaid"
+        )
+
     for index, match in enumerate(blocks, start=1):
         errors.extend(_diagram_errors(path, text, match, index))
-    errors.extend(_fallback_errors(path, text))
     return errors
 
 
@@ -122,7 +153,8 @@ def main() -> int:
         return 1
 
     print(
-        "Mermaid documentation is GitHub-portable; front doors have visible SVG and text fallbacks."
+        "Mermaid documentation is directly visible, uses portable graph/flowchart syntax, "
+        "and preserves the approved EchoFlow palette."
     )
     return 0
 

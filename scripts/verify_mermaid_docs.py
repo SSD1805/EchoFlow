@@ -67,12 +67,16 @@ def _fallback_errors(path: Path, text: str) -> list[str]:
     return errors
 
 
-def _diagram_errors(path: Path, text: str, match: re.Match[str], index: int) -> list[str]:
+def _diagram_errors(
+    path: Path, text: str, match: re.Match[str], index: int
+) -> list[str]:
     body = match.group("body")
     lines = [line.strip() for line in body.splitlines() if line.strip()]
     errors: list[str] = []
     if not lines or not PORTABLE_START.fullmatch(lines[0]):
-        errors.append(f"diagram {index} must start with portable graph/flowchart/sequence syntax")
+        errors.append(
+            f"diagram {index} must start with portable graph/flowchart/sequence syntax"
+        )
     for token in FORBIDDEN:
         if token in body:
             errors.append(f"diagram {index} uses non-portable construct {token!r}")

@@ -20,27 +20,41 @@ flowchart LR
     E --> F[Context highlights and seek]
     E --> G[Durable EvidenceAnchor]
     G --> H[Notes tags collections]
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+
+    class A source
+    class B,C process
+    class D,E,G evidence
+    class F,H view
 ```
 
 Text fallback: retrieval ranks a passage, canonical navigation verifies it, and the same
-verified evidence coordinates can now be used by durable research notes.
+verified evidence coordinates can be used by the desktop reader and durable research
+notes.
 
 🦝 Search may know the neighborhood. The canonical transcript still owns the street
 address.
 
 ## What changes when I search?
 
-The command is still the ordinary library search:
+The command-line contract remains ordinary library search:
 
 ```bash
 echoflow library search "housing affordability"
 ```
 
+The desktop Library screen now consumes the same application seam through grouped
+workspace discovery. Neither interface changes which object is authoritative.
+
 EchoFlow returns retrieval provenance: source and canonical hashes, segment/chunk
 identities, numeric source-relative time, languages, anonymous speaker refs, and
 lexical/semantic/fused ranks.
 
-The result can also carry a verified **evidence location**:
+A result can also carry a verified **evidence location**:
 
 - exact canonical transcript generation;
 - result segment IDs;
@@ -50,8 +64,9 @@ The result can also carry a verified **evidence location**:
 - current user-assigned speaker display names without replacing anonymous refs; and
 - optional neighboring canonical context.
 
-Machine-readable JSON keeps those layers separate rather than flattening them into one
-mystery object.
+Machine-readable JSON and desktop DTOs keep those layers separate rather than flattening
+them into one mystery object. The desktop bridge deliberately omits canonical/source
+filesystem paths from evidence presentation DTOs.
 
 ## Exact highlighting is allowed to say “I don't know”
 
@@ -100,7 +115,7 @@ EchoFlow does not feed neighboring text back into BM25 or semantic scoring and t
 pretend the original ranks still mean the same thing.
 
 The returned context distinguishes actual result evidence from neighboring segments shown
-only for reading.
+only for reading. The desktop Evidence reader renders that verified context directly.
 
 ## What about speaker names?
 
@@ -139,13 +154,15 @@ that renders as:
 and becomes the preferred seek point. If a result has no justified exact-word match, the
 passage start remains the safe seek coordinate.
 
-EchoFlow does not yet ship the graphical local media player. The planned thin GUI can
-consume this coordinate directly instead of reverse-engineering time from rendered text
-or internal work chunks.
+The desktop Evidence reader now exposes this as an interactive **evidence cursor**. Clicking
+a canonical timed word moves the cursor to that verified source-relative coordinate;
+“Return to match” restores the backend-selected match coordinate.
 
-## Susan's notes now use this exact coordinate system 📝
+EchoFlow still does not ship local audio/video playback. Playback is planned behind a
+Tauri-owned capability so React can consume safe playback state and verified coordinates
+without receiving arbitrary raw source paths.
 
-The notebook is no longer future work.
+## Susan's notes use this exact coordinate system 📝
 
 `ResearchWorkspaceService.add_note()` asks `EvidenceLocator` to resolve a verified
 `EvidenceAnchor` before durable user state is written. The anchor preserves:
@@ -177,16 +194,29 @@ The note body remains separate durable user knowledge. That means:
 - rebuilding the DuckDB research projection does not delete the note;
 - changing the canonical transcript is detected instead of silently teleporting the
   note; and
-- CLI, future GUI, export, and citation workflows can share one anchoring contract.
+- CLI, desktop, export, and citation workflows share one anchoring contract.
 
 ```mermaid
 flowchart TD
     A[Canonical transcript evidence] --> B[Verified evidence location]
-    B --> C[Search result view]
+    B --> C[CLI and desktop result view]
     B --> D[Durable EvidenceAnchor]
     D --> E[SQLite note]
     E --> F[Rebuildable DuckDB research projection]
-    B --> G[Future local player]
+    B --> G[Desktop evidence cursor]
+    G --> H[Future Tauri media capability]
+
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+
+    class A,B,D evidence
+    class E source
+    class C,F view
+    class G inspect
+    class H process
 ```
 
 ## Research metadata can constrain later retrieval
@@ -202,6 +232,10 @@ echoflow library search \
   --with-notes
 ```
 
+Saved searches can persist that typed intent and re-resolve current evidence later. The
+browse-first desktop Research screen now lists authoritative notes, tags, collections, and
+saved searches; note/saved-search editing is the next UI slice.
+
 This is important. The application does not retrieve a giant corpus and then throw away
 results in Python after the fact.
 
@@ -214,11 +248,11 @@ Evidence navigation still does not:
 - rewrite canonical JSON;
 - bake speaker display names into diarization evidence;
 - automatically re-anchor notes across changed canonical generations;
-- save searches or curated result sets yet; or
-- ship a graphical media player.
+- expose arbitrary raw source/canonical paths to React; or
+- ship graphical audio/video playback yet.
 
-The next product layers can reuse the same verified coordinate system rather than each
-inventing a new idea of “where this quote came from.”
+The next product layers reuse the same verified coordinate system rather than inventing a
+new idea of “where this quote came from.”
 
 For the retrieval internals, open **[Evidence-first corpus search](architecture/corpus-search.md)**.
 For durable notebook custody, see **[Your notes should survive the machinery](research-notes.md)**.

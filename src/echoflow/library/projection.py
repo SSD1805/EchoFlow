@@ -49,17 +49,30 @@ def load_indexed_transcript(
 ) -> IndexedTranscript:
     """Validate the searchable projection of one authoritative canonical artifact."""
     try:
-        payload = file_manager.read_file(canonical_path)
+        canonical = canonical_path.expanduser().resolve(strict=False)
+        before = canonical.stat()
+        payload = file_manager.read_file(canonical)
+        after = canonical.stat()
+        if (before.st_size, before.st_mtime_ns) != (
+            after.st_size,
+            after.st_mtime_ns,
+        ):
+            raise TranscriptProjectionError(
+                "Canonical transcript changed while it was being indexed"
+            )
         if len(payload) > _MAX_CANONICAL_BYTES:
             raise TranscriptProjectionError(
                 "Canonical transcript is too large to index safely"
+            )
+        if len(payload) != after.st_size:
+            raise TranscriptProjectionError(
+                "Canonical transcript size changed while it was being indexed"
             )
         document = _TranscriptProjection.model_validate(json.loads(payload))
         if document.schema_version != 1:
             raise TranscriptProjectionError(
                 "Canonical transcript schema is unsupported by this EchoFlow build"
             )
-        canonical = canonical_path.expanduser().resolve(strict=False)
         source = (
             None
             if source_path is None
@@ -84,6 +97,8 @@ def load_indexed_transcript(
             document_id=document.job_id,
             source_sha256=document.source.sha256,
             canonical_sha256=hashlib.sha256(payload).hexdigest(),
+            canonical_size_bytes=after.st_size,
+            canonical_modified_ns=after.st_mtime_ns,
             transcript_schema_version=document.schema_version,
             detected_language=document.detected_language,
             canonical_path=str(canonical),

@@ -23,10 +23,12 @@ flowchart LR
     G --> H[Saved searches and derived navigation]
     H --> I[Safe deletion and retention]
     I --> J[Incremental refresh]
-    J --> K[Thin graphical shell]
-    K --> L[Desktop packaging and first-run]
-    L --> M[Backup restore and portability]
-    M --> N[Release qualification]
+    J --> K[Durable library locations]
+    K --> L[Tauri React desktop foundation]
+    L --> M[Import search evidence research UI]
+    M --> N[Desktop packaging and first-run]
+    N --> O[Backup restore and portability]
+    O --> P[Release qualification]
 ```
 
 # Current foundation
@@ -111,6 +113,7 @@ The custody hierarchy is:
 |---|---|---|
 | Authoritative evidence | original recording, canonical JSON | never treat as cache; destructive deletion must be explicit |
 | Authoritative human knowledge | speaker labels, notes, tags, collections, saved searches | must survive index rebuilds and unrelated deletion |
+| Durable app preference | remembered library/recording locations and processing policy | private user-state; forgetting permission never deletes user files |
 | Rebuildable projection | lexical/semantic/research DuckDB, derived exports | may be regenerated |
 | Private execution state | checkpoints, normalization/enhancement intermediates | lifecycle-managed; not source truth |
 | Lightweight lifecycle metadata | job manifests/discovery pointers | retained when heavyweight execution state is cleaned |
@@ -219,6 +222,36 @@ need to rebuild a database merely because one new transcript appeared.
 See `docs/architecture/incremental-library-refresh.md` for the exact reconciliation and
 verification contract.
 
+## Durable library locations and recording discovery
+
+This is the current backend foundation immediately before the desktop client.
+
+`LibraryLocationService` owns private, schema-versioned remembered directory preferences
+without making filesystem paths part of the search index or research database. A remembered
+location has one explicit purpose:
+
+- `transcript-library` means that the directory may be revisited for canonical transcript
+  reconciliation through the existing incremental refresh service; or
+- `recording-source` means that the directory may be revisited for cheap local recording
+  candidate discovery.
+
+The default recording policy is `manual`. An `automatic` policy is an explicit opt-in
+permission marker for a future application lifecycle adapter; setting it does not itself
+run ASR. Discovery never hashes, FFprobes, copies, transcribes, or modifies a recording.
+Actual processing must continue through the existing transcription planner, resource
+admission, model custody, checkpoint, and execution contracts.
+
+Temporarily unavailable roots, such as unplugged external drives, are reported as offline
+without deleting their durable permission record. Forgetting a location only removes the
+permission record and never deletes user files. EchoFlow private state/cache/model paths
+cannot be registered, and the configured output directory remains an implicit transcript
+root rather than a redundant remembered location.
+
+This tranche intentionally does not add a background daemon or filesystem watcher. Desktop
+startup, explicit Refresh, and post-transcription lifecycle points are sufficient triggers
+until real usage justifies always-on observation. See
+`docs/architecture/library-locations.md`.
+
 ## Test/quality debt repaired after saved-search merge
 
 The saved-search/navigation PR was merged while its Linux branch-coverage gate was still
@@ -233,25 +266,74 @@ stale-plan, provenance, partial-state, and retention tests.
 
 # Near-term product sequence
 
-## 1. First thin GUI
+## 1. Tauri + React desktop foundation and import experience
 
-The GUI has earned its place because the backend is ahead of the human interface.
+The frontend should be a thin local desktop adapter over the application services already
+built. The target stack is Tauri for the small native host, React + TypeScript + Vite for
+the presentation layer, and Playwright plus accessibility automation from the first UI PR.
 
-The first graphical slice should browse/import/open transcripts, launch transcription and
-show job progress, use unified discovery, show speaker/time evidence, create/edit/delete
-notes, apply tags/collections with derived suggestions, browse saved searches, jump to
-source-relative media coordinates, and expose the same typed deletion/retention plans.
+The first desktop slice should establish:
 
-Library refresh should occur through the existing service after successful transcription or
-import and at appropriate application lifecycle points. An explicit Refresh action remains
-useful. Do not introduce an always-on filesystem watcher until real product evidence shows
-it is needed.
+- the native Tauri application shell on Windows, macOS, and Linux;
+- a React/TypeScript design system with semantic theme tokens;
+- Archive and Midnight baseline skins, with richer optional skins remaining cheap to add;
+- keyboard-first navigation, visible focus, reduced-motion support, accessible names and
+  landmarks, and automated Playwright/axe coverage;
+- a narrow versioned IPC boundary where Rust owns desktop/process capability and Python
+  continues to own EchoFlow business logic; and
+- no direct frontend access to DuckDB, SQLite, arbitrary shell execution, or arbitrary
+  filesystem mutation.
 
-The GUI must consume existing application services. It must not invent a second search
-engine, note schema, speaker policy, custody model, refresh implementation, or evidence
-location rule.
+Import is the first human workflow. The GUI should support both one-time and remembered
+choices:
 
-## 2. Desktop packaging, first-run setup, updates, and uninstall
+```text
+Choose files…
+Choose folder…
+
+Use this location:
+(•) Just this time
+( ) Remember this folder
+
+For remembered recording sources only:
+[ ] Automatically process new recordings
+```
+
+The automatic option is advanced opt-in and defaults off. The UI consumes
+`LibraryLocationService`; it does not persist paths or invent scan policy in TypeScript.
+
+For raw recordings, import flows into the existing media probe/planner and may show file,
+container, duration, audio-stream choices, resource estimates, and model requirements
+before execution. For existing canonical transcripts, import/remembered transcript roots
+flow into incremental library refresh. Neither path copies the user's original source merely
+because it was selected.
+
+No always-on watcher or background daemon is required for the first desktop release.
+Application startup, explicit Refresh, and successful transcription are sufficient bounded
+lifecycle triggers.
+
+## 2. Search, evidence navigation, media, and research workspace UI
+
+Once the desktop/import chassis is stable, expose the existing research engine rather than
+building a second frontend search architecture.
+
+The graphical slice should provide:
+
+- Susan-style global search with no database knowledge required;
+- advanced typed search over phrase/ANY/ALL, speaker, language, transcript, tag,
+  collection, note, retrieval-mode, and sort constraints;
+- grouped unified discovery across transcripts, notes, tags, and collections;
+- verified result navigation back to canonical segment/word coordinates;
+- click-to-seek source-relative audio/video playback with justified word highlighting;
+- notes, tags, collections, speaker display labels, and saved searches;
+- explicit refresh/verification state; and
+- the same typed deletion/retention plans already enforced by the backend.
+
+An expert SQL/data-lab surface, if added later, should be a hardened read-only projection
+feature. Raw SQL is not the ordinary advanced-search contract and must never expose mutable
+research authority directly.
+
+## 3. Desktop packaging, first-run setup, updates, and uninstall
 
 A Python wheel proves EchoFlow is distributable to Python. It does not make EchoFlow a
 consumer desktop application.
@@ -262,9 +344,9 @@ Produce an intentional desktop delivery path for supported platforms:
 - a signed/notarized macOS application bundle and normal installer/disk-image flow; and
 - a deliberate Linux desktop package rather than requiring a repository clone.
 
-The package must account for the Python runtime, FFmpeg/FFprobe, native transcription
-runtime dependencies, application assets, and optional capabilities without requiring the
-user to assemble a developer environment.
+The package must account for the Tauri host, managed Python runtime/sidecar, FFmpeg/FFprobe,
+native transcription runtime dependencies, application assets, and optional capabilities
+without requiring the user to assemble a developer environment.
 
 First run should initialize private/public paths, run health checks, inspect hardware, and
 recommend an explicit model download with honest disk/resource requirements. Do not hide
@@ -272,11 +354,11 @@ network-bearing model acquisition inside transcription or search.
 
 Application update and uninstall semantics are custody-sensitive. Updating EchoFlow must
 preserve durable schemas/state or fail safely. Uninstalling the program must not silently
-delete canonical transcripts, research SQLite state, speaker labels, saved searches, or
-other user-owned evidence/knowledge. Program removal and user-data destruction are separate
-operations.
+delete canonical transcripts, research SQLite state, speaker labels, saved searches,
+remembered-location preferences, or other user-owned evidence/knowledge. Program removal
+and user-data destruction are separate operations.
 
-## 3. Backup, restore, research portability, and selected-result export
+## 4. Backup, restore, research portability, and selected-result export
 
 Portability is part of the ownership thesis. A user should be able to back up or move the
 irreplaceable EchoFlow workspace without treating disposable indexes as authority.
@@ -286,19 +368,24 @@ including research SQLite data, saved searches, and speaker display labels. Rebu
 DuckDB lexical/semantic/research projections should be regenerated rather than becoming
 backup authority.
 
+Remembered absolute library locations are machine-local application preferences and should
+not be blindly replayed on another computer during workspace restore. Portability should
+export them as reviewable metadata, then require explicit path reconciliation/re-approval
+on the destination machine.
+
 For research export, target CSV, JSON/JSONL, and Markdown first, then a whole-workspace or
 user-state export manifest when the durable schema is ready. Exports should retain document
 ID, source/canonical SHA-256, segment IDs, and numeric evidence coordinates where
 applicable.
 
-## 4. Qualify semantic dependency and managed embedding custody
+## 5. Qualify semantic dependency and managed embedding custody
 
 Before semantic search is advertised as a normal packaged capability, qualify one locked
 optional semantic dependency set with managed immutable E5 snapshot acquisition, private
 cache placement, disk/resource admission, no silent search-time download, offline
 execution after installation, and packaged-platform qualification.
 
-## 5. Representative-device release qualification
+## 6. Representative-device release qualification
 
 Exercise real corpora and the packaged application on 8 GB Windows, 16 GB commodity
 hardware, Apple Silicon, a discrete-GPU laptop, and larger 32/64 GB workstations. Measure
@@ -308,8 +395,9 @@ responsiveness.
 
 Release qualification should also cover Unicode/space-heavy paths, external drives,
 permission failures, low-disk conditions, interrupted model downloads, crash/resume,
-upgrade migrations, uninstall/reinstall, offline operation, accessibility/keyboard use, and
-corruption/recovery language.
+upgrade migrations, uninstall/reinstall, offline operation, accessibility/keyboard use,
+corruption/recovery language, remembered-location disappearance/reappearance, and
+one-time-vs-persistent import behavior.
 
 The pre-1.0 milestone is not “the tests pass from a checkout.” It is “a normal person can
 install EchoFlow, understand first run, process sensitive recordings, recover from common

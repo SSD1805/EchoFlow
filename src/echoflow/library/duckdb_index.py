@@ -181,11 +181,15 @@ class DuckDbTranscriptIndex:
         self._require_open()
         upsert_ids = tuple(item.document_id for item in upserts)
         if len(upsert_ids) != len(set(upsert_ids)):
-            raise ValueError("incremental upserts cannot contain duplicate document IDs")
+            raise ValueError(
+                "incremental upserts cannot contain duplicate document IDs"
+            )
         if any(not document_id.strip() for document_id in removals):
             raise ValueError("incremental removals cannot contain empty document IDs")
         if len(removals) != len(set(removals)):
-            raise ValueError("incremental removals cannot contain duplicate document IDs")
+            raise ValueError(
+                "incremental removals cannot contain duplicate document IDs"
+            )
         if set(upsert_ids).intersection(removals):
             raise ValueError("a document cannot be both upserted and removed")
 

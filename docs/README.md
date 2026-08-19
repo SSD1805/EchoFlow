@@ -100,6 +100,11 @@ semantic qualification, and targeted mutation testing.
 
 ## The EchoFlow family portrait
 
+![EchoFlow family portrait](diagrams/docs-family-portrait.svg)
+
+<details>
+<summary>Mermaid source</summary>
+
 ```mermaid
 flowchart LR
     A[Your recording] --> B[Local transcription]
@@ -116,6 +121,8 @@ flowchart LR
     B --> I
     H --> J[Incremental refresh and GUI]
 ```
+
+</details>
 
 Text fallback: canonical evidence feeds rebuildable search; search resolves back to
 verified evidence; durable notes/tags/collections attach to evidence; saved searches retain
@@ -154,7 +161,7 @@ It returns the exact action set and a confirmation token. Repeating the same req
 `--confirm TOKEN` applies only if the current plan still matches.
 
 `canonical-transcript` automatically includes only disposable descendants: active search
-membership, TXT/SRT/VTT, and private execution state. It does not imply deleting attached
+membership, TXT/SRT/WebVTT, and private execution state. It does not imply deleting attached
 notes, document-scoped saved searches, or source media.
 
 Source deletion requires both `source-recording` and `--allow-source`, and the current

@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from echoflow.app.app_container import AppContainer
+from echoflow.cli_saved_searches import register_saved_search_commands
 from echoflow.core.errors import EchoFlowError
 from echoflow.library.research_projector import ResearchProjectionSyncReport
 from echoflow.library.research_workspace import (
@@ -510,3 +511,4 @@ def register_research_commands(
 ) -> None:
     library_app.add_typer(_build_notes_app(container_factory), name="notes")
     library_app.add_typer(_build_projection_app(container_factory), name="research")
+    register_saved_search_commands(library_app, container_factory)

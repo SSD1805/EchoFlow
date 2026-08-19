@@ -97,10 +97,8 @@ jobs:
       - name: Verify Node runtime
         run: node --version && npm --version
 
-      # Bootstrap uses exact top-level dependency pins. Before this PR is merged,
-      # the generated package-lock.json is committed and this becomes `npm ci`.
-      - name: Install frontend dependencies
-        run: npm install --no-fund --no-audit
+      - name: Install locked frontend dependencies
+        run: npm ci --no-fund --no-audit
 
       - name: Type check
         run: npm run typecheck
@@ -110,12 +108,6 @@ jobs:
 
       - name: Audit production frontend dependencies
         run: npm audit --omit=dev --audit-level=high
-
-      - name: Emit bootstrap lockfile
-        run: |
-          echo '===ECHOFLOW_PACKAGE_LOCK_BEGIN==='
-          cat package-lock.json
-          echo '===ECHOFLOW_PACKAGE_LOCK_END==='
 
   frontend-playwright:
     needs: [static, frontend-static]
@@ -130,8 +122,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Install frontend dependencies
-        run: npm install --no-fund --no-audit
+      - name: Install locked frontend dependencies
+        run: npm ci --no-fund --no-audit
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium

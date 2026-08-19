@@ -1,17 +1,17 @@
 # EchoFlow 🦝✨
 
-**Private local transcription that remembers where everything came from.**
+**A private, local-first workspace for recorded evidence.**
 
-EchoFlow is a local-first Python application for turning recordings into durable,
-searchable evidence and keeping research work attached to that evidence without handing
-the corpus to a hosted transcription service.
+EchoFlow turns audio and video into reproducible canonical transcripts, preserves source
+and processing provenance, lets people search a private corpus and navigate results back
+to exact verified evidence, and keeps notes, tags, collections, speaker labels, and saved
+research questions as durable user-owned knowledge.
 
-It does more than run a speech model. EchoFlow inspects the machine, chooses a safe local
-execution strategy, manages model custody, survives interrupted work, preserves source
-provenance, publishes portable transcripts, keeps word-level timing and anonymous-speaker
-evidence, searches a private corpus, verifies results against canonical evidence, stores
-human research separately from rebuildable indexes, saves reusable research questions,
-and gives deletion the same explicit custody rules as creation.
+Transcription is the engine room, not the whole product. EchoFlow also inspects the
+machine, chooses a safe local execution strategy, manages model custody, survives
+interrupted work, keeps word-level timing and anonymous-speaker evidence, publishes
+portable transcript views, incrementally reconciles an evolving library, and gives
+deletion the same explicit custody rules as creation.
 
 Canonical transcript JSON is authoritative transcript evidence. Human-authored research
 state is authoritative user knowledge. DuckDB search/research projections and publication
@@ -26,8 +26,8 @@ Start with **[docs/README.md](docs/README.md)** for human-facing documentation o
 
 ## What can it do right now?
 
-EchoFlow is pre-production, but the backend and first desktop slices now cover most of the
-local recording-to-research lifecycle.
+EchoFlow is pre-production, but the backend and first desktop slices already cover most of
+the local recording-to-evidence lifecycle.
 
 | Area | Current foundation |
 |---|---|
@@ -49,7 +49,6 @@ local recording-to-research lifecycle.
 | Safe lifecycle | typed plan-bound deletion scopes plus private execution-state retention that preserves evidence/human work by default |
 | Incremental library | cheap refresh/reconciliation plus durable transcript and recording locations |
 | Desktop foundation | Tauri + React shell, native import, Library discovery, verified evidence reader/cursor, Archive/Midnight themes |
-| Research UI | authoritative notes/tags/collections/saved-search overview through a path-minimized versioned bridge |
 | Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, Playwright/axe, package verification |
 
 ## From recording to useful evidence
@@ -100,17 +99,18 @@ or accepting a durable note anchor.
 
 ## Desktop status
 
-EchoFlow now has a thin Tauri + React desktop foundation over the Python application
-services. The desktop can choose files/folders through native dialogs, remember approved
+EchoFlow has a thin Tauri + React desktop foundation over the Python application services.
+The current desktop can choose files/folders through native dialogs, remember approved
 locations, discover recordings, search the local library, open verified canonical context,
-move a source-relative evidence cursor through canonical word coordinates, and browse the
-authoritative research layer.
+and move a source-relative evidence cursor through canonical word coordinates.
 
 The browser/webview does **not** receive raw canonical/source filesystem paths for evidence
-or research navigation. Rust owns native desktop capability; Python owns application
-rules; React owns presentation. The Research screen currently provides a read/browse
-foundation. Note editing and richer saved-search interactions are the next research UI
-slice.
+navigation. Rust owns native desktop capability; Python owns application rules; React owns
+presentation.
+
+The durable research backend already exists, but the dedicated **Research** desktop
+workspace is the next UI tranche. It will reuse `ResearchWorkspaceService` rather than
+creating browser-owned research state.
 
 There are still no end-user installers or Releases. The supported path remains a source
 build while packaging and first-run behavior are qualified.
@@ -166,10 +166,11 @@ cross-recording speaker linking.
 
 ## Search, navigate, annotate, and save useful questions
 
-Build the private lexical library and search it:
+Build or refresh the private lexical library and search it:
 
 ```bash
 uv run echoflow library rebuild
+uv run echoflow library refresh
 uv run echoflow library search "housing insecurity"
 uv run echoflow library find "housing insecurity" --context-segments 1
 ```
@@ -292,11 +293,12 @@ mutation testing is reserved for load-bearing logic.
 ## Where the project goes next
 
 Incremental refresh, durable library locations, the desktop shell/import flow, grouped
-Library discovery, verified evidence reading, and the first Research overview are now
-foundation. The next sequence is:
+Library discovery, and verified evidence reading/cursor are foundation. The next sequence
+is:
 
-1. **Research interaction UI** for creating/editing notes, assigning tags/collections,
-   and running/managing saved searches through the existing typed backend authority.
+1. **Research workspace UI** for browsing/creating/editing notes, assigning
+   tags/collections, and running/managing saved searches through the existing typed backend
+   authority.
 2. **Local media playback** behind a Tauri-owned capability, consuming verified
    source-relative coordinates without exposing arbitrary raw paths to React.
 3. **Desktop packaging and first run** across Windows, signed/notarized macOS, and a

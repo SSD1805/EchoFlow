@@ -1,8 +1,9 @@
 # Evidence-first corpus search 🔎🦝
 
-Status: lexical, semantic/hybrid, canonical evidence navigation, and research-aware
-filtering implemented  
-Last updated: August 18, 2026
+Status: lexical, semantic/hybrid, canonical evidence navigation, research-aware filtering,
+unified discovery, saved searches, incremental refresh, and desktop Library presentation
+implemented.  
+Last updated: August 19, 2026
 
 ## The human version
 
@@ -19,9 +20,9 @@ EchoFlow supports three transcript retrieval modes:
 
 Retrieval ranks a passage. A separate navigation layer verifies the exact canonical
 transcript generation and resolves that passage back to canonical segments and aligned
-words. A research-workspace layer can then decorate or constrain those results using
-durable notes/tags/collections without teaching the search index that human-authored
-knowledge is transcript truth.
+words. A research-workspace layer can decorate or constrain those results using durable
+notes/tags/collections without teaching the search index that human-authored knowledge is
+transcript truth.
 
 > **Canonical transcript JSON is evidence. SQLite research state is human-authored truth.
 > DuckDB search/research databases are rebuildable projections.**
@@ -44,12 +45,27 @@ flowchart LR
     K --> C
     I --> L[ResearchWorkspaceService]
     J --> L
+    L --> M[Unified discovery]
+    M --> N[CLI Library]
+    M --> O[Desktop Library]
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+
+    class A,H,I evidence
+    class B,C,D,E,F process
+    class G,K,M view
+    class J source
+    class L,N,O inspect
 ```
 
 Text fallback: canonical transcript evidence produces rebuildable lexical/semantic search
 state; ranked passages are re-verified against canonical evidence; authoritative SQLite
-research state is projected into DuckDB only to accelerate research constraints and
-summaries.
+research state is projected into DuckDB only to accelerate constraints/summaries; grouped
+discovery then feeds both CLI and desktop Library presentation.
 
 ## Durability classes
 
@@ -63,8 +79,8 @@ summaries.
 - speaker display labels;
 - research notes;
 - tags;
-- collections;
-- future saved searches and curated result sets.
+- collections; and
+- saved searches.
 
 These are **not retrieval cache**. An index rebuild must never delete them.
 
@@ -104,41 +120,42 @@ flowchart TD
     B -->|Yes| D{Segment IDs still exist}
     D -->|No| C
     D -->|Yes| E[Resolve canonical words context and seek]
+
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef stop fill:#FFD6D6,stroke:#9E3434,stroke-width:2px,color:#351616
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+
+    class A process
+    class B,D evidence
+    class C stop
+    class E view
 ```
 
 ## Lexical retrieval
 
-`DuckDbTranscriptIndex` is the current lexical adapter. It stores ordinary document,
-segment, and term-statistic tables and computes deterministic BM25-style ranking without
-installing DuckDB's FTS extension.
+`DuckDbTranscriptIndex` is the lexical adapter. It stores ordinary document, segment, and
+term-statistic tables and computes deterministic BM25-style ranking without installing
+DuckDB's FTS extension.
 
 The public query is typed through `SearchQuery`, including text, phrase/ANY/ALL semantics,
 speaker/language/document/timeline constraints, bounded limits, sorting, and optional
 `evidence_scope`.
 
-User values remain parameterized. The storage adapter owns SQL. The user does not.
+User values remain parameterized. The storage adapter owns SQL. The user and React do not.
 
 Lexical tokenization is a shared library rule so ranking and exact canonical-word
 highlighting use the same Unicode-aware token semantics.
-
-Lexical search remains the dependency-light default.
 
 ## Semantic search chunks
 
 ASR segments are evidence coordinates, not automatically ideal retrieval units. EchoFlow
 combines adjacent canonical segments into deterministic retrieval windows.
 
-`search-chunk-v1` currently uses:
-
-- target size: 220 whitespace-delimited words;
-- maximum target size: 300 words;
-- no synthetic splitting inside one canonical ASR segment;
-- no overlap in v1;
-- stable document/segment ordering;
-- content SHA-256;
-- first/last segment IDs plus the complete ordered segment-ID tuple;
-- exact source-relative start/end timestamps; and
-- sorted language and anonymous speaker refs observed in the window.
+`search-chunk-v1` currently uses target size 220 words, maximum target size 300 words, no
+synthetic splitting inside one canonical ASR segment, no overlap in v1, stable
+source-relative coordinates, content SHA-256, complete ordered segment IDs, and sorted
+language/speaker refs.
 
 A search chunk is never canonical evidence. It is a disposable retrieval window pointing
 back to canonical segments.
@@ -162,20 +179,19 @@ resolved_revision    immutable snapshot revision
 embedding_schema     1
 ```
 
-`EmbeddingProvider` exposes separate query/passage operations because E5 uses different
-transforms on each side. Provider output is validated for cardinality, dimensions, finite
-values, and normalization before it may replace valid semantic state.
+Provider output is validated for cardinality, dimensions, finite values, and normalization
+before it may replace valid semantic state.
 
 The base locked project still does **not** declare Sentence Transformers as a normal
-semantic extra. Semantic search therefore remains advanced optional setup while lexical
-search remains fully available.
+packaged semantic extra. Semantic search therefore remains advanced optional setup while
+lexical search remains dependency-light.
 
 ## Numeric storage and exact similarity first
 
 `DuckDbSemanticIndex` stores vectors as DuckDB `FLOAT[]`, not opaque BLOBs. The
 application boundary remains `tuple[float, ...]`.
 
-The first semantic implementation performs an **exact scan** over eligible local chunks.
+The first semantic implementation performs an exact scan over eligible local chunks.
 Hard filters are applied before top-K ranking. No ANN/HNSW index exists yet; approximation
 should appear only when measured corpus size shows exact local scan misses an interactive
 latency target.
@@ -195,100 +211,67 @@ preserves lexical, semantic, and fused ranks.
 ## Canonical evidence navigation
 
 `EvidenceLocator` resolves a ranked passage back to the verified canonical transcript and
-produces an `EvidenceLocation` with:
-
-- exact canonical/source identity;
-- result segment IDs;
-- numeric result start/end;
-- deterministic `seek_seconds`;
-- canonical speaker refs;
-- exact matched aligned words when justified; and
-- bounded canonical context segments.
+produces an `EvidenceLocation` with exact canonical/source identity, result segment IDs,
+numeric start/end, deterministic `seek_seconds`, canonical speaker refs, exact matched
+aligned words when justified, and bounded canonical context.
 
 Lexical results may expose exact aligned-word matches. Semantic-only results do not
 fabricate exact-word precision. Hybrid results may expose lexical highlights when lexical
 evidence contributed.
 
-## Speaker display integration
+The desktop Evidence reader consumes the path-minimized presentation DTO from this seam.
+It can move an evidence cursor among canonical timed words without pretending the current
+React surface is already an audio/video player.
 
-`ResearchNavigationService` composes transcript retrieval, canonical evidence location,
-and current user-assigned speaker display labels.
+## Durable research state and pre-ranking constraints
 
-A human may see `Dr. Chen (speaker-02)`, while JSON retains raw anonymous refs and exposes
-friendly labels separately. Ranking/filtering continues to use anonymous evidence refs.
+Notes reuse `EvidenceLocator` rather than a parallel annotation coordinate system. A
+durable `EvidenceAnchor` includes document/source/canonical identity, segment IDs, and
+source-relative start/end seconds.
 
-## Durable research state now reuses the same evidence coordinates
-
-Notes are implemented and anchored through `EvidenceLocator` rather than a parallel
-annotation coordinate system.
-
-A durable `EvidenceAnchor` includes:
-
-```text
-document_id
-source_sha256
-canonical_sha256
-segment_ids
-start_seconds
-end_seconds
-```
-
-Multi-segment anchors must be contiguous. If canonical evidence changes, the note remains
-durable historical user state but does not silently reattach to a new generation.
-
-## Research filters are pre-ranking constraints
-
-`ResearchWorkspaceService` can constrain transcript search using:
-
-- tags;
-- collections;
-- note text; and
-- `with_notes`.
-
-Human names resolve once to durable IDs. The rebuildable DuckDB research projection then
-returns canonical evidence scope. BM25 ranking or semantic vector scoring runs **inside
+`ResearchWorkspaceService` can constrain transcript search using tags, collections, note
+text, and `with_notes`. Human names resolve once to durable IDs. The rebuildable research
+projection returns canonical evidence scope, then BM25 or semantic scoring runs **inside
 that scope**.
 
-The search contract distinguishes:
+The search contract distinguishes `evidence_scope = None` from `evidence_scope = ()`.
+`None` means no research restriction. Empty means the restriction matched nothing and
+search must return nothing.
 
-```text
-evidence_scope = None
-```
+## Unified discovery is implemented
 
-from:
+One query can return four typed groups:
 
-```text
-evidence_scope = ()
-```
+- transcript evidence;
+- authoritative notes;
+- tags; and
+- collections.
 
-`None` means no research restriction. An empty tuple means the research restriction
-matched nothing and search must return nothing. This prevents an empty filter from
-accidentally widening into a corpus-wide query.
+The groups do not compete on a fabricated universal relevance scale. The CLI and desktop
+Library screen both consume this application-level composition.
 
-## Normalized semantic segment mapping
+The desktop bridge intentionally strips raw canonical/source filesystem paths from the
+webview response while retaining document/generation/segment/time identity needed for
+research presentation.
 
-Semantic chunks keep their JSON provenance, but `DuckDbSemanticIndex` also maintains a
-derived relational `chunk_segments` mapping.
+## Saved searches are implemented
 
-That relation lets EchoFlow:
+Saved searches belong to authoritative SQLite user state because they are authored query
+intent. They persist typed search/research/retrieval choices, not a frozen evidence scope.
+Running one re-resolves current corpus and current research relationships.
 
-- constrain semantic candidates by research evidence before vector scoring; and
-- resolve lexical segment IDs back to semantic chunks for hybrid reconciliation without
-  scanning every chunk's JSON metadata.
+The browse-first desktop Research screen lists saved searches today. Graphical run/edit/
+delete interactions are the next UI slice.
 
-Existing semantic indexes can derive the relation locally without recomputing embeddings.
+## Incremental library refresh
 
-## Search and research presentation remain separate from storage
+Normal corpus growth no longer requires full rebuild. Incremental refresh compares cheap
+canonical metadata first, validates/hashes changed or new canonical bytes, applies an
+atomic lexical delta, reconciles moved/external paths, and invalidates semantic state when
+corpus generation identity changes.
 
-`ResearchWorkspaceService` is the product-facing seam. CLI and future GUI adapters should
-use it rather than deciding whether to query SQLite or DuckDB themselves.
-
-The next **unified library discovery** layer should compose existing transcript search,
-notes, tags, collections, and later saved searches into grouped typed results. It should
-not invent one universal relevance score across unlike objects or a second search engine.
-
-Saved searches will belong to durable SQLite user state. Frequent/recent tag rankings are
-derived convenience views.
+`--verify` deliberately reopens every tracked canonical to detect same-size/mtime
+modification. Full rebuild remains the explicit repair/recovery lever.
 
 ## Current deliberate limits
 
@@ -296,13 +279,12 @@ The current search/navigation/workspace system does not provide:
 
 - generated corpus answers as the primary interface;
 - arbitrary-model CLI selection;
-- bundled embedding weights;
+- bundled embedding weights as a normal packaged dependency;
 - ANN/HNSW or learned reranking;
-- saved-search objects;
-- curated/exportable result-set objects;
+- selected/exportable result-set objects;
 - automatic cross-generation note re-anchoring;
-- a graphical local media player;
-- a polished GUI;
+- local audio/video playback yet;
+- complete advanced query controls in the desktop UI yet;
 - cross-recording biometric/person identity; or
 - source separation for overlapping speech.
 

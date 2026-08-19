@@ -47,3 +47,9 @@ class CustodyOperationError(TranscriptLibraryError):
     """A deletion or retention request cannot be executed safely as planned."""
 
     exit_code = 2
+
+
+class LibraryLocationError(TranscriptLibraryError):
+    """Durable library-location state or discovery policy is invalid or unavailable."""
+
+    exit_code = 2

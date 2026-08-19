@@ -85,18 +85,13 @@ class IndexedTranscript:
             raise ValueError("segment IDs must be unique within a document")
 
     def _validate_canonical_signature(self) -> None:
-        if (self.canonical_size_bytes is None) != (
-            self.canonical_modified_ns is None
-        ):
+        if (self.canonical_size_bytes is None) != (self.canonical_modified_ns is None):
             raise ValueError(
                 "canonical size and modified time must either both be set or both be absent"
             )
         if self.canonical_size_bytes is not None and self.canonical_size_bytes < 1:
             raise ValueError("canonical_size_bytes must be positive")
-        if (
-            self.canonical_modified_ns is not None
-            and self.canonical_modified_ns < 0
-        ):
+        if self.canonical_modified_ns is not None and self.canonical_modified_ns < 0:
             raise ValueError("canonical_modified_ns cannot be negative")
 
 

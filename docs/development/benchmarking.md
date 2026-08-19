@@ -44,7 +44,7 @@ used through a GUI?
 Neither should be tuned from one heroic laptop run.
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Conservative prediction] --> B[Representative workload]
     B --> C[Measured result]
     C --> D[Compare expected and observed]

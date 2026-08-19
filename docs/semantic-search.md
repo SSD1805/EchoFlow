@@ -22,7 +22,7 @@ The vocabulary differs, but the idea is related.
 **Hybrid search** lets exact terminology and conceptual similarity support each other.
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Your query] --> B[Lexical BM25]
     A --> C[Semantic embeddings]
     B --> D[Hybrid rank fusion]
@@ -54,7 +54,7 @@ An embedding is **not**:
 It is derived search data.
 
 ```mermaid
-flowchart TD
+graph TD;
     A[Canonical transcript passage] --> B[Local embedding model]
     C[Search phrase] --> B
     B --> D[Numeric vectors]
@@ -272,7 +272,7 @@ generation.
 Nothing about canonical transcript evidence or durable research state has to migrate.
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Canonical transcripts] --> B[Embedding profile v1]
     A --> C[Embedding profile v2]
     B --> D[Old rebuildable vectors]

@@ -46,7 +46,7 @@ them as interchangeable with `4788.37` seconds, and it does not claim that a dev
 was historically correct merely because a tag exists.
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Local media] --> B[FFprobe and source SHA]
     B --> C[Canonical elapsed seconds]
     B --> D[Declared timecode]
@@ -258,7 +258,7 @@ generation identity, canonical segment IDs, and numeric source-relative start/en
 A note does not depend on a pretty timestamp or rebuildable search chunk.
 
 ```mermaid
-flowchart TD
+graph TD;
     A[Canonical elapsed evidence] --> B[Human timestamp]
     A --> C[Search seek_seconds]
     A --> D[EvidenceAnchor]

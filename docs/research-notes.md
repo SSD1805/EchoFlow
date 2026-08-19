@@ -24,7 +24,7 @@ its exact evidence address:
 The note survives search-index and research-projection rebuilds.
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Canonical transcript evidence] --> B[Verified EvidenceAnchor]
     B --> C[SQLite durable research state]
     C --> D[Monotonic change journal]

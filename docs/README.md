@@ -101,7 +101,7 @@ semantic qualification, and targeted mutation testing.
 ## The EchoFlow family portrait
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Your recording] --> B[Local transcription]
     B --> C[Canonical transcript]
     C --> D[Lexical semantic hybrid search]

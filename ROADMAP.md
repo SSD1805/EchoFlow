@@ -12,7 +12,7 @@ a file?” to “can a person build, research, and safely maintain a private evi
 without giving the corpus away?”
 
 ```mermaid
-flowchart LR
+graph LR;
     A[Local media] --> B[Reliable local transcription]
     B --> C[Canonical evidence]
     C --> D[Lexical semantic hybrid retrieval]
@@ -30,6 +30,8 @@ flowchart LR
     N --> O[Backup restore and portability]
     O --> P[Release qualification]
 ```
+
+Text fallback: EchoFlow progresses from local media through reliable local transcription, canonical evidence, retrieval, verified navigation, durable research, discovery, safe lifecycle controls, incremental refresh, desktop workflows, packaging, portability, and release qualification.
 
 # Current foundation
 

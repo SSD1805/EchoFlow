@@ -1,10 +1,21 @@
-"""Compatibility imports for log path-disclosure policy.
+"""Logging privacy policy for local filesystem path disclosure."""
 
-This module never represented EchoFlow's entire privacy model. The policy now lives
-with structured logging in ``echoflow.core.observability`` so the filesystem tree
-matches its actual responsibility.
-"""
+from enum import StrEnum
+from pathlib import Path
 
-from echoflow.core.observability import PathDisclosure, path_log_context
 
-__all__ = ["PathDisclosure", "path_log_context"]
+class PathDisclosure(StrEnum):
+    """Control whether routine diagnostic logs may contain local paths."""
+
+    REDACT = "redact"
+    FULL = "full"
+
+
+def path_log_context(
+    policy: PathDisclosure,
+    **paths: str | Path,
+) -> dict[str, str]:
+    """Return path fields only when a user explicitly enables disclosure."""
+    if policy is PathDisclosure.REDACT:
+        return {}
+    return {name: str(path) for name, path in paths.items()}

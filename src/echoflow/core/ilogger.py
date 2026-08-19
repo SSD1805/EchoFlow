@@ -1,9 +1,14 @@
-"""Compatibility import for EchoFlow's logging protocol.
+"""Narrow logging capability consumed by EchoFlow application services."""
 
-Prefer ``echoflow.core.observability.ILogger`` in new code. This shim exists only
-to avoid a flag-day import migration inside long-lived integrations.
-"""
+from typing import Protocol, Self, runtime_checkable
 
-from echoflow.core.observability import ILogger
 
-__all__ = ["ILogger"]
+@runtime_checkable
+class ILogger(Protocol):
+    """Application logging port independent of the concrete logging backend."""
+
+    def debug(self, message: str, **kwargs: object) -> None: ...
+    def info(self, message: str, **kwargs: object) -> None: ...
+    def warning(self, message: str, **kwargs: object) -> None: ...
+    def error(self, message: str, **kwargs: object) -> None: ...
+    def bind(self, **kwargs: object) -> Self: ...

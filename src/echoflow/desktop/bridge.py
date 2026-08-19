@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass
 from contextlib import redirect_stdout
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
@@ -20,9 +21,21 @@ from echoflow.library.locations import (
     LibraryLocationService,
     RecordingProcessingPolicy,
 )
+from echoflow.library.research_workspace import (
+    ResearchWorkspaceService,
+    WorkspaceDiscoveryResponse,
+)
 
 _PROTOCOL_VERSION = 1
 _MAX_REQUEST_BYTES = 128 * 1024
+
+
+@dataclass(frozen=True, slots=True)
+class DesktopServices:
+    """Application services deliberately exposed to the desktop adapter."""
+
+    locations: LibraryLocationService
+    workspace: ResearchWorkspaceService
 
 
 class _DesktopRequest(BaseModel):
@@ -35,6 +48,7 @@ class _DesktopRequest(BaseModel):
         "locations.add",
         "recordings.discover",
         "transcripts.refresh",
+        "workspace.discover",
     ]
     params: dict[str, object] = Field(default_factory=dict)
 
@@ -57,6 +71,22 @@ class _RefreshParams(BaseModel):
     verify: bool = False
 
 
+class _DiscoverParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1, max_length=4_096)
+    limit: int = Field(default=20, ge=1, le=100)
+    context_segments: int = Field(default=1, ge=0, le=10)
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("search text cannot be blank")
+        return stripped
+
+
 def _success(request_id: str, result: object) -> dict[str, object]:
     return {
         "protocol_version": _PROTOCOL_VERSION,
@@ -77,14 +107,76 @@ def _failure(request_id: str, *, code: str, message: str) -> dict[str, object]:
     }
 
 
-def _dispatch(request: _DesktopRequest, service: LibraryLocationService) -> object:
+def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object]:
+    return {
+        "query": report.query,
+        "total_count": report.total_count,
+        "evidence": [
+            {
+                "document_id": item.located.evidence.document_id,
+                "source_sha256": item.located.evidence.source_sha256,
+                "canonical_sha256": item.located.evidence.canonical_sha256,
+                "segment_ids": list(item.located.evidence.result_segment_ids),
+                "text": item.located.passage.text,
+                "start_seconds": item.located.evidence.start_seconds,
+                "end_seconds": item.located.evidence.end_seconds,
+                "seek_seconds": item.located.evidence.seek_seconds,
+                "languages": list(item.located.passage.languages),
+                "speakers": [
+                    {
+                        "speaker_ref": speaker.speaker_ref,
+                        "display_label": speaker.display_label,
+                    }
+                    for speaker in item.located.speakers
+                ],
+                "matched_words": [
+                    {
+                        "segment_id": word.segment_id,
+                        "word_index": word.word_index,
+                        "start_seconds": word.start_seconds,
+                        "end_seconds": word.end_seconds,
+                        "text": word.text,
+                        "speaker_ref": word.speaker_ref,
+                    }
+                    for word in item.located.evidence.matched_words
+                ],
+                "note_count": item.research.note_count,
+                "tags": list(item.research.tags),
+                "collections": list(item.research.collections),
+            }
+            for item in report.transcripts.results
+        ],
+        "notes": [
+            {
+                "note_id": item.note.note_id,
+                "body": item.note.body,
+                "document_id": item.note.anchor.document_id,
+                "canonical_sha256": item.note.anchor.canonical_sha256,
+                "segment_ids": list(item.note.anchor.segment_ids),
+                "start_seconds": item.note.anchor.start_seconds,
+                "end_seconds": item.note.anchor.end_seconds,
+                "current": item.current,
+                "tags": list(item.tags),
+                "collections": list(item.collections),
+            }
+            for item in report.notes
+        ],
+        "tags": [{"tag_id": item.tag_id, "name": item.name} for item in report.tags],
+        "collections": [
+            {"collection_id": item.collection_id, "name": item.name}
+            for item in report.collections
+        ],
+    }
+
+
+def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
     if request.method == "locations.list":
         _NoParams.model_validate(request.params)
-        return [item.to_dict() for item in service.locations()]
+        return [item.to_dict() for item in services.locations.locations()]
 
     if request.method == "locations.add":
         add_params = _AddLocationParams.model_validate(request.params)
-        location = service.add(
+        location = services.locations.add(
             add_params.path,
             kind=add_params.kind,
             processing_policy=add_params.processing_policy,
@@ -93,7 +185,7 @@ def _dispatch(request: _DesktopRequest, service: LibraryLocationService) -> obje
 
     if request.method == "recordings.discover":
         _NoParams.model_validate(request.params)
-        discovery_report = service.discover_recordings()
+        discovery_report = services.locations.discover_recordings()
         return {
             "recordings": [
                 {
@@ -107,8 +199,19 @@ def _dispatch(request: _DesktopRequest, service: LibraryLocationService) -> obje
             "unavailable_location_ids": list(discovery_report.unavailable_location_ids),
         }
 
+    if request.method == "workspace.discover":
+        discover_params = _DiscoverParams.model_validate(request.params)
+        discovery = services.workspace.discover(
+            discover_params.text,
+            limit=discover_params.limit,
+            context_segments=discover_params.context_segments,
+        )
+        return _serialize_discovery(discovery)
+
     refresh_params = _RefreshParams.model_validate(request.params)
-    refresh_report = service.refresh_transcript_locations(verify=refresh_params.verify)
+    refresh_report = services.locations.refresh_transcript_locations(
+        verify=refresh_params.verify
+    )
     return {
         "backend_id": refresh_report.refresh.backend_id,
         "indexed_documents": refresh_report.refresh.indexed_documents,
@@ -123,15 +226,13 @@ def _dispatch(request: _DesktopRequest, service: LibraryLocationService) -> obje
     }
 
 
-def handle_request(
-    payload: object, service: LibraryLocationService
-) -> dict[str, object]:
+def handle_request(payload: object, services: DesktopServices) -> dict[str, object]:
     request_id = "unknown"
     if isinstance(payload, dict) and isinstance(payload.get("request_id"), str):
         request_id = payload["request_id"][:128]
     try:
         request = _DesktopRequest.model_validate(payload)
-        return _success(request.request_id, _dispatch(request, service))
+        return _success(request.request_id, _dispatch(request, services))
     except ValidationError:
         return _failure(
             request_id,
@@ -171,8 +272,12 @@ def main() -> int:
             )
         else:
             with redirect_stdout(sys.stderr):
-                service = AppContainer().library_locations()
-                response = handle_request(payload, service)
+                container = AppContainer()
+                services = DesktopServices(
+                    locations=container.library_locations(),
+                    workspace=container.research_workspace(),
+                )
+                response = handle_request(payload, services)
     sys.stdout.write(json.dumps(response, separators=(",", ":")))
     sys.stdout.write("\n")
     return 0

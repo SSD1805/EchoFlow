@@ -23,6 +23,71 @@ export interface RecordingDiscoveryReport {
   unavailable_location_ids: string[];
 }
 
+export interface WorkspaceSpeaker {
+  speaker_ref: string;
+  display_label: string | null;
+}
+
+export interface WorkspaceMatchedWord {
+  segment_id: string;
+  word_index: number;
+  start_seconds: number;
+  end_seconds: number;
+  text: string;
+  speaker_ref: string | null;
+}
+
+export interface WorkspaceEvidenceResult {
+  document_id: string;
+  source_sha256: string;
+  canonical_sha256: string;
+  segment_ids: string[];
+  text: string;
+  start_seconds: number;
+  end_seconds: number;
+  seek_seconds: number;
+  languages: string[];
+  speakers: WorkspaceSpeaker[];
+  matched_words: WorkspaceMatchedWord[];
+  note_count: number;
+  tags: string[];
+  collections: string[];
+}
+
+export interface WorkspaceNoteResult {
+  note_id: string;
+  body: string;
+  document_id: string;
+  canonical_sha256: string;
+  segment_ids: string[];
+  start_seconds: number;
+  end_seconds: number;
+  current: boolean;
+  tags: string[];
+  collections: string[];
+}
+
+export interface WorkspaceNamedResult {
+  name: string;
+}
+
+export interface WorkspaceTagResult extends WorkspaceNamedResult {
+  tag_id: string;
+}
+
+export interface WorkspaceCollectionResult extends WorkspaceNamedResult {
+  collection_id: string;
+}
+
+export interface WorkspaceDiscoveryReport {
+  query: string;
+  total_count: number;
+  evidence: WorkspaceEvidenceResult[];
+  notes: WorkspaceNoteResult[];
+  tags: WorkspaceTagResult[];
+  collections: WorkspaceCollectionResult[];
+}
+
 interface DesktopError {
   code: string;
   message: string;
@@ -47,6 +112,7 @@ export interface DesktopClient {
   ): Promise<LibraryLocation>;
   discoverRecordings(): Promise<RecordingDiscoveryReport>;
   refreshTranscriptLocations(): Promise<void>;
+  discoverWorkspace(text: string): Promise<WorkspaceDiscoveryReport>;
 }
 
 function assertResponse<T>(value: unknown): DesktopResponse<T> {
@@ -145,6 +211,14 @@ class TauriDesktopClient implements DesktopClient {
   async refreshTranscriptLocations(): Promise<void> {
     await this.request("transcripts.refresh", { verify: false });
   }
+
+  discoverWorkspace(text: string): Promise<WorkspaceDiscoveryReport> {
+    return this.request("workspace.discover", {
+      text,
+      limit: 20,
+      context_segments: 1,
+    });
+  }
 }
 
 class MockDesktopClient implements DesktopClient {
@@ -212,6 +286,58 @@ class MockDesktopClient implements DesktopClient {
 
   async refreshTranscriptLocations(): Promise<void> {
     return Promise.resolve();
+  }
+
+  async discoverWorkspace(text: string): Promise<WorkspaceDiscoveryReport> {
+    const query = text.trim();
+    if (!query) throw new Error("Search text cannot be empty");
+    return {
+      query,
+      total_count: 4,
+      evidence: [
+        {
+          document_id: "interview-42",
+          source_sha256: "b".repeat(64),
+          canonical_sha256: "a".repeat(64),
+          segment_ids: ["segment-17"],
+          text: `We started the ${query} program after the second interview round.`,
+          start_seconds: 862.1,
+          end_seconds: 870.4,
+          seek_seconds: 862.43,
+          languages: ["en"],
+          speakers: [{ speaker_ref: "speaker-1", display_label: "Participant A" }],
+          matched_words: [
+            {
+              segment_id: "segment-17",
+              word_index: 3,
+              start_seconds: 862.43,
+              end_seconds: 862.72,
+              text: query,
+              speaker_ref: "speaker-1",
+            },
+          ],
+          note_count: 1,
+          tags: ["program"],
+          collections: ["Oral histories"],
+        },
+      ],
+      notes: [
+        {
+          note_id: "note-7",
+          body: `Follow up on ${query} governance during the next interview.`,
+          document_id: "interview-42",
+          canonical_sha256: "a".repeat(64),
+          segment_ids: ["segment-17"],
+          start_seconds: 862.1,
+          end_seconds: 870.4,
+          current: true,
+          tags: ["program"],
+          collections: ["Oral histories"],
+        },
+      ],
+      tags: [{ tag_id: "tag-3", name: "program" }],
+      collections: [{ collection_id: "collection-2", name: "Oral histories" }],
+    };
   }
 }
 

@@ -98,13 +98,33 @@ jobs:
         run: node --version && npm --version
 
       - name: Diagnose lockfile integrity metadata
+        shell: bash
         run: |
+          cp package-lock.json "${RUNNER_TEMP}/package-lock.before.json"
           npm install --package-lock-only --ignore-scripts --no-fund --no-audit
-          git diff -- package-lock.json
-          if git diff --quiet -- package-lock.json; then
-            echo "npm did not produce a lockfile repair diff"
-            exit 2
-          fi
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          before = json.loads(Path(os.environ["RUNNER_TEMP"], "package-lock.before.json").read_text())
+          after = json.loads(Path("package-lock.json").read_text())
+          changes = {}
+          before_packages = before.get("packages", {})
+          after_packages = after.get("packages", {})
+          for package in sorted(set(before_packages) | set(after_packages)):
+              old = before_packages.get(package, {})
+              new = after_packages.get(package, {})
+              changed = {}
+              for key in sorted(set(old) | set(new)):
+                  if old.get(key) != new.get(key):
+                      changed[key] = {"before": old.get(key), "after": new.get(key)}
+              if changed:
+                  changes[package] = changed
+          print(json.dumps(changes, indent=2, sort_keys=True))
+          if not changes:
+              raise SystemExit("npm produced no substantive package metadata changes")
+          PY
           exit 1
 
       - name: Type check

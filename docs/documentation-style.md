@@ -7,8 +7,8 @@ The project deals with privacy, provenance, media pipelines, model custody, reco
 search, research state, and security. Those subjects deserve precision. They do not
 require the prose to sound like drywall.
 
-This guide exists so future documentation changes preserve one recognizable voice
-without turning every page into a novelty README.
+This guide exists so future documentation changes preserve one recognizable voice and
+visual language without turning every page into a novelty README.
 
 ## The governing rule
 
@@ -30,6 +30,18 @@ Bad:
 > 🦝 Don't worry babe, the vibes are immutable.
 
 That is charming and operationally useless.
+
+## Current truth versus historical evidence
+
+Current-facing documentation must describe what the repository does **now**. When a
+feature moves from roadmap to implementation, update the README, roadmap, documentation
+index, and directly affected architecture/user guides in the same development sequence.
+Do not leave implemented desktop/search/research work described as a “future GUI.”
+
+Dated audit records, security reviews, incident notes, and PR-specific test reports are
+historical evidence. Do not rewrite them merely because the present-day product moved on.
+If a current landing page cites an old test count as though it were today's state, remove
+or reframe that count instead of continually chasing a vanity number.
 
 ## Three registers
 
@@ -100,44 +112,71 @@ Use motifs sparingly enough that they stay useful.
 Do not put emoji into every diagram node simply because Mermaid and mermaid sound alike.
 The diagram should communicate structure first.
 
-## Mermaid diagrams: portability before decoration
+## Mermaid diagrams: portable, colorful, and legible
 
 EchoFlow documentation is read in IDE previews, GitHub web/mobile clients, generated
-views, and other Markdown renderers with uneven Mermaid support. A diagram that works only
-in one renderer is not doing enough work.
+views, and other Markdown renderers with uneven Mermaid support. The repository has a
+known-good house dialect: **direct fenced `flowchart` Mermaid**. Do not rewrite working
+`flowchart LR` / `flowchart TD` declarations to `graph ...;` as a “normalization” step.
+That exact repository-wide rewrite caused a rendering regression in August 2026.
 
 For high-traffic and load-bearing diagrams:
 
-- prefer basic `flowchart LR`, `flowchart TD`, and simple node/edge syntax;
-- avoid HTML labels, embedded markup, exotic shapes, or renderer-specific directives
-  unless they are essential;
-- avoid relying on `classDef`, custom colors, or theme behavior for meaning;
+- use a fence that is exactly `````mermaid`` and keep the Mermaid visible directly in the
+  document rather than hiding the primary diagram source in a disclosure;
+- prefer `flowchart LR`, `flowchart TD`, and simple node/edge syntax;
+- avoid HTML labels, embedded markup, renderer directives, and `linkStyle` tricks;
 - keep node labels short and literal;
-- put the important relationship in the edge/node text, not only visual styling; and
-- add a one- or two-sentence **text fallback** below diagrams whose structure carries a
-  load-bearing architectural point.
+- put the important relationship in edge/node text, not only visual styling;
+- use the EchoFlow palette when color improves hierarchy; and
+- keep nearby prose sufficient to understand the architectural point if Mermaid is not
+  available at all.
 
-Portable example:
+Color is **not** forbidden. It is part of EchoFlow's documentation language. It simply may
+not be the only carrier of meaning.
+
+### Documentation Mermaid palette
+
+Use these class styles rather than inventing one-off colors:
+
+| Role | Fill | Stroke | Text |
+|---|---|---|---|
+| Inspection / information | `#D8EEFF` | `#2E617B` | `#12222A` |
+| Process / decision | `#E8D9FF` | `#68469B` | `#1F1630` |
+| Success / derived view | `#DDF5E3` | `#347A46` | `#142719` |
+| Evidence / attention | `#FFF0B8` | `#8A6B18` | `#2C260F` |
+| Source / human-authored | `#F9D5E5` | `#7B2E52` | `#22151B` |
+| Refusal / destructive state | `#FFD6D6` | `#9E3434` | `#351616` |
+
+These are complementary to the desktop Archive vocabulary of warm parchment, charcoal,
+muted teal, brass, and burgundy. The documentation diagrams can be more chromatic because
+they need to distinguish architectural roles at a glance.
+
+Styled example:
 
 ```mermaid
 flowchart LR
-    A[Canonical transcript] --> B[Rebuildable search projection]
-    B --> C[Ranked passage]
-    C --> D[Verified canonical evidence]
-    D --> E[Durable research anchor]
+    A[Original recording] --> B[Local processing]
+    B --> C[Canonical transcript evidence]
+    C --> D[Rebuildable search view]
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+
+    class A source
+    class B process
+    class C evidence
+    class D view
 ```
 
-The text immediately below might say:
+The labels remain meaningful without color. Color makes the structure faster to read.
 
-> Canonical transcript evidence feeds rebuildable search; ranked passages are verified
-> against canonical bytes before they may become durable research anchors.
-
-Color and custom styling may still be used in a narrow technical page when the renderer is
-known and the diagram remains understandable without it. They are decoration, not the
-semantic contract.
-
-If Mermaid fails to render entirely, surrounding prose should still let a reader
-understand the architecture.
+Do **not** maintain a second hand-drawn SVG merely to duplicate a Mermaid diagram. That
+creates two visual sources that drift and tends to look foreign to the repository. A
+separately designed SVG is appropriate only when SVG itself is intentionally the source
+asset and has been designed for both light and dark presentation.
 
 ## Jargon has to earn rent
 
@@ -205,6 +244,8 @@ The latter may be funny in prose. They are poor anchors for someone searching a 
 - Commands and identifiers remain copyable and exact.
 - Avoid joke-heavy error examples that obscure the real failure message.
 - Prefer headings that remain meaningful to screen-reader and search users.
+- Desktop UI work should keep keyboard reachability, visible focus, reduced motion, and
+  automated axe checks in the same tranche that introduces the interaction.
 
 ## The desired reader experience
 
@@ -217,7 +258,7 @@ understanding:
 - what can safely be rebuilt;
 - what research state survives those rebuilds;
 - what stays local;
-- how to resume, search, and annotate work; and
+- how to resume, search, annotate, and navigate work; and
 - where to go when they want the exact engineering contract.
 
 If they accidentally learn a little systems architecture while a scholarly raccoon points

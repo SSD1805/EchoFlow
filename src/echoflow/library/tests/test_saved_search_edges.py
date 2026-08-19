@@ -44,7 +44,8 @@ def test_saved_search_intent_rejects_invalid_durable_state(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         SavedSearchIntent(
-            query=SearchQuery("evidence"), **kwargs  # type: ignore[arg-type]
+            query=SearchQuery("evidence"),
+            **kwargs,  # type: ignore[arg-type]
         )
 
 

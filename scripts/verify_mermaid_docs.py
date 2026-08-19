@@ -107,7 +107,9 @@ def _diagram_errors(
             f"diagram {index} must start with portable graph/flowchart/sequence syntax"
         )
     if _inside_details(text, match.start()):
-        errors.append(f"diagram {index} must be directly visible, not nested in <details>")
+        errors.append(
+            f"diagram {index} must be directly visible, not nested in <details>"
+        )
     for token in FORBIDDEN:
         if token in body:
             errors.append(f"diagram {index} uses non-portable construct {token!r}")
@@ -130,7 +132,9 @@ def _fallback_errors(path: Path, text: str, blocks: list[re.Match[str]]) -> list
         errors.append("front-door diagram needs its secondary static SVG fallback")
         return errors
     if reference_offset < blocks[0].end():
-        errors.append("static SVG fallback must appear after the directly visible Mermaid")
+        errors.append(
+            "static SVG fallback must appear after the directly visible Mermaid"
+        )
     if "Static diagram fallback" not in text[blocks[0].end() : reference_offset + 800]:
         errors.append("static SVG fallback needs a clear disclosure label")
     if not svg_path.is_file():

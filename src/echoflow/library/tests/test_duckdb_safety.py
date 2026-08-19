@@ -25,10 +25,11 @@ def test_atomic_duckdb_transaction_commits_complete_mutation() -> None:
 def test_atomic_duckdb_transaction_rolls_back_complete_mutation() -> None:
     connection = _connection()
 
-    with pytest.raises(RuntimeError, match="forced failure"):
-        with atomic_duckdb_transaction(connection):
-            connection.execute("INSERT INTO values_for_test VALUES (1)")
-            raise RuntimeError("forced failure")
+    with pytest.raises(
+        RuntimeError, match="forced failure"
+    ), atomic_duckdb_transaction(connection):
+        connection.execute("INSERT INTO values_for_test VALUES (1)")
+        raise RuntimeError("forced failure")
 
     assert connection.execute("SELECT value FROM values_for_test").fetchall() == []
 
@@ -36,9 +37,8 @@ def test_atomic_duckdb_transaction_rolls_back_complete_mutation() -> None:
 def test_atomic_duckdb_transaction_rolls_back_interrupts() -> None:
     connection = _connection()
 
-    with pytest.raises(KeyboardInterrupt):
-        with atomic_duckdb_transaction(connection):
-            connection.execute("INSERT INTO values_for_test VALUES (1)")
-            raise KeyboardInterrupt
+    with pytest.raises(KeyboardInterrupt), atomic_duckdb_transaction(connection):
+        connection.execute("INSERT INTO values_for_test VALUES (1)")
+        raise KeyboardInterrupt
 
     assert connection.execute("SELECT value FROM values_for_test").fetchall() == []

@@ -51,6 +51,11 @@ recording-to-research lifecycle.
 
 ## From recording to useful evidence
 
+![EchoFlow recording-to-evidence flow](docs/diagrams/recording-to-evidence.svg)
+
+<details>
+<summary>Mermaid source</summary>
+
 ```mermaid
 flowchart LR
     A[Original recording] --> B[Inspect source and machine]
@@ -70,6 +75,8 @@ flowchart LR
     J --> M
     D --> M
 ```
+
+</details>
 
 Search ranking is not source truth. A result points back to canonical transcript
 coordinates, and navigation verifies that generation before presenting precise evidence

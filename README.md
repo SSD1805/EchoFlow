@@ -51,6 +51,11 @@ recording-to-research lifecycle.
 
 ## From recording to useful evidence
 
+![EchoFlow recording-to-evidence flow](docs/diagrams/recording-to-evidence.svg)
+
+<details>
+<summary>Mermaid source</summary>
+
 ```mermaid
 graph LR;
     A[Original recording] --> B[Inspect source and machine]
@@ -70,6 +75,8 @@ graph LR;
     J --> M
     D --> M
 ```
+
+</details>
 
 Text fallback: source media is inspected and transcribed locally into canonical JSON; rebuildable search finds passages; canonical verification turns results back into evidence; durable research state attaches human knowledge to that evidence; custody planning keeps deletion explicit.
 

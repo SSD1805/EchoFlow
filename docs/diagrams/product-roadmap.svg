@@ -1,0 +1,25 @@
+<!-- static fallback for GitHub rendering; Mermaid source remains authoritative in Markdown -->
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 4296 200">
+<title id="title">EchoFlow product roadmap</title>
+<desc id="desc">EchoFlow progresses from local transcription and canonical evidence through search, research, safe lifecycle controls, desktop experience, packaging, portability, and release qualification.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+<g fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.65" marker-end="url(#arrow)">
+<path d="M238.0,100.0 C288.0,100.0 288.0,100.0 332.0,100.0"/><path d="M548.0,100.0 C598.0,100.0 598.0,100.0 642.0,100.0"/><path d="M858.0,100.0 C908.0,100.0 908.0,100.0 952.0,100.0"/><path d="M1168.0,100.0 C1218.0,100.0 1218.0,56.0 1262.0,56.0"/><path d="M1478.0,56.0 C1528.0,56.0 1528.0,56.0 1572.0,56.0"/><path d="M1168.0,100.0 C1218.0,100.0 1218.0,144.0 1262.0,144.0"/><path d="M1478.0,144.0 C1528.0,144.0 1528.0,144.0 1572.0,144.0"/><path d="M1788.0,144.0 C1838.0,144.0 1838.0,100.0 1882.0,100.0"/><path d="M2098.0,100.0 C2148.0,100.0 2148.0,100.0 2192.0,100.0"/><path d="M2408.0,100.0 C2458.0,100.0 2458.0,100.0 2502.0,100.0"/><path d="M2718.0,100.0 C2768.0,100.0 2768.0,100.0 2812.0,100.0"/><path d="M3028.0,100.0 C3078.0,100.0 3078.0,100.0 3122.0,100.0"/><path d="M3338.0,100.0 C3388.0,100.0 3388.0,100.0 3432.0,100.0"/><path d="M3648.0,100.0 C3698.0,100.0 3698.0,100.0 3742.0,100.0"/><path d="M3958.0,100.0 C4008.0,100.0 4008.0,100.0 4052.0,100.0"/>
+</g><g font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="14" fill="currentColor">
+<rect x="28" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="133" y="100" text-anchor="middle">Local media</text>
+<rect x="338" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="443" y="100" text-anchor="middle">Reliable local transcription</text>
+<rect x="648" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="753" y="100" text-anchor="middle">Canonical evidence</text>
+<rect x="958" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="1063" y="100" text-anchor="middle">Retrieval</text>
+<rect x="1268" y="28" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="1373" y="56" text-anchor="middle">Verified navigation</text>
+<rect x="1578" y="28" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="1683" y="56" text-anchor="middle">Research workspace</text>
+<rect x="1268" y="116" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="1373" y="144" text-anchor="middle">Unified discovery</text>
+<rect x="1578" y="116" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="1683" y="144" text-anchor="middle">Saved searches</text>
+<rect x="1888" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="1993" y="100" text-anchor="middle">Safe lifecycle</text>
+<rect x="2198" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="2303" y="100" text-anchor="middle">Incremental refresh</text>
+<rect x="2508" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="2613" y="100" text-anchor="middle">Library locations</text>
+<rect x="2818" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="2923" y="100" text-anchor="middle">Desktop foundation</text>
+<rect x="3128" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="3233" y="100" text-anchor="middle">Evidence UI</text>
+<rect x="3438" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="3543" y="100" text-anchor="middle">Packaging</text>
+<rect x="3748" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="3853" y="100" text-anchor="middle">Portability</text>
+<rect x="4058" y="72" width="210" height="56" rx="8" fill="none" stroke="currentColor"/><text x="4163" y="100" text-anchor="middle">Release qualification</text>
+</g></svg>

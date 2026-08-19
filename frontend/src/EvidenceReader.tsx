@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from "react";
+
 import type {
   WorkspaceContextSegment,
   WorkspaceEvidenceResult,
@@ -18,32 +20,47 @@ function wordSeparator(current: WorkspaceMatchedWord, next: WorkspaceMatchedWord
   return " ";
 }
 
-function renderWords(segment: WorkspaceContextSegment) {
+function renderWords(
+  segment: WorkspaceContextSegment,
+  onSeek: (seconds: number) => void,
+) {
   if (segment.words.length === 0) {
     return segment.text;
   }
-  return segment.words.map((word, index) => {
-    const content = word.highlighted ? (
-      <mark
-        key={`${word.segment_id}:${word.word_index}`}
+  return segment.words.map((word, index) => (
+    <span key={`word-wrap:${word.segment_id}:${word.word_index}`}>
+      <button
+        className="evidence-word-button"
+        type="button"
         data-word-index={word.word_index}
         data-word-start={word.start_seconds}
+        aria-label={`Move evidence cursor to ${formatEvidenceTime(word.start_seconds)} at ${word.text}`}
+        onClick={() => onSeek(word.start_seconds)}
       >
-        {word.text}
-      </mark>
-    ) : (
-      <span key={`${word.segment_id}:${word.word_index}`}>{word.text}</span>
-    );
-    return (
-      <span key={`word-wrap:${word.segment_id}:${word.word_index}`}>
-        {content}
-        {wordSeparator(word, segment.words[index + 1])}
-      </span>
-    );
-  });
+        {word.highlighted ? <mark>{word.text}</mark> : word.text}
+      </button>
+      {wordSeparator(word, segment.words[index + 1])}
+    </span>
+  ));
 }
 
 export function EvidenceReader({ evidence, onClose }: EvidenceReaderProps) {
+  const [cursorSeconds, setCursorSeconds] = useState(evidence.seek_seconds);
+
+  useEffect(() => {
+    setCursorSeconds(evidence.seek_seconds);
+  }, [evidence]);
+
+  const cursorBounds = useMemo(() => {
+    if (evidence.context_segments.length === 0) {
+      return { start: evidence.start_seconds, end: evidence.end_seconds };
+    }
+    return {
+      start: Math.min(...evidence.context_segments.map((segment) => segment.start_seconds)),
+      end: Math.max(...evidence.context_segments.map((segment) => segment.end_seconds)),
+    };
+  }, [evidence]);
+
   return (
     <aside className="evidence-reader" aria-labelledby="evidence-reader-title">
       <header className="evidence-reader-header">
@@ -101,7 +118,7 @@ export function EvidenceReader({ evidence, onClose }: EvidenceReaderProps) {
                   <span>{segment.speaker_refs.join(", ")}</span>
                 )}
               </div>
-              <p>{renderWords(segment)}</p>
+              <p>{renderWords(segment, setCursorSeconds)}</p>
             </section>
           ))
         )}
@@ -109,14 +126,34 @@ export function EvidenceReader({ evidence, onClose }: EvidenceReaderProps) {
 
       <footer className="evidence-seek" data-seek-seconds={evidence.seek_seconds}>
         <div>
-          <span className="mini-label">Verified seek point</span>
-          <strong>{formatEvidenceTime(evidence.seek_seconds)}</strong>
+          <span className="mini-label">Source-relative evidence cursor</span>
+          <output data-playhead-seconds={cursorSeconds}>
+            {formatEvidenceTime(cursorSeconds)}
+          </output>
+          <button
+            type="button"
+            className="quiet-button return-to-match"
+            onClick={() => setCursorSeconds(evidence.seek_seconds)}
+          >
+            Return to match
+          </button>
         </div>
-        <p>
-          This source-relative coordinate is verified against canonical evidence. Media
-          playback can consume it without exposing source or canonical filesystem paths to
-          the webview.
-        </p>
+        <div className="evidence-cursor-control">
+          <input
+            aria-label="Evidence position"
+            type="range"
+            min={cursorBounds.start}
+            max={cursorBounds.end}
+            step="0.01"
+            value={Math.min(cursorBounds.end, Math.max(cursorBounds.start, cursorSeconds))}
+            onChange={(event) => setCursorSeconds(Number(event.target.value))}
+          />
+          <p>
+            This source-relative coordinate is verified against canonical evidence. Media
+            playback can consume it without exposing source or canonical filesystem paths to
+            the webview.
+          </p>
+        </div>
       </footer>
     </aside>
   );

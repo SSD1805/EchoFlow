@@ -2,7 +2,8 @@
 
 GitHub renders Mermaid fenced Markdown, while IDE extensions may accept additional syntax
 or styling. EchoFlow keeps diagrams inside a deliberately small Mermaid subset and requires
-text fallbacks on the repository's load-bearing documentation front doors.
+both text and checked-in SVG fallbacks on the repository's load-bearing documentation front
+doors.
 """
 
 from __future__ import annotations
@@ -11,14 +12,25 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FRONT_DOORS = frozenset(
-    {
-        ROOT / "README.md",
-        ROOT / "ROADMAP.md",
-        ROOT / "docs" / "README.md",
-        ROOT / "docs" / "architecture" / "README.md",
-    }
-)
+FRONT_DOOR_FALLBACKS = {
+    ROOT / "README.md": (
+        "![EchoFlow recording-to-evidence flow](docs/diagrams/recording-to-evidence.svg)",
+        ROOT / "docs" / "diagrams" / "recording-to-evidence.svg",
+    ),
+    ROOT / "ROADMAP.md": (
+        "![EchoFlow product roadmap](docs/diagrams/product-roadmap.svg)",
+        ROOT / "docs" / "diagrams" / "product-roadmap.svg",
+    ),
+    ROOT / "docs" / "README.md": (
+        "![EchoFlow family portrait](diagrams/docs-family-portrait.svg)",
+        ROOT / "docs" / "diagrams" / "docs-family-portrait.svg",
+    ),
+    ROOT / "docs" / "architecture" / "README.md": (
+        "![EchoFlow system architecture](../diagrams/system-architecture.svg)",
+        ROOT / "docs" / "diagrams" / "system-architecture.svg",
+    ),
+}
+FRONT_DOORS = frozenset(FRONT_DOOR_FALLBACKS)
 MERMAID_BLOCK = re.compile(r"```mermaid\n(?P<body>.*?)\n```", re.DOTALL)
 PORTABLE_START = re.compile(
     r"^(?:graph|flowchart)\s+(?:LR|RL|TD|TB|BT);?$|^sequenceDiagram$|^info$"
@@ -70,6 +82,14 @@ def _errors_for(path: Path) -> list[str]:
                     f"diagram {index} needs a nearby 'Text fallback:' paragraph"
                 )
 
+    fallback = FRONT_DOOR_FALLBACKS.get(path)
+    if fallback is not None:
+        image_markdown, asset = fallback
+        if image_markdown not in text:
+            errors.append("needs its checked-in SVG fallback before the Mermaid source")
+        if not asset.is_file():
+            errors.append(f"missing SVG fallback asset {asset.relative_to(ROOT)}")
+
     return errors
 
 
@@ -89,7 +109,9 @@ def main() -> int:
             print(f"- {failure}")
         return 1
 
-    print("Mermaid documentation is GitHub-portable; front doors have text fallbacks.")
+    print(
+        "Mermaid documentation is GitHub-portable; front doors have visible SVG and text fallbacks."
+    )
     return 0
 
 

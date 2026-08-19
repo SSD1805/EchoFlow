@@ -123,8 +123,7 @@ def _render_deletion_plan(plan: DeletionPlan) -> None:
         )
     Console().print(table)
     typer.echo(
-        "Requested scopes: "
-        + ", ".join(item.value for item in plan.requested_scopes)
+        "Requested scopes: " + ", ".join(item.value for item in plan.requested_scopes)
     )
     if plan.effective_scopes != plan.requested_scopes:
         typer.echo(

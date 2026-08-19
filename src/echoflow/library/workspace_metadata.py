@@ -45,9 +45,7 @@ class SavedSearchIntent:
 
     def __post_init__(self) -> None:
         if self.query.evidence_scope is not None:
-            raise ValueError(
-                "saved searches cannot persist a derived evidence scope"
-            )
+            raise ValueError("saved searches cannot persist a derived evidence scope")
         if self.context_segments < 0 or self.context_segments > 10:
             raise ValueError("context_segments must be between 0 and 10")
         for name, values in (("tags", self.tags), ("collections", self.collections)):
@@ -486,7 +484,9 @@ class SqliteWorkspaceMetadataStore:
                 updated_at=str(row[18]),
             )
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            raise ResearchStateError("Saved search state is corrupt", cause=exc) from exc
+            raise ResearchStateError(
+                "Saved search state is corrupt", cause=exc
+            ) from exc
 
     @staticmethod
     def _encode_tuple(values: tuple[str, ...]) -> str:

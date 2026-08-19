@@ -159,7 +159,9 @@ def test_projection_rejects_oversized_artifact_before_json_parse(
         )
 
 
-def test_projection_fails_closed_if_canonical_changes_during_read(tmp_path: Path) -> None:
+def test_projection_fails_closed_if_canonical_changes_during_read(
+    tmp_path: Path,
+) -> None:
     payload = json.dumps(_document()).encode()
     canonical = _canonical(tmp_path, payload)
 

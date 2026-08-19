@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from echoflow.library.errors import ResearchStateError
 from echoflow.library.evidence import EvidenceAnchor
 from echoflow.library.index import SearchOperator, SearchQuery, SearchSort
 from echoflow.library.retrieval import RetrievalMode
@@ -126,7 +127,7 @@ def test_saved_search_names_are_casefold_unique_without_overwrite(tmp_path: Path
         saved_search_id="search-1",
     )
 
-    with pytest.raises(Exception, match="already exists"):
+    with pytest.raises(ResearchStateError, match="already exists"):
         metadata.create_saved_search(
             "  METHODS  ",
             _intent(text="different"),
@@ -180,9 +181,11 @@ def test_navigation_derives_usage_and_recency_from_current_relationships(
     research.set_note_tags("note-3", ("methodology",))
     refreshed = metadata.navigation(limit=10)
 
+    # Frequency ties deliberately fall through to recency. The newly-used
+    # methodology relationship therefore sorts ahead of housing at count 2.
     assert [(item.name, item.usage_count) for item in refreshed.frequent_tags] == [
-        ("housing", 2),
         ("methodology", 2),
+        ("housing", 2),
     ]
     assert refreshed.recent_tags[0].name == "methodology"
 
@@ -225,7 +228,7 @@ def test_workspace_metadata_rejects_unsupported_schema(tmp_path: Path) -> None:
         )
         connection.commit()
 
-    with pytest.raises(Exception, match="schema is unsupported"):
+    with pytest.raises(ResearchStateError, match="schema is unsupported"):
         SqliteWorkspaceMetadataStore(
             path,
             PrivateDirectoryStore(),  # type: ignore[arg-type]

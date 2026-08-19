@@ -454,9 +454,8 @@ class TranscriptLibraryService:
             else:
                 updated.append(document_id)
                 upserts.append(transcript)
-                semantic_dirty = (
-                    semantic_dirty
-                    or self._semantic_projection_changed(previous, transcript)
+                semantic_dirty = semantic_dirty or self._semantic_projection_changed(
+                    previous, transcript
                 )
         removed = self._removed_documents(existing, loaded, unchanged)
         return _RefreshDelta(
@@ -488,9 +487,7 @@ class TranscriptLibraryService:
         return tuple(removed)
 
     def _apply_refresh_delta(self, delta: _RefreshDelta) -> bool:
-        semantic_invalidated = self._invalidate_semantic_if_needed(
-            delta.semantic_dirty
-        )
+        semantic_invalidated = self._invalidate_semantic_if_needed(delta.semantic_dirty)
         try:
             self.index.apply_delta(
                 upserts=delta.upserts,
@@ -573,9 +570,7 @@ class TranscriptLibraryService:
     @staticmethod
     def _same_source_path(stored: str | None, candidate: Path | None) -> bool:
         stored_path = (
-            None
-            if stored is None
-            else Path(stored).expanduser().resolve(strict=False)
+            None if stored is None else Path(stored).expanduser().resolve(strict=False)
         )
         return stored_path == candidate
 

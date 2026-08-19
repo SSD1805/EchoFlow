@@ -140,6 +140,30 @@ def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object
                     }
                     for word in item.located.evidence.matched_words
                 ],
+                "context_segments": [
+                    {
+                        "segment_id": segment.segment_id,
+                        "start_seconds": segment.start_seconds,
+                        "end_seconds": segment.end_seconds,
+                        "text": segment.text,
+                        "speaker_refs": list(segment.speaker_refs),
+                        "is_result_segment": segment.is_result_segment,
+                        "lexical_match": segment.lexical_match,
+                        "words": [
+                            {
+                                "segment_id": word.segment_id,
+                                "word_index": word.word_index,
+                                "start_seconds": word.start_seconds,
+                                "end_seconds": word.end_seconds,
+                                "text": word.text,
+                                "speaker_ref": word.speaker_ref,
+                                "highlighted": word.highlighted,
+                            }
+                            for word in segment.words
+                        ],
+                    }
+                    for segment in item.located.evidence.context_segments
+                ],
                 "note_count": item.research.note_count,
                 "tags": list(item.research.tags),
                 "collections": list(item.research.collections),

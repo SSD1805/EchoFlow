@@ -12,7 +12,7 @@ from contextlib import redirect_stdout
 from dataclasses import dataclass
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError

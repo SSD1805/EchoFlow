@@ -100,14 +100,22 @@ jobs:
       - name: Install locked frontend dependencies
         run: npm ci --no-fund --no-audit
 
+      - name: Reject raw HTML rendering escape hatches
+        shell: bash
+        run: |
+          if grep -R --line-number --fixed-strings 'dangerouslySetInnerHTML' src; then
+            echo 'EchoFlow renders local evidence as text; dangerouslySetInnerHTML requires a dedicated security review.' >&2
+            exit 1
+          fi
+
       - name: Type check
         run: npm run typecheck
 
       - name: Build frontend
         run: npm run build
 
-      - name: Audit production frontend dependencies
-        run: npm audit --omit=dev --audit-level=high
+      - name: Audit complete locked frontend dependency graph
+        run: npm audit --audit-level=high
 
   frontend-playwright:
     needs: [static, frontend-static]

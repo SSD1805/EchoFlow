@@ -176,7 +176,9 @@ def test_noop_refresh_skips_canonical_reads_for_unchanged_tracked_files(
     assert report.changed is False
 
 
-def test_refresh_cost_is_proportional_to_changed_canonical_files(tmp_path: Path) -> None:
+def test_refresh_cost_is_proportional_to_changed_canonical_files(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "audio.wav"
     source.write_bytes(b"audio")
     store = CountingStore()

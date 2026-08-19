@@ -97,8 +97,15 @@ jobs:
       - name: Verify Node runtime
         run: node --version && npm --version
 
-      - name: Install locked frontend dependencies
-        run: npm ci --no-fund --no-audit
+      - name: Diagnose lockfile integrity metadata
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-fund --no-audit
+          git diff -- package-lock.json
+          if git diff --quiet -- package-lock.json; then
+            echo "npm did not produce a lockfile repair diff"
+            exit 2
+          fi
+          exit 1
 
       - name: Type check
         run: npm run typecheck

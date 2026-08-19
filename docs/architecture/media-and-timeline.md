@@ -1,5 +1,10 @@
 # Media normalization and transcript timeline 🎙️🕰️
 
+Status: canonical media timeline, word timing, verified seek coordinates, durable evidence
+anchors, and desktop evidence-cursor presentation are implemented. Local audio/video
+playback is not yet implemented.  
+Last updated: August 19, 2026
+
 EchoFlow has to answer three deceptively simple questions before recorded evidence is
 useful:
 
@@ -32,7 +37,8 @@ The human presentation is:
 ```
 
 That timeline survives normalization, segmentation, checkpoints, enhancement, word
-alignment, assembly, search navigation, and durable note anchoring.
+alignment, assembly, search navigation, desktop evidence-cursor movement, and durable note
+anchoring.
 
 A file may also declare something like:
 
@@ -56,8 +62,26 @@ flowchart LR
     D --> G
     E --> G
     F --> H[Human elapsed display]
-    F --> I[Search seek and EvidenceAnchor]
+    F --> I[Verified seek and EvidenceAnchor]
+    I --> J[Desktop evidence cursor]
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+
+    class A source
+    class B,D,E inspect
+    class C,F,G,I evidence
+    class H view
+    class J process
 ```
+
+Text fallback: FFprobe/source identity produces canonical elapsed time plus preserved
+source-declared clocks; canonical word/segment evidence drives transcript JSON, human
+clock display, verified seek coordinates, durable anchors, and the current desktop
+evidence cursor.
 
 ## One input boundary for audio and video
 
@@ -78,16 +102,11 @@ normalized WAV derivative.
 `FfprobeMediaProbe` performs read-only inspection. It does not transcode, install models,
 choose enhancement, or choose a transcription strategy.
 
-For one local source it:
-
-- snapshots filesystem identity before inspection;
-- invokes FFprobe with a file-only protocol whitelist;
-- reads bounded container/stream metadata;
-- requests format/stream `timecode` and `creation_time` tags;
-- validates that at least one audio stream exists;
-- fingerprints the complete source with SHA-256;
-- snapshots filesystem identity again; and
-- refuses the input if the source changed during inspection.
+For one local source it snapshots filesystem identity, invokes FFprobe with a file-only
+protocol whitelist, reads bounded container/stream metadata, requests format/stream
+`timecode` and `creation_time`, validates that audio exists, fingerprints the complete
+source with SHA-256, snapshots identity again, and refuses the input if the source changed
+during inspection.
 
 The result is immutable `MediaInfo` evidence. Routine logs omit local paths by default
 because recording names and directory layouts may themselves be sensitive.
@@ -103,13 +122,8 @@ because recording names and directory layouts may themselves be sensitive.
 | `source` | `format` or `stream` |
 | `stream_index` | required for stream-scoped declarations, absent for format scope |
 
-A stream-scoped tag must reference a stream that FFprobe actually discovered.
-
-Conflicting values are preserved rather than silently resolved. A format-level timecode
-and video-stream timecode may disagree. EchoFlow retains both with enough provenance for
-a later qualified mapping decision.
-
-The values are *declarations*, not trusted wall-clock facts.
+Conflicting values are preserved rather than silently resolved. The values are
+declarations, not trusted wall-clock facts.
 
 ## Deterministic audio-stream selection
 
@@ -122,10 +136,7 @@ uv run echoflow transcribe meeting.mp4 --audio-stream 2
 ```
 
 EchoFlow validates that stream index `2` is audio and records that choice in the job/source
-contract.
-
-Resume restores the same selected stream. It does not decide another track is close
-enough.
+contract. Resume restores the same selected stream.
 
 ## Canonical working audio
 
@@ -138,13 +149,12 @@ The current deterministic processing representation is:
 | sample rate | 16,000 Hz |
 | channels | 1 (mono) |
 
-If a source WAV already satisfies the contract, planning can choose `DIRECT`.
-Other supported audio-bearing media uses `FFMPEG_NORMALIZE`, mapping exactly the selected
-audio stream and dropping unrelated streams.
+If a source WAV already satisfies the contract, planning can choose `DIRECT`. Other
+supported audio-bearing media uses `FFMPEG_NORMALIZE`, mapping exactly the selected audio
+stream and dropping unrelated streams.
 
-The resulting `normalized.wav` lives inside the private job workspace. It is **not a
-second source of truth**. It is deterministic working material that can be discarded after
-the job lifecycle no longer needs it.
+The resulting `normalized.wav` lives inside the private job workspace. It is deterministic
+working material, not a second source of truth.
 
 ## Optional enhanced derivative
 
@@ -169,79 +179,49 @@ Application-owned work units are represented by integer PCM frame intervals:
 [start_frame, end_frame)
 ```
 
-Seconds are derived from exact frames and the canonical sample rate.
-
 Faster-whisper returns segment and native word timestamps relative to the materialized
 work interval. Assembly adds the interval's source-relative offset:
 
 ```text
-work interval 0 starts at 0 s
-engine word at 12.4 s      → canonical word at 12.4 s
-
 work interval 7 starts at 4200 s
 engine word at 588.37 s    → canonical word at 4788.37 s
                               → display 01:19:48.370
 ```
 
-Work windows are an execution/checkpoint detail. They never reset the published transcript
+Work windows are execution/checkpoint detail. They never reset the published transcript
 timeline. SRT and WebVTT also render from canonical timestamps.
 
 ## Human elapsed timestamps are derived views
 
 `format_elapsed_timestamp()` renders canonical seconds as unwrapped `HH:MM:SS.mmm`.
-
-| Numeric evidence | Human display |
-|---:|---|
-| `0.0` | `00:00:00.000` |
-| `60.0` | `00:01:00.000` |
-| `3600.0` | `01:00:00.000` |
-| `4788.37` | `01:19:48.370` |
-| `86400.0` | `24:00:00.000` |
-
-Hours intentionally do not wrap at 24. A 30-hour recording is elapsed media, not a wall
-clock.
-
-Formatted strings are not durable anchors.
+Hours intentionally do not wrap at 24 because the coordinate is elapsed media, not a wall
+clock. Formatted strings are not durable anchors.
 
 ## Canonical source provenance
 
-EchoFlow records enough context to explain how canonical text was produced, including:
-
-- source fingerprint/media identity;
-- selected audio stream;
-- source-declared temporal tags when present;
-- decode strategy;
-- managed ASR engine/model/revision and execution target;
-- enhancement provider/version/parameters when used;
-- language and optional speaker evidence; and
-- source-relative segment and word timestamps.
+EchoFlow records enough context to explain how canonical text was produced, including
+source fingerprint/media identity, selected audio stream, source-declared temporal tags,
+decode strategy, managed model revision/execution target, optional enhancement provenance,
+language/speaker evidence, and source-relative segment/word timestamps.
 
 Temporal tags deliberately do **not** replace source identity. Source identity remains the
 cryptographic/file/media contract.
 
 ## Why EchoFlow does not add elapsed time to SMPTE yet
 
-A source string such as:
-
-```text
-10:00:00:00
-```
-
-looks temptingly like a clock. It is not enough information for safe arithmetic.
+A source string such as `10:00:00:00` is not enough information for safe arithmetic.
 SMPTE-style timecode can depend on frame rate and drop-frame/non-drop-frame semantics.
 Container/device metadata may also be missing, stale, copied, or contradictory.
 
-EchoFlow therefore preserves source declarations but **does not invent a mapping from
-canonical seconds to SMPTE frames** without qualified frame semantics.
+EchoFlow preserves source declarations but **does not invent a mapping from canonical
+seconds to SMPTE frames** without qualified frame semantics.
 
-That limitation does not block ordinary click-to-media navigation. A local player can seek
-directly to canonical `seek_seconds`.
+That limitation does not block ordinary source-relative navigation. The desktop already
+moves an evidence cursor to verified canonical word coordinates. Future media playback can
+seek the original recording to the same `seek_seconds` once a Tauri-owned playback
+capability exists.
 
-Future SMPTE mapping, if real product use requires it, should qualify exact/rational frame
-rate, nominal frame-numbering rate, drop-frame semantics, source of the declaration,
-conflict policy, and rollover tests.
-
-## Word timing, playback, and durable notes use the same elapsed axis
+## Word timing, evidence cursor, playback, and durable notes share one axis
 
 These features solve different jobs but share one coordinate system:
 
@@ -249,25 +229,38 @@ These features solve different jobs but share one coordinate system:
 
 **Human formatting** answers: how should a person read that coordinate?
 
+**Evidence cursor** answers: which verified canonical coordinate is the desktop reader
+currently pointing at?
+
 **Playback seek** answers: where should a local player jump?
 
 **EvidenceAnchor** answers: which exact canonical evidence does this user note refer to?
 
-Durable notes are now implemented. An anchor contains exact document/source/canonical
-generation identity, canonical segment IDs, and numeric source-relative start/end seconds.
-A note does not depend on a pretty timestamp or rebuildable search chunk.
-
 ```mermaid
 flowchart TD
     A[Canonical elapsed evidence] --> B[Human timestamp]
-    A --> C[Search seek_seconds]
+    A --> C[Verified seek_seconds]
     A --> D[EvidenceAnchor]
     D --> E[SQLite durable note]
-    C --> F[Future GUI player]
+    C --> F[Desktop evidence cursor]
+    F --> G[Future Tauri media playback]
+
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+
+    class A,C,D evidence
+    class B view
+    class E source
+    class F inspect
+    class G process
 ```
 
-The graphical player is still future presentation work; the timeline and note-storage
-contracts it needs already exist.
+Text fallback: one canonical elapsed coordinate drives display, verified seek, durable
+research anchors, and the current desktop evidence cursor; native playback remains the
+next capability rather than a new timeline.
 
 ## Why the stages remain separate
 
@@ -287,8 +280,11 @@ Temporal provenance answers **what other source clocks were declared alongside i
 
 Evidence anchoring answers **where does durable user-authored knowledge attach?**
 
+Desktop evidence-cursor presentation answers **which verified coordinate is the reader
+showing now?**
+
 Keeping these responsibilities separate makes metadata discovery side-effect free, keeps
-source authority explicit, and lets search, notes, exports, and a future GUI reuse the same
-evidence instead of inventing parallel timelines.
+source authority explicit, and lets search, notes, exports, desktop navigation, and future
+playback reuse the same evidence instead of inventing parallel timelines.
 
 🧜‍♀️ Multiple clocks. One transcript. No temporal soup.

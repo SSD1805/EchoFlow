@@ -22,14 +22,15 @@ flowchart LR
     E --> F[Durable research workspace]
     D --> G[Unified library discovery]
     F --> G
-    G --> H[Saved views and derived navigation]
-    H --> I[Thin graphical shell]
+    G --> H[Saved searches and derived navigation]
+    H --> I[Safe lifecycle controls]
+    I --> J[Thin graphical shell]
 ```
 
 Text fallback: transcription, evidence preservation, retrieval, navigation, durable
-research state, and unified discovery are foundation. Saved views and derived navigation
-are next; the first GUI should sit on those same services rather than inventing another
-application.
+research state, unified discovery, saved searches, and derived navigation are foundation.
+The next work should make retention/deletion semantics explicit and then place a thin GUI
+on those same services rather than inventing another application.
 
 # Current foundation
 
@@ -106,8 +107,16 @@ provenance, source-relative segment and word timestamps, source-declared tempora
 when present, language evidence, optional enhancement provenance, and optional speaker
 turn/word speaker evidence.
 
+By default, user-visible canonical JSON and derived publications are written under the
+platform Downloads directory in `EchoFlow/`. A transcription may select another
+`--output-dir`, and `ECHOFLOW_OUTPUT_DIR` may define another default through an explicitly
+selected EchoFlow configuration file.
+
 TXT, SRT, and WebVTT are deterministic derived publication views. They can be deleted and
 regenerated without rerunning recognition.
+
+See `docs/architecture/library-lifecycle.md` for the exact output, refresh, retention, and
+deletion boundaries.
 
 ## Transcript library, search, and aligned navigation
 
@@ -134,13 +143,19 @@ The local library now includes:
 Search ranking and evidence navigation remain separate operations. A rebuildable index
 ranks a passage; navigation verifies canonical evidence before presenting precision.
 
+`echoflow library rebuild` is a discovery/index-rebuild operation over existing canonical
+JSON. It does not re-transcribe audio. A rescan is useful when the corpus changes, a
+canonical generation changes, a transcript moves/disappears, a rebuildable database is
+lost or damaged, or a later EchoFlow build changes derived index representation.
+
 ## Durable research workspace
 
-This is now **foundation**, not future work.
+This is **foundation**, not future work.
 
 EchoFlow provides:
 
-- authoritative private SQLite state for notes, tags, collections, and evidence anchors;
+- authoritative private SQLite state for notes, tags, collections, evidence anchors, and
+  saved-search intent;
 - exact source/canonical generation identity in durable note anchors;
 - contiguous canonical segment-span validation before a note is accepted;
 - optional sub-segment source-relative start/end coordinates;
@@ -160,7 +175,7 @@ The custody hierarchy is now:
 | Class | Examples | Rule |
 |---|---|---|
 | Authoritative evidence | original recording, canonical transcript JSON | never treat as cache |
-| Authoritative user knowledge | speaker labels, notes, tags, collections, future saved searches/result sets | must survive index rebuilds |
+| Authoritative user knowledge | speaker labels, notes, tags, collections, saved searches, future curated result sets | must survive index rebuilds |
 | Rebuildable projection | lexical index, semantic chunks/vectors, research query projection, derived exports | may be regenerated |
 | Private execution state | normalization, enhancement, checkpoints, temporary segments | lifecycle-managed, not source truth |
 
@@ -168,7 +183,7 @@ The custody hierarchy is now:
 
 ## Unified library discovery
 
-This is now **foundation** too.
+This is **foundation** too.
 
 `ResearchWorkspaceService.discover()` and `echoflow library find QUERY` provide one human
 query across four typed result groups:
@@ -191,34 +206,70 @@ Per-group limits, canonical context, stale-note state, speaker presentation, evi
 identity, and source seek coordinates remain visible through the same application
 contracts a future GUI can consume.
 
+## Saved searches and useful derived navigation
+
+This is now **foundation** as part of PR #67.
+
+Saved searches are durable user-authored workspace state in authoritative SQLite. They
+preserve typed query intent rather than rendered CLI text or a frozen set of search
+results.
+
+A saved search records transcript query semantics, retrieval mode, context width, and
+research constraints. It explicitly does not persist derived `evidence_scope`. Replaying a
+saved search therefore re-resolves current research relationships and current canonical
+evidence through `ResearchWorkspaceService.search()`.
+
+EchoFlow also derives:
+
+- most-used tags from current note/tag relationships;
+- recently used tags;
+- most-used collections; and
+- recently used collections.
+
+Those counts and timestamps are views. EchoFlow does not add authoritative popularity or
+recency counters to tag/collection records.
+
+Current CLI surfaces are:
+
+```bash
+echoflow library saved
+echoflow library saved save "Housing chapter" "rent burden" --tag housing --mode hybrid
+echoflow library saved show "Housing chapter"
+echoflow library saved run "Housing chapter"
+echoflow library saved delete "Housing chapter"
+echoflow library navigation
+```
+
 # Near-term product sequence
 
-The next work should make the existing backend **pleasant to remember and navigate** rather
-than reopening solved custody/search contracts.
+The next work should make the existing backend **safe and pleasant to operate** rather than
+reopening solved custody/search contracts.
 
-## 1. Saved searches and useful derived navigation
+## 1. Safe deletion and explicit retention controls
 
-This is the next feature tranche.
+Deletion must follow custody class rather than treating every local file as equivalent.
 
-Saved searches are **durable user-authored workspace state** and belong in authoritative
-SQLite. They should preserve typed query intent, not a blob of rendered CLI text.
+The first safe-deletion surface should distinguish:
 
-Useful derived navigation should remain disposable. Candidate conveniences include:
+- deleting a rebuildable index/cache;
+- deleting a derived TXT/SRT/VTT publication;
+- deleting private checkpoint/execution state and therefore resume capability;
+- deleting human-authored notes or saved searches;
+- removing a canonical transcript from active library membership without necessarily
+  deleting the evidence file; and
+- destructively deleting canonical transcript evidence.
 
-- most-used tags, derived from current relationships rather than stored counters;
-- recently used tags/collections;
-- facets and counts where they reduce hunting;
-- recent searches if they prove useful;
-- saved search names/descriptions;
-- selected/citable result sets; and
-- stale-anchor review surfaces.
+Canonical-evidence deletion must surface dependent annotations/anchors before committing.
+“Remove from search” must never quietly mean “erase my only transcript and its research.”
 
-Do not make every convenience statistic another authoritative table. The durable object
-is the user's tag/search/collection; popularity and recency rankings are views.
+EchoFlow should not claim secure erasure or crypto-shredding for ordinary files when SSD
+wear levelling, copy-on-write filesystems, snapshots, backups, or sync clients make that
+claim unverifiable. The product can provide precise deletion semantics without promising
+physical-media destruction it cannot prove.
 
 ## 2. First thin GUI
 
-The GUI has now earned its place because the backend is ahead of the human interface.
+The GUI has earned its place because the backend is ahead of the human interface.
 
 The first graphical vertical slice should remain deliberately small and beautiful rather
 than becoming a second application implementation.
@@ -275,8 +326,8 @@ Keep full rebuild as explicit recovery.
 
 Then measure realistic corpora rather than optimizing by instinct. Representative
 qualification should include startup, warm/cold search, filtered lexical/semantic queries,
-unified-discovery latency, notebook queries, one-edit projection catch-up, large-batch
-projection catch-up, and full rebuild behavior.
+unified-discovery latency, notebook queries, saved-search replay, one-edit projection
+catch-up, large-batch projection catch-up, and full rebuild behavior.
 
 ## 5. Qualify semantic dependency and managed embedding custody
 

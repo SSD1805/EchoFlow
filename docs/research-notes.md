@@ -69,18 +69,18 @@ canonical transcript bytes and refuses missing, reordered, or non-contiguous sel
 Optional `--start-seconds` and `--end-seconds` may narrow an anchor inside that verified
 span.
 
-The desktop uses that same rule when a note is created from the verified Evidence reader.
-It sends document/generation identity and canonical coordinates through one narrow bridge
-method. If the library moved to a newer canonical generation before Save, the write is
-refused instead of silently attaching the note to different evidence.
+The desktop uses that same rule when a note is created from the Evidence reader. It sends
+document/generation identity and canonical coordinates through one narrow bridge method. If
+the library moved to a newer canonical generation before Save, the write is refused instead
+of silently attaching the note to different evidence.
 
 Existing notes can be edited in the Research workspace. A desktop edit replaces note body,
 tag assignments, and collection assignments **atomically in authoritative SQLite** and
-emits one projection-journal event. The note’s evidence anchor is not rewritten.
+emits one projection-journal event. The note's evidence anchor is not rewritten.
 
-Desktop edit/delete carries the note’s authoritative `updated_at` version. If a CLI or
+Desktop edit/delete carries the note's authoritative `updated_at` version. If a CLI or
 another local surface changed that note after it was displayed, EchoFlow refuses the stale
-write and asks the user to refresh. Local-first does not mean lost-update-safe by accident.
+write and asks the user to refresh.
 
 A note can reopen the exact canonical generation it cites. The backend reuses the same
 canonical verifier as search navigation: it hashes the stored canonical bytes, checks the
@@ -97,21 +97,10 @@ That means an older note has three honest outcomes:
 3. the old evidence is unavailable, so the durable note remains but its cited evidence
    cannot currently be reopened.
 
-There is deliberately no “close enough, use the current transcript” fallback. New note
-creation is not offered from an older-generation evidence view because that would blur the
-boundary between reviewing old evidence and authoring against current evidence.
+There is deliberately no “close enough, use the current transcript” fallback.
 
 Deletion remains explicit and narrow: deleting a note deletes that human-authored note. It
 does not delete the canonical transcript or original recording.
-
-The equivalent CLI operations remain available:
-
-```bash
-echoflow library notes edit NOTE_ID --body "Revised note text"
-echoflow library notes set-tags NOTE_ID --tag housing --tag methodology
-echoflow library notes set-collections NOTE_ID --collection "Chapter 3"
-echoflow library notes delete NOTE_ID
-```
 
 ## Navigate by tags and collections
 
@@ -121,11 +110,10 @@ Clicking a label asks the backend for authoritative filtered notes through the e
 snapshot or recreate projection rules in the browser.
 
 Multiple selected labels use **AND semantics**: every selected tag and every selected
-collection must match the same note. The Research surface keeps active filters visible,
-lets the user remove them individually or clear them all, and preserves the existing
-note → verified-evidence path from filtered results.
+collection must match the same note. The Research surface keeps active filters visible and
+preserves the note → verified-evidence path from filtered results.
 
-## Use research state to search the transcript corpus
+## Search transcript evidence with research context
 
 Research metadata can constrain transcript retrieval before scoring:
 
@@ -147,9 +135,23 @@ EchoFlow resolves human names to durable IDs, obtains a canonical evidence scope
 research projection, and ranks lexical/semantic candidates **inside that scope**. It does
 not retrieve the whole corpus and throw away results afterward.
 
-Unified workspace discovery powers the desktop Library search. Search results can show
-associated note count, tags, and collections alongside original evidence/ranking data
-without inventing one cross-type relevance score.
+The desktop now exposes the complete first-release search contract without making users
+operate the backend vocabulary. The default **Match** control is:
+
+- **Any of these words**;
+- **All of these words**; or
+- **Exact phrase**.
+
+The GUI compiles that human choice into the same typed phrase/operator request that Python
+validates and canonicalizes. Retrieval mode becomes **Search by: Wording / Meaning /
+Wording + meaning**; sorting becomes **Order results by: Relevance / Time**. Speaker,
+language, transcript, tag, collection, note-text, result-count, and context controls live
+under **Search options**.
+
+Backend retrieval provenance is still inspectable under **Technical details**. It is not
+required reading for someone trying to find an interview passage.
+
+See **[Research search](research-search.md)** for the full boundary.
 
 ## What if the transcript changes?
 
@@ -159,13 +161,12 @@ canonical SHA-256, EchoFlow does **not** silently move the old note.
 
 The old note remains durable historical user state. The projected evidence key includes
 canonical generation identity so stale annotations cannot accidentally attach to new
-evidence. Editing the prose or labels on that old note still leaves its original anchor
-unchanged. The desktop can inspect the older generation when those exact canonical bytes
-remain available and valid.
+evidence. Editing prose or labels on that old note still leaves its original anchor
+unchanged.
 
 ### Review and deliberately re-anchor an older note
 
-The desktop now has an **Evidence maintenance** surface for notes whose anchor is not the
+The desktop has an **Evidence maintenance** surface for notes whose anchor is not the
 current canonical generation. Review is read-only. EchoFlow classifies the stored anchor as:
 
 - **current verified**: it already points to the current verified generation;
@@ -176,32 +177,26 @@ current canonical generation. Review is read-only. EchoFlow classifies the store
 Older does not mean broken. An older verified anchor can remain exactly where it is for as
 long as the user wants.
 
-For a non-current anchor, EchoFlow may also prepare a **current-generation candidate**. It
-will only do so when the current library document has the same durable document identity
-and the same recorded-source SHA-256. Candidate coordinates are derived from the note's
-source-relative time span, resolved to current canonical segments, and verified through the
-normal evidence locator. EchoFlow does not search another recording for something that
-looks similar, and React never chooses a canonical path or generation.
+For a non-current anchor, EchoFlow may prepare a **current-generation candidate** only when
+the current library document has the same durable document identity and recorded-source
+SHA-256. Candidate coordinates are derived from the note's source-relative time span and
+verified through the normal evidence locator. EchoFlow does not search another recording
+for something that looks similar, and React never chooses a canonical path or generation.
 
-Reviewing the candidate still changes nothing. Re-anchoring requires a second explicit
-confirmation. That confirmation carries both the note's `updated_at` version and the
-candidate canonical SHA-256 the user reviewed. If the note or current transcript changes
-before confirmation, EchoFlow refuses the mutation and requires another review.
+Re-anchoring requires a second explicit confirmation carrying both the note's `updated_at`
+version and the candidate canonical SHA-256 the user reviewed. If the note or transcript
+changes before confirmation, EchoFlow refuses the mutation and requires another review.
 
 A successful re-anchor is one authoritative SQLite transaction:
 
-1. copy the old evidence anchor and its segment identities into durable anchor history;
+1. copy the old evidence anchor and segment identities into durable anchor history;
 2. replace the note's current anchor with the reviewed same-source candidate;
 3. advance the research projection journal once; and
 4. commit all three together or roll all three back.
 
-The old anchor therefore does not vanish. It becomes a durable provenance record attached
-to that note. Re-anchoring changes **which evidence the note currently points to**; it does
-not rewrite the fact that the note used to point somewhere else.
-
-If EchoFlow cannot derive a safe same-source candidate, the Research surface shows the
-problem and offers no re-anchor action. There is intentionally no automatic or
-cross-recording fallback.
+The old anchor therefore does not vanish. Re-anchoring changes **which evidence the note
+currently points to**; it does not rewrite the fact that the note used to point somewhere
+else.
 
 ## Why two databases?
 
@@ -215,36 +210,22 @@ cross-recording fallback.
 SQLite fits frequently mutated transactional user state. DuckDB fits local analytical
 query workloads. EchoFlow deliberately does **not** make both authoritative.
 
-```text
-SQLite authority
-      |
-      | monotonic transactional journal
-      v
-Deterministic projector
-      |
-      v
-DuckDB projection
-```
-
 If the stores disagree, SQLite wins. If DuckDB disappears, rebuild it.
 
 ## Saved searches are durable questions, not screenshots
 
 Saved searches persist typed query intent and re-resolve current evidence rather than
-freezing result snapshots. Frequent/recent tag and collection navigation is derived from
-current relationships instead of persisted popularity counters.
+freezing result snapshots. The desktop supports create, inspect, run, rename/replace, and
+delete. Whole-intent replacement uses optimistic concurrency through authoritative
+`updated_at`.
 
-The desktop now supports saved-search create, run, rename, and delete. Creation sends only
-human intent across the desktop bridge; Python constructs and validates the typed
-`SearchQuery` and owns desktop defaults. Running the search replays that typed intent
-through current research-aware retrieval, so new qualifying evidence can appear.
+Saving a search keeps the question and its choices. Running it later re-derives the current
+research evidence scope and searches the current corpus; runtime `evidence_scope` is never
+persisted as user intent.
 
-Rename edits display metadata while preserving the typed search intent server-side.
-Rename/delete carry the saved search’s `updated_at` version, and authoritative SQLite checks
-that version inside the same immediate transaction as the mutation. A stale desktop view
-cannot silently overwrite a newer CLI/local change.
-
-The tag is durable user state. “Used 147 times” is disposable navigation metadata.
+The desktop now labels these as **Saved searches**, **Save search**, and **Update saved
+search** rather than requiring the user to understand “typed intent.” The typed intent still
+exists in Python and SQLite; only the default product language changed.
 
 ## Operational logs are not a shadow research archive
 
@@ -257,24 +238,24 @@ descriptions, or raw canonical/source paths from these Research operations. The 
 research stores remain the authority for human-authored content; logs do not become a
 second notebook.
 
-## What comes next for the notebook?
+## First-release Research status
 
-The storage, evidence-address, unified-discovery, Research overview, verified note
-creation, note edit/delete/label mutation, first-class tag/collection navigation,
-exact-generation note return, saved-search lifecycle, and explicit stale/unavailable anchor
-review plus provenance-preserving re-anchor contracts are built.
+The first-release Research tranche is complete across:
 
-The remaining first-release Research tranche is now the richer typed search surface:
-phrase/ANY/ALL behavior, speaker/language/transcript constraints, inspectable research
-filters, retrieval mode, and sort without hidden interpretation.
+- authoritative notes/tags/collections;
+- unified discovery;
+- note create/edit/delete and label mutation;
+- exact-generation evidence return;
+- saved-search lifecycle and whole-intent replacement;
+- explicit stale/unavailable-anchor review and provenance-preserving re-anchor; and
+- phrase/ANY/ALL, speaker/language/transcript constraints, research filters, retrieval mode,
+  sort, result count, and context controls.
 
+Further Research work is polish or post-MVP rather than the next critical-path blocker.
 Selected evidence packets, REFI-QDA interoperability, saved-question snapshots/diffs,
 comparison workspaces, evidence-linked writing/script boards, portable research bundles,
-and live provisional capture are deliberately post-MVP work. See
+and live provisional capture remain deliberately later work. See
 **[Post-MVP research roadmap](post-mvp-roadmap.md)**.
 
 The product does not currently provide rich-text/WYSIWYG editing, semantic embeddings over
 note prose, **automatic** cross-generation re-anchoring, or collaborative sync.
-
-> **Your research state is durable. Its fast query representation is disposable. The two
-> can always meet again through exact evidence identities.**

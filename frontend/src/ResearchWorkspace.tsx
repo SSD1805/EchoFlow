@@ -57,6 +57,12 @@ function toggleLabel(values: string[], label: string): string[] {
   return normalizeLabels([...values, label]);
 }
 
+function retrievalLabel(mode: string): string {
+  if (mode === "semantic") return "Meaning";
+  if (mode === "hybrid") return "Wording + meaning";
+  return "Wording";
+}
+
 export function ResearchWorkspace({
   client,
   theme,
@@ -65,6 +71,9 @@ export function ResearchWorkspace({
   const [overview, setOverview] = useState<ResearchOverview | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mutationMessage, setMutationMessage] = useState<string | null>(null);
+  const [reader, setReader] = useState<ReaderState | null>(null);
+
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
   const [mutatingNoteId, setMutatingNoteId] = useState<string | null>(null);
@@ -72,8 +81,6 @@ export function ResearchWorkspace({
   const [draftBody, setDraftBody] = useState("");
   const [draftTags, setDraftTags] = useState("");
   const [draftCollections, setDraftCollections] = useState("");
-  const [mutationMessage, setMutationMessage] = useState<string | null>(null);
-  const [reader, setReader] = useState<ReaderState | null>(null);
 
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [activeCollections, setActiveCollections] = useState<string[]>([]);
@@ -107,7 +114,7 @@ export function ResearchWorkspace({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not open the local research workspace.",
+          : "EchoFlow could not open your research.",
       );
     } finally {
       setBusy(false);
@@ -133,7 +140,7 @@ export function ResearchWorkspace({
         setActiveTags([]);
         setActiveCollections([]);
         setFilteredNotes(null);
-        if (announce) setMutationMessage("Showing all research notes.");
+        if (announce) setMutationMessage("Showing all notes.");
         return;
       }
       const result = await client.filterResearchNotes(nextTags, nextCollections);
@@ -150,7 +157,7 @@ export function ResearchWorkspace({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not apply those research filters.",
+          : "EchoFlow could not apply those filters.",
       );
     } finally {
       setFilterBusy(false);
@@ -199,7 +206,7 @@ export function ResearchWorkspace({
       cancelEdit();
       await loadOverview();
       await refreshActiveFilters();
-      setMutationMessage("Note saved. Its verified evidence anchor is unchanged.");
+      setMutationMessage("Note saved. Its transcript passage is unchanged.");
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "EchoFlow could not update that note.",
@@ -219,7 +226,7 @@ export function ResearchWorkspace({
       if (editingNoteId === note.note_id) cancelEdit();
       await loadOverview();
       await refreshActiveFilters();
-      setMutationMessage("Note deleted. Transcript evidence was not deleted.");
+      setMutationMessage("Note deleted. The transcript was not deleted.");
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "EchoFlow could not delete that note.",
@@ -242,15 +249,15 @@ export function ResearchWorkspace({
       });
       setMutationMessage(
         opened.current
-          ? "Opened this note’s current verified evidence."
-          : "Opened the exact older evidence generation cited by this note. Nothing was rebound.",
+          ? "Opened the transcript passage cited by this note."
+          : "Opened the exact older transcript version cited by this note. Nothing was moved.",
       );
     } catch (caught) {
       setReader(null);
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not verify the evidence cited by that note.",
+          : "EchoFlow could not verify the transcript passage cited by that note.",
       );
     } finally {
       setOpeningNoteId(null);
@@ -281,12 +288,12 @@ export function ResearchWorkspace({
       setSavedQuery("");
       setSavedDescription("");
       await loadOverview();
-      setMutationMessage(`Saved “${created.name}” as durable search intent.`);
+      setMutationMessage(`Saved “${created.name}”.`);
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not save that research question.",
+          : "EchoFlow could not save that search.",
       );
     } finally {
       setMutatingSavedId(null);
@@ -315,7 +322,7 @@ export function ResearchWorkspace({
       );
       setEditingSavedId(null);
       await loadOverview();
-      setMutationMessage(`Renamed saved search to “${updated.name}”. Its typed query is unchanged.`);
+      setMutationMessage(`Renamed saved search to “${updated.name}”.`);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -337,7 +344,7 @@ export function ResearchWorkspace({
       if (editingSavedId === saved.saved_search_id) setEditingSavedId(null);
       if (savedRun?.saved_search.saved_search_id === saved.saved_search_id) setSavedRun(null);
       await loadOverview();
-      setMutationMessage("Saved search deleted. Transcript evidence and research notes were untouched.");
+      setMutationMessage("Saved search deleted. Notes and transcripts were not deleted.");
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -356,9 +363,7 @@ export function ResearchWorkspace({
     try {
       const result = await client.runSavedSearch(saved);
       setSavedRun(result);
-      setMutationMessage(
-        `Ran “${result.saved_search.name}” against current evidence and research relationships.`,
-      );
+      setMutationMessage(`Ran “${result.saved_search.name}” against what is in your library now.`);
     } catch (caught) {
       setSavedRun(null);
       setError(
@@ -378,21 +383,20 @@ export function ResearchWorkspace({
     <>
       <WorkspaceHeader
         eyebrow="Research"
-        title="Your research layer."
+        title="Research"
         theme={theme}
         onThemeChange={onThemeChange}
       />
 
       <section className="research-intro" aria-labelledby="research-title">
         <div>
-          <p className="section-kicker">03 · Human knowledge stays human knowledge</p>
-          <h2 id="research-title">Notes beside evidence, not trapped inside an index.</h2>
+          <p className="section-kicker">Notes and saved searches</p>
+          <h2 id="research-title">Keep your notes connected to the transcript.</h2>
         </div>
         <div className="research-intro-copy">
           <p>
-            Browse and edit authoritative research, reopen the exact evidence it cites, and
-            replay durable search intent against what exists now. The webview never decides
-            which canonical generation counts as evidence.
+            Browse and edit notes, narrow them with tags or collections, reopen the exact
+            transcript passage they cite, and run saved searches against what exists now.
           </p>
           <button
             className="research-refresh"
@@ -405,17 +409,17 @@ export function ResearchWorkspace({
             }
             onClick={() => void refreshResearch()}
           >
-            {busy || filterBusy ? "Refreshing…" : "Refresh research"}
+            {busy || filterBusy ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       </section>
 
       <p className="research-status" role="status">
         {busy
-          ? "Reading local research state…"
+          ? "Opening your research…"
           : overview
             ? `${overview.notes.length} notes · ${overview.tags.length} tags · ${overview.collections.length} collections · ${overview.saved_searches.length} saved searches`
-            : "Research state is unavailable."}
+            : "Research could not be opened."}
       </p>
 
       {mutationMessage && (
@@ -446,16 +450,16 @@ export function ResearchWorkspace({
         <section className="research-run-results" aria-labelledby="saved-run-title">
           <div className="research-panel-heading">
             <div>
-              <p className="mini-label">Current replay</p>
+              <p className="mini-label">Saved search results</p>
               <h2 id="saved-run-title">{savedRun.saved_search.name}</h2>
               <p>
-                Query: <code>{savedRun.query}</code>
+                Search: <code>{savedRun.query}</code>
               </p>
             </div>
             <span className="research-count">{savedRun.evidence.length}</span>
           </div>
           {savedRun.evidence.length === 0 ? (
-            <p className="research-empty">No current evidence matches this saved intent.</p>
+            <p className="research-empty">No transcript passages match this saved search right now.</p>
           ) : (
             <div className="research-run-list">
               {savedRun.evidence.map((evidence) => (
@@ -486,7 +490,7 @@ export function ResearchWorkspace({
           <section className="research-panel research-notes" aria-labelledby="research-notes">
             <div className="research-panel-heading">
               <div>
-                <p className="mini-label">Authoritative annotations</p>
+                <p className="mini-label">Your notes</p>
                 <h2 id="research-notes">Notes</h2>
               </div>
               <span className="research-count">{visibleNotes.length}</span>
@@ -552,7 +556,7 @@ export function ResearchWorkspace({
               <p className="research-empty">
                 {hasActiveFilters
                   ? "No notes match every selected label."
-                  : "No research notes yet."}
+                  : "No notes yet."}
               </p>
             ) : (
               <div className="research-note-list">
@@ -618,8 +622,8 @@ export function ResearchWorkspace({
                             </label>
                           </div>
                           <p className="research-anchor-note">
-                            Editing changes only your note and labels. The exact canonical
-                            evidence generation and coordinates stay unchanged.
+                            Editing changes your note and labels. The transcript passage it
+                            points to stays the same.
                           </p>
                           <div className="research-note-actions">
                             <button type="submit" disabled={mutating || !draftBody.trim()}>
@@ -716,8 +720,8 @@ export function ResearchWorkspace({
                           aria-label="Delete note confirmation"
                         >
                           <p>
-                            Delete this human-authored note? Its canonical transcript and
-                            original recording are not part of this operation.
+                            Delete this note? This does not delete the transcript or original
+                            recording.
                           </p>
                           <div className="research-note-actions">
                             <button
@@ -749,7 +753,7 @@ export function ResearchWorkspace({
             <section className="research-panel saved-searches" aria-labelledby="saved-searches">
               <div className="research-panel-heading">
                 <div>
-                  <p className="mini-label">Durable questions</p>
+                  <p className="mini-label">Saved searches</p>
                   <h2 id="saved-searches">Saved searches</h2>
                 </div>
                 <span className="research-count">{overview.saved_searches.length}</span>
@@ -791,8 +795,8 @@ export function ResearchWorkspace({
                   />
                 </label>
                 <p>
-                  EchoFlow saves typed intent, not today’s result list. Running it later asks the
-                  same question of current evidence and research relationships.
+                  Saving keeps this question. Running it later searches what is in your
+                  library then; it does not freeze today&apos;s results.
                 </p>
                 <button
                   type="submit"
@@ -842,10 +846,7 @@ export function ResearchWorkspace({
                                 }
                               />
                             </label>
-                            <p>
-                              Rename edits display metadata only. The backend preserves the typed
-                              query intent.
-                            </p>
+                            <p>Renaming changes only the saved search&apos;s display name and description.</p>
                             <div className="saved-search-actions">
                               <button type="submit" disabled={mutating || !savedDraftName.trim()}>
                                 {mutating ? "Saving…" : "Save name"}
@@ -863,7 +864,7 @@ export function ResearchWorkspace({
                           <>
                             <div className="saved-search-title-row">
                               <strong>{saved.name}</strong>
-                              <span>{saved.retrieval_mode}</span>
+                              <span>{retrievalLabel(saved.retrieval_mode)}</span>
                             </div>
                             {saved.description && <p>{saved.description}</p>}
                             <code>{saved.query_text}</code>
@@ -903,8 +904,8 @@ export function ResearchWorkspace({
                             aria-label={`Delete saved search ${saved.name}`}
                           >
                             <p>
-                              Delete this durable question? Notes, transcripts, and recordings are
-                              not part of this operation.
+                              Delete this saved search? Notes, transcripts, and recordings
+                              are not part of this operation.
                             </p>
                             <div className="saved-search-actions">
                               <button
@@ -935,12 +936,12 @@ export function ResearchWorkspace({
             <section className="research-panel" aria-labelledby="research-labels">
               <div className="research-panel-heading">
                 <div>
-                  <p className="mini-label">Current vocabulary</p>
+                  <p className="mini-label">Organize</p>
                   <h2 id="research-labels">Labels</h2>
                 </div>
               </div>
               <p className="research-filter-explainer">
-                Select more than one label to narrow notes by every selected tag and collection.
+                Select more than one label to show notes that match every selected tag and collection.
               </p>
               <div className="label-section">
                 <h3>Tags</h3>

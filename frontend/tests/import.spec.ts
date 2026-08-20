@@ -48,10 +48,10 @@ test("transcript libraries never offer automatic processing", async ({ page }) =
   await expect(page.getByRole("status")).toContainText("reconciled with EchoFlow's local index");
 });
 
-test("theme switching preserves semantics and accessibility", async ({ page }) => {
+test("theme switching uses the compact picker and preserves semantics", async ({ page }) => {
   await page.goto("/?e2e=1");
 
-  await page.getByRole("button", { name: "Midnight" }).click();
+  await page.getByLabel("Theme").selectOption("midnight");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "midnight");
   await expect(page.getByRole("heading", { name: "Add local evidence without giving up custody." })).toBeVisible();
 

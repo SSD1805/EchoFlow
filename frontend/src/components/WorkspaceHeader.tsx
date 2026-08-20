@@ -1,4 +1,6 @@
-export type Theme = "archive" | "midnight";
+import { THEMES, type Theme } from "../themes";
+
+export type { Theme } from "../themes";
 
 interface WorkspaceHeaderProps {
   eyebrow: string;
@@ -19,24 +21,20 @@ export function WorkspaceHeader({
         <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
       </div>
-      <div className="theme-switch" role="group" aria-label="Appearance">
-        <button
-          type="button"
-          className={theme === "archive" ? "theme-active" : ""}
-          aria-pressed={theme === "archive"}
-          onClick={() => onThemeChange("archive")}
+      <label className="theme-picker">
+        <span>Theme</span>
+        <select
+          aria-label="Theme"
+          value={theme}
+          onChange={(event) => onThemeChange(event.target.value as Theme)}
         >
-          Archive
-        </button>
-        <button
-          type="button"
-          className={theme === "midnight" ? "theme-active" : ""}
-          aria-pressed={theme === "midnight"}
-          onClick={() => onThemeChange("midnight")}
-        >
-          Midnight
-        </button>
-      </div>
+          {THEMES.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
     </header>
   );
 }

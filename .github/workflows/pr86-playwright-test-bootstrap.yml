@@ -1,0 +1,63 @@
+name: PR86 Playwright assertion bootstrap
+
+on:
+  push:
+    branches:
+      - agent/research-search-controls
+
+permissions:
+  contents: write
+
+jobs:
+  patch-tests:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/research-search-controls
+      - name: Update composition-aware assertions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          typed_path = Path('frontend/tests/research-search-controls.spec.ts')
+          typed = typed_path.read_text()
+          replacements = {
+              'await expect(applied).toContainText("exact phrase");': 'await expect(applied).toContainText("phrase: exact");\n  await expect(applied).toContainText("operator: ALL");',
+              'await expect(updated).toContainText("terms: ALL");': 'await expect(updated).toContainText("phrase: off");\n  await expect(updated).toContainText("operator: ALL");',
+          }
+          for old, new in replacements.items():
+              count = typed.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one typed-search assertion match, found {count}: {old}')
+              typed = typed.replace(old, new)
+          typed_path.write_text(typed)
+
+          research_path = Path('frontend/tests/research.spec.ts')
+          research = research_path.read_text()
+          old = '''  await expect(page.getByText("Governance follow-up")).toBeVisible();
+  await expect(page.getByText("Questions to revisit across interviews")).toBeVisible();
+
+  const navigation = page.getByLabel("Research navigation");'''
+          new = '''  const navigation = page.getByLabel("Research navigation");
+  await expect(navigation.getByText("Governance follow-up")).toBeVisible();
+  await expect(
+    navigation.getByText("Questions to revisit across interviews"),
+  ).toBeVisible();'''
+          count = research.count(old)
+          if count != 1:
+              raise SystemExit(f'Expected one Research navigation assertion block, found {count}')
+          research = research.replace(old, new)
+          research_path.write_text(research)
+          PY
+      - name: Commit test corrections
+        run: |
+          if git diff --quiet -- frontend/tests/research-search-controls.spec.ts frontend/tests/research.spec.ts; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- frontend/tests/research-search-controls.spec.ts frontend/tests/research.spec.ts
+          git commit -m 'test(desktop): align Research assertions with typed intent UI'
+          git push origin HEAD:agent/research-search-controls

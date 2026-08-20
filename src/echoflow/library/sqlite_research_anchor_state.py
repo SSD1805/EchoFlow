@@ -206,12 +206,14 @@ class SqliteResearchAnchorStateStore:
 
     def _initialize_extension(self) -> None:
         with self._connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
             core = connection.execute(
                 "SELECT schema_version FROM metadata WHERE singleton = 1"
             ).fetchone()
             if core is None:
                 raise ResearchStateError("Research state metadata is missing")
+            # executescript() owns its DDL transaction behavior in sqlite3. Keep the
+            # idempotent table creation separate from the version-row transaction rather
+            # than pretending an earlier BEGIN survives executescript's commit boundary.
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS anchor_history_metadata (
@@ -246,6 +248,7 @@ class SqliteResearchAnchorStateStore:
                     ON note_anchor_history(note_id, canonical_sha256);
                 """
             )
+            connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 """
                 INSERT OR IGNORE INTO anchor_history_metadata
@@ -258,7 +261,7 @@ class SqliteResearchAnchorStateStore:
                 """
                 SELECT schema_version FROM anchor_history_metadata
                 WHERE singleton = 1
-                """
+                """,
             ).fetchone()
             if row is None or int(row[0]) != _EXTENSION_SCHEMA_VERSION:
                 raise ResearchStateError(

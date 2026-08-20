@@ -10,20 +10,19 @@ the same thing.
 uv run echoflow library find "housing affordability"
 ```
 
-The desktop **Library** screen now consumes the same grouped discovery contract.
+The desktop **Library** screen consumes the same grouped discovery contract.
 
 One query can return four separate groups:
 
-- **Transcript evidence** ranked through the existing lexical, semantic, or hybrid
-  retrieval path and resolved back to verified canonical evidence.
+- **Transcript evidence** ranked through lexical, semantic, or hybrid retrieval and
+  resolved back to verified canonical evidence.
 - **Your notes** found through the rebuildable research projection, then hydrated from
   authoritative SQLite state.
 - **Tags** whose names match the query.
 - **Collections** whose names match the query.
 
-A note does not receive a fake BM25 score so it can compete with a transcript passage. A
-tag does not become “82% relevant” because a different subsystem happened to emit a
-number. EchoFlow keeps the result types separate and useful.
+A note does not receive a fake BM25 score so it can compete with a transcript passage.
+EchoFlow keeps result types separate and useful.
 
 ## The simple mental model
 
@@ -54,99 +53,47 @@ flowchart LR
 ```
 
 Text fallback: one human query fans out through existing typed capabilities and returns
-separate transcript, note, tag, and collection groups. The discovery layer composes those
-capabilities; CLI and desktop views share the response instead of owning separate search
-architectures.
+separate transcript, note, tag, and collection groups. CLI and desktop Library views share
+the response instead of owning separate search architectures.
 
 ## Why grouped results?
 
-Different objects answer different questions.
+Different objects answer different questions:
 
-A transcript passage answers:
+- transcript passage: **where did somebody actually say this?**
+- note: **what did I write about this evidence?**
+- tag: **what label have I already been using for this idea?**
+- collection: **which research grouping might I want to open?**
 
-> Where did somebody actually say this?
+Those are related, but they are not interchangeable.
 
-A note answers:
+## Desktop and machine-readable output
 
-> What did I write about this evidence?
+The desktop Library surface renders the same groups graphically. Transcript results retain
+a verified seek coordinate and can open the Evidence reader. Notes retain current/stale
+canonical-generation state. Tags and collections remain named research objects rather than
+pretending to be transcript matches.
 
-A tag answers:
-
-> What label have I already been using for this idea?
-
-A collection answers:
-
-> Which research grouping might I want to open?
-
-Those are related, but they are not interchangeable. Keeping them grouped makes both
-terminal and graphical presentation more honest.
-
-## Human output
-
-The terminal view renders separate sections for transcript evidence, notes, tags, and
-collections.
-
-The desktop Library surface renders the same groups in a graphical workspace. Transcript
-results retain a verified seek coordinate and can open the desktop Evidence reader. Notes
-retain their current/stale canonical-generation state. Tags and collections remain named
-research objects rather than pretending to be transcript matches.
-
-An old note does not disappear merely because a transcript was regenerated. It remains
-visible as an older-generation note until a person explicitly decides what to do with it.
-
-## Machine-readable output
+Machine-readable output is available with:
 
 ```bash
 uv run echoflow library find "housing" --json
 ```
 
-The JSON response keeps the same grouping:
-
-```text
-query
-total_count
-groups
-  transcripts
-    retrieval_mode
-    count
-    results
-  notes
-    count
-    results
-  tags
-    count
-    results
-  collections
-    count
-    results
-```
-
-Transcript results keep evidence identity, seek coordinates, speaker refs/display labels,
-ranks, and associated research state. Notes retain authoritative note content plus durable
-evidence anchors.
-
-The desktop bridge serializes a narrower presentation DTO. It deliberately omits raw
-canonical/source filesystem paths from the webview while retaining document, generation,
-segment, and source-relative time identity.
+The desktop bridge serializes a narrower presentation DTO and deliberately omits raw
+canonical/source filesystem paths while retaining document, generation, segment, and
+source-relative time identity.
 
 ## Semantic and hybrid discovery
 
-By default, the transcript group uses lexical retrieval:
-
 ```bash
 uv run echoflow library find "housing" --mode lexical
-```
-
-If local semantic state has been qualified and built, the transcript group can use:
-
-```bash
 uv run echoflow library find "people struggling to make rent" --mode semantic
 uv run echoflow library find "people struggling to make rent" --mode hybrid
 ```
 
 `--mode` affects **transcript evidence only**. Notes, tag names, and collection names stay
-on deterministic local text lookup. EchoFlow does not embed a tag just because the
-transcript side happens to use embeddings.
+on deterministic local text lookup.
 
 The first desktop Library slice currently uses the ordinary workspace-discovery default
 rather than exposing every advanced query control. Phrase/ANY/ALL, speaker, language,
@@ -155,38 +102,17 @@ interaction tranche.
 
 ## Limits and context
 
-`--limit` is a **per-group** limit:
-
-```bash
-uv run echoflow library find "housing" --limit 10
-```
-
-That can return up to ten transcript results, ten notes, ten tags, and ten collections.
-The current maximum is 100 per group.
-
-Transcript evidence can also include bounded canonical context:
+`--limit` is a per-group limit, up to the current maximum of 100 per group.
+Transcript evidence can include bounded canonical context:
 
 ```bash
 uv run echoflow library find "housing" --context-segments 1
 ```
 
-Context expansion remains post-ranking, exactly as it does for ordinary transcript
-search. The desktop Library currently requests one neighboring context segment on each
-side for its verified reader.
-
-## How label matching works
-
-Tags and collections use deterministic group-local matching. Exact names come first,
-followed by prefix/substring matches and then token overlap. This ordering is only for
-names inside those groups.
-
-It is **not** a universal relevance score and is not persisted as authoritative state.
-Frequent/recent tag navigation is likewise derived from durable relationships rather than
-maintained as fragile counters.
+Context expansion remains post-ranking. The desktop Library currently requests one
+neighboring context segment on each side for its verified reader.
 
 ## What this reuses
-
-Unified discovery deliberately builds on existing application contracts:
 
 ```text
 ResearchWorkspaceService
@@ -205,24 +131,23 @@ WorkspaceDiscoveryResponse
 ```
 
 SQLite remains authoritative for unique human research. DuckDB remains rebuildable query
-acceleration. Canonical transcript JSON remains transcript evidence. The desktop changes
-none of those custody rules.
+acceleration. Canonical transcript JSON remains transcript evidence.
 
-## Saved searches and derived navigation are foundation now
+## Saved searches and derived navigation are foundation
 
-Saved searches persist typed query intent. Running one re-resolves current corpus and
-research relationships instead of replaying a frozen result set. Frequent/recent tags and
+Saved searches persist typed query intent and re-resolve current corpus/research
+relationships instead of replaying a frozen result set. Frequent/recent tags and
 collections are derived navigation views rather than authoritative counters.
 
-The new desktop Research overview already lists saved searches alongside notes, tags, and
-collections. Running/managing them graphically is the next interaction slice.
+A dedicated desktop Research workspace that browses and manages those saved searches,
+notes, tags, and collections is the next UI tranche.
 
 ## What comes next
 
-The next useful Library/Research tranche is **interaction, not another search backend**:
+The next Library/Research tranche is **interaction, not another search backend**:
 
 - advanced typed search controls over the existing `SearchQuery` contract;
-- create/run/rename/delete saved searches;
+- browse/create/run/rename/delete saved searches;
 - create notes from verified evidence;
 - edit notes and manage tags/collections;
 - selected/citable result sets; and

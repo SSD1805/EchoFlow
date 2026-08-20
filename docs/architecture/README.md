@@ -41,9 +41,10 @@ flowchart LR
     J --> P
     D --> P
     P --> Q[Plan-bound deletion]
-    N --> R[Versioned desktop bridge]
-    R --> S[React Library and Research UI]
+    O --> R[Versioned desktop bridge]
     I --> R
+    R --> S[React Library and evidence reader]
+    N --> T[Next Research workspace UI]
 
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
@@ -57,14 +58,22 @@ flowchart LR
     class E,I,J evidence
     class F,G,H,K,L,M,O view
     class N,R,S inspect
+    class T process
     class P,Q stop
 ```
 
+<details>
+<summary>Static diagram fallback if rich rendering is unavailable</summary>
+
+![EchoFlow system-architecture static diagram](../diagrams/system-architecture.svg)
+
+</details>
+
 Text fallback: canonical JSON is evidence; DuckDB ranks rebuildable views; canonical
 navigation verifies evidence; SQLite owns human research; `ResearchWorkspaceService`
-composes research interactions; the versioned desktop bridge exposes only narrow typed
-operations to React; `LibraryCustodyService` keeps destructive policy separate from all of
-those presentation/query seams.
+composes research interactions; the current desktop bridge feeds Library/evidence
+presentation; a dedicated Research UI is the next consumer of that same authority;
+`LibraryCustodyService` keeps destructive policy separate.
 
 ## Where to look
 
@@ -120,13 +129,14 @@ The search/research/custody/desktop area deliberately separates responsibilities
 6. `ResearchProjectionIndex` owns fast derived research constraints and summaries.
 7. `WorkspaceMetadataStore` owns durable saved-search intent and computes disposable
    navigation views.
-8. `ResearchWorkspaceService` composes those capabilities for CLI and desktop adapters.
+8. `ResearchWorkspaceService` composes those capabilities for CLI and presentation adapters.
 9. `LibraryLocationService` owns remembered directory permissions and cheap recording
    discovery without becoming a media processor.
 10. `LibraryCustodyService` owns typed deletion planning/execution and age-based private
-    execution-state retention. It does not become a second research or transcript authority.
-11. `echoflow.desktop.bridge` exposes an allowlisted versioned IPC surface. It serializes
-    evidence/research identity without leaking canonical/source filesystem paths to React.
+    execution-state retention.
+11. `echoflow.desktop.bridge` exposes an allowlisted versioned IPC surface. Current
+    Library/evidence DTOs retain stable evidence identity without leaking canonical/source
+    filesystem paths to React.
 12. React owns interaction and presentation only. It does not issue SQL, mutate DuckDB or
     SQLite directly, or receive arbitrary shell authority.
 
@@ -159,28 +169,22 @@ and current research relationships.
 
 ## The custody rules 🦝
 
-These rules are load-bearing:
-
 1. **Original media is source evidence and read-only during normal processing.** Explicit
-   source deletion is a separate provenance-checked operation, never an implied cleanup.
-2. **Canonical transcript JSON is authoritative transcript evidence.** It is deleted only
-   through an explicit plan-bound canonical scope.
+   source deletion is a separate provenance-checked operation.
+2. **Canonical transcript JSON is authoritative transcript evidence.**
 3. **Managed model manifests describe verified local execution dependencies.**
 4. **Lexical, semantic, and research DuckDB databases are rebuildable projections.**
 5. **Speaker labels, notes, tags, collections, and saved searches are human-authored
    authority and do not inherit index deletion semantics.**
-6. **Research joins include canonical generation identity, not a friendly segment ID
-   alone.**
+6. **Research joins include canonical generation identity, not a friendly segment ID alone.**
 7. **Precise navigation resolves to verified canonical evidence rather than trusting a
    stale search projection.**
 8. **Research filters apply before ranking/scoring when they define eligible evidence.**
 9. **Saved searches persist typed query intent, not a frozen derived evidence scope.**
 10. **Canonical deletion preserves attached notes and document-scoped saved searches unless
     their own destructive scopes are explicitly selected.**
-11. **Age-based retention can delete only private job workspaces.** It preserves canonical
-    evidence, human research, and lightweight lifecycle manifests.
-12. **Remembered locations are permissions/pointers, not copies of user media.** Forgetting
-    a location never deletes the directory or its files.
+11. **Age-based retention can delete only private job workspaces.**
+12. **Remembered locations are permissions/pointers, not copies of user media.**
 13. **The desktop webview receives typed presentation DTOs, not arbitrary filesystem paths
     or database handles.**
 14. **EchoFlow does not claim secure erasure it cannot prove.**
@@ -191,9 +195,8 @@ accident.
 ## Current application seams
 
 Unified discovery, saved searches, frequent/recent navigation, and research interactions
-compose through `ResearchWorkspaceService`. The desktop currently exposes grouped Library
-discovery, verified context/word coordinates, and a browse-first Research overview through
-narrow bridge methods.
+compose through `ResearchWorkspaceService`. The current desktop exposes grouped Library
+discovery plus verified context/word coordinates through narrow bridge methods.
 
 Incremental corpus growth composes through `TranscriptLibraryService.refresh(...)` and
 remembered roots through `LibraryLocationService`. Full `library rebuild` is the explicit
@@ -208,15 +211,13 @@ echoflow library retention --execution-days 30
 ```
 
 Deletion and retention are dry-run by default. Applying a reviewed operation requires the
-plan-bound token returned by the dry run. The token binds the canonical generation,
-effective scopes, concrete actions, and relevant preserved note/saved-search dependencies,
-so a changed plan cannot reuse an old confirmation.
+plan-bound token returned by the dry run.
 
-The next desktop seam is **research mutation**, not another research database. Creating or
-editing a note, changing tags/collections, and managing saved searches should call narrow
-bridge operations that delegate back to `ResearchWorkspaceService`. Local media playback
-belongs behind a separate Tauri-owned capability and should consume verified
-source-relative coordinates without giving React arbitrary path authority.
+The next desktop seam is the **Research workspace**, not another research database. It
+should browse and mutate notes/tags/collections/saved searches through narrow bridge
+operations delegating to `ResearchWorkspaceService`. Local media playback belongs behind a
+separate Tauri-owned capability and should consume verified source-relative coordinates
+without giving React arbitrary path authority.
 
 ## New abstraction test
 
@@ -232,7 +233,7 @@ Architecture pages should provide a plain-English doorway, a structural model wh
 the exact implementation contract, ownership/failure semantics, and explicit current
 limits or future seams.
 
-Mermaid diagrams use the repository's direct `flowchart` dialect and approved palette;
-color helps hierarchy but never carries the only meaning. See
+Mermaid diagrams use direct GitHub-supported fenced syntax and the approved EchoFlow
+palette; color helps hierarchy but never carries the only meaning. See
 **[documentation-style.md](../documentation-style.md)** for the editorial and visual
 contract.

@@ -1,46 +1,49 @@
 """Verify EchoFlow Mermaid docs stay GitHub-friendly and visually intentional.
 
 GitHub documents Mermaid fenced blocks directly and accepts the classic ``graph TD;``
-form. EchoFlow also uses Mermaid's ``flowchart`` spelling. The verifier therefore protects
-visibility, simple portable structure, and the established palette rather than rewriting
-one valid spelling into another.
-
-A previous regression stripped class styles and later placed hand-maintained SVG fallbacks
-above Mermaid blocks while collapsing the actual Mermaid inside ``<details>``. This check
-prevents those presentation regressions from becoming the new contract.
+form. EchoFlow also uses Mermaid's ``flowchart`` spelling. The verifier protects direct
+visibility, simple portable structure, the established palette, and optional secondary
+static fallbacks without rewriting one valid spelling into another.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FRONT_DOORS = frozenset(
-    {
-        ROOT / "README.md",
-        ROOT / "ROADMAP.md",
-        ROOT / "docs" / "README.md",
-        ROOT / "docs" / "architecture" / "README.md",
-    }
-)
-DEPRECATED_FALLBACK_REFERENCES = {
-    ROOT / "README.md": "docs/diagrams/recording-to-evidence.svg",
-    ROOT / "ROADMAP.md": "docs/diagrams/product-roadmap.svg",
-    ROOT / "docs" / "README.md": "diagrams/docs-family-portrait.svg",
-    ROOT / "docs" / "architecture" / "README.md": "../diagrams/system-architecture.svg",
+FRONT_DOOR_FALLBACKS = {
+    ROOT / "README.md": (
+        "docs/diagrams/recording-to-evidence.svg",
+        ROOT / "docs" / "diagrams" / "recording-to-evidence.svg",
+    ),
+    ROOT / "ROADMAP.md": (
+        "docs/diagrams/product-roadmap.svg",
+        ROOT / "docs" / "diagrams" / "product-roadmap.svg",
+    ),
+    ROOT / "docs" / "README.md": (
+        "diagrams/docs-family-portrait.svg",
+        ROOT / "docs" / "diagrams" / "docs-family-portrait.svg",
+    ),
+    ROOT / "docs" / "architecture" / "README.md": (
+        "../diagrams/system-architecture.svg",
+        ROOT / "docs" / "diagrams" / "system-architecture.svg",
+    ),
 }
+FRONT_DOORS = frozenset(FRONT_DOOR_FALLBACKS)
 MERMAID_BLOCK = re.compile(r"```mermaid\n(?P<body>.*?)\n```", re.DOTALL)
 PORTABLE_START = re.compile(
     r"^(?:graph|flowchart)\s+(?:LR|RL|TD|TB|BT);?$|^sequenceDiagram$|^info$"
 )
-DETAILS_OPEN = re.compile(r"^\s*<details(?:\s[^>]*)?>\s*$", re.MULTILINE)
-DETAILS_CLOSE = re.compile(r"^\s*</details>\s*$", re.MULTILINE)
 CLASSDEF = re.compile(
     r"^classDef\s+[A-Za-z][A-Za-z0-9_-]*\s+"
     r"fill:(#[0-9A-Fa-f]{6}),stroke:(#[0-9A-Fa-f]{6}),"
     r"stroke-width:2px,color:(#[0-9A-Fa-f]{6});?$"
 )
+FALLBACK_SHA = re.compile(r"<!-- mermaid-sha256: ([0-9a-f]{64}) -->")
+DETAILS_OPEN = re.compile(r"(?m)^<details(?:\s[^>]*)?>\s*$")
+DETAILS_CLOSE = re.compile(r"(?m)^</details>\s*$")
 APPROVED_STYLES = frozenset(
     {
         ("#D8EEFF", "#2E617B", "#12222A"),  # inspect / information
@@ -51,13 +54,8 @@ APPROVED_STYLES = frozenset(
         ("#FFD6D6", "#9E3434", "#351616"),  # refusal / destructive state
     }
 )
-FORBIDDEN = (
-    "linkStyle",
-    "%%{",
-    "<br",
-    "<div",
-    "<span",
-)
+APPROVED_SVG_COLORS = frozenset(value for style in APPROVED_STYLES for value in style)
+FORBIDDEN = ("linkStyle", "%%{", "<br", "<div", "<span")
 
 
 def _markdown_files() -> tuple[Path, ...]:
@@ -88,12 +86,14 @@ def _classdef_errors(body: str, diagram_index: int) -> list[str]:
 
 
 def _inside_details(text: str, offset: int) -> bool:
+    """Return whether offset is inside an actual line-level HTML disclosure.
+
+    Literal documentation prose such as ``<details>`` must not be mistaken for a real
+    opening tag. EchoFlow's Markdown disclosures use standalone line-level tags.
+    """
+
     before = text[:offset]
-    opens = [match.start() for match in DETAILS_OPEN.finditer(before)]
-    if not opens:
-        return False
-    closes = [match.start() for match in DETAILS_CLOSE.finditer(before)]
-    return not closes or opens[-1] > closes[-1]
+    return len(DETAILS_OPEN.findall(before)) > len(DETAILS_CLOSE.findall(before))
 
 
 def _diagram_errors(
@@ -116,9 +116,43 @@ def _diagram_errors(
     errors.extend(_classdef_errors(body, index))
 
     if path in FRONT_DOORS:
-        tail = text[match.end() : match.end() + 1_200]
+        tail = text[match.end() : match.end() + 1_500]
         if "Text fallback:" not in tail:
             errors.append(f"diagram {index} needs a nearby 'Text fallback:' paragraph")
+    return errors
+
+
+def _fallback_errors(path: Path, text: str, blocks: list[re.Match[str]]) -> list[str]:
+    reference, svg_path = FRONT_DOOR_FALLBACKS[path]
+    errors: list[str] = []
+    if not blocks:
+        return errors
+    reference_offset = text.find(reference)
+    if reference_offset < 0:
+        errors.append("front-door diagram needs its secondary static SVG fallback")
+        return errors
+    if reference_offset < blocks[0].end():
+        errors.append(
+            "static SVG fallback must appear after the directly visible Mermaid"
+        )
+    if "Static diagram fallback" not in text[blocks[0].end() : reference_offset + 800]:
+        errors.append("static SVG fallback needs a clear disclosure label")
+    if not svg_path.is_file():
+        errors.append(f"static SVG fallback is missing: {svg_path.relative_to(ROOT)}")
+        return errors
+
+    svg = svg_path.read_text(encoding="utf-8")
+    if "currentColor" in svg:
+        errors.append("static SVG fallback must use fixed colors, not currentColor")
+    if "<title" not in svg or "<desc" not in svg:
+        errors.append("static SVG fallback needs accessible <title> and <desc>")
+    if not any(color in svg.upper() for color in APPROVED_SVG_COLORS):
+        errors.append("static SVG fallback must use the approved EchoFlow palette")
+
+    sha_match = FALLBACK_SHA.search(svg)
+    expected = hashlib.sha256(blocks[0].group("body").encode("utf-8")).hexdigest()
+    if sha_match is None or sha_match.group(1) != expected:
+        errors.append("static SVG fallback is out of sync with its Mermaid source")
     return errors
 
 
@@ -133,14 +167,10 @@ def _errors_for(path: Path) -> list[str]:
     if "```mermaid " in text or "``` mermaid" in text:
         errors.append("Mermaid fences must be exactly ```mermaid")
 
-    deprecated = DEPRECATED_FALLBACK_REFERENCES.get(path)
-    if deprecated is not None and deprecated in text:
-        errors.append(
-            "must not restore the hand-maintained SVG fallback in front of the Mermaid"
-        )
-
     for index, match in enumerate(blocks, start=1):
         errors.extend(_diagram_errors(path, text, match, index))
+    if path in FRONT_DOORS:
+        errors.extend(_fallback_errors(path, text, blocks))
     return errors
 
 
@@ -162,7 +192,7 @@ def main() -> int:
 
     print(
         "Mermaid documentation is directly visible, uses portable graph/flowchart syntax, "
-        "and preserves the approved EchoFlow palette."
+        "preserves the EchoFlow palette, and keeps secondary SVG fallbacks synchronized."
     )
     return 0
 

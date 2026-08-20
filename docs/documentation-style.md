@@ -120,7 +120,7 @@ language identifier is `mermaid`. GitHub's own documentation uses the classic
 throughout EchoFlow. **Do not mechanically rewrite one valid spelling into the other.**
 Portability is about the whole diagram, not a cosmetic keyword preference.
 
-The August 2026 documentation regression actually had two separate causes:
+The August 2026 documentation regression had two separate causes:
 
 1. a one-shot normalizer stripped `classDef` and class assignments from styled diagrams,
    turning the established visual language into monochrome boxes; and
@@ -129,9 +129,9 @@ The August 2026 documentation regression actually had two separate causes:
    `currentColor`, which is unreliable as a page-theme inheritance mechanism when the SVG
    is loaded as an external image, especially on dark GitHub themes.
 
-The repair is therefore to keep the Mermaid **directly visible**, keep a small compatible
-syntax surface, preserve the palette, and retain prose fallback for meaning. It is not to
-ban `graph`.
+The repair is to keep Mermaid **directly visible**, preserve the palette, use a small
+compatible syntax surface, and retain prose fallback for meaning. It is not to ban
+`graph`.
 
 For high-traffic and load-bearing diagrams:
 
@@ -163,8 +163,8 @@ Use these class styles rather than inventing one-off colors:
 | Refusal / destructive state | `#FFD6D6` | `#9E3434` | `#351616` |
 
 These are complementary to the desktop Archive vocabulary of warm parchment, charcoal,
-muted teal, brass, and burgundy. The documentation diagrams can be more chromatic because
-they need to distinguish architectural roles at a glance.
+muted teal, brass, and burgundy. Documentation diagrams can be more chromatic because they
+need to distinguish architectural roles at a glance.
 
 Styled example:
 
@@ -187,10 +187,23 @@ flowchart LR
 
 The labels remain meaningful without color. Color makes the structure faster to read.
 
-Do **not** maintain a second hand-drawn SVG merely to duplicate a Mermaid diagram. That
-creates two visual sources that drift and tends to look foreign to the repository. A
-separately designed SVG is appropriate only when SVG itself is intentionally the source
-asset and has been designed and qualified for both light and dark presentation.
+### Static fallback when rich rendering is unavailable
+
+A secondary SVG fallback is allowed for a high-traffic Mermaid diagram when GitHub's rich
+renderer itself is unavailable. It must follow these rules:
+
+- Mermaid remains the **primary, directly visible** source in Markdown;
+- the SVG appears only afterward, preferably inside a disclosure labelled as a static
+  fallback;
+- the SVG uses the same EchoFlow palette and explicit fixed colors rather than
+  `currentColor` inheritance;
+- text and arrows remain legible on both light and dark GitHub pages without depending on
+  page CSS;
+- the SVG has a `<title>` and `<desc>` and is understandable without color alone; and
+- the fallback must be kept intentionally in sync with its paired Mermaid diagram.
+
+Do not put an SVG *before* the Mermaid and do not hide Mermaid inside `<details>`. That
+turns the fallback into the product and recreates the August 2026 regression.
 
 ## Jargon has to earn rent
 

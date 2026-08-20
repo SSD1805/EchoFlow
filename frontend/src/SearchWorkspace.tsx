@@ -77,6 +77,16 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
     );
   }
 
+  async function createNote(body: string) {
+    if (selectedEvidence === null) {
+      throw new Error("Verified evidence is no longer open.");
+    }
+    const created = await client.createResearchNote(selectedEvidence, body);
+    setStatus(
+      `Saved note ${created.note_id} to verified evidence from ${created.document_id}.`,
+    );
+  }
+
   return (
     <>
       <WorkspaceHeader
@@ -135,6 +145,7 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
         <EvidenceReader
           evidence={selectedEvidence}
           onClose={() => setSelectedEvidence(null)}
+          onCreateNote={createNote}
         />
       )}
 

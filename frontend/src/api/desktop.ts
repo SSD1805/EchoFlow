@@ -148,6 +148,10 @@ export interface DesktopClient {
   refreshTranscriptLocations(): Promise<void>;
   discoverWorkspace(text: string): Promise<WorkspaceDiscoveryReport>;
   researchOverview(): Promise<ResearchOverview>;
+  createResearchNote(
+    evidence: WorkspaceEvidenceResult,
+    body: string,
+  ): Promise<ResearchNoteResult>;
 }
 
 function assertResponse<T>(value: unknown): DesktopResponse<T> {
@@ -258,10 +262,25 @@ class TauriDesktopClient implements DesktopClient {
   researchOverview(): Promise<ResearchOverview> {
     return this.request("workspace.research.overview", {});
   }
+
+  createResearchNote(
+    evidence: WorkspaceEvidenceResult,
+    body: string,
+  ): Promise<ResearchNoteResult> {
+    return this.request("workspace.research.note.create", {
+      document_id: evidence.document_id,
+      canonical_sha256: evidence.canonical_sha256,
+      segment_ids: evidence.segment_ids,
+      body,
+      start_seconds: evidence.start_seconds,
+      end_seconds: evidence.end_seconds,
+    });
+  }
 }
 
 class MockDesktopClient implements DesktopClient {
   private locations: LibraryLocation[] = [];
+  private createdNotes: ResearchNoteResult[] = [];
 
   async chooseFiles(kind: LocationKind): Promise<string[]> {
     return kind === "transcript-library"
@@ -444,6 +463,7 @@ class MockDesktopClient implements DesktopClient {
   async researchOverview(): Promise<ResearchOverview> {
     return {
       notes: [
+        ...this.createdNotes,
         {
           note_id: "note-7",
           body: "Follow up on ABC governance during the next interview.",
@@ -493,6 +513,31 @@ class MockDesktopClient implements DesktopClient {
         },
       ],
     };
+  }
+
+  async createResearchNote(
+    evidence: WorkspaceEvidenceResult,
+    body: string,
+  ): Promise<ResearchNoteResult> {
+    const trimmed = body.trim();
+    if (!trimmed) throw new Error("Research note cannot be empty");
+    const now = "2026-08-19T21:44:00+00:00";
+    const note: ResearchNoteResult = {
+      note_id: `note-created-${this.createdNotes.length + 1}`,
+      body: trimmed,
+      document_id: evidence.document_id,
+      canonical_sha256: evidence.canonical_sha256,
+      segment_ids: [...evidence.segment_ids],
+      start_seconds: evidence.start_seconds,
+      end_seconds: evidence.end_seconds,
+      current: true,
+      tags: [],
+      collections: [],
+      created_at: now,
+      updated_at: now,
+    };
+    this.createdNotes.unshift(note);
+    return note;
   }
 }
 

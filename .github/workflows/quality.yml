@@ -103,6 +103,12 @@ jobs:
       - name: Install locked frontend dependencies
         run: npm ci --no-fund --no-audit
 
+      - name: Verify Tauri version family
+        run: npm run check:tauri-versions
+
+      - name: Verify browser development doctor
+        run: npm run doctor:desktop -- --mode=mock
+
       - name: Reject raw HTML rendering escape hatches
         shell: bash
         run: |
@@ -149,8 +155,8 @@ jobs:
           libxdo-dev
           wget
 
-      - name: Compile native Tauri host
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+      - name: Compile locked native Tauri host
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml
 
   frontend-playwright:
     needs: [static, frontend-static]

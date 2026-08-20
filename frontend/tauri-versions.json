@@ -1,0 +1,9 @@
+{
+  "jsApi": "2.8.0",
+  "rustCore": "2.8.2",
+  "rustRuntime": "2.8.0",
+  "rustRuntimeWry": "2.8.0",
+  "cli": "2.8.4",
+  "dialog": "2.4.0",
+  "build": "2.4.0"
+}

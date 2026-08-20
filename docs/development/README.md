@@ -10,7 +10,8 @@ subtle bad decisions into failing tests.
 
 | Page | What it is for |
 |---|---|
-| [Desktop development prerequisites](desktop-development.md) | Node/npm locality, Rust/Cargo, native Tauri prerequisites, real-host versus browser development, and cleanup |
+| [Desktop development prerequisites](desktop-development.md) | choose browser mock, native Tauri, or real processing setup; understand Node/npm locality, Rust/Cargo, Python, and native prerequisites |
+| [Desktop source-build troubleshooting](troubleshooting.md) | symptom-first recovery for blank browser views, Cargo/Tauri/Python/WebKitGTK/Wayland failures, port collisions, and safe cleanup |
 | [Testing and regression bisection](testing-and-bisect.md) | general test strategy, colocation rules, mutation anticipation, and deterministic bisect oracles |
 | [Semantic retrieval qualification](semantic-retrieval-testing.md) | property, negative, boundary, integration, and mutation coverage for lexical/semantic/hybrid search decisions |
 | [Empirical benchmarking and calibration](benchmarking.md) | measuring real execution without turning hosted CI timing into folklore |
@@ -29,9 +30,10 @@ jobs. It includes:
 - Radon complexity/maintainability reporting;
 - pytest with branch coverage and a **90% aggregate gate**;
 - locked frontend dependency installation and audit;
+- an explicit JavaScript/Rust Tauri version-family consistency check;
 - TypeScript checking plus a production Vite build;
 - rejection of raw-HTML rendering escape hatches in the frontend;
-- a native Tauri/Rust compile smoke so browser-only builds cannot hide missing native assets or host errors;
+- a native Tauri/Rust `cargo check --locked` so browser-only builds cannot hide missing native assets, dependency drift, or host errors;
 - Playwright interaction tests plus axe accessibility checks;
 - package build verification and clean-wheel installation; and
 - Linux, macOS, and Windows CI/platform smoke.
@@ -118,8 +120,8 @@ Current performance work should target product workloads:
 - one-edit and large-batch research projection catch-up;
 - full research projection rebuild;
 - realistic multi-recording corpus startup and disk cost;
-- desktop Library responsiveness;
-- desktop Research filtering, mutation, and evidence-return responsiveness; and
+- desktop Library responsiveness today;
+- desktop Research responsiveness once that workspace lands; and
 - local media seek/playback responsiveness once the Tauri media capability lands.
 
 Representative 8/16 GB consumer machines, Apple Silicon, discrete-GPU laptops, and larger

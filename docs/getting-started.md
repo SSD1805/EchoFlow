@@ -11,8 +11,19 @@ If you want the tour first, visit **[Welcome to EchoFlow](README.md)**.
 
 ## Before we begin
 
-EchoFlow is still pre-production. There is no polished signed desktop installer yet, so
-the supported path is a source/developer checkout.
+EchoFlow is still pre-production. There is no polished signed desktop installer yet, so the
+current path is a source/developer checkout. That does **not** mean every source-build task
+requires the entire stack.
+
+Choose the smallest path that matches what you want to do:
+
+| Goal | First command after cloning | You do not need yet |
+|---|---|---|
+| just inspect/click the frontend with fake data | `cd frontend && npm ci && npm run dev:mock` | Python, uv, Rust, Cargo, FFmpeg, model |
+| run the real native desktop window | follow the desktop prerequisites, then `npm run tauri dev` | transcription model until you process media |
+| use the Python CLI / process real recordings | `uv sync --locked --extra transcription` | frontend tooling unless you also want the GUI |
+
+If a desktop source build behaves strangely, use **[Desktop source-build troubleshooting](development/troubleshooting.md)**. It starts from the error message and explains both the cause and the remedy.
 
 The repository currently has two presentation paths over the same application services:
 
@@ -52,18 +63,55 @@ Text fallback: source media is inspected and transcribed locally into canonical 
 rebuildable search and verified navigation make that evidence useful; durable research
 state stays separate; the desktop exposes import, Library, evidence, and Research workflows.
 
-## 1. Install the source build
+## Fast path: inspect the frontend only
+
+You need a supported Node/npm installation, then:
 
 ```bash
 git clone https://github.com/SSD1805/EchoFlow.git
+cd EchoFlow/frontend
+npm ci
+npm run doctor:desktop -- --mode=mock
+npm run dev:mock
+```
+
+`npm ci` installs into `frontend/node_modules/`; it is not a global install. `dev:mock`
+intentionally uses fake local data so the browser never pretends it has Tauri filesystem or
+Python authority.
+
+If you run plain `npm run dev` in a browser, EchoFlow shows a development-mode explanation
+rather than silently falling back to mock data. Plain `dev` is also the Vite server used by
+the real Tauri host.
+
+## Native desktop path
+
+Read **[Desktop development prerequisites](development/desktop-development.md)** before the
+first native build. On a prepared machine:
+
+```bash
 cd EchoFlow
+uv sync --locked --extra transcription
+cd frontend
+npm ci
+npm run doctor:desktop
+npm run tauri dev
+```
+
+The debug Tauri host automatically prefers EchoFlow's repository `.venv` for backend calls.
+A transcription model is still optional until you actually ask EchoFlow to transcribe.
+
+## 1. Install the Python source build for CLI/processing work
+
+From the repository root:
+
+```bash
 uv sync --locked --extra transcription
 uv run echoflow init
 uv run echoflow doctor
 uv run echoflow runner
 ```
 
-## 2. Install a transcription model
+## 2. Install a transcription model when you want to transcribe
 
 ```bash
 uv run echoflow models recommend
@@ -72,6 +120,8 @@ uv run echoflow models install small
 
 Model acquisition is explicitly network-bearing. Once a verified managed model is local,
 transcription uses that immutable revision instead of silently reaching out to the network.
+
+You can skip this step when you are only inspecting the UI or browsing existing evidence.
 
 ## 3. Inspect and transcribe a recording
 
@@ -169,22 +219,7 @@ transcribe the file. Manual processing remains the default.
 
 See **[Durable library locations](architecture/library-locations.md)**.
 
-## 9. Use the current desktop shell
-
-The graphical foundation lives under `frontend/` and `frontend/src-tauri/`.
-
-Native desktop development needs Node/npm, a stable Rust toolchain with Cargo, and Tauri's
-OS-native webview/build libraries. See **[Desktop development prerequisites](development/desktop-development.md)** before the first native build.
-
-```bash
-cd frontend
-npm ci
-npm run tauri dev
-```
-
-`npm ci` installs the locked JavaScript dependency graph into `frontend/node_modules/`; it
-does not install those packages globally. The browser-only development mock (`?e2e=1`) is
-for frontend tests and visual development. It is not the real local application authority.
+## 9. Know what the desktop currently does
 
 The current desktop journey includes:
 
@@ -199,6 +234,10 @@ The current desktop journey includes:
 
 The desktop webview does not receive arbitrary SQL, shell, or raw canonical/source path
 authority.
+
+For source-build commands, dependency locking, Linux prerequisites, and cleanup, use
+**[Desktop development prerequisites](development/desktop-development.md)**. For errors, use
+**[Desktop source-build troubleshooting](development/troubleshooting.md)**.
 
 ## 10. Optional semantic and hybrid search ✨
 

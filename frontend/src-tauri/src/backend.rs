@@ -1,9 +1,50 @@
 use serde_json::Value;
 use std::env;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const MAX_REQUEST_BYTES: usize = 128 * 1024;
+
+fn configured_python() -> PathBuf {
+    if let Ok(value) = env::var("ECHOFLOW_PYTHON") {
+        if !value.trim().is_empty() {
+            return PathBuf::from(value);
+        }
+    }
+
+    if cfg!(debug_assertions) {
+        let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let candidate = if cfg!(windows) {
+            repo_root.join(".venv").join("Scripts").join("python.exe")
+        } else {
+            repo_root.join(".venv").join("bin").join("python")
+        };
+        if candidate.is_file() {
+            return candidate;
+        }
+    }
+
+    PathBuf::from("python")
+}
+
+fn python_unavailable_message() -> String {
+    if cfg!(debug_assertions) {
+        "EchoFlow's local Python service is unavailable. From the repository root run `uv sync --locked --extra transcription`, or set ECHOFLOW_PYTHON to a compatible interpreter."
+            .to_string()
+    } else {
+        "EchoFlow's local Python service is unavailable".to_string()
+    }
+}
+
+fn python_exit_message() -> String {
+    if cfg!(debug_assertions) {
+        "EchoFlow's local Python service exited unexpectedly. From frontend run `npm run doctor:desktop` to verify the source environment before retrying."
+            .to_string()
+    } else {
+        "EchoFlow's local Python service exited unexpectedly".to_string()
+    }
+}
 
 fn run_backend_request(request: Value) -> Result<Value, String> {
     let encoded = serde_json::to_vec(&request).map_err(|_| "Could not encode desktop request".to_string())?;
@@ -11,14 +52,13 @@ fn run_backend_request(request: Value) -> Result<Value, String> {
         return Err("Desktop request exceeded the safe size limit".to_string());
     }
 
-    let python = env::var("ECHOFLOW_PYTHON").unwrap_or_else(|_| "python".to_string());
-    let mut child = Command::new(python)
+    let mut child = Command::new(configured_python())
         .args(["-m", "echoflow.desktop.bridge"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|_| "EchoFlow's local Python service is unavailable".to_string())?;
+        .map_err(|_| python_unavailable_message())?;
 
     let mut stdin = child
         .stdin
@@ -33,7 +73,7 @@ fn run_backend_request(request: Value) -> Result<Value, String> {
         .wait_with_output()
         .map_err(|_| "EchoFlow's local Python service did not finish cleanly".to_string())?;
     if !output.status.success() {
-        return Err("EchoFlow's local Python service exited unexpectedly".to_string());
+        return Err(python_exit_message());
     }
 
     serde_json::from_slice(&output.stdout)

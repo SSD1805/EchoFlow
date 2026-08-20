@@ -29,7 +29,9 @@ def _intent(text: str) -> SavedSearchIntent:
     return SavedSearchIntent(query=SearchQuery(text, limit=20))
 
 
-def test_saved_search_update_refuses_stale_version_without_mutation(tmp_path: Path) -> None:
+def test_saved_search_update_refuses_stale_version_without_mutation(
+    tmp_path: Path,
+) -> None:
     store = _store(tmp_path)
     created = store.create_saved_search(
         "Housing",
@@ -56,7 +58,9 @@ def test_saved_search_update_refuses_stale_version_without_mutation(tmp_path: Pa
     assert store.saved_search(created.saved_search_id) == current
 
 
-def test_saved_search_delete_refuses_stale_version_without_mutation(tmp_path: Path) -> None:
+def test_saved_search_delete_refuses_stale_version_without_mutation(
+    tmp_path: Path,
+) -> None:
     store = _store(tmp_path)
     created = store.create_saved_search(
         "Housing",

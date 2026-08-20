@@ -2,8 +2,8 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 from echoflow.desktop.bridge import DesktopServices, handle_request
-from echoflow.library.evidence import EvidenceContextSegment, EvidenceWord
 from echoflow.library.errors import ResearchStateError
+from echoflow.library.evidence import EvidenceContextSegment, EvidenceWord
 from echoflow.library.index import SearchQuery
 from echoflow.library.retrieval import RetrievalMode
 from echoflow.library.workspace_metadata import SavedSearch, SavedSearchIntent

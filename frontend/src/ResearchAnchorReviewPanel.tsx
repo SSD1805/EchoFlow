@@ -82,12 +82,12 @@ export function ResearchAnchorReviewPanel({
     try {
       await reanchorResearchNote(reviewed);
       setConfirmingNoteId(null);
+      setNotes((current) => current.filter((item) => item.note_id !== note.note_id));
       setReviews((current) => {
         const next = { ...current };
         delete next[note.note_id];
         return next;
       });
-      await loadReviewable();
       onReanchored();
       setMessage(
         "Note re-anchored to the reviewed current generation. The prior anchor was preserved in durable history.",
@@ -196,9 +196,7 @@ export function ResearchAnchorReviewPanel({
 
                     {reviewed.history.length > 0 && (
                       <details className="research-anchor-history">
-                        <summary>
-                          Previous anchors ({reviewed.history.length})
-                        </summary>
+                        <summary>Previous anchors ({reviewed.history.length})</summary>
                         <ol>
                           {reviewed.history.map((entry) => (
                             <li key={entry.revision}>
@@ -220,7 +218,11 @@ export function ResearchAnchorReviewPanel({
                             Prepare re-anchor
                           </button>
                         ) : (
-                          <div className="research-anchor-confirm" role="group" aria-label="Confirm re-anchor">
+                          <div
+                            className="research-anchor-confirm"
+                            role="group"
+                            aria-label="Confirm re-anchor"
+                          >
                             <p>
                               This changes the note’s current evidence pointer to the candidate above. The existing anchor will be retained as immutable history.
                             </p>
@@ -229,7 +231,9 @@ export function ResearchAnchorReviewPanel({
                               disabled={busy}
                               onClick={() => void confirmReanchor(note)}
                             >
-                              {busy ? "Re-anchoring…" : "Confirm re-anchor to reviewed candidate"}
+                              {busy
+                                ? "Re-anchoring…"
+                                : "Confirm re-anchor to reviewed candidate"}
                             </button>
                             <button
                               type="button"

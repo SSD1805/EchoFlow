@@ -32,8 +32,12 @@ class _Planner:
 class _Lifecycle:
     def __init__(self) -> None:
         self.records = {
-            JobId("source-job"): SimpleNamespace(input_path=Path("/private/source.m4a")),
-            JobId("resume-job"): SimpleNamespace(input_path=Path("/private/resume.m4a")),
+            JobId("source-job"): SimpleNamespace(
+                input_path=Path("/private/source.m4a")
+            ),
+            JobId("resume-job"): SimpleNamespace(
+                input_path=Path("/private/resume.m4a")
+            ),
         }
 
     def get(self, job_id: JobId) -> object:
@@ -91,9 +95,7 @@ def _install_runner(
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[_Runner, list[tuple[object, object, tuple[TranscriptExportFormat, ...]]]]:
     runner = _Runner()
-    publications: list[
-        tuple[object, object, tuple[TranscriptExportFormat, ...]]
-    ] = []
+    publications: list[tuple[object, object, tuple[TranscriptExportFormat, ...]]] = []
     monkeypatch.setattr(worker, "_runner", lambda container: runner)
     monkeypatch.setattr(
         worker,

@@ -4,7 +4,11 @@ import pytest
 
 from echoflow.core.ilogger import ILogger
 from echoflow.library.errors import EvidenceNavigationError
-from echoflow.library.evidence import EvidenceAnchor, EvidenceContextSegment, EvidenceLocation
+from echoflow.library.evidence import (
+    EvidenceAnchor,
+    EvidenceContextSegment,
+    EvidenceLocation,
+)
 from echoflow.library.index import IndexedDocument, SearchQuery
 from echoflow.library.research import LocatedCanonicalEvidence, SpeakerDisplay
 from echoflow.library.research_state import ResearchNote
@@ -70,7 +74,9 @@ def _located() -> LocatedCanonicalEvidence:
     )
 
 
-def _workspace(*, logger: Mock | None = None) -> tuple[ResearchWorkspaceService, Mock, Mock, Mock]:
+def _workspace(
+    *, logger: Mock | None = None
+) -> tuple[ResearchWorkspaceService, Mock, Mock, Mock]:
     transcript_library = Mock()
     transcript_library.documents.return_value = (
         IndexedDocument(

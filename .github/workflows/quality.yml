@@ -106,6 +106,9 @@ jobs:
       - name: Verify Tauri version family
         run: npm run check:tauri-versions
 
+      - name: Verify browser development doctor
+        run: npm run doctor:desktop -- --mode=mock
+
       - name: Reject raw HTML rendering escape hatches
         shell: bash
         run: |

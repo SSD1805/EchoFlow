@@ -275,7 +275,9 @@ def _service(
     return service, planner, state
 
 
-def test_readiness_composes_health_resources_strategy_and_verified_model_state() -> None:
+def test_readiness_composes_health_resources_strategy_and_verified_model_state() -> (
+    None
+):
     service, planner, _ = _service()
 
     result = service.readiness(ProcessingProfile.BALANCED)
@@ -356,7 +358,10 @@ def test_jobs_minimize_paths_and_render_safe_failure_state() -> None:
     assert jobs[0]["recording_name"] == "interview.m4a"
     assert jobs[0]["progress_fraction"] == 0.4
     assert jobs[0]["resumable"] is True
-    assert jobs[0]["failure_message"] == "Local transcription did not complete successfully."
+    assert (
+        jobs[0]["failure_message"]
+        == "Local transcription did not complete successfully."
+    )
     assert jobs[1]["artifact_published"] is True
     assert jobs[1]["failure_message"] == (
         "The job stopped before completion. EchoFlow kept any valid private checkpoint state it could preserve."

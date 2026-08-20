@@ -41,12 +41,16 @@ def _note() -> ResearchNote:
     )
 
 
-def _located() -> LocatedCanonicalEvidence:
+def _located(
+    *,
+    document_id: str = "job-1",
+    canonical_sha256: str = "b" * 64,
+) -> LocatedCanonicalEvidence:
     anchor = _anchor()
     evidence = EvidenceLocation(
-        document_id=anchor.document_id,
+        document_id=document_id,
         source_sha256=anchor.source_sha256,
-        canonical_sha256=anchor.canonical_sha256,
+        canonical_sha256=canonical_sha256,
         canonical_path=anchor.canonical_path,
         source_path=anchor.source_path,
         result_segment_ids=anchor.segment_ids,
@@ -126,6 +130,22 @@ def test_open_note_evidence_uses_stored_generation_without_rebinding() -> None:
         current=False,
         context_segments=2,
     )
+
+
+def test_open_note_evidence_rejects_document_identity_mismatch() -> None:
+    workspace, navigation, _, _ = _workspace()
+    navigation.locate_anchor.return_value = _located(document_id="job-2")
+
+    with pytest.raises(ValueError, match="document identities must match"):
+        workspace.open_note_evidence("note-1")
+
+
+def test_open_note_evidence_rejects_canonical_generation_mismatch() -> None:
+    workspace, navigation, _, _ = _workspace()
+    navigation.locate_anchor.return_value = _located(canonical_sha256="d" * 64)
+
+    with pytest.raises(ValueError, match="canonical generations must match"):
+        workspace.open_note_evidence("note-1")
 
 
 def test_open_note_evidence_logs_safe_failure_without_rebinding() -> None:

@@ -101,37 +101,37 @@ def dispatch_processing(
 ) -> object:
     """Dispatch bounded Processing Center operations after the outer allowlist accepts them."""
     if method == "processing.readiness":
-        parsed = _ReadinessParams.model_validate(params)
-        return service.readiness(parsed.profile)
+        readiness = _ReadinessParams.model_validate(params)
+        return service.readiness(readiness.profile)
     if method == "processing.jobs.list":
         _NoParams.model_validate(params)
         return list(service.jobs())
     if method == "processing.preflight":
-        parsed = _PreflightParams.model_validate(params)
+        preflight = _PreflightParams.model_validate(params)
         return service.preflight(
-            parsed.input_path,
-            profile=parsed.profile,
-            strategy_id=parsed.strategy_id,
-            audio_stream_index=parsed.audio_stream_index,
-            enhance=parsed.enhance,
+            preflight.input_path,
+            profile=preflight.profile,
+            strategy_id=preflight.strategy_id,
+            audio_stream_index=preflight.audio_stream_index,
+            enhance=preflight.enhance,
         )
     if method == "processing.retry.preflight":
-        parsed = _RetryPreflightParams.model_validate(params)
+        retry = _RetryPreflightParams.model_validate(params)
         return service.retry_preflight(
-            JobId(parsed.source_job_id),
-            profile=parsed.profile,
-            strategy_id=parsed.strategy_id,
-            audio_stream_index=parsed.audio_stream_index,
-            enhance=parsed.enhance,
+            JobId(retry.source_job_id),
+            profile=retry.profile,
+            strategy_id=retry.strategy_id,
+            audio_stream_index=retry.audio_stream_index,
+            enhance=retry.enhance,
         )
     if method == "processing.job.discard":
-        parsed = _DiscardJobParams.model_validate(params)
+        discard = _DiscardJobParams.model_validate(params)
         service.discard_job(
-            JobId(parsed.job_id),
-            expected_updated_at=parsed.expected_updated_at,
+            JobId(discard.job_id),
+            expected_updated_at=discard.expected_updated_at,
         )
-        return {"job_id": parsed.job_id, "discarded": True}
+        return {"job_id": discard.job_id, "discarded": True}
     if method == "processing.model.verify":
-        parsed = _VerifyModelParams.model_validate(params)
-        return service.verify_model(parsed.model_id)
+        verification = _VerifyModelParams.model_validate(params)
+        return service.verify_model(verification.model_id)
     raise ValueError("Unsupported Processing Center desktop method")

@@ -118,8 +118,8 @@ def _service() -> tuple[ResearchAnchorReviewService, Mock, Mock]:
     workspace.note.return_value = _note_view()
     workspace.transcript_library.documents.return_value = (_document(),)
     workspace.transcript_library.file_manager = Mock()
-    workspace.evidence_locator.locate_anchor.side_effect = lambda anchor, **_: _evidence(
-        anchor
+    workspace.evidence_locator.locate_anchor.side_effect = lambda anchor, **_: (
+        _evidence(anchor)
     )
     workspace.evidence_locator.resolve_anchor.return_value = EvidenceAnchor(
         document_id="job-1",
@@ -176,7 +176,9 @@ def test_reanchor_rejects_when_no_safe_candidate_exists() -> None:
     service, workspace, anchor_state = _service()
     workspace.transcript_library.documents.return_value = ()
 
-    with pytest.raises(ResearchStateError, match="No safe current-generation candidate"):
+    with pytest.raises(
+        ResearchStateError, match="No safe current-generation candidate"
+    ):
         service.reanchor_to_reviewed_current(
             "note-1",
             expected_updated_at=_note_view().note.updated_at,

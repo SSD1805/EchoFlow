@@ -714,7 +714,9 @@ def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
         return _filter_research_notes(filter_params, services.workspace)
 
     if request.method.startswith("workspace.research.search."):
-        return dispatch_research_search(request.method, request.params, services.workspace)
+        return dispatch_research_search(
+            request.method, request.params, services.workspace
+        )
 
     if request.method.startswith("workspace.research.note."):
         return _dispatch_research_note(request, services.workspace)

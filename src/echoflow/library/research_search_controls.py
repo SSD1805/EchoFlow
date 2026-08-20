@@ -31,7 +31,9 @@ class ResearchSearchIntent:
 
     def __post_init__(self) -> None:
         if self.query.evidence_scope is not None:
-            raise ValueError("research search intent cannot contain a derived evidence scope")
+            raise ValueError(
+                "research search intent cannot contain a derived evidence scope"
+            )
         if self.context_segments < 0 or self.context_segments > 10:
             raise ValueError("context_segments must be between 0 and 10")
 

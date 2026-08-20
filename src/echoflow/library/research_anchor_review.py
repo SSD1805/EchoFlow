@@ -16,7 +16,10 @@ from echoflow.library.index import IndexedDocument, IndexedSegment
 from echoflow.library.projection import load_indexed_transcript
 from echoflow.library.research import LocatedCanonicalEvidence
 from echoflow.library.research_state import ResearchAnchorHistoryEntry, ResearchNote
-from echoflow.library.research_workspace import ResearchNoteView, ResearchWorkspaceService
+from echoflow.library.research_workspace import (
+    ResearchNoteView,
+    ResearchWorkspaceService,
+)
 from echoflow.library.sqlite_research_anchor_state import SqliteResearchAnchorStateStore
 
 

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createDesktopClient } from "./api/desktop";
 import { type Theme } from "./components/WorkspaceHeader";
 import { IntakeWorkspace } from "./IntakeWorkspace";
-import { ResearchWorkspace } from "./ResearchWorkspace";
+import { ResearchWorkspaceWithAnchorReview } from "./ResearchWorkspaceWithAnchorReview";
 import { SearchWorkspace } from "./SearchWorkspace";
 
 const client = createDesktopClient();
@@ -27,7 +27,13 @@ export function App() {
     if (view === "library") {
       return <SearchWorkspace client={client} theme={theme} onThemeChange={setTheme} />;
     }
-    return <ResearchWorkspace client={client} theme={theme} onThemeChange={setTheme} />;
+    return (
+      <ResearchWorkspaceWithAnchorReview
+        client={client}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
+    );
   }, [theme, view]);
 
   return (

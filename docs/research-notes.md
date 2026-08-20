@@ -113,6 +113,18 @@ echoflow library notes set-collections NOTE_ID --collection "Chapter 3"
 echoflow library notes delete NOTE_ID
 ```
 
+## Navigate by tags and collections
+
+Tags and collections are first-class desktop navigation affordances, not decorative pills.
+Clicking a label asks the backend for authoritative filtered notes through the existing
+`ResearchWorkspaceService` filter contract. React does not filter a capped overview
+snapshot or recreate projection rules in the browser.
+
+Multiple selected labels use **AND semantics**: every selected tag and every selected
+collection must match the same note. The Research surface keeps active filters visible,
+lets the user remove them individually or clear them all, and preserves the existing
+note → verified-evidence path from filtered results.
+
 ## Use research state to search the transcript corpus
 
 Research metadata can constrain transcript retrieval before scoring:
@@ -211,15 +223,19 @@ second notebook.
 ## What comes next for the notebook?
 
 The storage, evidence-address, unified-discovery, Research overview, verified note
-creation, note edit/delete/label mutation, exact-generation note return, and saved-search
-create/run/rename/delete contracts are built.
+creation, note edit/delete/label mutation, first-class tag/collection navigation,
+exact-generation note return, and saved-search create/run/rename/delete contracts are
+built.
 
-The remaining Research tranche is narrower:
+The remaining first-release Research tranche is narrower:
 
-- make tags and collections first-class navigation/filter affordances;
-- expose advanced typed search/research filters without hidden interpretation;
-- stale/unavailable-anchor review and any explicit re-anchor UX with user confirmation; and
-- later, selected/citable result sets and portable evidence-bearing research export.
+- expose advanced typed search/research controls without hidden interpretation; and
+- stale/unavailable-anchor review and any explicit re-anchor UX with user confirmation.
+
+Selected evidence packets, REFI-QDA interoperability, saved-question snapshots/diffs,
+comparison workspaces, evidence-linked writing/script boards, portable research bundles,
+and live provisional capture are deliberately post-MVP work. See
+**[Post-MVP research roadmap](post-mvp-roadmap.md)**.
 
 The product does not currently provide rich-text/WYSIWYG editing, semantic embeddings over
 note prose, automatic cross-generation re-anchoring, or collaborative sync.

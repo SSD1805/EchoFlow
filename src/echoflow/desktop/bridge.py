@@ -151,7 +151,9 @@ class _UpdateResearchNoteParams(BaseModel):
             if len(value) > 200:
                 raise ValueError("research labels cannot exceed 200 characters")
             if any(character in value for character in ("\r", "\n", "\x00")):
-                raise ValueError("research labels contain unsupported control characters")
+                raise ValueError(
+                    "research labels contain unsupported control characters"
+                )
             normalized.setdefault(value.casefold(), value)
         return tuple(normalized[key] for key in sorted(normalized))
 

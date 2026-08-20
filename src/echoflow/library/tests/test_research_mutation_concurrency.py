@@ -35,7 +35,9 @@ def _anchor() -> EvidenceAnchor:
     )
 
 
-def test_replace_note_is_one_version_checked_authoritative_mutation(tmp_path: Path) -> None:
+def test_replace_note_is_one_version_checked_authoritative_mutation(
+    tmp_path: Path,
+) -> None:
     state = _state(tmp_path)
     original = state.create_note(
         _anchor(),

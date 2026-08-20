@@ -598,6 +598,7 @@ class MockDesktopClient implements DesktopClient {
     const index = this.researchNotes.findIndex((item) => item.note_id === note.note_id);
     if (index < 0) throw new Error("Research note does not exist");
     const current = this.researchNotes[index];
+    if (!current) throw new Error("Research note does not exist");
     if (current.updated_at !== note.updated_at) {
       throw new Error("Research note changed since it was opened; refresh before saving");
     }
@@ -617,7 +618,9 @@ class MockDesktopClient implements DesktopClient {
   async deleteResearchNote(note: ResearchNoteResult): Promise<void> {
     const index = this.researchNotes.findIndex((item) => item.note_id === note.note_id);
     if (index < 0) throw new Error("Research note does not exist");
-    if (this.researchNotes[index].updated_at !== note.updated_at) {
+    const current = this.researchNotes[index];
+    if (!current) throw new Error("Research note does not exist");
+    if (current.updated_at !== note.updated_at) {
       throw new Error("Research note changed since it was opened; refresh before saving");
     }
     this.researchNotes.splice(index, 1);

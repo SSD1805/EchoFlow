@@ -6,8 +6,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from echoflow.core.errors import EchoFlowError
-from echoflow.library.errors import ResearchStateError, TranscriptProjectionError
+from echoflow.library.errors import (
+    EvidenceNavigationError,
+    ResearchStateError,
+    TranscriptProjectionError,
+)
 from echoflow.library.evidence import EvidenceAnchor
 from echoflow.library.index import IndexedDocument, IndexedSegment
 from echoflow.library.projection import load_indexed_transcript
@@ -68,11 +71,11 @@ class ResearchAnchorReviewService:
 
         anchored: LocatedCanonicalEvidence | None = None
         try:
-            anchored = self.workspace.navigation.locate_anchor(
+            anchored = self._locate_evidence(
                 note.note.anchor,
                 context_segments=context_segments,
             )
-        except EchoFlowError:
+        except EvidenceNavigationError:
             anchored = None
 
         if note.current and anchored is not None:
@@ -153,12 +156,30 @@ class ResearchAnchorReviewService:
             anchor = self._candidate_anchor(note)
             if anchor is None:
                 return None
-            return self.workspace.navigation.locate_anchor(
+            return self._locate_evidence(
                 anchor,
                 context_segments=context_segments,
             )
-        except (EchoFlowError, OSError, ValueError):
+        except (
+            EvidenceNavigationError,
+            TranscriptProjectionError,
+            OSError,
+            ValueError,
+        ):
             return None
+
+    def _locate_evidence(
+        self,
+        anchor: EvidenceAnchor,
+        *,
+        context_segments: int,
+    ) -> LocatedCanonicalEvidence:
+        """Classify canonical evidence without coupling validity to speaker-label state."""
+        evidence = self.workspace.evidence_locator.locate_anchor(
+            anchor,
+            context_segments=context_segments,
+        )
+        return LocatedCanonicalEvidence(evidence=evidence, speakers=())
 
     def _candidate_anchor(self, note: ResearchNote) -> EvidenceAnchor | None:
         document = self._current_document(note.anchor.document_id)

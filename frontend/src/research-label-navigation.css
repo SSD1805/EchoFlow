@@ -31,15 +31,16 @@
 }
 
 .research-filter-explainer {
-  margin: 0 0 1rem;
+  margin: 0;
+  padding: 16px 18px 0;
   color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.5;
+  font-size: 0.78rem;
+  line-height: 1.55;
 }
 
 .research-active-filters {
-  margin: 0 0 1rem;
-  padding: 0.9rem 1rem;
+  margin: 16px 20px 0;
+  padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface-soft);
@@ -49,17 +50,18 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 16px;
 }
 
 .research-active-filter-heading > div {
   display: grid;
-  gap: 0.18rem;
+  gap: 3px;
 }
 
 .research-active-filter-heading span {
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .research-active-filter-heading > button {
@@ -67,8 +69,14 @@
   background: transparent;
   color: var(--accent-strong);
   font: inherit;
+  font-size: 0.76rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+.research-active-filter-heading > button:hover:not(:disabled),
+.research-active-filter-heading > button:focus-visible {
+  color: var(--accent);
 }
 
 .research-active-filter-heading > button:disabled {
@@ -79,11 +87,11 @@
 .research-active-filter-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.48rem;
-  margin-top: 0.72rem;
+  gap: 8px;
+  margin-top: 10px;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 680px) {
   .research-active-filter-heading {
     align-items: stretch;
     flex-direction: column;

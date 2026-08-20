@@ -8,9 +8,16 @@ from pydantic import ValidationError
 import echoflow.desktop.bridge as desktop_bridge
 import echoflow.desktop.research_anchor_bridge as anchor_bridge
 from echoflow.desktop.bridge import DesktopServices, handle_request
-from echoflow.library.evidence import EvidenceAnchor, EvidenceContextSegment, EvidenceLocation
+from echoflow.library.evidence import (
+    EvidenceAnchor,
+    EvidenceContextSegment,
+    EvidenceLocation,
+)
 from echoflow.library.research import LocatedCanonicalEvidence
-from echoflow.library.research_anchor_review import ResearchAnchorReview, ResearchAnchorStatus
+from echoflow.library.research_anchor_review import (
+    ResearchAnchorReview,
+    ResearchAnchorStatus,
+)
 from echoflow.library.research_state import ResearchAnchorHistoryEntry, ResearchNote
 from echoflow.library.research_workspace import ResearchNoteView
 

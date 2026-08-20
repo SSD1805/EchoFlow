@@ -16,6 +16,26 @@ explainable automatic choice belong in the first desktop Processing Center. A no
 should not need to understand Whisper model sizing, accelerator topology, thread counts, or
 memory headroom just to transcribe an interview.
 
+## Who this second horizon can serve
+
+The underlying job is broader than academic qualitative research:
+
+> turn a large body of recorded material into navigable, attributable evidence.
+
+Researchers, journalists, oral historians, documentary teams, investigators, narrative
+podcasters, and video essayists all encounter versions of that problem. A creator may have
+interviews, podcasts, documentaries, livestreams, archival clips, voice memos, research
+recordings, and rough cuts, then need to find an exact quote, attach a production note,
+organize recurring themes, compare sources, and jump back to the precise audio/video moment.
+
+EchoFlow should not become a video editor or a creator-only application. The useful shared
+abstraction is **time-linked research**:
+
+`recording → canonical transcript → exact words → exact media time → research note → later writing/export`
+
+That model can support academic evidence review and production workflows without splitting
+the product into separate authorities.
+
 ## 1. Portable research bundle
 
 Provide one explicit, verifiable package for moving an EchoFlow project between computers.
@@ -86,17 +106,41 @@ semantic similarity.
 The workspace may help a human find tension. It must not manufacture a conclusion such as
 "Participant A contradicts Participant B." Interpretation remains human research work.
 
-## 6. Evidence-linked writing
+## 6. Evidence-linked writing and script/evidence boards
 
-Allow researchers to build an outline, chapter, memo, article, or report from durable notes
-while retaining the evidence relationships that motivated the writing.
+Allow researchers to build an outline, chapter, memo, article, report, or script section
+from durable notes while retaining the evidence relationships that motivated the writing.
 
 A section or paragraph may cite one or more verified excerpts. Word/Markdown export should
 preserve useful citations, footnotes/endnotes, deep-links, or an evidence appendix so the
 trail from synthesis back to source remains inspectable after writing leaves EchoFlow.
 
-The feature does not require generative writing. The researcher can author every word while
-EchoFlow protects provenance.
+For documentary, podcast, and video-essay workflows, the same authority can support a
+**script/evidence board** rather than a full editor. A board might contain ordered evidence
+cards such as:
+
+```text
+SECTION: Why the policy failed
+
+[Interview 12 | 00:31:18]
+"Nobody actually checked whether..."
+Note: strong transition into oversight section
+
+[Podcast 7 | 01:12:44]
+"They knew in 2019..."
+Tag: counterexample
+
+[Documentary 3 | 00:48:11]
+Note: useful exterior visual / B-roll beat
+```
+
+Export can target Markdown, DOCX, plain text, or a later structured outline interchange
+while preserving source timestamps and EchoFlow evidence locators. Premiere, Resolve, Final
+Cut, and dedicated writing tools remain the editing environment; EchoFlow remains the
+research/provenance companion.
+
+The feature does not require generative writing. The researcher or creator can author every
+word while EchoFlow protects provenance.
 
 ## 7. Live research capture
 
@@ -113,6 +157,10 @@ explicit outcomes such as exact, adjusted, ambiguous, or unresolved. Human notes
 regardless, while evidence anchors become canonical only when EchoFlow can establish the
 relationship safely.
 
+This is especially useful for interviews and field recording, including documentary and
+narrative-podcast work where a user may want to drop a bookmark during the conversation and
+return to the verified final evidence later.
+
 ## Product guardrails for the second horizon
 
 These features extend EchoFlow's research surface without weakening its custody model:
@@ -122,6 +170,8 @@ These features extend EchoFlow's research surface without weakening its custody 
 - interoperability does not promote a foreign project format above canonical evidence;
 - comparisons expose evidence rather than fabricate interpretations;
 - evidence-linked writing keeps a navigable trail back to source;
+- creator workflows reuse the same evidence authority instead of introducing a separate
+  production truth model;
 - portable bundles include durable authority and omit disposable indexes by default; and
 - new automation remains local-first, inspectable, resource-aware, and optional where it
   changes acquisition, interpretation, or custody.

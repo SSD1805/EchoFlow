@@ -34,6 +34,8 @@ MERMAID_BLOCK = re.compile(r"```mermaid\n(?P<body>.*?)\n```", re.DOTALL)
 PORTABLE_START = re.compile(
     r"^(?:graph|flowchart)\s+(?:LR|RL|TD|TB|BT);?$|^sequenceDiagram$|^info$"
 )
+DETAILS_OPEN = re.compile(r"^\s*<details(?:\s[^>]*)?>\s*$", re.MULTILINE)
+DETAILS_CLOSE = re.compile(r"^\s*</details>\s*$", re.MULTILINE)
 CLASSDEF = re.compile(
     r"^classDef\s+[A-Za-z][A-Za-z0-9_-]*\s+"
     r"fill:(#[0-9A-Fa-f]{6}),stroke:(#[0-9A-Fa-f]{6}),"
@@ -87,7 +89,11 @@ def _classdef_errors(body: str, diagram_index: int) -> list[str]:
 
 def _inside_details(text: str, offset: int) -> bool:
     before = text[:offset]
-    return before.rfind("<details") > before.rfind("</details>")
+    opens = [match.start() for match in DETAILS_OPEN.finditer(before)]
+    if not opens:
+        return False
+    closes = [match.start() for match in DETAILS_CLOSE.finditer(before)]
+    return not closes or opens[-1] > closes[-1]
 
 
 def _diagram_errors(

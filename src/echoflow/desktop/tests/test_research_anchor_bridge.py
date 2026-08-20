@@ -110,7 +110,9 @@ def _request(method: str, params: dict[str, object]) -> dict[str, object]:
     }
 
 
-def test_anchor_methods_are_explicitly_allowlisted(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_anchor_methods_are_explicitly_allowlisted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: list[tuple[str, dict[str, object]]] = []
 
     def dispatch(method: str, params: dict[str, object], workspace: object) -> object:

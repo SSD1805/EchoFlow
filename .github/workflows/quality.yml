@@ -152,8 +152,13 @@ jobs:
           libxdo-dev
           wget
 
-      - name: Compile native Tauri host and resolve initial lockfile
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+      - name: Resolve and compile initial locked Tauri graph
+        shell: bash
+        run: |
+          cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
+          cargo update --manifest-path src-tauri/Cargo.toml -p tauri-runtime --precise 2.8.0
+          cargo update --manifest-path src-tauri/Cargo.toml -p tauri-runtime-wry --precise 2.8.0
+          cargo check --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Preserve generated Cargo lockfile
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

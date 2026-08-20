@@ -115,6 +115,23 @@ class ResearchProjectionSnapshot:
 
 
 @runtime_checkable
+class ResearchAnchorStateStore(Protocol):
+    """Narrow same-database port for deliberate evidence-anchor maintenance."""
+
+    def reanchor_note(
+        self,
+        note_id: str,
+        anchor: EvidenceAnchor,
+        *,
+        expected_updated_at: str,
+    ) -> None: ...
+
+    def note_anchor_history(
+        self, note_id: str
+    ) -> tuple[ResearchAnchorHistoryEntry, ...]: ...
+
+
+@runtime_checkable
 class ResearchStateStore(Protocol):
     """Authoritative durable store for user-authored research knowledge."""
 
@@ -139,18 +156,6 @@ class ResearchStateStore(Protocol):
         collections: tuple[str, ...],
         expected_updated_at: str | None = None,
     ) -> ResearchNote: ...
-
-    def reanchor_note(
-        self,
-        note_id: str,
-        anchor: EvidenceAnchor,
-        *,
-        expected_updated_at: str | None = None,
-    ) -> ResearchNote: ...
-
-    def note_anchor_history(
-        self, note_id: str
-    ) -> tuple[ResearchAnchorHistoryEntry, ...]: ...
 
     def delete_note(
         self, note_id: str, *, expected_updated_at: str | None = None

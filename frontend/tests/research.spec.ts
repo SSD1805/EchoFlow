@@ -172,24 +172,27 @@ test("Susan can reopen a note against its exact older canonical generation", asy
 test("Susan can create rename run and delete durable saved-search intent", async ({ page }) => {
   await openResearch(page);
 
-  await page.getByLabel("Saved search name").fill("Methods sweep");
-  await page.getByLabel("Saved search query").fill("methodology");
-  await page.getByLabel("Saved search description").fill("Questions across current interviews");
-  await page.getByRole("button", { name: "Save search" }).click();
-  await expect(page.getByText("Methods sweep", { exact: true })).toBeVisible();
+  const navigation = page.getByLabel("Research navigation");
+  await navigation.getByLabel("Saved search name").fill("Methods sweep");
+  await navigation.getByLabel("Saved search query").fill("methodology");
+  await navigation
+    .getByLabel("Saved search description")
+    .fill("Questions across current interviews");
+  await navigation.getByRole("button", { name: "Save search", exact: true }).click();
+  await expect(navigation.getByText("Methods sweep", { exact: true })).toBeVisible();
 
-  const initialSavedCard = page
+  const initialSavedCard = navigation
     .locator(".saved-search-list article")
     .filter({ hasText: "methodology" });
   await initialSavedCard.getByRole("button", { name: "Rename" }).click();
 
-  const savedEditor = page.locator(".saved-search-editor");
+  const savedEditor = initialSavedCard.locator(".saved-search-editor");
   await savedEditor
     .getByLabel("Saved search name for methodology")
     .fill("Methods follow-up");
   await savedEditor.getByRole("button", { name: "Save name" }).click();
 
-  const savedCard = page
+  const savedCard = navigation
     .locator(".saved-search-list article")
     .filter({ hasText: "Methods follow-up" });
   await expect(savedCard.getByText("Methods follow-up", { exact: true })).toBeVisible();
@@ -209,7 +212,7 @@ test("Susan can create rename run and delete durable saved-search intent", async
     "Notes, transcripts, and recordings are not part of this operation",
   );
   await savedCard.getByRole("button", { name: "Delete saved search" }).click();
-  await expect(page.getByText("Methods follow-up", { exact: true })).toHaveCount(0);
+  await expect(navigation.getByText("Methods follow-up", { exact: true })).toHaveCount(0);
   await expect(
     page.getByText("Saved search deleted. Notes and transcripts were not deleted."),
   ).toBeVisible();

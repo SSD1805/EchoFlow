@@ -3,7 +3,7 @@ name: Quality
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, agent/desktop-dev-reproducible]
 
 permissions:
   contents: read
@@ -103,6 +103,9 @@ jobs:
       - name: Install locked frontend dependencies
         run: npm ci --no-fund --no-audit
 
+      - name: Verify Tauri version family
+        run: npm run check:tauri-versions
+
       - name: Reject raw HTML rendering escape hatches
         shell: bash
         run: |
@@ -149,8 +152,16 @@ jobs:
           libxdo-dev
           wget
 
-      - name: Compile native Tauri host
+      - name: Compile native Tauri host and resolve initial lockfile
         run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Preserve generated Cargo lockfile
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: echoflow-tauri-cargo-lock
+          path: frontend/src-tauri/Cargo.lock
+          if-no-files-found: error
+          retention-days: 1
 
   frontend-playwright:
     needs: [static, frontend-static]

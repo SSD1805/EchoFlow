@@ -12,7 +12,11 @@ from echoflow.runner.models import ProcessingProfile
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.models import TranscriptionJobPlan
 from echoflow.transcription.planner import TranscriptionJobPlanner
-from echoflow.workspace.lifecycle import JobLifecycleRecord, JobLifecycleStore, JobStatus
+from echoflow.workspace.lifecycle import (
+    JobLifecycleRecord,
+    JobLifecycleStore,
+    JobStatus,
+)
 from echoflow.workspace.models import JobId
 
 _FAILURE_MESSAGES: dict[str, str] = {
@@ -270,7 +274,9 @@ class ProcessingCenterService:
         if record.status is JobStatus.RUNNING:
             raise ValueError("a running job cannot be discarded")
         if record.updated_at != expected_updated_at:
-            raise ValueError("job state changed; refresh before discarding private state")
+            raise ValueError(
+                "job state changed; refresh before discarding private state"
+            )
         self.lifecycle_store.discard(job_id)
 
     def verify_model(self, model_id: str) -> dict[str, object]:

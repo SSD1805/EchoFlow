@@ -675,6 +675,22 @@ def _dispatch_saved_search(
     raise ValueError("Unsupported saved-search desktop method")
 
 
+def _dispatch_control_plane(
+    request: _DesktopRequest, services: DesktopServices
+) -> object:
+    if request.method.startswith("processing."):
+        return dispatch_processing(request.method, request.params, services.processing)
+    if request.method.startswith("workspace.research.search."):
+        return dispatch_research_search(
+            request.method, request.params, services.workspace
+        )
+    if request.method.startswith("workspace.research.note."):
+        return _dispatch_research_note(request, services.workspace)
+    if request.method.startswith("workspace.research.saved_search."):
+        return _dispatch_saved_search(request, services.workspace)
+    raise ValueError("Unsupported desktop control-plane method")
+
+
 def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
     if request.method == "locations.list":
         _NoParams.model_validate(request.params)
@@ -722,19 +738,8 @@ def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
         filter_params = _FilterResearchNotesParams.model_validate(request.params)
         return _filter_research_notes(filter_params, services.workspace)
 
-    if request.method.startswith("processing."):
-        return dispatch_processing(request.method, request.params, services.processing)
-
-    if request.method.startswith("workspace.research.search."):
-        return dispatch_research_search(
-            request.method, request.params, services.workspace
-        )
-
-    if request.method.startswith("workspace.research.note."):
-        return _dispatch_research_note(request, services.workspace)
-
-    if request.method.startswith("workspace.research.saved_search."):
-        return _dispatch_saved_search(request, services.workspace)
+    if request.method.startswith(("processing.", "workspace.research.")):
+        return _dispatch_control_plane(request, services)
 
     refresh_params = _RefreshParams.model_validate(request.params)
     refresh_report = services.locations.refresh_transcript_locations(

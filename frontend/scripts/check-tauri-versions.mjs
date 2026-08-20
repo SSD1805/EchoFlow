@@ -24,23 +24,43 @@ function cargoVersion(name) {
   return match?.[1]?.replace(/^=/, "") ?? null;
 }
 
-const checks = [
-  ["@tauri-apps/api", packageJson.dependencies?.["@tauri-apps/api"], expected.core],
+function majorMinor(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version ?? "");
+  return match ? `${match[1]}.${match[2]}` : null;
+}
+
+const exactChecks = [
+  ["@tauri-apps/api", packageJson.dependencies?.["@tauri-apps/api"], expected.jsApi],
   ["@tauri-apps/cli", packageJson.devDependencies?.["@tauri-apps/cli"], expected.cli],
   ["@tauri-apps/plugin-dialog", packageJson.dependencies?.["@tauri-apps/plugin-dialog"], expected.dialog],
-  ["Rust tauri", cargoVersion("tauri"), expected.core],
+  ["Rust tauri", cargoVersion("tauri"), expected.rustCore],
   ["Rust tauri-plugin-dialog", cargoVersion("tauri-plugin-dialog"), expected.dialog],
   ["Rust tauri-build", cargoVersion("tauri-build"), expected.build],
 ];
 
-for (const [label, actual, wanted] of checks) {
+for (const [label, actual, wanted] of exactChecks) {
   if (actual !== wanted) {
     fail(`${label} is ${actual ?? "missing"}; expected exact version ${wanted}`);
   }
 }
 
+const pairedChecks = [
+  ["Tauri core", expected.jsApi, expected.rustCore],
+  ["dialog plugin", packageJson.dependencies?.["@tauri-apps/plugin-dialog"], cargoVersion("tauri-plugin-dialog")],
+];
+
+for (const [label, jsVersion, rustVersion] of pairedChecks) {
+  if (majorMinor(jsVersion) === null || majorMinor(rustVersion) === null) {
+    fail(`${label} versions must be full semantic versions`);
+  } else if (majorMinor(jsVersion) !== majorMinor(rustVersion)) {
+    fail(
+      `${label} JavaScript ${jsVersion} and Rust ${rustVersion} must share a major/minor release, matching Tauri CLI compatibility rules`,
+    );
+  }
+}
+
 if (!process.exitCode) {
   console.log(
-    `Tauri version family is aligned: core ${expected.core}, CLI ${expected.cli}, dialog ${expected.dialog}, build ${expected.build}.`,
+    `Tauri version family is aligned: JS API ${expected.jsApi}, Rust core ${expected.rustCore}, CLI ${expected.cli}, dialog ${expected.dialog}, build ${expected.build}.`,
   );
 }

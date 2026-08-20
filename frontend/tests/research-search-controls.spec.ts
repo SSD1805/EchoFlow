@@ -33,7 +33,8 @@ test("typed Research search keeps advanced intent inspectable and evidence navig
 
   const applied = panel.getByLabel("Applied search intent").first();
   await expect(applied).toContainText("governance reform");
-  await expect(applied).toContainText("exact phrase");
+  await expect(applied).toContainText("phrase: exact");
+  await expect(applied).toContainText("operator: ALL");
   await expect(applied).toContainText("mode: lexical");
   await expect(applied).toContainText("sort: timeline");
   await expect(applied).toContainText("speaker: speaker-1");
@@ -86,7 +87,8 @@ test("saved Research questions can replace their whole typed intent", async ({ p
   );
   const updated = panel.getByLabel("Applied search intent");
   await expect(updated).toContainText("oversight failure");
-  await expect(updated).toContainText("terms: ALL");
+  await expect(updated).toContainText("phrase: off");
+  await expect(updated).toContainText("operator: ALL");
   await expect(updated).toContainText("sort: timeline");
   await expect(updated).toContainText("language: en");
   await expect(updated).toContainText("language: fr");

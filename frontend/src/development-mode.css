@@ -1,0 +1,82 @@
+.dev-mode-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(24px, 6vw, 72px);
+  background: var(--bg);
+}
+
+.dev-mode-card {
+  width: min(940px, 100%);
+  padding: clamp(28px, 5vw, 58px);
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.dev-mode-card h1 {
+  max-width: 760px;
+  margin-bottom: 20px;
+}
+
+.dev-mode-lede,
+.dev-mode-footnote,
+.dev-mode-options article p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.dev-mode-lede {
+  max-width: 760px;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dev-mode-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 34px 0;
+}
+
+.dev-mode-options article {
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-raised);
+}
+
+.dev-mode-options h2 {
+  margin: 8px 0 16px;
+  font-size: 1.3rem;
+  letter-spacing: -0.025em;
+}
+
+.dev-mode-options code {
+  display: inline-block;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.dev-mode-options article p:last-child {
+  margin: 16px 0 0;
+  font-size: 0.87rem;
+}
+
+.dev-mode-footnote {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+@media (max-width: 720px) {
+  .dev-mode-options {
+    grid-template-columns: 1fr;
+  }
+}

@@ -197,7 +197,9 @@ def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object
     }
 
 
-def _serialize_research_overview(workspace: ResearchWorkspaceService) -> dict[str, object]:
+def _serialize_research_overview(
+    workspace: ResearchWorkspaceService,
+) -> dict[str, object]:
     saved_searches = workspace.saved_searches(limit=200)
     return {
         "notes": [_serialize_note(item) for item in workspace.notes(limit=200)],

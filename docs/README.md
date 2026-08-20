@@ -29,16 +29,16 @@ machinery so the user can concentrate on recordings and evidence.
 | Work across languages | supports multilingual decoding plus conservative local language attribution |
 | Distinguish speakers | preserves optional anonymous recording-scoped speaker evidence without claiming identity |
 | Publish useful formats | produces canonical JSON plus rebuildable TXT/SRT/WebVTT |
-| Search a private corpus | supports lexical BM25, optional semantic retrieval, and hybrid RRF |
+| Search a private corpus | supports lexical BM25, optional semantic retrieval, hybrid RRF, and inspectable typed Research search controls |
 | Follow a result to evidence | verifies canonical generation and returns justified segment/word/context/seek coordinates |
 | Keep durable research | stores notes/tags/collections in authoritative private SQLite anchored to exact evidence |
 | Edit research safely | atomically replaces note prose/labels and refuses stale desktop writes |
 | Navigate research labels | filters notes through authoritative tag/collection semantics and keeps selected filters inspectable |
-| Reuse research questions | stores saved typed query intent and re-resolves current evidence |
+| Reuse research questions | stores and edits full typed saved-search intent with optimistic concurrency, then re-resolves current evidence |
 | Remember libraries | persists explicit transcript/recording location permissions without copying user media |
 | Refresh an evolving corpus | incrementally reconciles changed canonical generations and can verify tracked evidence |
 | Remove something safely | plans typed deletion scopes before mutation and binds confirmation to the exact plan |
-| Use a desktop shell | provides Tauri + React import, Library search, verified evidence reading/cursor, Research browse/create/edit/delete/filter, and Archive/Midnight themes |
+| Use a desktop shell | provides Tauri + React import, Library search, verified evidence reading/cursor, Research browse/create/edit/delete/filter, typed Research search, and Archive/Midnight themes |
 
 The point is not to make users operate the machinery. The point is to make sensitive local
 transcription and research boringly dependable.
@@ -48,6 +48,9 @@ transcription and research boringly dependable.
 - **[Getting started](getting-started.md)** for the source-build path and first transcript.
 - **[Find things across the whole local library](library-discovery.md)** for grouped Library
   discovery, which powers the desktop Library surface.
+- **[Make the research question inspectable](research-search.md)** for phrase/ANY/ALL,
+  transcript/speaker/language constraints, research filters, retrieval mode, sort, and full
+  typed saved-search intent editing.
 - **[Your notes should survive the machinery](research-notes.md)** for authoritative notes,
   tags, collections, saved research intent, and the current desktop Research interactions.
 - **[From search result to the exact evidence](evidence-navigation.md)** for verified
@@ -136,18 +139,18 @@ gone very wrong.
 
 ## What comes next
 
-The roadmap now includes a complete backend-capability → desktop-productization audit.
-Research browse/create/edit/delete, label assignment, first-class tag/collection filtering,
-exact-generation evidence return, and saved-search lifecycle are foundation. The remaining
-Research completion work is explicit stale/unavailable-anchor review and advanced typed
-search controls.
+The first-release Research circuit is now coherent across verified evidence navigation,
+authoritative note mutation, first-class label navigation, saved-search lifecycle,
+provenance-preserving anchor maintenance, and inspectable typed search intent. Python owns
+search semantics and durable saved-search replacement; the desktop edits and renders that
+contract without constructing derived evidence scopes or reimplementing retrieval rules.
 
-After that, the major missing user journey is the **desktop Processing center** over already
-implemented health/resource, managed-model, job-lifecycle, transcription-plan, execution,
-resume, enhancement, diarization, and publication contracts. Adaptive zero-knob execution
-belongs in that first Processing experience: EchoFlow should inspect the machine, choose a
-safe plan, estimate resource cost, degrade gracefully, and explain its choice without making
-a normal user tune ASR internals.
+The next major user journey is the **desktop Processing center** over already implemented
+health/resource, managed-model, job-lifecycle, transcription-plan, execution, resume,
+enhancement, diarization, and publication contracts. Adaptive zero-knob execution belongs
+in that first Processing experience: EchoFlow should inspect the machine, choose a safe
+plan, estimate resource cost, degrade gracefully, and explain its choice without making a
+normal user tune ASR internals.
 
 Native playback, safe lifecycle UI, packaging, portability, semantic packaging
 qualification, and representative hardware qualification follow on the same critical path.

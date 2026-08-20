@@ -186,7 +186,7 @@ test("Susan can create rename run and delete durable saved-search intent", async
     .filter({ hasText: "methodology" });
   await initialSavedCard.getByRole("button", { name: "Rename" }).click();
 
-  const savedEditor = initialSavedCard.locator(".saved-search-editor");
+  const savedEditor = navigation.locator(".saved-search-editor");
   await savedEditor
     .getByLabel("Saved search name for methodology")
     .fill("Methods follow-up");

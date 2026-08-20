@@ -85,6 +85,12 @@ export interface ResearchNoteResult extends WorkspaceNoteResult {
   updated_at: string;
 }
 
+export interface ResearchNoteUpdate {
+  body: string;
+  tags: string[];
+  collections: string[];
+}
+
 export interface WorkspaceNamedResult {
   name: string;
 }
@@ -152,6 +158,11 @@ export interface DesktopClient {
     evidence: WorkspaceEvidenceResult,
     body: string,
   ): Promise<ResearchNoteResult>;
+  updateResearchNote(
+    note: ResearchNoteResult,
+    update: ResearchNoteUpdate,
+  ): Promise<ResearchNoteResult>;
+  deleteResearchNote(note: ResearchNoteResult): Promise<void>;
 }
 
 function assertResponse<T>(value: unknown): DesktopResponse<T> {
@@ -167,6 +178,15 @@ function assertResponse<T>(value: unknown): DesktopResponse<T> {
     throw new Error("EchoFlow desktop bridge returned an incompatible response");
   }
   return candidate as DesktopResponse<T>;
+}
+
+function normalizeLabels(values: string[]): string[] {
+  const labels = new Map<string, string>();
+  values.forEach((raw) => {
+    const value = raw.trim();
+    if (value) labels.set(value.toLocaleLowerCase(), value);
+  });
+  return [...labels.values()].sort((left, right) => left.localeCompare(right));
 }
 
 class TauriDesktopClient implements DesktopClient {
@@ -276,11 +296,61 @@ class TauriDesktopClient implements DesktopClient {
       end_seconds: evidence.end_seconds,
     });
   }
+
+  updateResearchNote(
+    note: ResearchNoteResult,
+    update: ResearchNoteUpdate,
+  ): Promise<ResearchNoteResult> {
+    return this.request("workspace.research.note.update", {
+      note_id: note.note_id,
+      expected_updated_at: note.updated_at,
+      body: update.body,
+      tags: update.tags,
+      collections: update.collections,
+    });
+  }
+
+  async deleteResearchNote(note: ResearchNoteResult): Promise<void> {
+    await this.request("workspace.research.note.delete", {
+      note_id: note.note_id,
+      expected_updated_at: note.updated_at,
+    });
+  }
 }
 
 class MockDesktopClient implements DesktopClient {
   private locations: LibraryLocation[] = [];
-  private createdNotes: ResearchNoteResult[] = [];
+  private researchMutationVersion = 0;
+  private researchNotes: ResearchNoteResult[] = [
+    {
+      note_id: "note-7",
+      body: "Follow up on ABC governance during the next interview.",
+      document_id: "interview-42",
+      canonical_sha256: "a".repeat(64),
+      segment_ids: ["segment-17"],
+      start_seconds: 862.1,
+      end_seconds: 870.4,
+      current: true,
+      tags: ["program", "governance"],
+      collections: ["Oral histories"],
+      created_at: "2026-08-19T19:20:00+00:00",
+      updated_at: "2026-08-19T19:25:00+00:00",
+    },
+    {
+      note_id: "note-older",
+      body: "Earlier interpretation retained for provenance.",
+      document_id: "interview-11",
+      canonical_sha256: "c".repeat(64),
+      segment_ids: ["segment-3"],
+      start_seconds: 128.4,
+      end_seconds: 135.2,
+      current: false,
+      tags: ["review"],
+      collections: ["Field notes"],
+      created_at: "2026-08-18T14:10:00+00:00",
+      updated_at: "2026-08-18T14:10:00+00:00",
+    },
+  ];
 
   async chooseFiles(kind: LocationKind): Promise<string[]> {
     return kind === "transcript-library"
@@ -461,47 +531,28 @@ class MockDesktopClient implements DesktopClient {
   }
 
   async researchOverview(): Promise<ResearchOverview> {
+    const tagNames = normalizeLabels([
+      "program",
+      "governance",
+      "review",
+      ...this.researchNotes.flatMap((note) => note.tags),
+    ]);
+    const collectionNames = normalizeLabels([
+      "Oral histories",
+      "Field notes",
+      ...this.researchNotes.flatMap((note) => note.collections),
+    ]);
     return {
-      notes: [
-        ...this.createdNotes,
-        {
-          note_id: "note-7",
-          body: "Follow up on ABC governance during the next interview.",
-          document_id: "interview-42",
-          canonical_sha256: "a".repeat(64),
-          segment_ids: ["segment-17"],
-          start_seconds: 862.1,
-          end_seconds: 870.4,
-          current: true,
-          tags: ["program", "governance"],
-          collections: ["Oral histories"],
-          created_at: "2026-08-19T19:20:00+00:00",
-          updated_at: "2026-08-19T19:25:00+00:00",
-        },
-        {
-          note_id: "note-older",
-          body: "Earlier interpretation retained for provenance.",
-          document_id: "interview-11",
-          canonical_sha256: "c".repeat(64),
-          segment_ids: ["segment-3"],
-          start_seconds: 128.4,
-          end_seconds: 135.2,
-          current: false,
-          tags: ["review"],
-          collections: ["Field notes"],
-          created_at: "2026-08-18T14:10:00+00:00",
-          updated_at: "2026-08-18T14:10:00+00:00",
-        },
-      ],
-      tags: [
-        { tag_id: "tag-3", name: "program" },
-        { tag_id: "tag-4", name: "governance" },
-        { tag_id: "tag-5", name: "review" },
-      ],
-      collections: [
-        { collection_id: "collection-2", name: "Oral histories" },
-        { collection_id: "collection-3", name: "Field notes" },
-      ],
+      notes: this.researchNotes.map((note) => ({
+        ...note,
+        tags: [...note.tags],
+        collections: [...note.collections],
+      })),
+      tags: tagNames.map((name, index) => ({ tag_id: `tag-${index + 1}`, name })),
+      collections: collectionNames.map((name, index) => ({
+        collection_id: `collection-${index + 1}`,
+        name,
+      })),
       saved_searches: [
         {
           saved_search_id: "search-9",
@@ -521,9 +572,9 @@ class MockDesktopClient implements DesktopClient {
   ): Promise<ResearchNoteResult> {
     const trimmed = body.trim();
     if (!trimmed) throw new Error("Research note cannot be empty");
-    const now = "2026-08-19T21:44:00+00:00";
+    const now = this.nextResearchTimestamp();
     const note: ResearchNoteResult = {
-      note_id: `note-created-${this.createdNotes.length + 1}`,
+      note_id: `note-created-${this.researchNotes.length + 1}`,
       body: trimmed,
       document_id: evidence.document_id,
       canonical_sha256: evidence.canonical_sha256,
@@ -536,8 +587,46 @@ class MockDesktopClient implements DesktopClient {
       created_at: now,
       updated_at: now,
     };
-    this.createdNotes.unshift(note);
-    return note;
+    this.researchNotes.unshift(note);
+    return { ...note };
+  }
+
+  async updateResearchNote(
+    note: ResearchNoteResult,
+    update: ResearchNoteUpdate,
+  ): Promise<ResearchNoteResult> {
+    const index = this.researchNotes.findIndex((item) => item.note_id === note.note_id);
+    if (index < 0) throw new Error("Research note does not exist");
+    const current = this.researchNotes[index];
+    if (current.updated_at !== note.updated_at) {
+      throw new Error("Research note changed since it was opened; refresh before saving");
+    }
+    const body = update.body.trim();
+    if (!body) throw new Error("Research note cannot be empty");
+    const updated: ResearchNoteResult = {
+      ...current,
+      body,
+      tags: normalizeLabels(update.tags),
+      collections: normalizeLabels(update.collections),
+      updated_at: this.nextResearchTimestamp(),
+    };
+    this.researchNotes[index] = updated;
+    return { ...updated, tags: [...updated.tags], collections: [...updated.collections] };
+  }
+
+  async deleteResearchNote(note: ResearchNoteResult): Promise<void> {
+    const index = this.researchNotes.findIndex((item) => item.note_id === note.note_id);
+    if (index < 0) throw new Error("Research note does not exist");
+    if (this.researchNotes[index].updated_at !== note.updated_at) {
+      throw new Error("Research note changed since it was opened; refresh before saving");
+    }
+    this.researchNotes.splice(index, 1);
+  }
+
+  private nextResearchTimestamp(): string {
+    this.researchMutationVersion += 1;
+    const minute = String(this.researchMutationVersion).padStart(2, "0");
+    return `2026-08-19T22:${minute}:00+00:00`;
   }
 }
 

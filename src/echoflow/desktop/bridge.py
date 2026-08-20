@@ -15,7 +15,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from echoflow.app.app_container import AppContainer
+from echoflow.app.processing_center import ProcessingCenterService
 from echoflow.core.errors import EchoFlowError
+from echoflow.desktop.processing_bridge import dispatch_processing
 from echoflow.desktop.research_anchor_bridge import dispatch_research_anchor
 from echoflow.desktop.research_search_bridge import dispatch_research_search
 from echoflow.library.errors import ResearchStateError
@@ -50,6 +52,7 @@ class DesktopServices:
 
     locations: LibraryLocationService
     workspace: ResearchWorkspaceService
+    processing: ProcessingCenterService
 
 
 class _DesktopRequest(BaseModel):
@@ -79,6 +82,12 @@ class _DesktopRequest(BaseModel):
         "workspace.research.search.saved.create",
         "workspace.research.search.saved.inspect",
         "workspace.research.search.saved.replace",
+        "processing.readiness",
+        "processing.jobs.list",
+        "processing.preflight",
+        "processing.retry.preflight",
+        "processing.job.discard",
+        "processing.model.verify",
     ]
     params: dict[str, object] = Field(default_factory=dict)
 
@@ -713,6 +722,9 @@ def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
         filter_params = _FilterResearchNotesParams.model_validate(request.params)
         return _filter_research_notes(filter_params, services.workspace)
 
+    if request.method.startswith("processing."):
+        return dispatch_processing(request.method, request.params, services.processing)
+
     if request.method.startswith("workspace.research.search."):
         return dispatch_research_search(
             request.method, request.params, services.workspace
@@ -792,6 +804,14 @@ def main() -> int:
                 services = DesktopServices(
                     locations=container.library_locations(),
                     workspace=container.research_workspace(),
+                    processing=ProcessingCenterService(
+                        health_check=container.health_check(),
+                        runner_inspector=container.runner_inspector(),
+                        policy_planner=container.runner_policy_planner(),
+                        planner=container.transcription_planner(),
+                        model_manager=container.model_manager(),
+                        lifecycle_store=container.job_lifecycle_store(),
+                    ),
                 )
                 response = handle_request(payload, services)
     sys.stdout.write(json.dumps(response, separators=(",", ":")))

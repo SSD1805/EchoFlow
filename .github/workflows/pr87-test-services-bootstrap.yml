@@ -1,0 +1,54 @@
+name: PR87 test service bootstrap
+
+on:
+  push:
+    branches:
+      - agent/processing-center
+
+permissions:
+  contents: write
+
+jobs:
+  patch-tests:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/processing-center
+      - name: Keep legacy bridge fixtures explicit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          files = [
+              'src/echoflow/desktop/tests/test_bridge.py',
+              'src/echoflow/desktop/tests/test_research_bridge.py',
+              'src/echoflow/desktop/tests/test_research_anchor_bridge.py',
+              'src/echoflow/desktop/tests/test_research_search_bridge.py',
+              'src/echoflow/desktop/tests/test_research_bridge_filters.py',
+              'src/echoflow/desktop/tests/test_research_bridge_mutations.py',
+              'src/echoflow/desktop/tests/test_research_bridge_navigation_saved_search.py',
+          ]
+          pattern = re.compile(r'(\n\s+workspace=cast\(Any, [^\n]+\),\n)(\s+\))')
+          for filename in files:
+              path = Path(filename)
+              text = path.read_text()
+              text, count = pattern.subn(
+                  r'\1        processing=cast(Any, object()),\n\2',
+                  text,
+                  count=1,
+              )
+              if count != 1:
+                  raise SystemExit(f'Expected one DesktopServices workspace fixture in {filename}, found {count}')
+              path.write_text(text)
+          PY
+      - name: Commit fixture wiring
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- src/echoflow/desktop/tests
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'test(desktop): wire explicit Processing Center test dependency'
+          git push origin HEAD:agent/processing-center

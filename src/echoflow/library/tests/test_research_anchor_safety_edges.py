@@ -5,7 +5,11 @@ from unittest.mock import Mock
 import pytest
 
 from echoflow.library.errors import ResearchStateError, TranscriptProjectionError
-from echoflow.library.evidence import EvidenceAnchor, EvidenceContextSegment, EvidenceLocation
+from echoflow.library.evidence import (
+    EvidenceAnchor,
+    EvidenceContextSegment,
+    EvidenceLocation,
+)
 from echoflow.library.index import IndexedDocument, IndexedSegment, IndexedTranscript
 from echoflow.library.research_anchor_review import (
     ResearchAnchorReviewService,
@@ -28,7 +32,9 @@ def _anchor(*, canonical_digit: str = "b") -> EvidenceAnchor:
     )
 
 
-def _note_view(*, current: bool = False, canonical_digit: str = "b") -> ResearchNoteView:
+def _note_view(
+    *, current: bool = False, canonical_digit: str = "b"
+) -> ResearchNoteView:
     note = ResearchNote(
         note_id="note-1",
         body="Interpretation",

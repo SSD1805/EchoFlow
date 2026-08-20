@@ -19,7 +19,7 @@ EchoFlow therefore keeps **two different facts** instead of pretending they are 
 The friendly label never rewrites the evidence underneath it.
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Anonymous diarization evidence] --> B[speaker-02]
     B --> C[Canonical transcript coordinates]
     B --> D[User display label]
@@ -96,7 +96,7 @@ If the canonical transcript changes, EchoFlow **keeps the old user-authored labe
 refuses to silently apply it to the new generation.
 
 ```mermaid
-graph TD;
+flowchart TD
     A[Canonical generation A] --> B[speaker-02]
     B --> C[Dr. Chen label]
     A --> D[Canonical generation B]
@@ -149,7 +149,7 @@ to assign its text, the view says `mixed-unresolved` rather than pretending the 
 sentence belongs to either person.
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Canonical word timing] --> D[Derived speaker presentation]
     B[Speaker-turn timeline] --> D
     C[User display labels] --> D

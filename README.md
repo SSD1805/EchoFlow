@@ -1,17 +1,17 @@
 # EchoFlow 🦝✨
 
-**Private local transcription that remembers where everything came from.**
+**A private, local-first workspace for recorded evidence.**
 
-EchoFlow is a local-first Python application for turning recordings into durable,
-searchable evidence and keeping research work attached to that evidence without handing
-the corpus to a hosted transcription service.
+EchoFlow turns audio and video into reproducible canonical transcripts, preserves source
+and processing provenance, lets people search a private corpus and navigate results back
+to exact verified evidence, and keeps notes, tags, collections, speaker labels, and saved
+research questions as durable user-owned knowledge.
 
-It does more than run a speech model. EchoFlow inspects the machine, chooses a safe local
-execution strategy, manages model custody, survives interrupted work, preserves source
-provenance, publishes portable transcripts, keeps word-level timing and anonymous-speaker
-evidence, searches a private corpus, verifies results against canonical evidence, stores
-human research separately from rebuildable indexes, saves reusable research questions,
-and now gives deletion the same explicit custody rules as creation.
+Transcription is the engine room, not the whole product. EchoFlow also inspects the
+machine, chooses a safe local execution strategy, manages model custody, survives
+interrupted work, keeps word-level timing and anonymous-speaker evidence, publishes
+portable transcript views, incrementally reconciles an evolving library, and gives
+deletion the same explicit custody rules as creation.
 
 Canonical transcript JSON is authoritative transcript evidence. Human-authored research
 state is authoritative user knowledge. DuckDB search/research projections and publication
@@ -26,8 +26,8 @@ Start with **[docs/README.md](docs/README.md)** for human-facing documentation o
 
 ## What can it do right now?
 
-EchoFlow is pre-production, but the backend covers most of the local
-recording-to-research lifecycle.
+EchoFlow is pre-production, but the backend and first desktop slices already cover most of
+the local recording-to-evidence lifecycle.
 
 | Area | Current foundation |
 |---|---|
@@ -47,17 +47,14 @@ recording-to-research lifecycle.
 | Unified discovery | grouped transcript/note/tag/collection query without fabricated cross-type scores |
 | Saved searches | durable typed query intent that re-resolves current evidence instead of freezing result snapshots |
 | Safe lifecycle | typed plan-bound deletion scopes plus private execution-state retention that preserves evidence/human work by default |
-| Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, package verification |
+| Incremental library | cheap refresh/reconciliation plus durable transcript and recording locations |
+| Desktop foundation | Tauri + React shell, native import, Library discovery, verified evidence reader/cursor, Archive/Midnight themes |
+| Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, Playwright/axe, package verification |
 
 ## From recording to useful evidence
 
-![EchoFlow recording-to-evidence flow](docs/diagrams/recording-to-evidence.svg)
-
-<details>
-<summary>Mermaid source</summary>
-
 ```mermaid
-graph LR;
+flowchart LR
     A[Original recording] --> B[Inspect source and machine]
     B --> C[Choose safe local strategy]
     C --> D[Transcribe and checkpoint]
@@ -74,20 +71,60 @@ graph LR;
     E --> M[Custody-aware deletion planning]
     J --> M
     D --> M
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef stop fill:#FFD6D6,stroke:#9E3434,stroke-width:2px,color:#351616
+
+    class A source
+    class B,C,D process
+    class E,H evidence
+    class F,G,K,L view
+    class I inspect
+    class J source
+    class M stop
 ```
+
+<details>
+<summary>Static diagram fallback if rich rendering is unavailable</summary>
+
+![EchoFlow recording-to-evidence static diagram](docs/diagrams/recording-to-evidence.svg)
 
 </details>
 
-Text fallback: source media is inspected and transcribed locally into canonical JSON; rebuildable search finds passages; canonical verification turns results back into evidence; durable research state attaches human knowledge to that evidence; custody planning keeps deletion explicit.
+Text fallback: source media is inspected and transcribed locally into canonical JSON;
+rebuildable search finds passages; canonical verification turns results back into evidence;
+durable human research attaches to that evidence; custody planning keeps destructive work
+explicit.
 
 Search ranking is not source truth. A result points back to canonical transcript
 coordinates, and navigation verifies that generation before presenting precise evidence
 or accepting a durable note anchor.
 
+## Desktop status
+
+EchoFlow has a thin Tauri + React desktop foundation over the Python application services.
+The current desktop can choose files/folders through native dialogs, remember approved
+locations, discover recordings, search the local library, open verified canonical context,
+and move a source-relative evidence cursor through canonical word coordinates.
+
+The browser/webview does **not** receive raw canonical/source filesystem paths for evidence
+navigation. Rust owns native desktop capability; Python owns application rules; React owns
+presentation.
+
+The durable research backend already exists, but the dedicated **Research** desktop
+workspace is the next UI tranche. It will reuse `ResearchWorkspaceService` rather than
+creating browser-owned research state.
+
+There are still no end-user installers or Releases. The supported path remains a source
+build while packaging and first-run behavior are qualified.
+
 ## Install the current source build
 
-EchoFlow does not publish end-user installers or Releases yet. The supported path is a
-source/developer install with Python 3.12 and `uv`:
+The supported development/source path uses Python 3.12 and `uv`:
 
 ```bash
 git clone https://github.com/SSD1805/EchoFlow.git
@@ -136,10 +173,11 @@ cross-recording speaker linking.
 
 ## Search, navigate, annotate, and save useful questions
 
-Build the private lexical library and search it:
+Build or refresh the private lexical library and search it:
 
 ```bash
 uv run echoflow library rebuild
+uv run echoflow library refresh
 uv run echoflow library search "housing insecurity"
 uv run echoflow library find "housing insecurity" --context-segments 1
 ```
@@ -235,6 +273,7 @@ the exact contract.
 | Speaker display labels | user-authored knowledge | **No** |
 | Notes, tags, collections, evidence anchors | user-authored knowledge | **No** |
 | Saved searches | user-authored query intent | **No** |
+| Remembered library/recording locations | durable app preference | **No, but machine-local** |
 | TXT/SRT/WebVTT | publication views | Yes |
 | Normalized/enhanced working audio | private processing material | Yes |
 | Lexical/semantic search state | private search projections | Yes |
@@ -250,26 +289,32 @@ Start with **[docs/architecture/README.md](docs/architecture/README.md)**, espec
 **[Durable research state](docs/architecture/research-state.md)**,
 **[Library lifecycle](docs/architecture/library-lifecycle.md)**,
 **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)**, and
-**[SECURITY.md](SECURITY.md)**.
+**[SECURITY.md](SECURITY.md)**. The documentation visual/voice contract lives in
+**[docs/documentation-style.md](docs/documentation-style.md)**.
 
 Normal qualification includes Ruff lint/format/security rules, strict mypy, Vulture,
 Radon, branch coverage, locked dependency audit, package builds, clean-wheel verification,
-and Linux/macOS/Windows CI. Targeted mutation testing is reserved for load-bearing logic.
+frontend type/build/audit gates, Playwright/axe, and Linux/macOS/Windows CI. Targeted
+mutation testing is reserved for load-bearing logic.
 
 ## Where the project goes next
 
-Safe lifecycle controls now sit beside the research/search foundation. The next sequence
+Incremental refresh, durable library locations, the desktop shell/import flow, grouped
+Library discovery, and verified evidence reading/cursor are foundation. The next sequence
 is:
 
-1. **Incremental library refresh** so ordinary growth upserts/removes changed canonical
-   generations and full rebuild becomes the repair lever.
-2. **First thin GUI** consuming the existing evidence, research, saved-search, and custody
-   services.
-3. **Research portability** with evidence-bearing CSV/JSONL/Markdown and eventual workspace
-   export.
-4. **Semantic dependency/model qualification** for a normal install path.
-5. **Representative-device qualification and productization** across 8/16 GB systems,
-   Apple Silicon, discrete GPUs, and larger workstations.
+1. **Research workspace UI** for browsing/creating/editing notes, assigning
+   tags/collections, and running/managing saved searches through the existing typed backend
+   authority.
+2. **Local media playback** behind a Tauri-owned capability, consuming verified
+   source-relative coordinates without exposing arbitrary raw paths to React.
+3. **Desktop packaging and first run** across Windows, signed/notarized macOS, and a
+   deliberate Linux package, including managed Python/FFmpeg/model custody.
+4. **Backup, restore, and research portability** with evidence-bearing exports and
+   machine-local remembered-path reconciliation.
+5. **Semantic dependency/model qualification** plus representative-device release
+   qualification across ordinary 8/16 GB systems, Apple Silicon, discrete GPUs, and larger
+   workstations.
 
 See **[ROADMAP.md](ROADMAP.md)** for the detailed sequence.
 

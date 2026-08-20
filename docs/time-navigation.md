@@ -12,43 +12,43 @@ If a passage begins `4788.37` seconds into a recording, EchoFlow can present:
 01:19:48.370
 ```
 
-That means 1 hour, 19 minutes, 48 seconds, and 370 milliseconds after the beginning of
-the selected recording audio.
-
 The numeric coordinate is the anchor. The clock string is presentation.
 
-## What did word timestamps add?
+## What word timestamps add
 
-Before word timing, a segment might say:
-
-```text
-01:19:40.000 → 01:20:02.000
-"We eventually realized the housing cost was the real problem."
-```
-
-With native word timing, canonical evidence can retain finer positions:
+A segment may span several seconds, while native word timing can preserve finer canonical
+positions:
 
 ```text
-"housing"  → 4788.370 s
-"cost"     → 4788.910 s
-"problem"  → 4791.125 s
-```
-
-and render them as:
-
-```text
-"housing"  → 01:19:48.370
-"cost"     → 01:19:48.910
-"problem"  → 01:19:51.125
+"housing"  → 4788.370 s → 01:19:48.370
+"cost"     → 4788.910 s → 01:19:48.910
+"problem"  → 4791.125 s → 01:19:51.125
 ```
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Canonical word time 4788.370 seconds] --> B[Human display 01:19:48.370]
-    A --> C[Search seek coordinate]
+    A --> C[Verified search seek coordinate]
     A --> D[Durable note anchor]
-    A --> E[Future local player]
+    A --> E[Desktop evidence cursor]
+    E --> F[Future Tauri media playback]
+
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
+
+    class A evidence
+    class B,C view
+    class D source
+    class E inspect
+    class F process
 ```
+
+Text fallback: one canonical numeric time drives human clock display, verified search
+navigation, durable research anchors, and the current desktop evidence cursor. Actual
+local media playback remains a separate native capability.
 
 ## Can search find the exact place now?
 
@@ -56,40 +56,33 @@ Yes, when the retrieval evidence justifies that precision.
 
 The library navigation layer reopens the exact canonical transcript, verifies its
 SHA-256, and resolves a ranked search result back to canonical segments and aligned words.
-
 For lexical search, matching aligned words can become exact highlighted evidence and the
 first matched word becomes the preferred source seek coordinate.
 
-For example:
-
-```text
-query: "housing cost"
-matched canonical words: housing → cost
-seek_seconds: 4788.370
-seek_timestamp: 01:19:48.370
-```
-
 Semantic-only retrieval is intentionally less precise. An embedding can say “this passage
-is related” without identifying one exact matching word. EchoFlow therefore exposes the
-verified passage and its start time rather than fabricating a word highlight.
+is related” without identifying one exact matching word, so EchoFlow exposes the verified
+passage and its start time rather than fabricating a word highlight.
 
-## Can I click a word and jump to the recording?
+## Can I click a word and jump around now?
 
-**The application coordinate needed for that exists.**
+**The desktop evidence cursor can. The media player cannot yet.**
 
-A local player can seek the original recording using numeric `seek_seconds`. Search
-navigation exposes that coordinate directly, so the planned GUI does not need to guess
-from rendered text or reconstruct internal work chunks.
+The Library screen can open a verified Evidence reader. Canonical timed words are
+interactive: selecting one moves the reader's evidence cursor to that exact
+source-relative coordinate, while **Return to match** restores the backend-selected seek
+position.
 
-EchoFlow does **not yet ship the graphical media-player interaction**. The missing piece
-is presentation, not timeline plumbing.
+That is deliberately not the same thing as playing the recording. The current React
+surface does not receive an arbitrary source path or open local media itself.
+
+The next native media step is a Tauri-owned playback capability that consumes a verified
+coordinate and safe source capability. React should receive playback state and coordinates,
+not general filesystem authority.
 
 ## What about notes and annotations? 📝
 
-Notes are implemented durable user-authored state.
-
-`EvidenceAnchor` reuses the same canonical/source-relative coordinate system as search
-navigation:
+Notes are implemented durable user-authored state. `EvidenceAnchor` reuses the same
+canonical/source-relative coordinate system as search navigation:
 
 ```text
 document ID
@@ -106,29 +99,22 @@ echoflow library notes add JOB_ID segment-000042 \
   --body "Compare this with the 2024 survey."
 ```
 
-A note should **not** anchor only to:
+The desktop Evidence reader already exposes the verified segment/word coordinate system.
+The next **Research workspace UI** should browse those durable anchors and create/edit notes
+from verified selections without inventing a UI-only coordinate model.
 
-```text
-01:19:48.370
-```
-
-because that is presentation. It also should not anchor only to a semantic-search chunk ID
-because chunks and indexes are rebuildable.
+A note should not anchor only to a rendered clock such as `01:19:48.370`, because that is
+presentation. It also should not anchor only to a semantic-search chunk ID because chunks
+and indexes are rebuildable.
 
 If an index is rebuilt, the note remains attached to durable evidence. If the canonical
 transcript changes, EchoFlow keeps the note but treats its old generation as stale rather
 than silently moving the annotation.
 
-The first GUI can turn transcript selection into the same verified anchor instead of
-inventing a GUI-only coordinate system.
-
 ## Do internal work chunks reset the clock?
 
-No.
-
-EchoFlow currently uses application-owned work windows up to 600 seconds. Those windows
-exist so long recordings can be processed and checkpointed safely. They are an
-implementation detail.
+No. EchoFlow uses application-owned work windows so long recordings can be processed and
+checkpointed safely. Those windows are implementation detail.
 
 When a work window starts at `4200` seconds and faster-whisper reports a word at `588.37`
 seconds inside that window, assembly rebases it onto the source timeline:
@@ -141,69 +127,59 @@ seconds inside that window, assembly rebases it onto the source timeline:
 
 The published coordinate never resets to zero because EchoFlow created a new work file.
 
-## What if the camera or media file already has a timecode?
+## What if the media already declares a timecode?
 
 That is a **different clock**.
 
-Some MOV/MP4/camera files may declare metadata such as:
-
-```text
-timecode:      10:00:00:00
-creation_time: 2026-04-05T12:34:56Z
-```
-
-EchoFlow asks FFprobe for `timecode` and `creation_time` at both container and stream scope.
-When present, those declarations are preserved in canonical source provenance, including
-where they came from.
-
-EchoFlow does **not** silently decide that a camera tag is true. Devices can have wrong
-clocks, copied metadata, conflicting stream tags, or timecode with frame-rate/drop-frame
-semantics that require more information before arithmetic is safe.
+Some media may declare `timecode` and `creation_time`. EchoFlow preserves those declarations
+with their format/stream origin. It does not silently decide that a device tag is true.
+Devices can have wrong clocks, copied metadata, conflicting tags, or SMPTE semantics that
+require more information before arithmetic is safe.
 
 ```mermaid
-graph LR;
+flowchart LR
     A[Original media] --> B[Canonical elapsed seconds]
     A --> C[Declared timecode if present]
     A --> D[Declared creation time if present]
     B --> E[Canonical transcript evidence]
     C --> E
     D --> E
+
+    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
+    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
+
+    class A source
+    class B,C,D inspect
+    class E evidence
 ```
 
-**Elapsed time answers:** “where is this inside the selected recording?”
+**Elapsed time answers:** where is this inside the selected recording?
 
-**Declared media metadata answers:** “what other clock information did the source claim
-to have?”
+**Declared media metadata answers:** what other clock information did the source claim to
+have?
 
-Those are useful together. They are dangerous when collapsed into one mystery field
-called `timestamp`.
+Those are useful together. They are dangerous when collapsed into one mystery field called
+`timestamp`.
 
-## Why not immediately add 1:19:48 to `10:00:00:00`?
+## Why not immediately add elapsed time to SMPTE timecode?
 
-Because SMPTE-style timecode is not just wall-clock `HH:MM:SS` with two extra digits.
-Frame rate and drop-frame/non-drop-frame semantics can change the arithmetic.
-
-EchoFlow preserves source declarations **without inventing a mapping it cannot yet
-qualify**.
-
-For ordinary transcript navigation, no such mapping is necessary. Canonical elapsed time
-already gives a local player a deterministic seek coordinate.
+Because SMPTE-style timecode can depend on frame rate and drop-frame/non-drop-frame
+semantics. EchoFlow preserves source declarations **without inventing a mapping it cannot
+yet qualify**.
 
 ## What you get now
 
 | Need | Current behavior |
 |---|---|
-| “Where is 4788 seconds?” | rendered as `01:19:48.000` |
+| Human elapsed display | derived from canonical numeric seconds |
 | Search result navigation | verified canonical location plus numeric/human seek coordinate |
 | Exact lexical word match | highlighted aligned words when canonical timing evidence supports it |
 | Semantic-only result | verified passage coordinate without fabricated word precision |
 | Neighboring reading context | bounded canonical segment expansion after ranking |
-| Word-level position | native faster-whisper word start/end retained in canonical evidence |
-| Speaker handoff inside one ASR segment | word evidence can carry the handoff without inventing one segment speaker |
-| Original `timecode` metadata | preserved when FFprobe reports it, with source scope |
-| Original `creation_time` metadata | preserved when FFprobe reports it, with source scope |
+| Desktop word interaction | canonical timed words move the evidence cursor; Return to match restores backend seek |
 | Durable notes/annotations | verified evidence anchors stored with authoritative user state |
-| Click word to play source | seek contract is ready; graphical player interaction is future UI work |
+| Play original audio/video | not yet; Tauri media capability is next |
 | SMPTE frame arithmetic | intentionally not inferred without qualified frame semantics |
 
 ## The small rule underneath all of this

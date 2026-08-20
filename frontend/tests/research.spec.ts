@@ -52,6 +52,7 @@ test("research workspace refresh remains keyboard reachable", async ({ page }) =
 test("Susan can filter by durable labels and return to verified evidence", async ({ page }) => {
   await openResearch(page);
 
+  const notes = page.getByLabel("Notes", { exact: true });
   const tags = page.getByRole("group", { name: "Research tags" });
   await tags.getByRole("button", { name: "#governance" }).click();
 
@@ -59,9 +60,11 @@ test("Susan can filter by durable labels and return to verified evidence", async
   await expect(active).toContainText("Every selected label must match the same note.");
   await expect(active.getByRole("button", { name: "Remove tag governance" })).toBeVisible();
   await expect(
-    page.getByText("Follow up on ABC governance during the next interview."),
+    notes.getByText("Follow up on ABC governance during the next interview."),
   ).toBeVisible();
-  await expect(page.getByText("Earlier interpretation retained for provenance.")).toHaveCount(0);
+  await expect(
+    notes.getByText("Earlier interpretation retained for provenance."),
+  ).toHaveCount(0);
 
   await tags.getByRole("button", { name: "#program" }).click();
   await expect(active.getByRole("button", { name: "Remove tag program" })).toBeVisible();
@@ -84,7 +87,9 @@ test("Susan can filter by durable labels and return to verified evidence", async
   await reader.getByRole("button", { name: "Close" }).click();
 
   await active.getByRole("button", { name: "Clear filters" }).click();
-  await expect(page.getByText("Earlier interpretation retained for provenance.")).toBeVisible();
+  await expect(
+    notes.getByText("Earlier interpretation retained for provenance."),
+  ).toBeVisible();
 
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);

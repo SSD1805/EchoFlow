@@ -267,3 +267,60 @@ It can delete only old private job workspaces. Completed jobs are eligible by de
 failed/interrupted jobs require `--include-incomplete` because cleanup removes resume
 capability. Running jobs are never eligible. Canonical transcripts, human research, source
 media, and lightweight lifecycle manifests are preserved.
+
+EchoFlow does not claim that ordinary file deletion proves secure physical erasure on
+SSDs, snapshots, backups, sync history, or copy-on-write storage.
+
+Read **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)** for
+the exact contract.
+
+## What belongs to you? 🦝
+
+| Artifact | Role | Rebuildable? |
+|---|---|---|
+| Original recording | source evidence | **No** |
+| Canonical transcript JSON | authoritative transcript evidence | **No** |
+| Speaker display labels | user-authored knowledge | **No** |
+| Notes, tags, collections, evidence anchors | user-authored knowledge | **No** |
+| Saved searches | user-authored query intent | **No** |
+| Remembered library/recording locations | durable app preference | **No, but machine-local** |
+| TXT/SRT/WebVTT | publication views | Yes |
+| Normalized/enhanced working audio | private processing material | Yes |
+| Lexical/semantic search state | private search projections | Yes |
+| Research query projection | rebuildable view over durable research state | Yes |
+
+A database is allowed to make evidence useful. It is not allowed to become the only place
+unique evidence or human research exists.
+
+## For maintainers
+
+Start with **[docs/architecture/README.md](docs/architecture/README.md)**, especially
+**[Corpus search](docs/architecture/corpus-search.md)**,
+**[Durable research state](docs/architecture/research-state.md)**,
+**[Library lifecycle](docs/architecture/library-lifecycle.md)**,
+**[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)**, and
+**[SECURITY.md](SECURITY.md)**. The documentation visual/voice contract lives in
+**[docs/documentation-style.md](docs/documentation-style.md)**.
+
+Normal qualification includes Ruff lint/format/security rules, strict mypy, Vulture,
+Radon, branch coverage, locked dependency audit, package builds, clean-wheel verification,
+frontend type/build/audit gates, Playwright/axe, and Linux/macOS/Windows CI. Targeted
+mutation testing is reserved for load-bearing logic.
+
+## Where the project goes next
+
+The full capability-to-productization audit now lives in **[ROADMAP.md](ROADMAP.md)**.
+Research browse/create/edit/delete and label assignment are foundation. The immediate
+remaining Research work is saved-search lifecycle, research-object → verified-evidence
+navigation, stale-anchor review, and advanced typed search controls.
+
+After that, the next major product gap is a **desktop Processing center** over existing
+health/resource, managed-model, job-lifecycle, transcription-plan/execution/resume,
+enhancement, diarization, and publication contracts. Then come speaker/control polish,
+Tauri-owned local playback, lifecycle/retention UI, packaging, backup/restore/export,
+packaged semantic qualification, and representative-device release qualification.
+
+---
+
+**Make sensitive local transcription boringly dependable. Make its evidence easy to
+navigate and annotate. Do not give the corpus away.** 💃

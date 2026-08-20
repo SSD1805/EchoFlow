@@ -55,7 +55,7 @@ test("Susan can edit labels and explicitly delete a durable research note", asyn
   await openResearch(page);
 
   const noteCard = page.locator(".research-note-card").filter({
-    hasText: "Follow up on ABC governance during the next interview.",
+    hasText: "interview-42",
   });
   await noteCard.getByRole("button", { name: "Edit note" }).click();
   await noteCard
@@ -67,20 +67,24 @@ test("Susan can edit labels and explicitly delete a durable research note", asyn
     .fill("Oral histories, Chapter 3");
   await noteCard.getByRole("button", { name: "Save note" }).click();
 
-  await expect(page.getByText("Note saved. Its verified evidence anchor is unchanged.")).toBeVisible();
-  const updatedCard = page.locator(".research-note-card").filter({
-    hasText: "Compare governance with the follow-up interview.",
-  });
-  await expect(updatedCard.getByText("#follow-up", { exact: true })).toBeVisible();
-  await expect(updatedCard.getByText("Chapter 3", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Note saved. Its verified evidence anchor is unchanged."),
+  ).toBeVisible();
+  await expect(
+    noteCard.getByText("Compare governance with the follow-up interview."),
+  ).toBeVisible();
+  await expect(noteCard.getByText("#follow-up", { exact: true })).toBeVisible();
+  await expect(noteCard.getByText("Chapter 3", { exact: true })).toBeVisible();
 
-  await updatedCard.getByRole("button", { name: "Delete note" }).click();
-  await expect(updatedCard.getByLabel("Delete note confirmation")).toContainText(
+  await noteCard.getByRole("button", { name: "Delete note" }).click();
+  await expect(noteCard.getByLabel("Delete note confirmation")).toContainText(
     "canonical transcript and original recording are not part of this operation",
   );
-  await updatedCard.getByRole("button", { name: "Delete note permanently" }).click();
+  await noteCard.getByRole("button", { name: "Delete note permanently" }).click();
 
-  await expect(page.getByText("Note deleted. Transcript evidence was not deleted.")).toBeVisible();
+  await expect(
+    page.getByText("Note deleted. Transcript evidence was not deleted."),
+  ).toBeVisible();
   await expect(
     page.getByText("Compare governance with the follow-up interview."),
   ).toHaveCount(0);

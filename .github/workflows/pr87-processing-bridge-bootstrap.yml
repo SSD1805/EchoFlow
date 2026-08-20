@@ -1,0 +1,50 @@
+name: PR87 Processing bridge bootstrap
+
+on:
+  push:
+    branches:
+      - agent/processing-center
+
+permissions:
+  contents: write
+
+jobs:
+  patch-bridge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/processing-center
+      - name: Wire bounded Processing Center requests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/echoflow/desktop/bridge.py')
+          text = path.read_text()
+          replacements = {
+              'from echoflow.app.app_container import AppContainer\n': 'from echoflow.app.app_container import AppContainer\nfrom echoflow.app.processing_center import ProcessingCenterService\n',
+              'from echoflow.desktop.research_anchor_bridge import dispatch_research_anchor\n': 'from echoflow.desktop.processing_bridge import dispatch_processing\nfrom echoflow.desktop.research_anchor_bridge import dispatch_research_anchor\n',
+              '    workspace: ResearchWorkspaceService\n': '    workspace: ResearchWorkspaceService\n    processing: ProcessingCenterService\n',
+              '        "workspace.research.search.saved.replace",\n': '        "workspace.research.search.saved.replace",\n        "processing.readiness",\n        "processing.jobs.list",\n        "processing.preflight",\n        "processing.retry.preflight",\n        "processing.job.discard",\n        "processing.model.verify",\n',
+              '    if request.method.startswith("workspace.research.search."):\n': '    if request.method.startswith("processing."):\n        return dispatch_processing(request.method, request.params, services.processing)\n\n    if request.method.startswith("workspace.research.search."):\n',
+              '                    workspace=container.research_workspace(),\n': '                    workspace=container.research_workspace(),\n                    processing=ProcessingCenterService(\n                        health_check=container.health_check(),\n                        runner_inspector=container.runner_inspector(),\n                        policy_planner=container.runner_policy_planner(),\n                        planner=container.transcription_planner(),\n                        model_manager=container.model_manager(),\n                        lifecycle_store=container.job_lifecycle_store(),\n                    ),\n',
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one bridge match, found {count}: {old!r}')
+              text = text.replace(old, new)
+          path.write_text(text)
+          PY
+      - name: Commit bridge wiring
+        run: |
+          if git diff --quiet -- src/echoflow/desktop/bridge.py; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- src/echoflow/desktop/bridge.py
+          git commit -m 'feat(processing): wire Processing Center desktop requests'
+          git push origin HEAD:agent/processing-center

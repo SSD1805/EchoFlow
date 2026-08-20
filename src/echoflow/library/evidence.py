@@ -195,7 +195,9 @@ class EvidenceLocator:
         )
         indices = self._anchor_indices(canonical, segment_ids)
         segments = tuple(canonical.segments[index] for index in indices)
-        resolved_start = segments[0].start_seconds if start_seconds is None else start_seconds
+        resolved_start = (
+            segments[0].start_seconds if start_seconds is None else start_seconds
+        )
         resolved_end = segments[-1].end_seconds if end_seconds is None else end_seconds
         self._validate_anchor_timing(
             segments,

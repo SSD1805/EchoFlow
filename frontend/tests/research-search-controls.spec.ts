@@ -81,7 +81,7 @@ test("saved Research questions can replace the whole search without backend voca
   await panel.getByLabel("Description").fill("Revised durable question");
   await panel.getByRole("button", { name: "Update saved search" }).click();
 
-  await expect(panel.getByRole("status")).toContainText("Updated “Oversight follow-up”");
+  await expect(panel.locator(".typed-search-status")).toContainText("Updated “Oversight follow-up”");
   const updated = panel.getByLabel("Search details");
   await expect(updated).toContainText("oversight failure");
   await expect(updated).toContainText("Match: All of these words");

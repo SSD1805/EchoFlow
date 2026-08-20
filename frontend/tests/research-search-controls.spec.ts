@@ -12,7 +12,7 @@ async function openResearchSearch(page: import("@playwright/test").Page) {
 test("Research search exposes human choices while preserving advanced intent", async ({ page }) => {
   const panel = await openResearchSearch(page);
 
-  await panel.getByLabel("Search").fill("governance reform");
+  await panel.getByRole("searchbox", { name: "Search", exact: true }).fill("governance reform");
   await panel.getByLabel("Match").selectOption("phrase");
   await panel.getByText("Search options", { exact: true }).click();
   await panel.getByLabel("Search by").selectOption("lexical");
@@ -71,7 +71,7 @@ test("saved Research questions can replace the whole search without backend voca
   await expect(existing).toContainText("Tag: governance");
   await expect(existing).toContainText("Only results with notes");
 
-  await panel.getByLabel("Search").fill("oversight failure");
+  await panel.getByRole("searchbox", { name: "Search", exact: true }).fill("oversight failure");
   await panel.getByLabel("Match").selectOption("all");
   await panel.getByText("Search options", { exact: true }).click();
   await panel.getByLabel("Order results by").selectOption("timeline");

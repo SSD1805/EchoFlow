@@ -30,7 +30,7 @@ flowchart LR
     E --> F[DuckDB research projection]
     F --> G[Fast research-aware search]
     G --> A
-    C --> H[Next Desktop Research workspace]
+    C --> H[Desktop Research workspace]
 
     classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
@@ -45,16 +45,16 @@ flowchart LR
 
 Text fallback: verified canonical evidence anchors durable SQLite research state; a
 transactional journal projects that authority into rebuildable DuckDB query state; the
-next desktop Research workspace will consume the same authority rather than inventing a
+desktop Research workspace consumes the same authority rather than inventing a
 browser-owned notebook.
 
 You do not need to operate either database. `ResearchWorkspaceService` presents one
 research workspace over the two storage roles.
 
-## Add and edit notes today
+## Add, edit, organize, and delete notes
 
-The current CLI anchors to real canonical segment IDs rather than a disposable search row
-or formatted timestamp:
+The CLI anchors to real canonical segment IDs rather than a disposable search row or
+formatted timestamp:
 
 ```bash
 echoflow library notes add TRANSCRIPT_ID segment-000042 \
@@ -69,14 +69,23 @@ canonical transcript bytes and refuses missing, reordered, or non-contiguous sel
 Optional `--start-seconds` and `--end-seconds` may narrow an anchor inside that verified
 span.
 
-List or filter notes:
+The desktop now uses that same rule when a note is created from the verified Evidence
+reader. It sends document/generation identity and canonical coordinates through one narrow
+bridge method. If the library moved to a newer canonical generation before Save, the write
+is refused instead of silently attaching the note to different evidence.
 
-```bash
-echoflow library notes
-echoflow library notes --text "survey methodology" --tag housing
-```
+Existing notes can be edited in the Research workspace. A desktop edit replaces note body,
+tag assignments, and collection assignments **atomically in authoritative SQLite** and
+emits one projection-journal event. The note’s evidence anchor is not rewritten.
 
-Edit authoritative research state explicitly:
+Desktop edit/delete also carries the note’s authoritative `updated_at` version. If a CLI or
+another local surface changed that note after it was displayed, EchoFlow refuses the stale
+write and asks the user to refresh. Local-first does not mean lost-update-safe by accident.
+
+Deletion is explicit and deliberately narrow: deleting a note deletes that human-authored
+note. It does not delete the canonical transcript or original recording.
+
+The equivalent CLI operations remain available:
 
 ```bash
 echoflow library notes edit NOTE_ID --body "Revised note text"
@@ -84,13 +93,6 @@ echoflow library notes set-tags NOTE_ID --tag housing --tag methodology
 echoflow library notes set-collections NOTE_ID --collection "Chapter 3"
 echoflow library notes delete NOTE_ID
 ```
-
-Those commands mutate authoritative SQLite user state. The DuckDB query projection catches
-up from the monotonic journal.
-
-The desktop Evidence reader already works with the same verified segment/word coordinate
-system. The next Research UI tranche should turn verified selections into the exact same
-`EvidenceAnchor` instead of creating a graphical-only annotation model.
 
 ## Use research state to search the transcript corpus
 
@@ -114,9 +116,9 @@ EchoFlow resolves human names to durable IDs, obtains a canonical evidence scope
 research projection, and ranks lexical/semantic candidates **inside that scope**. It does
 not retrieve the whole corpus and throw away results afterward.
 
-Unified workspace discovery is implemented and powers the desktop Library search. Search
-results can show associated note count, tags, and collections alongside original
-evidence/ranking data without inventing one cross-type relevance score.
+Unified workspace discovery powers the desktop Library search. Search results can show
+associated note count, tags, and collections alongside original evidence/ranking data
+without inventing one cross-type relevance score.
 
 ## What if the transcript changes?
 
@@ -126,7 +128,11 @@ canonical SHA-256, EchoFlow does **not** silently move the old note.
 
 The old note remains durable historical user state. The projected evidence key includes
 canonical generation identity so stale annotations cannot accidentally attach to new
-evidence.
+evidence. Editing the prose or labels on that old note still leaves its original anchor
+unchanged.
+
+A later re-anchor workflow must be an explicit user decision that shows both generations;
+it must never be an incidental side effect of editing a note.
 
 ## Why two databases?
 
@@ -161,16 +167,21 @@ current relationships instead of persisted popularity counters.
 
 The tag is durable user state. “Used 147 times” is disposable navigation metadata.
 
+The desktop currently presents saved-search intent but does not yet create/run/rename/delete
+saved searches. That is the next Research interaction slice, together with returning a
+research object to verified evidence.
+
 ## What comes next for the notebook?
 
-The storage, evidence-address, unified-discovery, saved-search, and derived-navigation
-contracts are built. The next tranche is the dedicated desktop Research workspace:
+The storage, evidence-address, unified-discovery, saved-search backend, Research overview,
+verified note creation, and note edit/delete/label mutation contracts are built.
 
-- browse current and older-generation notes;
-- create a note directly from verified desktop evidence;
-- edit/delete notes and assign/remove tags/collections;
-- create, run, rename, and delete saved searches;
-- navigate research objects back to current verified evidence when possible;
+The remaining Research tranche is:
+
+- create, run, rename, and delete saved searches in the desktop;
+- navigate notes/tags/collections/saved searches back to current verified evidence when
+  possible;
+- expose advanced typed search/research filters without hidden interpretation;
 - stale-anchor review/re-anchor UX with explicit user confirmation; and
 - later, selected/citable result sets and portable evidence-bearing research export.
 

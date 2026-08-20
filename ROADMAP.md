@@ -8,8 +8,10 @@ portable on ordinary computers while keeping source evidence and human-authored 
 under clear custody.
 
 Modern EchoFlow restarted on August 2, 2026. The project has moved from “can we transcribe
-a file?” through a substantial backend foundation and into the first real desktop evidence
-workflows.
+a file?” through a substantial backend foundation and into real desktop evidence and
+research workflows. This roadmap now audits the full product surface so backend capability
+and desktop productization can be planned together rather than rediscovered a few features
+at a time.
 
 ```mermaid
 flowchart LR
@@ -56,14 +58,15 @@ flowchart LR
 
 Text fallback: EchoFlow already spans local media, reliable transcription, canonical
 evidence, retrieval, verified navigation, durable research, lifecycle controls, incremental
-refresh, remembered locations, and the first desktop import/search/evidence-reader
-surfaces. The next work turns the existing research authority into a real desktop
-workspace, then adds local playback, packaging, portability, and release qualification.
+refresh, remembered locations, native import, Library discovery, the verified evidence
+reader, and the first Research interactions. Remaining work is primarily productization:
+finish the research loop, expose processing/model/job controls, add playback and lifecycle
+UI, package the application, make durable work portable, and qualify real devices.
 
 # What is foundation now
 
 The word **foundation** below means the contract exists in code and is protected by tests.
-It does not mean the feature is fully productized for a non-technical end user.
+It does not mean every capability has a non-technical desktop workflow yet.
 
 ## Local execution, media, and model custody
 
@@ -102,49 +105,31 @@ Authoritative SQLite owns notes, tags, collections, evidence anchors, and saved-
 intent. A monotonic journal drives a rebuildable DuckDB research projection.
 `ResearchWorkspaceService` composes those stores with verified transcript retrieval.
 
-Saved searches are durable questions, not result snapshots. Tags/collections and note text
-can constrain eligible evidence before transcript ranking.
+The desktop can browse current and older-generation notes, create a note from verified
+evidence, and edit/delete notes plus replace tag/collection assignments. Desktop edits are
+optimistic-concurrency checked against the authoritative `updated_at` version and body plus
+labels commit atomically with one research-journal event. Editing research never silently
+rebinds its canonical evidence anchor.
 
-The custody hierarchy is:
+Saved searches are durable questions, not result snapshots. Their backend lifecycle is
+implemented; desktop create/run/rename/delete remains work.
 
-| Class | Examples | Rule |
-|---|---|---|
-| Authoritative evidence | original recording, canonical JSON | never treat as cache; destructive deletion must be explicit |
-| Authoritative human knowledge | speaker labels, notes, tags, collections, saved searches | must survive index rebuilds and unrelated deletion |
-| Durable app preference | remembered library/recording locations and processing policy | private user-state; forgetting permission never deletes user files |
-| Rebuildable projection | lexical/semantic/research DuckDB, derived exports | may be regenerated |
-| Private execution state | checkpoints, normalization/enhancement intermediates | lifecycle-managed; not source truth |
-| Lightweight lifecycle metadata | job manifests/discovery pointers | retained when heavyweight execution state is cleaned |
-
-## Safe deletion and retention
+## Safe deletion, refresh, and locations
 
 `LibraryCustodyService` provides dry-run-first typed deletion. Confirmation is bound to the
 exact canonical generation, requested/effective scopes, mutation set, and relevant
 preserved dependencies. Source deletion requires explicit `source-recording`, a second
 `--allow-source` switch, and current provenance verification.
 
-`canonical-transcript` expands only through disposable descendants. It does **not** imply
-notes, saved searches, or source deletion. Age-based retention is narrower still and can
-remove only eligible private execution workspaces.
-
-EchoFlow does not claim secure erasure where SSD wear levelling, snapshots, backups,
-copy-on-write history, or sync/versioning make that guarantee unverifiable.
-
-## Incremental refresh and durable locations
-
 Normal library refresh reconciles changed canonical generations without reopening every
 unchanged transcript. Metadata is a cheap change detector; canonical SHA-256 remains the
-generation authority. `--verify` deliberately reopens and rehashes tracked canonicals.
-
-Remembered locations have one explicit purpose: transcript-library reconciliation or
-recording-source candidate discovery. Missing removable roots stay remembered but are
-reported unavailable. Recording discovery does not itself hash, FFprobe, copy, transcribe,
-or modify media.
+generation authority. Remembered transcript and recording locations persist explicit user
+permission. Missing removable roots stay remembered but unavailable.
 
 The default recording policy is manual. `automatic` is durable permission metadata only;
-no background daemon silently processes recordings today.
+there is no background daemon silently processing recordings today.
 
-## Desktop foundation and import
+## Desktop foundation
 
 The desktop architecture is:
 
@@ -155,77 +140,143 @@ EchoFlow Desktop
 └── Python EchoFlow               application and evidence rules
 ```
 
-The current shell provides Archive/Midnight themes, keyboard-visible navigation, native
-file/folder selection, one-time versus remembered import choices, recording discovery,
-and transcript refresh. React does not receive arbitrary shell, database, or filesystem
-mutation capability.
+The shell provides Archive/Midnight themes, keyboard-visible navigation, native file/folder
+selection, one-time versus remembered import choices, recording discovery, transcript
+refresh, grouped Library discovery, verified evidence reading/cursor movement, Research
+browse, provenance-bound note creation, and version-checked note mutation.
 
-## Library discovery and evidence reader
+React does not receive arbitrary shell, SQL/database, or raw evidence-path capability.
 
-The Library surface now has grouped discovery across transcript evidence, notes, tags, and
-collections. It does not fabricate one relevance score across unlike object types.
+# Capability → desktop productization audit
 
-A search result can open a verified canonical context window. Backend-justified matched
-words retain exact source-relative timing; selecting a canonical word moves an evidence
-cursor, and “Return to match” restores the backend-verified seek coordinate. Raw source
-and canonical filesystem paths stay out of the webview.
+This is the planning inventory. “Backend ready” means there is already a tested application
+or CLI contract worth productizing, not that the desktop should simply expose a CLI flag.
 
-# Current quality contract
+| Capability | Authority available today | Desktop today | Remaining product work | Planned slice |
+|---|---|---|---|---|
+| First-run initialization | private workspace/output allocation and config validation | source-build startup only | first-run wizard, storage choices, failure recovery | Packaging / first run |
+| Health diagnostics | `doctor` checks local state, disk, FFmpeg and system resources | none | human health panel, actionable repair guidance | Processing center |
+| Hardware/resource policy | effective CPU/RAM/accelerator inspection, execution profiles and admission | none | resource summary, safe defaults, explicit overrides | Processing center |
+| Managed model custody | inventory, recommendation, install, immutable revision verification/revalidation/removal | none | model manager, disk-cost visibility, download progress/cancel/retry, offline state | Processing center |
+| Native import and remembered locations | durable transcript/recording roots and discovery permissions | **implemented** | location management/forget/availability polish | Settings / library polish |
+| Recording discovery | candidate media discovery without hashing/probing/transcribing as a side effect | **implemented** | connect selected recordings to an explicit processing flow | Processing center |
+| Job lifecycle | list/show status, progress, failure state, resumability and private-state discard | none | Jobs/Processing view, resume/retry/discard UX | Processing center |
+| Transcription planning | media probe, stream choice, model/engine/resource plan, disk/memory admission, dry run | none | preflight summary before running work | Processing center |
+| Transcription execution | faster-whisper local execution with checkpoints/resume | none | long-running Tauri↔Python execution contract, progress, cancel/resume and crash recovery | Processing center |
+| Difficult-audio enhancement | deterministic FFmpeg suppression with timeline/provenance checks | none | explicit processing option plus explanation/cost preview | Processing controls |
+| Anonymous diarization | recording-scoped speaker turns, word handoffs, overlap-aware presentation | backend only | processing toggle/resource warning and result presentation polish | Processing + speakers |
+| Speaker display labels | durable user-authored names without biometric identity claims | labels can be presented in evidence | rename/manage speakers in desktop | Speaker tools |
+| Canonical JSON authority | reproducible canonical transcript with full provenance | consumed indirectly | transcript/provenance inspector for advanced users | Evidence inspector |
+| TXT/SRT/WebVTT publication | deterministic rebuildable exports | none | export chooser and destination workflow | Evidence/export tools |
+| Lexical BM25 retrieval | private corpus ranking | **implemented** through Library discovery | advanced phrase/ANY/ALL and sort controls | Research/search completion |
+| Semantic retrieval | optional local chunks/embeddings | backend ready, not normal packaged path | desktop mode control after model/dependency custody qualification | Search + semantic qualification |
+| Hybrid RRF retrieval | lexical + semantic rank fusion | backend ready | retrieval-mode control and explainable result state | Search + semantic qualification |
+| Verified evidence navigation | generation verification, context, exact word timing and seek coordinate | **implemented** | research-object return path and media playback | Research completion + playback |
+| Unified discovery | typed transcript/note/tag/collection groups without fabricated cross-type score | **implemented** | richer filters and object-specific actions | Research/search completion |
+| Research notes | exact generation-bound anchors in authoritative SQLite | browse/create/edit/delete **implemented in current tranche** | research-object → evidence navigation, stale-anchor review/re-anchor UX | Research completion |
+| Tags and collections | durable names/relationships + rebuildable projection | browse + note assignment **implemented in current tranche** | dedicated navigation/filter/manage flows | Research completion |
+| Saved searches | create/run/delete typed intent, current-corpus re-resolution | browse only | create/run/rename/delete UI, result handoff | Research completion |
+| Research-aware filtering | tags/collections/note text constrain evidence before ranking | backend ready | desktop filters with inspectable active state | Research/search completion |
+| Safe deletion | typed dry-run plans, exact confirmation binding, source double-guard | none | custody center with plan review and explicit confirmation | Lifecycle UI |
+| Retention | execution-state-only age policies preserving evidence/research | none | retention settings, preview, cleanup result | Lifecycle UI |
+| Local source playback | verified source-relative seek coordinate exists | no playback | Tauri-owned media capability, playback state, source mismatch/unavailable handling | Native playback |
+| Desktop packaging | Python wheel + tested source build | development Tauri shell | managed Python sidecar/runtime, FFmpeg/native deps, Windows/macOS/Linux installers | Packaging |
+| Updates/uninstall | custody semantics exist conceptually | none | signed updates and uninstall that never implies evidence deletion | Packaging |
+| Backup/restore | authority boundaries identify irreplaceable state | none | backup manifest, restore/reconciliation and recovery UX | Portability |
+| Research export | evidence identities and numeric coordinates exist | none | CSV/JSONL/Markdown selected-research export | Portability |
+| Packaged semantic custody | dependency/model rules are designed | not qualified | locked optional stack, immutable embedding model, private cache, offline use | Semantic qualification |
+| Representative hardware | resource-planning contracts exist | CI smoke on major OSes | 8/16 GB, Apple Silicon, dGPU, 32/64 GB real-device qualification | Release qualification |
 
-Current CI is staged so cheap failures stop expensive runners. The repository protects:
+# Product critical path
 
-- locked Python and frontend dependency graphs;
-- Mermaid syntax and the approved EchoFlow diagram palette;
-- Ruff lint/format/security, strict mypy, Vulture, and Radon;
-- compensated dependency-advisory scope checks and dependency audit;
-- repository-wide branch coverage at the unchanged 90% gate;
-- frontend type checking, production build, dependency audit, and raw-HTML guard;
-- Playwright interaction and axe accessibility tests;
-- full macOS and Windows platform smoke;
-- distribution builds and clean-wheel installation.
+The audit changes one important thing about the old roadmap: **media playback is not the
+only major desktop gap after Research.** EchoFlow already has a surprisingly complete local
+processing/control plane in Python, but a normal desktop user cannot yet launch and manage
+that work. Productization should expose that capability before packaging freezes the native
+runtime shape.
 
-Historical PR-specific test counts belong in historical records. The roadmap tracks
-behavioral gates rather than a number that becomes stale with the next test.
+## 1. Finish the Research and Library interaction loop
 
-# Near-term product sequence
+Current foundation after this tranche:
 
-## 1. Research workspace UI
+- Research navigation and authoritative overview;
+- current-versus-older canonical generation presentation;
+- note creation from a verified evidence window;
+- atomic edit of note body + tag/collection assignments;
+- guarded note deletion;
+- optimistic concurrency using authoritative `updated_at`; and
+- no frontend SQL, SQLite, or raw evidence paths.
 
-The research authority already exists in Python. The next tranche should make it usable
-from the desktop without creating a second frontend data model.
+Remaining work:
 
-The first Research slice should:
-
-- enable the Research navigation door;
-- browse authoritative notes, tags, collections, and saved searches;
-- distinguish current evidence anchors from older canonical generations;
-- create a note from a verified evidence window;
-- edit/delete notes and assign/remove tags and collections;
 - create, run, rename, and delete saved searches;
-- navigate a research object back to verified current evidence when possible; and
-- keep every operation inside narrow versioned desktop bridge methods with no frontend SQL
-  or direct SQLite access.
+- navigate a note/tag/collection/saved-search result back to current verified evidence when
+  possible;
+- preserve older-generation anchors visibly and provide explicit review/re-anchor rather
+  than automatic migration; and
+- expose typed search controls for phrase/ANY/ALL, speaker, language, transcript, research
+  filters, retrieval mode, and sort.
 
-Advanced typed search controls for phrase/ANY/ALL, speaker, language, transcript,
-research filters, retrieval mode, and sort belong in this same Library/Research journey.
+This closes the loop: **find evidence → verify → annotate → organize → ask a durable
+question → return to evidence.**
 
-## 2. Local media playback behind Tauri capability
+## 2. Build the desktop Processing center
 
-The evidence reader already has a verified source-relative cursor. The next native media
-step should let that coordinate drive audio/video playback without handing an arbitrary raw
-path to React.
+This is the largest backend-to-product gap.
 
-Rust should own file capability and media lifecycle. Python should continue to own source
-identity/evidence rules. The webview should receive playback state and safe coordinates,
-not general filesystem authority.
+The first Processing center should combine three existing authorities without collapsing
+them into one giant settings screen:
 
-Qualification includes unavailable/moved sources, source-generation mismatch, keyboard
-transport, reduced motion, long media, and seeking around word boundaries.
+1. **Machine + model readiness:** doctor status, runner resources/policy, model inventory,
+   recommendation, install/revalidate/remove and disk cost.
+2. **Job lifecycle:** queued/running/completed/failed work, progress, resumability, failure
+   explanation, resume/retry, and explicit private-state discard.
+3. **Transcription preflight + launch:** selected recording, media/stream summary, profile,
+   model/engine target, disk/memory admission, optional diarization/enhancement/publication,
+   then explicit start.
 
-## 3. Desktop packaging, first run, updates, and uninstall
+Long-running work must not be modeled as a browser request that happens to take an hour.
+Tauri should own native process/capability lifecycle while Python continues to own planning,
+resource admission, transcription correctness, checkpointing, and publication.
 
-A Python wheel proves EchoFlow is distributable to Python. It does not make EchoFlow a
-consumer desktop application.
+## 3. Finish transcript controls and speaker tools
+
+Once desktop processing can create evidence itself, expose the existing user-facing control
+surfaces that make the result understandable:
+
+- selected audio stream where more than one legitimate stream exists;
+- enhancement/diarization choices with resource and provenance implications;
+- publication format selection;
+- speaker display-name editing while retaining anonymous speaker refs as evidence identity;
+- language/speaker transcript presentation controls; and
+- provenance/transcript inspection where it helps troubleshooting or audit.
+
+## 4. Add local media playback behind a Tauri capability
+
+The evidence reader already has a verified source-relative cursor. Let that coordinate drive
+local audio/video without handing an arbitrary path to React.
+
+Rust owns file capability and media lifecycle. Python owns source identity/evidence rules.
+The webview receives playback state and safe coordinates, not general filesystem authority.
+
+Qualification includes unavailable/moved sources, source identity mismatch, keyboard
+transport, reduced motion, long media, and seeking around exact word boundaries.
+
+## 5. Productize safe lifecycle and retention
+
+Before a packaged app invites non-technical users to accumulate large local corpora, give
+them safe cleanup tools:
+
+- dry-run deletion plan review;
+- plan-bound confirmation;
+- visibly separate source, canonical evidence, derived artifacts, execution state, research,
+  and saved-search scopes;
+- the source-recording second guard; and
+- retention preview/cleanup for eligible private execution state.
+
+A friendly Delete button must never flatten EchoFlow’s custody model.
+
+## 6. Desktop packaging, first run, updates, and uninstall
 
 Produce deliberate delivery paths for:
 
@@ -239,7 +290,7 @@ native transcription dependencies, model custody, migrations, updates, and unins
 **Uninstalling EchoFlow must not silently delete canonical transcripts or authoritative
 human research state.** Program removal and user-data destruction are different operations.
 
-## 4. Backup, restore, and research portability
+## 7. Backup, restore, and research portability
 
 Back up what is irreplaceable: canonical evidence, research SQLite state, saved searches,
 speaker labels, and other durable human state. Rebuildable DuckDB projections should be
@@ -251,14 +302,14 @@ and require explicit reconciliation/reapproval on another machine.
 Selected research export should target CSV, JSON/JSONL, and Markdown while retaining
 document/generation identity, segment IDs, and numeric evidence coordinates.
 
-## 5. Semantic dependency and embedding custody qualification
+## 8. Qualify semantic dependencies and embedding custody for packaging
 
 Before semantic retrieval is advertised as a normal packaged capability, qualify one
 locked optional dependency set with managed immutable embedding-model acquisition, private
 cache placement, disk/resource admission, no silent search-time download, offline use after
 installation, and packaged-platform qualification.
 
-## 6. Representative-device release qualification
+## 9. Representative-device release qualification
 
 Exercise real corpora and the packaged app on 8 GB Windows, 16 GB commodity hardware,
 Apple Silicon, a discrete-GPU laptop, and 32/64 GB workstations. Measure real-time factor,
@@ -269,6 +320,26 @@ Also cover Unicode/space-heavy paths, external drives, permission failures, low 
 interrupted downloads, crash/resume, upgrade migrations, uninstall/reinstall, offline
 operation, keyboard/accessibility use, corruption/recovery, location disappearance and
 reappearance, and one-time versus remembered import.
+
+# Cross-cutting rules for every desktop slice
+
+The frontend is not a second application authority. Every new surface should preserve these
+boundaries:
+
+| Concern | Owner |
+|---|---|
+| canonical transcript/evidence rules | Python application services |
+| durable research and custody rules | Python authoritative stores/services |
+| native file/process/media capability | Tauri/Rust |
+| presentation and interaction state | React |
+| raw filesystem authority | never delegated generally to the webview |
+| SQL/database authority | never delegated to React |
+| long-running work | explicit native/application lifecycle, not a giant synchronous UI call |
+
+Destructive operations need typed plans and explicit confirmation. Human-authored state
+needs concurrency-safe mutation. Evidence navigation needs generation verification. Model
+or network acquisition must be explicit. Accessibility and keyboard use remain release
+gates, not cleanup work.
 
 # Conditional later capabilities
 
@@ -298,4 +369,5 @@ The pre-1.0 milestone is not “the tests pass from a checkout.” It is:
 > search and annotate their evidence, recover from common failure, move or back up durable
 > work, update the app safely, and remove the program without losing evidence.
 
-That is the finish line the roadmap is walking toward.
+The capability audit above is the checklist for reaching that state without accidentally
+rebuilding mature backend behavior in the frontend.

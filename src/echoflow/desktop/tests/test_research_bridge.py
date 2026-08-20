@@ -189,6 +189,7 @@ def test_research_overview_returns_authoritative_human_state_without_paths():
             "description": "Questions to revisit",
             "query_text": "governance",
             "retrieval_mode": "lexical",
+            "created_at": "2026-08-19T19:30:00+00:00",
             "updated_at": "2026-08-19T19:31:00+00:00",
         }
     ]

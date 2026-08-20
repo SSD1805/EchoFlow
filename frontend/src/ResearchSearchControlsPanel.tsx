@@ -15,6 +15,7 @@ import "./research-search-controls.css";
 interface ResearchSearchControlsPanelProps {
   client: DesktopClient;
   revision?: number;
+  onResearchChanged?: () => void;
 }
 
 interface SearchDraft {
@@ -98,7 +99,8 @@ function intentToDraft(intent: ResearchSearchIntent): SearchDraft {
 
 function IntentSummary({ intent }: { intent: ResearchSearchIntent }) {
   const chips = [
-    intent.phrase ? "exact phrase" : `terms: ${intent.operator.toUpperCase()}`,
+    `phrase: ${intent.phrase ? "exact" : "off"}`,
+    `operator: ${intent.operator.toUpperCase()}`,
     `mode: ${intent.retrieval_mode}`,
     `sort: ${intent.sort}`,
     `limit: ${intent.limit}`,
@@ -128,6 +130,7 @@ function IntentSummary({ intent }: { intent: ResearchSearchIntent }) {
 export function ResearchSearchControlsPanel({
   client,
   revision = 0,
+  onResearchChanged,
 }: ResearchSearchControlsPanelProps) {
   const [draft, setDraft] = useState<SearchDraft>(EMPTY_DRAFT);
   const [result, setResult] = useState<ResearchSearchResult | null>(null);
@@ -204,6 +207,7 @@ export function ResearchSearchControlsPanel({
       setSavedName(saved.name);
       setSavedDescription(saved.description ?? "");
       await loadSavedSearches();
+      onResearchChanged?.();
       setStatus(`Saved “${saved.name}” with its full typed search intent.`);
     } catch (caught) {
       setError(
@@ -253,6 +257,7 @@ export function ResearchSearchControlsPanel({
       setSavedName(updated.name);
       setSavedDescription(updated.description ?? "");
       await loadSavedSearches();
+      onResearchChanged?.();
       setStatus(
         `Updated “${updated.name}”. Display metadata and typed query intent committed together.`,
       );
@@ -277,7 +282,7 @@ export function ResearchSearchControlsPanel({
   async function createNote(body: string) {
     if (!selectedEvidence) throw new Error("Verified evidence is no longer open.");
     await client.createResearchNote(selectedEvidence, body);
-    await loadSavedSearches();
+    onResearchChanged?.();
     setStatus("Saved a research note to the verified current evidence window.");
   }
 
@@ -322,7 +327,6 @@ export function ResearchSearchControlsPanel({
             Term operator
             <select
               value={draft.operator}
-              disabled={draft.phrase}
               onChange={(event) =>
                 updateDraft("operator", event.target.value as "any" | "all")
               }
@@ -460,7 +464,7 @@ export function ResearchSearchControlsPanel({
         </div>
       </form>
 
-      <p className="typed-search-status" role="status">
+      <p className="typed-search-status" aria-live="polite">
         {status}
       </p>
       {error && (
@@ -483,6 +487,11 @@ export function ResearchSearchControlsPanel({
             )}
             {result.retrieval.fusion_profile && (
               <span>fusion: {result.retrieval.fusion_profile}</span>
+            )}
+            {result.retrieval.semantic_profile && (
+              <span>
+                model: {result.retrieval.semantic_profile.model_id} @ {result.retrieval.semantic_profile.resolved_revision}
+              </span>
             )}
           </div>
 

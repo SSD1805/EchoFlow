@@ -19,7 +19,7 @@ test("Susan can browse authoritative research state without database knowledge",
   ).toBeVisible();
   await expect(notes.getByText("Current evidence", { exact: true })).toBeVisible();
   await expect(notes.getByText("Older evidence generation", { exact: true })).toBeVisible();
-  await expect(notes.getByText("#governance", { exact: true })).toBeVisible();
+  await expect(notes.getByRole("button", { name: "#governance" })).toBeVisible();
 
   await expect(
     page.getByRole("heading", { name: "Saved searches", exact: true }),
@@ -28,8 +28,8 @@ test("Susan can browse authoritative research state without database knowledge",
   await expect(page.getByText("Questions to revisit across interviews")).toBeVisible();
 
   const navigation = page.getByLabel("Research navigation");
-  await expect(navigation.getByText("#governance", { exact: true })).toBeVisible();
-  await expect(navigation.getByText("Oral histories", { exact: true })).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "#governance" })).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "Oral histories" })).toBeVisible();
 
   await expect(page.getByText("/Users/")).toHaveCount(0);
   await expect(page.getByText("canonical_path")).toHaveCount(0);
@@ -47,6 +47,47 @@ test("research workspace refresh remains keyboard reachable", async ({ page }) =
   await expect(refresh).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("2 notes");
+});
+
+test("Susan can filter by durable labels and return to verified evidence", async ({ page }) => {
+  await openResearch(page);
+
+  const tags = page.getByRole("group", { name: "Research tags" });
+  await tags.getByRole("button", { name: "#governance" }).click();
+
+  const active = page.getByRole("region", { name: "Active research filters" });
+  await expect(active).toContainText("Every selected label must match the same note.");
+  await expect(active.getByRole("button", { name: "Remove tag governance" })).toBeVisible();
+  await expect(
+    page.getByText("Follow up on ABC governance during the next interview."),
+  ).toBeVisible();
+  await expect(page.getByText("Earlier interpretation retained for provenance.")).toHaveCount(0);
+
+  await tags.getByRole("button", { name: "#program" }).click();
+  await expect(active.getByRole("button", { name: "Remove tag program" })).toBeVisible();
+  await expect(
+    page.getByText("Showing 1 note matching every selected label."),
+  ).toBeVisible();
+
+  const collections = page.getByRole("group", { name: "Research collections" });
+  await collections.getByRole("button", { name: "Oral histories" }).click();
+  await expect(
+    active.getByRole("button", { name: "Remove collection Oral histories" }),
+  ).toBeVisible();
+
+  const filteredNote = page
+    .locator(".research-note-card")
+    .filter({ hasText: "interview-42" });
+  await filteredNote.getByRole("button", { name: "Open verified evidence" }).click();
+  const reader = page.getByRole("complementary", { name: "Evidence reader" });
+  await expect(reader.getByText("Current verified canonical generation")).toBeVisible();
+  await reader.getByRole("button", { name: "Close" }).click();
+
+  await active.getByRole("button", { name: "Clear filters" }).click();
+  await expect(page.getByText("Earlier interpretation retained for provenance.")).toBeVisible();
+
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
 });
 
 test("Susan can edit labels and explicitly delete a durable research note", async ({
@@ -73,8 +114,8 @@ test("Susan can edit labels and explicitly delete a durable research note", asyn
   await expect(
     noteCard.getByText("Compare governance with the follow-up interview."),
   ).toBeVisible();
-  await expect(noteCard.getByText("#follow-up", { exact: true })).toBeVisible();
-  await expect(noteCard.getByText("Chapter 3", { exact: true })).toBeVisible();
+  await expect(noteCard.getByRole("button", { name: "#follow-up" })).toBeVisible();
+  await expect(noteCard.getByRole("button", { name: "Chapter 3" })).toBeVisible();
 
   await noteCard.getByRole("button", { name: "Delete note" }).click();
   await expect(noteCard.getByLabel("Delete note confirmation")).toContainText(

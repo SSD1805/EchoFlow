@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   patch-tests:
+    # One-shot branch repair. Removed after the bot commit lands.
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:

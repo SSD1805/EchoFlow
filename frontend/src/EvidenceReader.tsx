@@ -12,7 +12,7 @@ import "./evidence-reader.css";
 interface EvidenceReaderProps {
   evidence: WorkspaceEvidenceResult;
   onClose: () => void;
-  onCreateNote?: (body: string) => Promise<void>;
+  onCreateNote?: ((body: string) => Promise<void>) | undefined;
   generationState?: "current" | "older";
   resultLabel?: string;
 }

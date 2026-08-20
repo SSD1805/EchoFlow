@@ -3,7 +3,11 @@ from unittest.mock import Mock
 import pytest
 
 from echoflow.library.errors import EvidenceNavigationError, ResearchStateError
-from echoflow.library.evidence import EvidenceAnchor, EvidenceContextSegment, EvidenceLocation
+from echoflow.library.evidence import (
+    EvidenceAnchor,
+    EvidenceContextSegment,
+    EvidenceLocation,
+)
 from echoflow.library.index import IndexedDocument, IndexedSegment, IndexedTranscript
 from echoflow.library.research_anchor_review import (
     ResearchAnchorReviewService,

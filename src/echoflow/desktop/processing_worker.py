@@ -68,7 +68,9 @@ class _TranscriptionOptions(BaseModel):
                 value is not None
                 for value in (self.speakers, self.min_speakers, self.max_speakers)
             ):
-                raise ValueError("diarization options require diarization to be enabled")
+                raise ValueError(
+                    "diarization options require diarization to be enabled"
+                )
             return None
         return SpeakerDiarizationRequest(
             num_speakers=self.speakers,
@@ -109,7 +111,9 @@ class _TranscriptionResume(BaseModel):
                 value is not None
                 for value in (self.speakers, self.min_speakers, self.max_speakers)
             ):
-                raise ValueError("diarization options require diarization to be enabled")
+                raise ValueError(
+                    "diarization options require diarization to be enabled"
+                )
             return None
         return SpeakerDiarizationRequest(
             num_speakers=self.speakers,
@@ -144,7 +148,9 @@ class _ModelRemove(BaseModel):
 def _runner(container: AppContainer) -> TranscriptionJobRunner:
     return TranscriptionJobRunner(
         lifecycle_store=container.job_lifecycle_store(),
-        executor_factory=lambda observer: container.transcription_executor(observer=observer),
+        executor_factory=lambda observer: container.transcription_executor(
+            observer=observer
+        ),
     )
 
 

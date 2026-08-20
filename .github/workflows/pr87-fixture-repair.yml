@@ -1,0 +1,90 @@
+name: PR87 fixture repair
+
+on:
+  push:
+    branches:
+      - agent/processing-center
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/processing-center
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: '0.11.33'
+      - name: Wire explicit Processing dependency into legacy bridge fixtures
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              'src/echoflow/desktop/tests/test_bridge.py': (
+                  '        workspace=cast(Any, workspace or _WorkspaceService()),\n    )',
+                  '        workspace=cast(Any, workspace or _WorkspaceService()),\n        processing=cast(Any, object()),\n    )',
+              ),
+              'src/echoflow/desktop/tests/test_research_anchor_bridge.py': (
+                  '        workspace=cast(Any, SimpleNamespace()),\n    )',
+                  '        workspace=cast(Any, SimpleNamespace()),\n        processing=cast(Any, object()),\n    )',
+              ),
+              'src/echoflow/desktop/tests/test_research_bridge.py': (
+                  '        workspace=cast(Any, workspace or _WorkspaceService()),\n    )',
+                  '        workspace=cast(Any, workspace or _WorkspaceService()),\n        processing=cast(Any, object()),\n    )',
+              ),
+              'src/echoflow/desktop/tests/test_research_bridge_filters.py': (
+                  '        workspace=cast(Any, workspace),\n    )',
+                  '        workspace=cast(Any, workspace),\n        processing=cast(Any, object()),\n    )',
+              ),
+              'src/echoflow/desktop/tests/test_research_bridge_mutations.py': (
+                  '        workspace=cast(Any, workspace),\n    )',
+                  '        workspace=cast(Any, workspace),\n        processing=cast(Any, object()),\n    )',
+              ),
+              'src/echoflow/desktop/tests/test_research_bridge_navigation_saved_search.py': (
+                  '        workspace=cast(Any, workspace),\n    )',
+                  '        workspace=cast(Any, workspace),\n        processing=cast(Any, object()),\n    )',
+              ),
+              'src/echoflow/desktop/tests/test_research_search_bridge.py': (
+                  '    return DesktopServices(locations=Mock(), workspace=workspace), workspace\n',
+                  '    return (\n        DesktopServices(locations=Mock(), workspace=workspace, processing=Mock()),\n        workspace,\n    )\n',
+              ),
+          }
+
+          for filename, (old, new) in replacements.items():
+              path = Path(filename)
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one fixture seam in {filename}, found {count}')
+              path.write_text(text.replace(old, new))
+          PY
+      - name: Run targeted desktop bridge tests
+        run: |
+          uv sync --locked --all-groups --extra transcription
+          uv run ruff check src/echoflow/desktop/tests
+          uv run ruff format --check src/echoflow/desktop/tests
+          uv run pytest \
+            src/echoflow/desktop/tests/test_bridge.py \
+            src/echoflow/desktop/tests/test_research_anchor_bridge.py \
+            src/echoflow/desktop/tests/test_research_bridge.py \
+            src/echoflow/desktop/tests/test_research_bridge_filters.py \
+            src/echoflow/desktop/tests/test_research_bridge_mutations.py \
+            src/echoflow/desktop/tests/test_research_bridge_navigation_saved_search.py \
+            src/echoflow/desktop/tests/test_research_search_bridge.py \
+            src/echoflow/desktop/tests/test_processing_bridge.py
+      - name: Remove branch-only repair workflow and commit
+        run: |
+          rm -f .github/workflows/pr87-fixture-repair.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- src/echoflow/desktop/tests .github/workflows/pr87-fixture-repair.yml
+          git commit -m 'test(desktop): wire Processing service into legacy fixtures'
+          git push origin HEAD:agent/processing-center

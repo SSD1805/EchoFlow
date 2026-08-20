@@ -7,6 +7,7 @@ const frontendDir = resolve(scriptDir, "..");
 const packageJson = JSON.parse(readFileSync(resolve(frontendDir, "package.json"), "utf8"));
 const expected = JSON.parse(readFileSync(resolve(frontendDir, "tauri-versions.json"), "utf8"));
 const cargoToml = readFileSync(resolve(frontendDir, "src-tauri", "Cargo.toml"), "utf8");
+const cargoLock = readFileSync(resolve(frontendDir, "src-tauri", "Cargo.lock"), "utf8");
 
 function fail(message) {
   console.error(`Tauri version check failed: ${message}`);
@@ -24,6 +25,15 @@ function cargoVersion(name) {
   return match?.[1]?.replace(/^=/, "") ?? null;
 }
 
+function lockVersion(name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `\\[\\[package\\]\\]\\nname = "${escaped}"\\nversion = "([^"]+)"`,
+    "m",
+  );
+  return cargoLock.match(pattern)?.[1] ?? null;
+}
+
 function majorMinor(version) {
   const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version ?? "");
   return match ? `${match[1]}.${match[2]}` : null;
@@ -36,6 +46,11 @@ const exactChecks = [
   ["Rust tauri", cargoVersion("tauri"), expected.rustCore],
   ["Rust tauri-plugin-dialog", cargoVersion("tauri-plugin-dialog"), expected.dialog],
   ["Rust tauri-build", cargoVersion("tauri-build"), expected.build],
+  ["locked tauri", lockVersion("tauri"), expected.rustCore],
+  ["locked tauri-runtime", lockVersion("tauri-runtime"), expected.rustRuntime],
+  ["locked tauri-runtime-wry", lockVersion("tauri-runtime-wry"), expected.rustRuntimeWry],
+  ["locked tauri-plugin-dialog", lockVersion("tauri-plugin-dialog"), expected.dialog],
+  ["locked tauri-build", lockVersion("tauri-build"), expected.build],
 ];
 
 for (const [label, actual, wanted] of exactChecks) {
@@ -61,6 +76,6 @@ for (const [label, jsVersion, rustVersion] of pairedChecks) {
 
 if (!process.exitCode) {
   console.log(
-    `Tauri version family is aligned: JS API ${expected.jsApi}, Rust core ${expected.rustCore}, CLI ${expected.cli}, dialog ${expected.dialog}, build ${expected.build}.`,
+    `Tauri version family is aligned: JS API ${expected.jsApi}, Rust core ${expected.rustCore}, runtime ${expected.rustRuntime}, wry runtime ${expected.rustRuntimeWry}, CLI ${expected.cli}, dialog ${expected.dialog}, build ${expected.build}.`,
   );
 }

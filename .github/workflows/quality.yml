@@ -3,10 +3,10 @@ name: Quality
 on:
   pull_request:
   push:
-    branches: [main, agent/desktop-dev-reproducible]
+    branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: quality-${{ github.ref }}
@@ -133,10 +133,8 @@ jobs:
         working-directory: frontend
 
     steps:
-      - name: Check out pull-request head
+      - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.head_ref || github.ref }}
 
       - name: Verify Rust toolchain
         run: cargo --version && rustc --version
@@ -154,35 +152,8 @@ jobs:
           libxdo-dev
           wget
 
-      - name: Resolve and compile initial locked Tauri graph
-        shell: bash
-        run: |
-          cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
-          cargo update --manifest-path src-tauri/Cargo.toml -p tauri-runtime-wry --precise 2.8.0
-          cargo update --manifest-path src-tauri/Cargo.toml -p tauri-runtime --precise 2.8.0
-          cargo check --locked --manifest-path src-tauri/Cargo.toml
-
-      - name: Preserve generated Cargo lockfile
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: echoflow-tauri-cargo-lock
-          path: frontend/src-tauri/Cargo.lock
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Commit generated Cargo lockfile once
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- src-tauri/Cargo.lock
-          if git diff --cached --quiet; then
-            echo "Cargo.lock is already committed."
-          else
-            git commit -m "build(desktop): lock native Tauri dependency graph"
-            git push origin HEAD:"${GITHUB_HEAD_REF}"
-          fi
+      - name: Compile locked native Tauri host
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml
 
   frontend-playwright:
     needs: [static, frontend-static]

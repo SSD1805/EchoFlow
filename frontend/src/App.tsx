@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createDesktopClient } from "./api/desktop";
+import { createProcessingClient } from "./api/processing";
 import { type Theme } from "./components/WorkspaceHeader";
 import { IntakeWorkspace } from "./IntakeWorkspace";
+import { ProcessingCenter } from "./ProcessingCenter";
 import { ResearchWorkspaceWithAnchorReview } from "./ResearchWorkspaceWithAnchorReview";
 import { SearchWorkspace } from "./SearchWorkspace";
+import "./processing-center.css";
 
 const client = createDesktopClient();
+const processing = createProcessingClient();
 
-type View = "intake" | "library" | "research";
+type View = "intake" | "processing" | "library" | "research";
 
 export function App() {
   const [theme, setTheme] = useState<Theme>("archive");
@@ -22,6 +26,16 @@ export function App() {
     if (view === "intake") {
       return (
         <IntakeWorkspace client={client} theme={theme} onThemeChange={setTheme} />
+      );
+    }
+    if (view === "processing") {
+      return (
+        <ProcessingCenter
+          client={client}
+          processing={processing}
+          theme={theme}
+          onThemeChange={setTheme}
+        />
       );
     }
     if (view === "library") {
@@ -57,6 +71,14 @@ export function App() {
             onClick={() => setView("intake")}
           >
             <span aria-hidden="true">＋</span> Add evidence
+          </button>
+          <button
+            className={view === "processing" ? "nav-item nav-item-active" : "nav-item"}
+            type="button"
+            aria-current={view === "processing" ? "page" : undefined}
+            onClick={() => setView("processing")}
+          >
+            <span aria-hidden="true">◉</span> Processing
           </button>
           <button
             className={view === "library" ? "nav-item nav-item-active" : "nav-item"}

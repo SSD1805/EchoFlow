@@ -122,7 +122,10 @@ def _services() -> tuple[DesktopServices, Mock]:
     workspace = Mock()
     workspace.search.return_value = _workspace_response()
     workspace.logger = None
-    return DesktopServices(locations=Mock(), workspace=workspace), workspace
+    return (
+        DesktopServices(locations=Mock(), workspace=workspace, processing=Mock()),
+        workspace,
+    )
 
 
 def _request(method: str, params: dict[str, object]) -> dict[str, object]:

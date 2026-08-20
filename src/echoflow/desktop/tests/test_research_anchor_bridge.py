@@ -98,6 +98,7 @@ def _services() -> DesktopServices:
     return DesktopServices(
         locations=cast(Any, SimpleNamespace()),
         workspace=cast(Any, SimpleNamespace()),
+        processing=cast(Any, object()),
     )
 
 

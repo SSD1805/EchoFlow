@@ -77,9 +77,9 @@ test("Susan can save a durable note from a verified evidence window", async ({ p
   const body = "Compare this passage with the follow-up interview.";
   await reader.getByRole("textbox", { name: "Research note" }).fill(body);
   await reader.getByRole("button", { name: "Save note" }).click();
-  await expect(reader.getByRole("status")).toContainText(
-    "Note saved to this verified evidence.",
-  );
+  await expect(
+    reader.getByText("Note saved to this verified evidence.", { exact: true }),
+  ).toBeVisible();
   await expect(reader.getByText("/Users/")).toHaveCount(0);
   await expect(reader.getByText("canonical_path")).toHaveCount(0);
   await expect(reader.getByText("source_path")).toHaveCount(0);

@@ -1,0 +1,60 @@
+name: Transcript Tools Mutation
+
+# Mutation testing remains a targeted qualification tool rather than a routine PR tax.
+# Run this workflow when transcript inspection, speaker naming, presentation, or post-hoc
+# publication policy changes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: transcript-tools-mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutation:
+    name: Targeted transcript-tools Poodle mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: true
+
+      - name: Install locked development dependencies
+        run: uv sync --locked --all-groups --extra transcription
+
+      - name: Establish transcript-tools qualification baseline
+        run: >-
+          uv run pytest
+          src/echoflow/library/tests/test_transcript_tools.py
+          src/echoflow/library/tests/test_speaker_labels.py
+          src/echoflow/library/tests/test_speaker_presentation.py
+          src/echoflow/transcription/tests/test_export.py
+          src/echoflow/desktop/tests/test_transcript_tools_bridge.py
+          --cov=echoflow
+          --cov-context=test
+          --cov-report=
+          --cov-fail-under=0
+
+      - name: Mutate transcript-tooling decisions
+        run: >-
+          uv run poodle
+          -w 4
+          --only src/echoflow/library/transcript_tools.py
+          --only src/echoflow/library/speaker_label_service.py
+          --only src/echoflow/transcription/export.py
+          --only src/echoflow/desktop/transcript_tools_bridge.py

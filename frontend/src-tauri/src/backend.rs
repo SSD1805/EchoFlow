@@ -46,14 +46,15 @@ fn python_exit_message() -> String {
     }
 }
 
-fn run_backend_request(request: Value) -> Result<Value, String> {
-    let encoded = serde_json::to_vec(&request).map_err(|_| "Could not encode desktop request".to_string())?;
+fn run_python_request(module: &'static str, request: Value) -> Result<Value, String> {
+    let encoded = serde_json::to_vec(&request)
+        .map_err(|_| "Could not encode desktop request".to_string())?;
     if encoded.len() > MAX_REQUEST_BYTES {
         return Err("Desktop request exceeded the safe size limit".to_string());
     }
 
     let mut child = Command::new(configured_python())
-        .args(["-m", "echoflow.desktop.bridge"])
+        .args(["-m", module])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -80,9 +81,18 @@ fn run_backend_request(request: Value) -> Result<Value, String> {
         .map_err(|_| "EchoFlow's local Python service returned an invalid response".to_string())
 }
 
-#[tauri::command]
-pub async fn desktop_request(request: Value) -> Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(move || run_backend_request(request))
+async fn request_module(module: &'static str, request: Value) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || run_python_request(module, request))
         .await
         .map_err(|_| "EchoFlow's local service task could not be completed".to_string())?
+}
+
+#[tauri::command]
+pub async fn desktop_request(request: Value) -> Result<Value, String> {
+    request_module("echoflow.desktop.bridge", request).await
+}
+
+#[tauri::command]
+pub async fn transcript_tools_request(request: Value) -> Result<Value, String> {
+    request_module("echoflow.desktop.transcript_tools_bridge", request).await
 }

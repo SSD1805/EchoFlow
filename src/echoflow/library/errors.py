@@ -25,6 +25,12 @@ class SpeakerLabelStateError(TranscriptLibraryError):
     exit_code = 2
 
 
+class TranscriptToolingError(TranscriptLibraryError):
+    """Transcript inspection, speaker management, or publication failed safely."""
+
+    exit_code = 2
+
+
 class EvidenceNavigationError(TranscriptLibraryError):
     """A ranked result cannot be reconciled safely with canonical evidence."""
 

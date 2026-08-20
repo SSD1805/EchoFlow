@@ -1,9 +1,9 @@
 # Durable research state architecture
 
 Status: authoritative notes/tags/collections, saved searches, projection sync/rebuild,
-research-aware retrieval, unified discovery, desktop Research browse/create, and
-version-checked desktop note mutation are implemented. Saved-search mutation and
-research-object → evidence navigation remain desktop work.  
+research-aware retrieval, unified discovery, desktop note CRUD/labels, exact-generation
+note → evidence return, and saved-search create/run/rename/delete are implemented. Advanced
+Research filtering/navigation and explicit stale-anchor review/re-anchor remain work.  
 Last updated: August 19, 2026
 
 EchoFlow keeps **user-authored research knowledge durable** while still making that
@@ -98,11 +98,12 @@ The load-bearing projected evidence key is:
 (document_id, canonical_sha256, segment_id)
 ```
 
-The full durable anchor also carries source identity and source-relative time coordinates.
-Including canonical SHA-256 prevents a stale annotation from silently attaching to a new
-transcript generation that reuses `segment-000042`.
+The full durable anchor also carries source identity, canonical path custody, optional
+source path custody, and source-relative time coordinates. Including canonical SHA-256
+prevents a stale annotation from silently attaching to a new transcript generation that
+reuses `segment-000042`.
 
-## Verified anchors and desktop creation
+## Verified anchors, creation, and exact-generation return
 
 `EvidenceAnchor` is produced only after canonical evidence validation. Before creating
 durable research anchored to a transcript, the application verifies that the document is
@@ -115,9 +116,19 @@ create-note bridge carries the expected canonical SHA-256 and refuses the write 
 library has moved to a newer generation before Save. React never invents an annotation
 identity or receives a raw canonical/source path.
 
+Existing anchors can now be reopened through `EvidenceLocator.locate_anchor()` and
+`ResearchWorkspaceService.open_note_evidence()`. That read path verifies the **stored**
+canonical bytes and source/document identities, validates stored segments and timing,
+expands canonical context, and resolves speaker display labels against the stored
+canonical generation.
+
+The current transcript index is not used to substitute a newer generation. An older anchor
+either opens against its exact valid stored evidence or fails closed. This is a read path,
+not a migration path.
+
 ## Mutation, concurrency, and the journal
 
-The authoritative write path uses foreign keys, WAL mode, `synchronous=FULL`,
+The authoritative note write path uses foreign keys, WAL mode, `synchronous=FULL`,
 `BEGIN IMMEDIATE` writer serialization, and one transaction for the user mutation **and**
 its change-journal record.
 
@@ -125,16 +136,25 @@ Desktop note editing replaces body, tag relationships, and collection relationsh
 SQLite transaction and advances the journal once. The `EvidenceAnchor` columns and segment
 relationships are not part of that update.
 
-Desktop edit/delete carries the note `updated_at` value it read. The store checks that
+Desktop note edit/delete carries the `updated_at` value it read. The store checks that
 version after `BEGIN IMMEDIATE` has acquired the writer boundary. A mismatch fails closed,
 so a CLI edit or another local surface cannot be silently overwritten by stale React state.
 CLI commands that intentionally operate directly remain compatible and do not require a UI
 version token.
 
-Every projected mutation advances a monotonic sequence. The projector consumes changes in
-bounded batches and replaces touched notes from current authoritative state. Replay is
+Saved-search rename/delete now uses the same local concurrency principle. The workspace
+metadata store checks optional `expected_updated_at` after its `BEGIN IMMEDIATE` boundary.
+Desktop callers always provide that version. Existing CLI/application callers may omit it
+where they deliberately operate as the immediate local authority.
+
+Every projected note mutation advances a monotonic sequence. The projector consumes changes
+in bounded batches and replaces touched notes from current authoritative state. Replay is
 idempotent. The DuckDB watermark advances in the **same DuckDB transaction** as projected
 rows.
+
+Saved searches are authoritative SQLite state but are not part of the note relationship
+projection, so their metadata mutation does not fabricate a research-journal event that no
+projector consumes.
 
 If retained journal history bridges a stale projection, replay it. If the projection is
 missing, damaged, or too far behind, rebuild from a consistent SQLite snapshot. If DuckDB
@@ -165,18 +185,31 @@ human-authored workspace state. They persist typed search/research/retrieval int
 derived evidence scope or snapshot of current results. Running one later re-resolves the
 current corpus and research relationships.
 
+Desktop creation sends name/query/optional description through a narrow bridge method.
+Python constructs the typed `SearchQuery` and owns desktop defaults. Rename changes display
+metadata while preserving the typed `SavedSearchIntent` server-side. Run re-enters the same
+`ResearchWorkspaceService.search()` path used by current research-aware retrieval.
+
 Frequent/recent tag or collection navigation is different. Those rankings are derived
 convenience views and remain disposable.
 
-## Workspace and desktop boundaries
+## Workspace, desktop, and logging boundaries
 
 `ResearchWorkspaceService` composes verified anchors, authoritative SQLite research state,
 deterministic projection convergence, DuckDB research filtering/summaries, transcript
-retrieval, grouped discovery, and saved-search/navigation behavior.
+retrieval, grouped discovery, exact-generation research return, and saved-search behavior.
 
 The CLI and desktop bridge delegate to this service. Desktop methods are narrow DTO
-operations: overview, verified note creation, atomic note replacement, and guarded note
-deletion. React does not issue SQL or open SQLite/DuckDB directly.
+operations: overview, verified note creation, atomic note replacement, guarded note
+deletion, exact note-evidence opening, and saved-search create/update/delete/run. React does
+not issue SQL, open SQLite/DuckDB, choose canonical generations, or receive canonical/source
+filesystem paths.
+
+Research application operations emit structured events through the existing `ILogger`
+boundary. Operational logs carry stable event names plus IDs, canonical SHA where evidence
+identity matters, retrieval mode, counts, current/older state, and exception type on
+failure. They deliberately omit note bodies, query text, saved-search names/descriptions,
+and raw filesystem paths. Logging must not become a shadow research archive.
 
 Older-generation anchors remain visible as older evidence. Editing their human-authored
 prose or labels is permitted because the evidence anchor does not move. Automatic
@@ -187,9 +220,10 @@ segment ID.
 
 Research state currently does not provide:
 
-- desktop saved-search create/run/rename/delete yet;
-- desktop research-object → verified-evidence navigation yet;
-- explicit stale-anchor review/re-anchor UX yet;
+- dedicated desktop tag/collection navigation and filter management yet;
+- advanced typed desktop search controls for phrase/ANY/ALL, speaker, language, transcript,
+  research filters, retrieval mode, and sort yet;
+- explicit stale/unavailable-anchor review/re-anchor UX yet;
 - rich-text/WYSIWYG note bodies;
 - semantic embeddings over note prose;
 - automatic cross-generation re-anchoring;
@@ -200,17 +234,20 @@ Research state currently does not provide:
 
 1. **SQLite research state is authoritative and must never be treated as rebuildable cache.**
 2. **DuckDB research state is a disposable projection and must be reconstructable from SQLite.**
-3. **A user mutation and its journal event commit together.**
+3. **A projected user mutation and its journal event commit together.**
 4. **Desktop stale writes must fail rather than silently overwrite newer user state.**
 5. **Editing note prose/labels must not rebind its evidence anchor.**
-6. **The DuckDB watermark advances atomically with projected rows.**
-7. **Projection replay is idempotent.**
-8. **Research joins include canonical generation identity, not segment ID alone.**
-9. **Empty research scope means no matches, not unrestricted search.**
-10. **Research constraints are applied before ranking/scoring when they are filters.**
-11. **Presentation hydrates authoritative note content from SQLite.**
-12. **Saved searches persist typed intent, not derived result scope.**
-13. **Desktop presentation receives narrow DTOs, not raw database/filesystem authority.**
-14. **Deleting any DuckDB file must never delete unique user-authored knowledge.**
+6. **Opening a research anchor must verify its stored generation or fail closed; it must not substitute current evidence.**
+7. **The DuckDB watermark advances atomically with projected rows.**
+8. **Projection replay is idempotent.**
+9. **Research joins include canonical generation identity, not segment ID alone.**
+10. **Empty research scope means no matches, not unrestricted search.**
+11. **Research constraints are applied before ranking/scoring when they are filters.**
+12. **Presentation hydrates authoritative note content from SQLite.**
+13. **Saved searches persist typed intent, not derived result scope.**
+14. **Saved-search rename must preserve typed intent unless an explicit intent-edit operation exists.**
+15. **Desktop presentation receives narrow DTOs, not raw database/filesystem authority.**
+16. **Operational logging must not copy human research prose or query content into a second archive.**
+17. **Deleting any DuckDB file must never delete unique user-authored knowledge.**
 
 If a refactor makes one of those statements false, it changes EchoFlow's custody model.

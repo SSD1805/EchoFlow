@@ -49,6 +49,7 @@ def _services(workspace: _Workspace) -> DesktopServices:
     return DesktopServices(
         locations=cast(Any, _UnusedLocationService()),
         workspace=cast(Any, workspace),
+        processing=cast(Any, object()),
     )
 
 

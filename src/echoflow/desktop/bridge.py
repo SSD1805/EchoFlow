@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
+from echoflow.library.errors import ResearchStateError
 from echoflow.library.evidence import EvidenceContextSegment, EvidenceWord
 from echoflow.library.locations import (
     LibraryLocationKind,
@@ -52,6 +53,7 @@ class _DesktopRequest(BaseModel):
         "transcripts.refresh",
         "workspace.discover",
         "workspace.research.overview",
+        "workspace.research.note.create",
     ]
     params: dict[str, object] = Field(default_factory=dict)
 
@@ -88,6 +90,35 @@ class _DiscoverParams(BaseModel):
         if not stripped:
             raise ValueError("search text cannot be blank")
         return stripped
+
+
+class _CreateResearchNoteParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str = Field(min_length=1, max_length=1_024)
+    canonical_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    segment_ids: tuple[str, ...] = Field(min_length=1, max_length=100)
+    body: str = Field(min_length=1, max_length=50_000)
+    start_seconds: float = Field(ge=0)
+    end_seconds: float = Field(ge=0)
+
+    @field_validator("document_id", "body")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value cannot be blank")
+        return stripped
+
+    @field_validator("segment_ids")
+    @classmethod
+    def validate_segment_ids(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        normalized = tuple(value.strip() for value in values)
+        if any(not value for value in normalized):
+            raise ValueError("segment IDs cannot be blank")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("segment IDs cannot repeat")
+        return normalized
 
 
 def _success(request_id: str, result: object) -> dict[str, object]:
@@ -224,6 +255,34 @@ def _serialize_research_overview(
     }
 
 
+def _create_research_note(
+    params: _CreateResearchNoteParams,
+    workspace: ResearchWorkspaceService,
+) -> dict[str, object]:
+    document = next(
+        (
+            item
+            for item in workspace.transcript_library.documents()
+            if item.document_id == params.document_id
+        ),
+        None,
+    )
+    if document is None:
+        raise ResearchStateError("Transcript is not present in the local library")
+    if document.canonical_sha256 != params.canonical_sha256:
+        raise ResearchStateError(
+            "Transcript evidence changed before the note could be saved; reopen verified evidence"
+        )
+    note = workspace.add_note(
+        params.document_id,
+        params.segment_ids,
+        params.body,
+        start_seconds=params.start_seconds,
+        end_seconds=params.end_seconds,
+    )
+    return _serialize_note(note)
+
+
 def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
     if request.method == "locations.list":
         _NoParams.model_validate(request.params)
@@ -266,6 +325,10 @@ def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
     if request.method == "workspace.research.overview":
         _NoParams.model_validate(request.params)
         return _serialize_research_overview(services.workspace)
+
+    if request.method == "workspace.research.note.create":
+        note_params = _CreateResearchNoteParams.model_validate(request.params)
+        return _create_research_note(note_params, services.workspace)
 
     refresh_params = _RefreshParams.model_validate(request.params)
     refresh_report = services.locations.refresh_transcript_locations(

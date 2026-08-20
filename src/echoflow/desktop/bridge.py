@@ -27,6 +27,7 @@ from echoflow.library.locations import (
 from echoflow.library.research_workspace import (
     ResearchNoteEvidenceView,
     ResearchNoteView,
+    ResearchQueryFilters,
     ResearchWorkspaceService,
     WorkspaceDiscoveryResponse,
     WorkspaceSearchPassage,
@@ -38,6 +39,7 @@ _PROTOCOL_VERSION = 1
 _MAX_REQUEST_BYTES = 128 * 1024
 _DESKTOP_DEFAULT_SEARCH_LIMIT = 20
 _DESKTOP_DEFAULT_CONTEXT_SEGMENTS = 1
+_DESKTOP_RESEARCH_LIST_LIMIT = 200
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +62,7 @@ class _DesktopRequest(BaseModel):
         "transcripts.refresh",
         "workspace.discover",
         "workspace.research.overview",
+        "workspace.research.notes.filter",
         "workspace.research.note.create",
         "workspace.research.note.update",
         "workspace.research.note.delete",
@@ -104,6 +107,20 @@ class _DiscoverParams(BaseModel):
         if not stripped:
             raise ValueError("search text cannot be blank")
         return stripped
+
+
+def _normalize_research_labels(values: tuple[str, ...]) -> tuple[str, ...]:
+    normalized: dict[str, str] = {}
+    for raw in values:
+        value = raw.strip()
+        if not value:
+            raise ValueError("research labels cannot be blank")
+        if len(value) > 200:
+            raise ValueError("research labels cannot exceed 200 characters")
+        if any(character in value for character in ("\r", "\n", "\x00")):
+            raise ValueError("research labels contain unsupported control characters")
+        normalized.setdefault(value.casefold(), value)
+    return tuple(normalized[key] for key in sorted(normalized))
 
 
 class _CreateResearchNoteParams(BaseModel):
@@ -155,19 +172,19 @@ class _UpdateResearchNoteParams(BaseModel):
     @field_validator("tags", "collections")
     @classmethod
     def validate_labels(cls, values: tuple[str, ...]) -> tuple[str, ...]:
-        normalized: dict[str, str] = {}
-        for raw in values:
-            value = raw.strip()
-            if not value:
-                raise ValueError("research labels cannot be blank")
-            if len(value) > 200:
-                raise ValueError("research labels cannot exceed 200 characters")
-            if any(character in value for character in ("\r", "\n", "\x00")):
-                raise ValueError(
-                    "research labels contain unsupported control characters"
-                )
-            normalized.setdefault(value.casefold(), value)
-        return tuple(normalized[key] for key in sorted(normalized))
+        return _normalize_research_labels(values)
+
+
+class _FilterResearchNotesParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tags: tuple[str, ...] = Field(default=(), max_length=100)
+    collections: tuple[str, ...] = Field(default=(), max_length=100)
+
+    @field_validator("tags", "collections")
+    @classmethod
+    def validate_labels(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        return _normalize_research_labels(values)
 
 
 class _DeleteResearchNoteParams(BaseModel):
@@ -402,9 +419,12 @@ def _serialize_saved_search(item: SavedSearch) -> dict[str, object]:
 def _serialize_research_overview(
     workspace: ResearchWorkspaceService,
 ) -> dict[str, object]:
-    saved_searches = workspace.saved_searches(limit=200)
+    saved_searches = workspace.saved_searches(limit=_DESKTOP_RESEARCH_LIST_LIMIT)
     return {
-        "notes": [_serialize_note(item) for item in workspace.notes(limit=200)],
+        "notes": [
+            _serialize_note(item)
+            for item in workspace.notes(limit=_DESKTOP_RESEARCH_LIST_LIMIT)
+        ],
         "tags": [
             {"tag_id": item.tag_id, "name": item.name} for item in workspace.tags()
         ],
@@ -464,6 +484,22 @@ def _serialize_saved_search_run(
         "saved_search": _serialize_saved_search(saved),
         "query": report.navigation.retrieval.query.text,
         "evidence": [_serialize_workspace_passage(item) for item in report.results],
+    }
+
+
+def _filter_research_notes(
+    params: _FilterResearchNotesParams,
+    workspace: ResearchWorkspaceService,
+) -> dict[str, object]:
+    filters = ResearchQueryFilters(
+        tags=params.tags,
+        collections=params.collections,
+    )
+    notes = workspace.notes(filters=filters, limit=_DESKTOP_RESEARCH_LIST_LIMIT)
+    return {
+        "tags": list(filters.tags),
+        "collections": list(filters.collections),
+        "notes": [_serialize_note(item) for item in notes],
     }
 
 
@@ -659,6 +695,10 @@ def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
     if request.method == "workspace.research.overview":
         _NoParams.model_validate(request.params)
         return _serialize_research_overview(services.workspace)
+
+    if request.method == "workspace.research.notes.filter":
+        filter_params = _FilterResearchNotesParams.model_validate(request.params)
+        return _filter_research_notes(filter_params, services.workspace)
 
     if request.method.startswith("workspace.research.note."):
         return _dispatch_research_note(request, services.workspace)

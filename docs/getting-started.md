@@ -17,10 +17,8 @@ the supported path is a source/developer checkout.
 The repository currently has two presentation paths over the same application services:
 
 - the Python CLI; and
-- a Tauri + React desktop shell for native import, Library discovery, and verified evidence
-  reading/cursor interaction.
-
-A dedicated desktop Research workspace is the next UI tranche.
+- a Tauri + React desktop shell for native import, Library discovery, verified evidence,
+  and durable Research workflows.
 
 ```mermaid
 flowchart LR
@@ -35,7 +33,7 @@ flowchart LR
     I --> G
     G --> J[Desktop Library]
     H --> J
-    I --> K[Next Desktop Research]
+    I --> K[Desktop Research]
 
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
@@ -52,8 +50,7 @@ flowchart LR
 
 Text fallback: source media is inspected and transcribed locally into canonical evidence;
 rebuildable search and verified navigation make that evidence useful; durable research
-state stays separate; the current desktop exposes import/Library/evidence workflows, with
-a Research workspace next.
+state stays separate; the desktop exposes import, Library, evidence, and Research workflows.
 
 ## 1. Install the source build
 
@@ -122,22 +119,10 @@ uv run echoflow library speakers name JOB_ID speaker-02 "Dr. Chen"
 
 ## 6. Refresh and search the local transcript library 🔎
 
-Full rebuild remains the repair/recovery lever:
-
 ```bash
 uv run echoflow library rebuild
-```
-
-Normal corpus growth can use incremental refresh:
-
-```bash
 uv run echoflow library refresh
 uv run echoflow library refresh --verify
-```
-
-Search exact wording or unified workspace content:
-
-```bash
 uv run echoflow library search "housing insecurity"
 uv run echoflow library find "housing affordability"
 ```
@@ -186,7 +171,10 @@ See **[Durable library locations](architecture/library-locations.md)**.
 
 ## 9. Use the current desktop shell
 
-The graphical foundation lives under `frontend/` and `src-tauri/`.
+The graphical foundation lives under `frontend/` and `frontend/src-tauri/`.
+
+Native desktop development needs Node/npm, a stable Rust toolchain with Cargo, and Tauri's
+OS-native webview/build libraries. See **[Desktop development prerequisites](development/desktop-development.md)** before the first native build.
 
 ```bash
 cd frontend
@@ -194,8 +182,9 @@ npm ci
 npm run tauri dev
 ```
 
-The browser-only development mock (`?e2e=1`) is for frontend tests and visual development.
-It is not the real local application authority.
+`npm ci` installs the locked JavaScript dependency graph into `frontend/node_modules/`; it
+does not install those packages globally. The browser-only development mock (`?e2e=1`) is
+for frontend tests and visual development. It is not the real local application authority.
 
 The current desktop journey includes:
 
@@ -203,8 +192,10 @@ The current desktop journey includes:
 - one-time versus remembered location choices;
 - recording candidate discovery;
 - grouped Library search across evidence and research state;
-- verified canonical context and word highlighting; and
-- a clickable source-relative evidence cursor.
+- verified canonical context and word highlighting;
+- exact-generation Research note reopening;
+- note create/edit/delete plus saved-search lifecycle; and
+- first-class tag/collection filtering with inspectable active filters.
 
 The desktop webview does not receive arbitrary SQL, shell, or raw canonical/source path
 authority.
@@ -230,7 +221,7 @@ flowchart TD
     B --> E[Verified evidence anchors]
     E --> F[SQLite notes tags collections saved searches]
     F --> G[DuckDB research projection]
-    F --> H[Next Desktop Research]
+    F --> H[Desktop Research]
 
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
@@ -245,17 +236,22 @@ flowchart TD
 
 Text fallback: original media and canonical JSON are evidence; notes/tags/collections and
 saved searches are durable human knowledge; publication/search/research projections are
-rebuildable; a dedicated desktop Research view is the next presentation layer.
+rebuildable; the desktop Research surface consumes the same application authority.
 
 ## What comes next?
 
-The first desktop import, Library search, and verified evidence reader/cursor are
-foundation. Next:
+The desktop import, Library search, verified evidence reader, durable Research workspace,
+and first-class tag/collection navigation are foundation. Next:
 
-1. **Research workspace UI** over the existing authoritative backend.
-2. **Tauri-owned local media playback** driven by verified source-relative coordinates.
-3. **Desktop packaging and first run** across Windows/macOS/Linux.
-4. **Backup, restore, and evidence-bearing research export**.
-5. **Semantic dependency/model qualification and representative-device release testing**.
+1. **Finish Research** with explicit stale/unavailable-anchor review and advanced typed search controls.
+2. **Build the desktop Processing center** over existing machine/model/job/transcription authority, including adaptive zero-knob execution.
+3. **Add speaker/processing controls and Tauri-owned local media playback**.
+4. **Productize lifecycle, packaging, first run, backup/restore, and portability**.
+5. **Qualify semantic dependencies and representative hardware**.
 
-For the detailed sequence, see **[ROADMAP.md](../ROADMAP.md)**.
+The deliberately separate **[post-MVP research roadmap](post-mvp-roadmap.md)** covers
+research snapshots/diffs, REFI-QDA interoperability, evidence packets, comparison,
+evidence-linked writing/script boards, portable research bundles, and live provisional
+capture after the first desktop product is coherent.
+
+For the detailed first-release sequence, see **[ROADMAP.md](../ROADMAP.md)**.

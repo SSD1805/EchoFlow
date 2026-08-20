@@ -120,6 +120,38 @@ jobs:
       - name: Audit complete locked frontend dependency graph
         run: npm audit --audit-level=high
 
+  native-tauri:
+    needs: [frontend-static]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Verify Rust toolchain
+        run: cargo --version && rustc --version
+
+      - name: Install Tauri Linux build prerequisites
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          build-essential
+          curl
+          file
+          libayatana-appindicator3-dev
+          librsvg2-dev
+          libssl-dev
+          libwebkit2gtk-4.1-dev
+          libxdo-dev
+          wget
+
+      - name: Compile native Tauri host
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
   frontend-playwright:
     needs: [static, frontend-static]
     runs-on: ubuntu-latest

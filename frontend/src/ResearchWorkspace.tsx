@@ -12,6 +12,7 @@ import { WorkspaceHeader, type Theme } from "./components/WorkspaceHeader";
 import { EvidenceReader } from "./EvidenceReader";
 import { formatEvidenceTime } from "./format";
 import "./research.css";
+import "./research-label-navigation.css";
 
 interface ResearchWorkspaceProps {
   client: DesktopClient;
@@ -30,13 +31,30 @@ function formatUpdatedAt(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-function parseLabels(value: string): string[] {
+function normalizeLabels(values: string[]): string[] {
   const labels = new Map<string, string>();
-  value.split(",").forEach((raw) => {
+  values.forEach((raw) => {
     const label = raw.trim();
     if (label) labels.set(label.toLocaleLowerCase(), label);
   });
-  return [...labels.values()];
+  return [...labels.values()].sort((left, right) => left.localeCompare(right));
+}
+
+function parseLabels(value: string): string[] {
+  return normalizeLabels(value.split(","));
+}
+
+function containsLabel(values: string[], label: string): boolean {
+  const target = label.toLocaleLowerCase();
+  return values.some((value) => value.toLocaleLowerCase() === target);
+}
+
+function toggleLabel(values: string[], label: string): string[] {
+  if (containsLabel(values, label)) {
+    const target = label.toLocaleLowerCase();
+    return values.filter((value) => value.toLocaleLowerCase() !== target);
+  }
+  return normalizeLabels([...values, label]);
 }
 
 export function ResearchWorkspace({
@@ -57,6 +75,11 @@ export function ResearchWorkspace({
   const [mutationMessage, setMutationMessage] = useState<string | null>(null);
   const [reader, setReader] = useState<ReaderState | null>(null);
 
+  const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [activeCollections, setActiveCollections] = useState<string[]>([]);
+  const [filteredNotes, setFilteredNotes] = useState<ResearchNoteResult[] | null>(null);
+  const [filterBusy, setFilterBusy] = useState(false);
+
   const [savedName, setSavedName] = useState("");
   const [savedQuery, setSavedQuery] = useState("");
   const [savedDescription, setSavedDescription] = useState("");
@@ -66,6 +89,13 @@ export function ResearchWorkspace({
   const [savedDraftName, setSavedDraftName] = useState("");
   const [savedDraftDescription, setSavedDraftDescription] = useState("");
   const [savedRun, setSavedRun] = useState<SavedSearchRunResult | null>(null);
+
+  const hasActiveFilters = activeTags.length > 0 || activeCollections.length > 0;
+  const visibleNotes = overview
+    ? hasActiveFilters
+      ? (filteredNotes ?? [])
+      : overview.notes
+    : [];
 
   const loadOverview = useCallback(async () => {
     setBusy(true);
@@ -87,6 +117,56 @@ export function ResearchWorkspace({
   useEffect(() => {
     void loadOverview();
   }, [loadOverview]);
+
+  async function applyResearchFilters(
+    tags: string[],
+    collections: string[],
+    announce = true,
+  ) {
+    const nextTags = normalizeLabels(tags);
+    const nextCollections = normalizeLabels(collections);
+    setFilterBusy(true);
+    setError(null);
+    if (announce) setMutationMessage(null);
+    try {
+      if (nextTags.length === 0 && nextCollections.length === 0) {
+        setActiveTags([]);
+        setActiveCollections([]);
+        setFilteredNotes(null);
+        if (announce) setMutationMessage("Showing all research notes.");
+        return;
+      }
+      const result = await client.filterResearchNotes(nextTags, nextCollections);
+      setActiveTags(result.tags);
+      setActiveCollections(result.collections);
+      setFilteredNotes(result.notes);
+      if (announce) {
+        const noun = result.notes.length === 1 ? "note" : "notes";
+        setMutationMessage(
+          `Showing ${result.notes.length} ${noun} matching every selected label.`,
+        );
+      }
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "EchoFlow could not apply those research filters.",
+      );
+    } finally {
+      setFilterBusy(false);
+    }
+  }
+
+  async function refreshActiveFilters() {
+    if (hasActiveFilters) {
+      await applyResearchFilters(activeTags, activeCollections, false);
+    }
+  }
+
+  async function refreshResearch() {
+    await loadOverview();
+    await refreshActiveFilters();
+  }
 
   function beginEdit(note: ResearchNoteResult) {
     setEditingNoteId(note.note_id);
@@ -118,6 +198,7 @@ export function ResearchWorkspace({
       });
       cancelEdit();
       await loadOverview();
+      await refreshActiveFilters();
       setMutationMessage("Note saved. Its verified evidence anchor is unchanged.");
     } catch (caught) {
       setError(
@@ -137,6 +218,7 @@ export function ResearchWorkspace({
       setDeleteNoteId(null);
       if (editingNoteId === note.note_id) cancelEdit();
       await loadOverview();
+      await refreshActiveFilters();
       setMutationMessage("Note deleted. Transcript evidence was not deleted.");
     } catch (caught) {
       setError(
@@ -181,6 +263,7 @@ export function ResearchWorkspace({
     }
     await client.createResearchNote(reader.evidence, body);
     await loadOverview();
+    await refreshActiveFilters();
   }
 
   async function createSavedSearch(event: FormEvent) {
@@ -314,10 +397,15 @@ export function ResearchWorkspace({
           <button
             className="research-refresh"
             type="button"
-            disabled={busy || mutatingNoteId !== null || mutatingSavedId !== null}
-            onClick={() => void loadOverview()}
+            disabled={
+              busy ||
+              filterBusy ||
+              mutatingNoteId !== null ||
+              mutatingSavedId !== null
+            }
+            onClick={() => void refreshResearch()}
           >
-            {busy ? "Refreshing…" : "Refresh research"}
+            {busy || filterBusy ? "Refreshing…" : "Refresh research"}
           </button>
         </div>
       </section>
@@ -401,14 +489,74 @@ export function ResearchWorkspace({
                 <p className="mini-label">Authoritative annotations</p>
                 <h2 id="research-notes">Notes</h2>
               </div>
-              <span className="research-count">{overview.notes.length}</span>
+              <span className="research-count">{visibleNotes.length}</span>
             </div>
 
-            {overview.notes.length === 0 ? (
-              <p className="research-empty">No research notes yet.</p>
+            {hasActiveFilters && (
+              <div
+                className="research-active-filters"
+                role="region"
+                aria-label="Active research filters"
+              >
+                <div className="research-active-filter-heading">
+                  <div>
+                    <strong>Active filters</strong>
+                    <span>Every selected label must match the same note.</span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={filterBusy}
+                    onClick={() => void applyResearchFilters([], [])}
+                  >
+                    Clear filters
+                  </button>
+                </div>
+                <div className="research-active-filter-pills">
+                  {activeTags.map((tag) => (
+                    <button
+                      key={`active-tag:${tag}`}
+                      type="button"
+                      aria-label={`Remove tag ${tag}`}
+                      disabled={filterBusy}
+                      onClick={() =>
+                        void applyResearchFilters(
+                          toggleLabel(activeTags, tag),
+                          activeCollections,
+                        )
+                      }
+                    >
+                      #{tag} <span aria-hidden="true">×</span>
+                    </button>
+                  ))}
+                  {activeCollections.map((collection) => (
+                    <button
+                      key={`active-collection:${collection}`}
+                      type="button"
+                      aria-label={`Remove collection ${collection}`}
+                      disabled={filterBusy}
+                      onClick={() =>
+                        void applyResearchFilters(
+                          activeTags,
+                          toggleLabel(activeCollections, collection),
+                        )
+                      }
+                    >
+                      {collection} <span aria-hidden="true">×</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {visibleNotes.length === 0 ? (
+              <p className="research-empty">
+                {hasActiveFilters
+                  ? "No notes match every selected label."
+                  : "No research notes yet."}
+              </p>
             ) : (
               <div className="research-note-list">
-                {overview.notes.map((note) => {
+                {visibleNotes.map((note) => {
                   const editing = editingNoteId === note.note_id;
                   const confirmingDelete = deleteNoteId === note.note_id;
                   const mutating = mutatingNoteId === note.note_id;
@@ -487,17 +635,44 @@ export function ResearchWorkspace({
                           <p className="research-note-body">{note.body}</p>
                           <div className="research-note-footer">
                             <div
-                              className="research-pills"
+                              className="research-pills research-label-buttons"
                               role="group"
-                              aria-label="Research labels"
+                              aria-label={`Research labels for ${note.document_id}`}
                             >
                               {note.tags.map((tag) => (
-                                <span key={`${note.note_id}:tag:${tag}`}>#{tag}</span>
+                                <button
+                                  key={`${note.note_id}:tag:${tag}`}
+                                  type="button"
+                                  aria-pressed={containsLabel(activeTags, tag)}
+                                  disabled={filterBusy}
+                                  onClick={() =>
+                                    void applyResearchFilters(
+                                      toggleLabel(activeTags, tag),
+                                      activeCollections,
+                                    )
+                                  }
+                                >
+                                  #{tag}
+                                </button>
                               ))}
                               {note.collections.map((collection) => (
-                                <span key={`${note.note_id}:collection:${collection}`}>
+                                <button
+                                  key={`${note.note_id}:collection:${collection}`}
+                                  type="button"
+                                  aria-pressed={containsLabel(
+                                    activeCollections,
+                                    collection,
+                                  )}
+                                  disabled={filterBusy}
+                                  onClick={() =>
+                                    void applyResearchFilters(
+                                      activeTags,
+                                      toggleLabel(activeCollections, collection),
+                                    )
+                                  }
+                                >
                                   {collection}
-                                </span>
+                                </button>
                               ))}
                             </div>
                             <time dateTime={note.updated_at} className="research-updated">
@@ -580,7 +755,10 @@ export function ResearchWorkspace({
                 <span className="research-count">{overview.saved_searches.length}</span>
               </div>
 
-              <form className="saved-search-create" onSubmit={(event) => void createSavedSearch(event)}>
+              <form
+                className="saved-search-create"
+                onSubmit={(event) => void createSavedSearch(event)}
+              >
                 <label>
                   Name
                   <input
@@ -618,7 +796,9 @@ export function ResearchWorkspace({
                 </p>
                 <button
                   type="submit"
-                  disabled={mutatingSavedId !== null || !savedName.trim() || !savedQuery.trim()}
+                  disabled={
+                    mutatingSavedId !== null || !savedName.trim() || !savedQuery.trim()
+                  }
                 >
                   {mutatingSavedId === "new" ? "Saving…" : "Save search"}
                 </button>
@@ -759,20 +939,38 @@ export function ResearchWorkspace({
                   <h2 id="research-labels">Labels</h2>
                 </div>
               </div>
+              <p className="research-filter-explainer">
+                Select more than one label to narrow notes by every selected tag and collection.
+              </p>
               <div className="label-section">
                 <h3>Tags</h3>
-                <div className="research-pills" role="group" aria-label="Research tags">
+                <div className="research-pills research-label-buttons" role="group" aria-label="Research tags">
                   {overview.tags.length === 0 ? (
                     <span className="research-empty-inline">None yet</span>
                   ) : (
-                    overview.tags.map((tag) => <span key={tag.tag_id}>#{tag.name}</span>)
+                    overview.tags.map((tag) => (
+                      <button
+                        key={tag.tag_id}
+                        type="button"
+                        aria-pressed={containsLabel(activeTags, tag.name)}
+                        disabled={filterBusy}
+                        onClick={() =>
+                          void applyResearchFilters(
+                            toggleLabel(activeTags, tag.name),
+                            activeCollections,
+                          )
+                        }
+                      >
+                        #{tag.name}
+                      </button>
+                    ))
                   )}
                 </div>
               </div>
               <div className="label-section">
                 <h3>Collections</h3>
                 <div
-                  className="research-pills collection-pills"
+                  className="research-pills collection-pills research-label-buttons"
                   role="group"
                   aria-label="Research collections"
                 >
@@ -780,7 +978,23 @@ export function ResearchWorkspace({
                     <span className="research-empty-inline">None yet</span>
                   ) : (
                     overview.collections.map((collection) => (
-                      <span key={collection.collection_id}>{collection.name}</span>
+                      <button
+                        key={collection.collection_id}
+                        type="button"
+                        aria-pressed={containsLabel(
+                          activeCollections,
+                          collection.name,
+                        )}
+                        disabled={filterBusy}
+                        onClick={() =>
+                          void applyResearchFilters(
+                            activeTags,
+                            toggleLabel(activeCollections, collection.name),
+                          )
+                        }
+                      >
+                        {collection.name}
+                      </button>
                     ))
                   )}
                 </div>

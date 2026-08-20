@@ -97,6 +97,12 @@ export interface ResearchNoteEvidenceResult {
   evidence: WorkspaceEvidenceResult;
 }
 
+export interface ResearchNoteFilterResult {
+  tags: string[];
+  collections: string[];
+  notes: ResearchNoteResult[];
+}
+
 export interface WorkspaceNamedResult {
   name: string;
 }
@@ -167,6 +173,7 @@ export interface DesktopClient {
   refreshTranscriptLocations(): Promise<void>;
   discoverWorkspace(text: string): Promise<WorkspaceDiscoveryReport>;
   researchOverview(): Promise<ResearchOverview>;
+  filterResearchNotes(tags: string[], collections: string[]): Promise<ResearchNoteFilterResult>;
   createResearchNote(
     evidence: WorkspaceEvidenceResult,
     body: string,
@@ -213,6 +220,11 @@ function normalizeLabels(values: string[]): string[] {
     if (value) labels.set(value.toLocaleLowerCase(), value);
   });
   return [...labels.values()].sort((left, right) => left.localeCompare(right));
+}
+
+function containsLabel(values: string[], requested: string): boolean {
+  const target = requested.toLocaleLowerCase();
+  return values.some((value) => value.toLocaleLowerCase() === target);
 }
 
 class TauriDesktopClient implements DesktopClient {
@@ -307,6 +319,16 @@ class TauriDesktopClient implements DesktopClient {
 
   researchOverview(): Promise<ResearchOverview> {
     return this.request("workspace.research.overview", {});
+  }
+
+  filterResearchNotes(
+    tags: string[],
+    collections: string[],
+  ): Promise<ResearchNoteFilterResult> {
+    return this.request("workspace.research.notes.filter", {
+      tags,
+      collections,
+    });
   }
 
   createResearchNote(
@@ -639,6 +661,30 @@ class MockDesktopClient implements DesktopClient {
     };
   }
 
+  async filterResearchNotes(
+    tags: string[],
+    collections: string[],
+  ): Promise<ResearchNoteFilterResult> {
+    const normalizedTags = normalizeLabels(tags);
+    const normalizedCollections = normalizeLabels(collections);
+    const notes = this.researchNotes.filter(
+      (note) =>
+        normalizedTags.every((tag) => containsLabel(note.tags, tag)) &&
+        normalizedCollections.every((collection) =>
+          containsLabel(note.collections, collection),
+        ),
+    );
+    return {
+      tags: normalizedTags,
+      collections: normalizedCollections,
+      notes: notes.map((note) => ({
+        ...note,
+        tags: [...note.tags],
+        collections: [...note.collections],
+      })),
+    };
+  }
+
   async createResearchNote(
     evidence: WorkspaceEvidenceResult,
     body: string,
@@ -782,7 +828,9 @@ class MockDesktopClient implements DesktopClient {
   ): Promise<ResearchSavedSearchResult> {
     const trimmedName = name.trim();
     const trimmedQuery = queryText.trim();
-    if (!trimmedName || !trimmedQuery) throw new Error("Saved search requires a name and query");
+    if (!trimmedName || !trimmedQuery) {
+      throw new Error("Saved search requires a name and query");
+    }
     if (
       this.savedSearches.some(
         (saved) => saved.name.toLocaleLowerCase() === trimmedName.toLocaleLowerCase(),

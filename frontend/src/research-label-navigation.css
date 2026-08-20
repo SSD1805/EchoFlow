@@ -1,0 +1,103 @@
+.research-label-buttons button,
+.research-active-filter-pills button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.2;
+  padding: 0.38rem 0.66rem;
+  cursor: pointer;
+}
+
+.research-label-buttons button:hover:not(:disabled),
+.research-label-buttons button:focus-visible,
+.research-active-filter-pills button:hover:not(:disabled),
+.research-active-filter-pills button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.research-label-buttons button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.research-label-buttons button:disabled,
+.research-active-filter-pills button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.research-filter-explainer {
+  margin: 0;
+  padding: 16px 18px 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.research-active-filters {
+  margin: 16px 20px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.research-active-filter-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.research-active-filter-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.research-active-filter-heading span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.research-active-filter-heading > button {
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.research-active-filter-heading > button:hover:not(:disabled),
+.research-active-filter-heading > button:focus-visible {
+  color: var(--accent);
+}
+
+.research-active-filter-heading > button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.research-active-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+@media (max-width: 680px) {
+  .research-active-filter-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .research-active-filter-heading > button {
+    align-self: flex-start;
+  }
+}

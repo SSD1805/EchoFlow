@@ -82,7 +82,7 @@ Desktop edit/delete carries the note’s authoritative `updated_at` version. If 
 another local surface changed that note after it was displayed, EchoFlow refuses the stale
 write and asks the user to refresh. Local-first does not mean lost-update-safe by accident.
 
-A note can now reopen the exact canonical generation it cites. The backend reuses the same
+A note can reopen the exact canonical generation it cites. The backend reuses the same
 canonical verifier as search navigation: it hashes the stored canonical bytes, checks the
 stored source and document identities, validates the stored segments and timing, expands
 context, and resolves speaker display labels for that exact generation. React does not
@@ -160,17 +160,54 @@ canonical SHA-256, EchoFlow does **not** silently move the old note.
 The old note remains durable historical user state. The projected evidence key includes
 canonical generation identity so stale annotations cannot accidentally attach to new
 evidence. Editing the prose or labels on that old note still leaves its original anchor
-unchanged. The desktop can now inspect the older generation when those exact canonical
-bytes remain available and valid.
+unchanged. The desktop can inspect the older generation when those exact canonical bytes
+remain available and valid.
 
-A later re-anchor workflow must be an explicit user decision that shows both generations;
-it must never be an incidental side effect of opening or editing a note.
+### Review and deliberately re-anchor an older note
+
+The desktop now has an **Evidence maintenance** surface for notes whose anchor is not the
+current canonical generation. Review is read-only. EchoFlow classifies the stored anchor as:
+
+- **current verified**: it already points to the current verified generation;
+- **older verified**: the exact stored generation still verifies and remains legitimate
+  historical evidence; or
+- **unavailable**: the stored generation cannot currently be verified on this machine.
+
+Older does not mean broken. An older verified anchor can remain exactly where it is for as
+long as the user wants.
+
+For a non-current anchor, EchoFlow may also prepare a **current-generation candidate**. It
+will only do so when the current library document has the same durable document identity
+and the same recorded-source SHA-256. Candidate coordinates are derived from the note's
+source-relative time span, resolved to current canonical segments, and verified through the
+normal evidence locator. EchoFlow does not search another recording for something that
+looks similar, and React never chooses a canonical path or generation.
+
+Reviewing the candidate still changes nothing. Re-anchoring requires a second explicit
+confirmation. That confirmation carries both the note's `updated_at` version and the
+candidate canonical SHA-256 the user reviewed. If the note or current transcript changes
+before confirmation, EchoFlow refuses the mutation and requires another review.
+
+A successful re-anchor is one authoritative SQLite transaction:
+
+1. copy the old evidence anchor and its segment identities into durable anchor history;
+2. replace the note's current anchor with the reviewed same-source candidate;
+3. advance the research projection journal once; and
+4. commit all three together or roll all three back.
+
+The old anchor therefore does not vanish. It becomes a durable provenance record attached
+to that note. Re-anchoring changes **which evidence the note currently points to**; it does
+not rewrite the fact that the note used to point somewhere else.
+
+If EchoFlow cannot derive a safe same-source candidate, the Research surface shows the
+problem and offers no re-anchor action. There is intentionally no automatic or
+cross-recording fallback.
 
 ## Why two databases?
 
 | Store | Job | Rebuildable? |
 |---|---|---|
-| SQLite research state | authoritative notes/tags/collections/saved searches and evidence anchors | **No** |
+| SQLite research state | authoritative notes/tags/collections/saved searches, current evidence anchors, and superseded anchor history | **No** |
 | DuckDB research projection | fast derived relationships and lexical note terms | Yes |
 | DuckDB transcript index | transcript terms/segments for lexical ranking | Yes |
 | DuckDB semantic index | chunks/vectors for semantic retrieval | Yes |
@@ -224,13 +261,12 @@ second notebook.
 
 The storage, evidence-address, unified-discovery, Research overview, verified note
 creation, note edit/delete/label mutation, first-class tag/collection navigation,
-exact-generation note return, and saved-search create/run/rename/delete contracts are
-built.
+exact-generation note return, saved-search lifecycle, and explicit stale/unavailable anchor
+review plus provenance-preserving re-anchor contracts are built.
 
-The remaining first-release Research tranche is narrower:
-
-- expose advanced typed search/research controls without hidden interpretation; and
-- stale/unavailable-anchor review and any explicit re-anchor UX with user confirmation.
+The remaining first-release Research tranche is now the richer typed search surface:
+phrase/ANY/ALL behavior, speaker/language/transcript constraints, inspectable research
+filters, retrieval mode, and sort without hidden interpretation.
 
 Selected evidence packets, REFI-QDA interoperability, saved-question snapshots/diffs,
 comparison workspaces, evidence-linked writing/script boards, portable research bundles,
@@ -238,7 +274,7 @@ and live provisional capture are deliberately post-MVP work. See
 **[Post-MVP research roadmap](post-mvp-roadmap.md)**.
 
 The product does not currently provide rich-text/WYSIWYG editing, semantic embeddings over
-note prose, automatic cross-generation re-anchoring, or collaborative sync.
+note prose, **automatic** cross-generation re-anchoring, or collaborative sync.
 
 > **Your research state is durable. Its fast query representation is disposable. The two
 > can always meet again through exact evidence identities.**

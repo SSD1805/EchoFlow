@@ -1,3 +1,5 @@
+import "./development-mode.css";
+
 export function DevelopmentModeNotice() {
   return (
     <main className="dev-mode-shell">

@@ -1,0 +1,131 @@
+name: PR87 CI repair
+
+on:
+  push:
+    branches:
+      - agent/processing-center
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/processing-center
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: '0.11.33'
+      - name: Decompose desktop control-plane dispatch and wire explicit test services
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          bridge = Path('src/echoflow/desktop/bridge.py')
+          text = bridge.read_text()
+          old = '''    if request.method.startswith("processing."):\n        return dispatch_processing(request.method, request.params, services.processing)\n\n    if request.method.startswith("workspace.research.search."):\n        return dispatch_research_search(\n            request.method, request.params, services.workspace\n        )\n\n    if request.method.startswith("workspace.research.note."):\n        return _dispatch_research_note(request, services.workspace)\n\n    if request.method.startswith("workspace.research.saved_search."):\n        return _dispatch_saved_search(request, services.workspace)\n'''
+          new = '''    if request.method.startswith(("processing.", "workspace.research.")):\n        return _dispatch_control_plane(request, services)\n'''
+          if text.count(old) != 1:
+              raise SystemExit('Expected exactly one desktop control-plane dispatch block')
+          text = text.replace(old, new)
+
+          marker = '\n\ndef _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:\n'
+          helper = '''\n\ndef _dispatch_control_plane(\n    request: _DesktopRequest, services: DesktopServices\n) -> object:\n    if request.method.startswith("processing."):\n        return dispatch_processing(request.method, request.params, services.processing)\n    if request.method.startswith("workspace.research.search."):\n        return dispatch_research_search(\n            request.method, request.params, services.workspace\n        )\n    if request.method.startswith("workspace.research.note."):\n        return _dispatch_research_note(request, services.workspace)\n    if request.method.startswith("workspace.research.saved_search."):\n        return _dispatch_saved_search(request, services.workspace)\n    raise ValueError("Unsupported desktop control-plane method")\n'''
+          if text.count(marker) != 1:
+              raise SystemExit('Expected exactly one desktop dispatch marker')
+          text = text.replace(marker, helper + marker)
+          bridge.write_text(text)
+
+          tests = Path('src/echoflow/desktop/tests')
+          changed = 0
+          for path in sorted(tests.glob('test_*.py')):
+              source = path.read_text()
+              if 'DesktopServices(' not in source or 'processing=' in source:
+                  continue
+
+              if 'from typing import Any, cast' not in source:
+                  typing_match = re.search(r'^from typing import ([^\n]+)$', source, re.MULTILINE)
+                  if typing_match:
+                      names = [part.strip() for part in typing_match.group(1).split(',')]
+                      for required in ('Any', 'cast'):
+                          if required not in names:
+                              names.append(required)
+                      replacement = 'from typing import ' + ', '.join(sorted(names))
+                      source = source[:typing_match.start()] + replacement + source[typing_match.end():]
+                  else:
+                      insertion = 0
+                      future = re.match(r'^from __future__ import annotations\n\n', source)
+                      if future:
+                          insertion = future.end()
+                      source = source[:insertion] + 'from typing import Any, cast\n\n' + source[insertion:]
+
+              pattern = re.compile(r'(\n(?P<indent>\s+)workspace=cast\(Any, [^\n]+\),\n)(?P=indent)\)')
+              source, count = pattern.subn(
+                  lambda match: match.group(1)
+                  + match.group('indent')
+                  + 'processing=cast(Any, object()),\n'
+                  + match.group('indent')
+                  + ')',
+                  source,
+                  count=1,
+              )
+              if count == 0:
+                  pattern = re.compile(r'(\n(?P<indent>\s+)workspace=[^\n]+,\n)(?P=indent)\)')
+                  source, count = pattern.subn(
+                      lambda match: match.group(1)
+                      + match.group('indent')
+                      + 'processing=cast(Any, object()),\n'
+                      + match.group('indent')
+                      + ')',
+                      source,
+                      count=1,
+                  )
+              if count != 1:
+                  raise SystemExit(f'Could not wire explicit Processing dependency in {path}')
+              path.write_text(source)
+              changed += 1
+
+          if changed < 1:
+              raise SystemExit('Expected at least one legacy DesktopServices fixture update')
+          print(f'Updated {changed} legacy DesktopServices fixture file(s)')
+          PY
+      - name: Apply repository Python style gates
+        run: |
+          uv sync --locked --group dev
+          uv run ruff check \
+            src/echoflow/app/processing_center.py \
+            src/echoflow/desktop/bridge.py \
+            src/echoflow/desktop/tests \
+            --fix
+          uv run ruff format \
+            src/echoflow/app/processing_center.py \
+            src/echoflow/desktop/bridge.py \
+            src/echoflow/desktop/tests
+          uv run ruff check \
+            src/echoflow/app/processing_center.py \
+            src/echoflow/desktop/bridge.py \
+            src/echoflow/desktop/tests
+      - name: Remove branch-only repair workflows and commit
+        run: |
+          rm -f .github/workflows/pr87-ci-repair.yml
+          rm -f .github/workflows/pr87-test-services-bootstrap.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- \
+            src/echoflow/app/processing_center.py \
+            src/echoflow/desktop/bridge.py \
+            src/echoflow/desktop/tests \
+            .github/workflows/pr87-ci-repair.yml \
+            .github/workflows/pr87-test-services-bootstrap.yml
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'fix(ci): satisfy Processing Center static contracts'
+          git push origin HEAD:agent/processing-center

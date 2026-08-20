@@ -37,6 +37,15 @@ fn python_unavailable_message() -> String {
     }
 }
 
+fn python_exit_message() -> String {
+    if cfg!(debug_assertions) {
+        "EchoFlow's local Python service exited unexpectedly. From frontend run `npm run doctor:desktop` to verify the source environment before retrying."
+            .to_string()
+    } else {
+        "EchoFlow's local Python service exited unexpectedly".to_string()
+    }
+}
+
 fn run_backend_request(request: Value) -> Result<Value, String> {
     let encoded = serde_json::to_vec(&request).map_err(|_| "Could not encode desktop request".to_string())?;
     if encoded.len() > MAX_REQUEST_BYTES {
@@ -64,7 +73,7 @@ fn run_backend_request(request: Value) -> Result<Value, String> {
         .wait_with_output()
         .map_err(|_| "EchoFlow's local Python service did not finish cleanly".to_string())?;
     if !output.status.success() {
-        return Err("EchoFlow's local Python service exited unexpectedly".to_string());
+        return Err(python_exit_message());
     }
 
     serde_json::from_slice(&output.stdout)

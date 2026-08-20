@@ -7,8 +7,6 @@ filesystem paths never cross this adapter as user-editable state.
 
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from echoflow.library.evidence import EvidenceContextSegment, EvidenceWord

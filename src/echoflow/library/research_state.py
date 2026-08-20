@@ -112,7 +112,19 @@ class ResearchStateStore(Protocol):
 
     def update_note(self, note_id: str, body: str) -> ResearchNote: ...
 
-    def delete_note(self, note_id: str) -> None: ...
+    def replace_note(
+        self,
+        note_id: str,
+        body: str,
+        *,
+        tags: tuple[str, ...],
+        collections: tuple[str, ...],
+        expected_updated_at: str | None = None,
+    ) -> ResearchNote: ...
+
+    def delete_note(
+        self, note_id: str, *, expected_updated_at: str | None = None
+    ) -> None: ...
 
     def note(self, note_id: str) -> ResearchNote | None: ...
 

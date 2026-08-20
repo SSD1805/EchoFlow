@@ -1,8 +1,9 @@
 # Durable research state architecture
 
 Status: authoritative notes/tags/collections, saved searches, projection sync/rebuild,
-research-aware retrieval, and unified discovery are implemented. A dedicated desktop
-Research workspace is the next UI tranche.  
+research-aware retrieval, unified discovery, desktop Research browse/create, and
+version-checked desktop note mutation are implemented. Saved-search mutation and
+research-object → evidence navigation remain desktop work.  
 Last updated: August 19, 2026
 
 EchoFlow keeps **user-authored research knowledge durable** while still making that
@@ -35,7 +36,7 @@ flowchart LR
     F --> J
     I --> J
     J --> K[CLI and unified discovery]
-    J --> L[Next Desktop Research workspace]
+    J --> L[Desktop Research workspace]
 
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
@@ -52,8 +53,8 @@ flowchart LR
 
 Text fallback: canonical evidence creates a verified anchor; user research commits to
 SQLite with a monotonic journal; a deterministic projector builds disposable DuckDB query
-state; saved searches remain SQLite-authored intent; CLI/unified discovery already consume
-the workspace service, and the dedicated desktop Research workspace is next.
+state; saved searches remain SQLite-authored intent; CLI, unified discovery, and the
+desktop Research workspace consume the same application service boundary.
 
 ## Why two stores?
 
@@ -101,7 +102,7 @@ The full durable anchor also carries source identity and source-relative time co
 Including canonical SHA-256 prevents a stale annotation from silently attaching to a new
 transcript generation that reuses `segment-000042`.
 
-## Verified anchors
+## Verified anchors and desktop creation
 
 `EvidenceAnchor` is produced only after canonical evidence validation. Before creating
 durable research anchored to a transcript, the application verifies that the document is
@@ -109,15 +110,26 @@ present, canonical bytes still match the indexed SHA-256, requested segments exi
 canonical order, multi-segment selections are contiguous, and optional sub-segment
 coordinates stay inside the verified span.
 
-The current desktop Evidence reader already exposes the same canonical segment/word/time
-coordinate system. The next Research UI should create notes from those verified coordinates
-rather than inventing a UI-only annotation identity.
+The desktop Evidence reader uses that same canonical segment/word/time system. Its narrow
+create-note bridge carries the expected canonical SHA-256 and refuses the write if the
+library has moved to a newer generation before Save. React never invents an annotation
+identity or receives a raw canonical/source path.
 
-## SQLite transaction boundary and projection
+## Mutation, concurrency, and the journal
 
 The authoritative write path uses foreign keys, WAL mode, `synchronous=FULL`,
 `BEGIN IMMEDIATE` writer serialization, and one transaction for the user mutation **and**
 its change-journal record.
+
+Desktop note editing replaces body, tag relationships, and collection relationships in one
+SQLite transaction and advances the journal once. The `EvidenceAnchor` columns and segment
+relationships are not part of that update.
+
+Desktop edit/delete carries the note `updated_at` value it read. The store checks that
+version after `BEGIN IMMEDIATE` has acquired the writer boundary. A mismatch fails closed,
+so a CLI edit or another local surface cannot be silently overwritten by stale React state.
+CLI commands that intentionally operate directly remain compatible and do not require a UI
+version token.
 
 Every projected mutation advances a monotonic sequence. The projector consumes changes in
 bounded batches and replaces touched notes from current authoritative state. Replay is
@@ -156,26 +168,28 @@ current corpus and research relationships.
 Frequent/recent tag or collection navigation is different. Those rankings are derived
 convenience views and remain disposable.
 
-## Workspace service boundary
+## Workspace and desktop boundaries
 
-`ResearchWorkspaceService` is the application-facing seam. It composes verified anchors,
-authoritative SQLite research state, deterministic projection convergence, DuckDB research
-filtering/summaries, transcript retrieval, grouped discovery, and saved-search/navigation
-behavior.
+`ResearchWorkspaceService` composes verified anchors, authoritative SQLite research state,
+deterministic projection convergence, DuckDB research filtering/summaries, transcript
+retrieval, grouped discovery, and saved-search/navigation behavior.
 
-The CLI uses this service today. The current desktop bridge uses it indirectly for grouped
-Library discovery and evidence presentation. The next desktop tranche should add narrow
-versioned Research operations that delegate back to the same service.
+The CLI and desktop bridge delegate to this service. Desktop methods are narrow DTO
+operations: overview, verified note creation, atomic note replacement, and guarded note
+deletion. React does not issue SQL or open SQLite/DuckDB directly.
 
-React must not issue SQL or open SQLite/DuckDB directly. Older-generation anchors must
-remain visible as older evidence. Automatic re-anchoring is not permitted merely because a
-newer transcript reuses the same friendly segment ID.
+Older-generation anchors remain visible as older evidence. Editing their human-authored
+prose or labels is permitted because the evidence anchor does not move. Automatic
+re-anchoring is not permitted merely because a newer transcript reuses the same friendly
+segment ID.
 
 ## Current deliberate limits
 
 Research state currently does not provide:
 
-- a dedicated desktop Research workspace yet;
+- desktop saved-search create/run/rename/delete yet;
+- desktop research-object → verified-evidence navigation yet;
+- explicit stale-anchor review/re-anchor UX yet;
 - rich-text/WYSIWYG note bodies;
 - semantic embeddings over note prose;
 - automatic cross-generation re-anchoring;
@@ -187,14 +201,16 @@ Research state currently does not provide:
 1. **SQLite research state is authoritative and must never be treated as rebuildable cache.**
 2. **DuckDB research state is a disposable projection and must be reconstructable from SQLite.**
 3. **A user mutation and its journal event commit together.**
-4. **The DuckDB watermark advances atomically with projected rows.**
-5. **Projection replay is idempotent.**
-6. **Research joins include canonical generation identity, not segment ID alone.**
-7. **Empty research scope means no matches, not unrestricted search.**
-8. **Research constraints are applied before ranking/scoring when they are filters.**
-9. **Presentation hydrates authoritative note content from SQLite.**
-10. **Saved searches persist typed intent, not derived result scope.**
-11. **Desktop presentation receives narrow DTOs, not raw database/filesystem authority.**
-12. **Deleting any DuckDB file must never delete unique user-authored knowledge.**
+4. **Desktop stale writes must fail rather than silently overwrite newer user state.**
+5. **Editing note prose/labels must not rebind its evidence anchor.**
+6. **The DuckDB watermark advances atomically with projected rows.**
+7. **Projection replay is idempotent.**
+8. **Research joins include canonical generation identity, not segment ID alone.**
+9. **Empty research scope means no matches, not unrestricted search.**
+10. **Research constraints are applied before ranking/scoring when they are filters.**
+11. **Presentation hydrates authoritative note content from SQLite.**
+12. **Saved searches persist typed intent, not derived result scope.**
+13. **Desktop presentation receives narrow DTOs, not raw database/filesystem authority.**
+14. **Deleting any DuckDB file must never delete unique user-authored knowledge.**
 
 If a refactor makes one of those statements false, it changes EchoFlow's custody model.

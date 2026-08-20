@@ -5,7 +5,7 @@ EchoFlow is a **private, local-first workspace for recorded evidence**.
 It can inspect a recording, choose a safe way to run on the computer you actually have,
 transcribe locally, survive interruptions, preserve provenance, search a private corpus,
 navigate results back to verified canonical evidence, keep research notes attached to that
-evidence, save reusable research questions, and expose the first import/search/evidence
+evidence, save reusable research questions, and expose import/search/evidence/research
 workflows through a native desktop shell.
 
 You do **not** need to understand CUDA, DuckDB, SQLite, BM25, vector spaces, immutable
@@ -32,11 +32,12 @@ machinery so the user can concentrate on recordings and evidence.
 | Search a private corpus | supports lexical BM25, optional semantic retrieval, and hybrid RRF |
 | Follow a result to evidence | verifies canonical generation and returns justified segment/word/context/seek coordinates |
 | Keep durable research | stores notes/tags/collections in authoritative private SQLite anchored to exact evidence |
+| Edit research safely | atomically replaces note prose/labels and refuses stale desktop writes |
 | Reuse research questions | stores saved typed query intent and re-resolves current evidence |
 | Remember libraries | persists explicit transcript/recording location permissions without copying user media |
 | Refresh an evolving corpus | incrementally reconciles changed canonical generations and can verify tracked evidence |
 | Remove something safely | plans typed deletion scopes before mutation and binds confirmation to the exact plan |
-| Use a desktop shell | provides Tauri + React import, Library search, verified evidence reading/cursor, and Archive/Midnight themes |
+| Use a desktop shell | provides Tauri + React import, Library search, verified evidence reading/cursor, Research browse/create/edit/delete, and Archive/Midnight themes |
 
 The point is not to make users operate the machinery. The point is to make sensitive local
 transcription and research boringly dependable.
@@ -45,10 +46,9 @@ transcription and research boringly dependable.
 
 - **[Getting started](getting-started.md)** for the source-build path and first transcript.
 - **[Find things across the whole local library](library-discovery.md)** for grouped Library
-  discovery, which now powers the desktop Library surface.
+  discovery, which powers the desktop Library surface.
 - **[Your notes should survive the machinery](research-notes.md)** for authoritative notes,
-  tags, collections, and saved research intent. A dedicated desktop Research workspace is
-  the next UI tranche.
+  tags, collections, saved research intent, and the current desktop Research interactions.
 - **[From search result to the exact evidence](evidence-navigation.md)** for verified
   canonical navigation and the current desktop evidence reader/cursor.
 - **[Transcript time without calculator gymnastics](time-navigation.md)** for timeline and
@@ -82,7 +82,7 @@ flowchart LR
     H --> J[Incremental refresh]
     J --> K[Desktop Library]
     E --> K
-    F --> L[Next Desktop Research]
+    F --> L[Desktop Research]
 
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
@@ -109,8 +109,8 @@ flowchart LR
 
 Text fallback: canonical evidence feeds rebuildable search; search resolves back to verified
 evidence; durable notes/tags/collections and saved searches remain authoritative human
-knowledge; lifecycle and refresh reuse those identities; the current desktop Library uses
-the same application contracts, and a dedicated Research surface is next.
+knowledge; lifecycle and refresh reuse those identities; the desktop Library and Research
+surfaces consume the same application contracts.
 
 ## What belongs to you, and what can the raccoon rebuild? 🦝
 
@@ -133,20 +133,18 @@ gone very wrong.
 
 ## What comes next
 
-Incremental refresh, durable locations, the Tauri/React shell, native import, grouped
-Library discovery, and verified evidence reading/cursor are foundation.
+The roadmap now includes a complete backend-capability → desktop-productization audit.
+Research browse/create/edit/delete and label assignment are foundation; the remaining
+Research loop is saved-search lifecycle, research-object → verified-evidence navigation,
+stale-anchor review, and advanced typed search controls.
 
-The next sequence is:
+After that, the major missing user journey is the **desktop Processing center** over already
+implemented health/resource, managed-model, job-lifecycle, transcription-plan, execution,
+resume, enhancement, diarization, and publication contracts. Native playback, safe
+lifecycle UI, packaging, portability, semantic packaging qualification, and representative
+hardware qualification follow on the same critical path.
 
-1. **Research workspace UI** over existing authoritative notes/tags/collections/saved-search
-   services.
-2. **Tauri-owned local media playback** driven by verified source-relative coordinates.
-3. **Desktop packaging and first run** for Windows, signed/notarized macOS, and deliberate
-   Linux delivery.
-4. **Backup, restore, and portable research export** while rebuilding disposable indexes.
-5. **Semantic dependency/model qualification and representative-device release testing**.
-
-See **[ROADMAP.md](../ROADMAP.md)** for detailed sequencing.
+See **[ROADMAP.md](../ROADMAP.md)** for the capability matrix and detailed sequencing.
 
 The editorial and Mermaid visual rules live in
 **[documentation-style.md](documentation-style.md)**.

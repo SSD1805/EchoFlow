@@ -328,8 +328,29 @@ class ResearchWorkspaceService:
     def update_note(self, note_id: str, body: str) -> ResearchNoteView:
         return self._note_view(self.state.update_note(note_id, body))
 
-    def delete_note(self, note_id: str) -> None:
-        self.state.delete_note(note_id)
+    def replace_note(
+        self,
+        note_id: str,
+        body: str,
+        *,
+        tags: tuple[str, ...],
+        collections: tuple[str, ...],
+        expected_updated_at: str | None = None,
+    ) -> ResearchNoteView:
+        """Atomically change human-authored note state without changing its anchor."""
+        note = self.state.replace_note(
+            note_id,
+            body,
+            tags=tags,
+            collections=collections,
+            expected_updated_at=expected_updated_at,
+        )
+        return self._note_view(note)
+
+    def delete_note(
+        self, note_id: str, *, expected_updated_at: str | None = None
+    ) -> None:
+        self.state.delete_note(note_id, expected_updated_at=expected_updated_at)
 
     def set_note_tags(self, note_id: str, names: tuple[str, ...]) -> ResearchNoteView:
         return self._note_view(self.state.set_note_tags(note_id, names))

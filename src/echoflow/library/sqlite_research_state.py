@@ -122,15 +122,73 @@ class SqliteResearchStateStore:
             raise ResearchStateError("Updated research note could not be read back")
         return note
 
-    def delete_note(self, note_id: str) -> None:
+    def replace_note(
+        self,
+        note_id: str,
+        body: str,
+        *,
+        tags: tuple[str, ...],
+        collections: tuple[str, ...],
+        expected_updated_at: str | None = None,
+    ) -> ResearchNote:
+        """Atomically replace editable human state without rebinding evidence."""
         resolved_id = self._validate_id(note_id, "note_id")
+        self._validate_body(body)
+        tag_names = self._normalized_names(tags)
+        collection_names = self._normalized_names(collections)
+        if expected_updated_at is not None:
+            self._validate_id(expected_updated_at, "expected_updated_at")
+
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            changed = connection.execute(
-                "DELETE FROM notes WHERE note_id = ?", (resolved_id,)
-            ).rowcount
-            if changed != 1:
-                raise ResearchStateError("Research note does not exist")
+            self._require_note_version(
+                connection,
+                resolved_id,
+                expected_updated_at=expected_updated_at,
+            )
+            connection.execute(
+                "UPDATE notes SET body = ?, updated_at = ? WHERE note_id = ?",
+                (body, self._now(), resolved_id),
+            )
+            connection.execute(
+                "DELETE FROM note_tags WHERE note_id = ?", (resolved_id,)
+            )
+            for name in tag_names:
+                tag_id = self._ensure_tag(connection, name)
+                connection.execute(
+                    "INSERT INTO note_tags (note_id, tag_id) VALUES (?, ?)",
+                    (resolved_id, tag_id),
+                )
+            connection.execute(
+                "DELETE FROM collection_notes WHERE note_id = ?", (resolved_id,)
+            )
+            for name in collection_names:
+                collection_id = self._ensure_collection(connection, name)
+                connection.execute(
+                    "INSERT INTO collection_notes (collection_id, note_id) VALUES (?, ?)",
+                    (collection_id, resolved_id),
+                )
+            self._journal(connection, resolved_id)
+            note = self._note(connection, resolved_id)
+            connection.commit()
+        if note is None:
+            raise ResearchStateError("Updated research note could not be read back")
+        return note
+
+    def delete_note(
+        self, note_id: str, *, expected_updated_at: str | None = None
+    ) -> None:
+        resolved_id = self._validate_id(note_id, "note_id")
+        if expected_updated_at is not None:
+            self._validate_id(expected_updated_at, "expected_updated_at")
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._require_note_version(
+                connection,
+                resolved_id,
+                expected_updated_at=expected_updated_at,
+            )
+            connection.execute("DELETE FROM notes WHERE note_id = ?", (resolved_id,))
             self._journal(connection, resolved_id)
             connection.commit()
 
@@ -605,6 +663,23 @@ class SqliteResearchStateStore:
         ).fetchone()
         if row is None:
             raise ResearchStateError("Research note does not exist")
+
+    @staticmethod
+    def _require_note_version(
+        connection: sqlite3.Connection,
+        note_id: str,
+        *,
+        expected_updated_at: str | None,
+    ) -> None:
+        row = connection.execute(
+            "SELECT updated_at FROM notes WHERE note_id = ?", (note_id,)
+        ).fetchone()
+        if row is None:
+            raise ResearchStateError("Research note does not exist")
+        if expected_updated_at is not None and str(row[0]) != expected_updated_at:
+            raise ResearchStateError(
+                "Research note changed since it was opened; refresh before saving"
+            )
 
     @staticmethod
     def _ensure_tag(connection: sqlite3.Connection, name: str) -> str:

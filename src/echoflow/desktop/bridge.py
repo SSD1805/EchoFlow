@@ -54,6 +54,8 @@ class _DesktopRequest(BaseModel):
         "workspace.discover",
         "workspace.research.overview",
         "workspace.research.note.create",
+        "workspace.research.note.update",
+        "workspace.research.note.delete",
     ]
     params: dict[str, object] = Field(default_factory=dict)
 
@@ -119,6 +121,56 @@ class _CreateResearchNoteParams(BaseModel):
         if len(normalized) != len(set(normalized)):
             raise ValueError("segment IDs cannot repeat")
         return normalized
+
+
+class _UpdateResearchNoteParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note_id: str = Field(min_length=1, max_length=200)
+    expected_updated_at: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=50_000)
+    tags: tuple[str, ...] = Field(default=(), max_length=100)
+    collections: tuple[str, ...] = Field(default=(), max_length=100)
+
+    @field_validator("note_id", "expected_updated_at", "body")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value cannot be blank")
+        return stripped
+
+    @field_validator("tags", "collections")
+    @classmethod
+    def validate_labels(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        normalized: dict[str, str] = {}
+        for raw in values:
+            value = raw.strip()
+            if not value:
+                raise ValueError("research labels cannot be blank")
+            if len(value) > 200:
+                raise ValueError("research labels cannot exceed 200 characters")
+            if any(character in value for character in ("\r", "\n", "\x00")):
+                raise ValueError(
+                    "research labels contain unsupported control characters"
+                )
+            normalized.setdefault(value.casefold(), value)
+        return tuple(normalized[key] for key in sorted(normalized))
+
+
+class _DeleteResearchNoteParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note_id: str = Field(min_length=1, max_length=200)
+    expected_updated_at: str = Field(min_length=1, max_length=200)
+
+    @field_validator("note_id", "expected_updated_at")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value cannot be blank")
+        return stripped
 
 
 def _success(request_id: str, result: object) -> dict[str, object]:
@@ -283,6 +335,31 @@ def _create_research_note(
     return _serialize_note(note)
 
 
+def _update_research_note(
+    params: _UpdateResearchNoteParams,
+    workspace: ResearchWorkspaceService,
+) -> dict[str, object]:
+    note = workspace.replace_note(
+        params.note_id,
+        params.body,
+        tags=params.tags,
+        collections=params.collections,
+        expected_updated_at=params.expected_updated_at,
+    )
+    return _serialize_note(note)
+
+
+def _delete_research_note(
+    params: _DeleteResearchNoteParams,
+    workspace: ResearchWorkspaceService,
+) -> dict[str, object]:
+    workspace.delete_note(
+        params.note_id,
+        expected_updated_at=params.expected_updated_at,
+    )
+    return {"note_id": params.note_id, "deleted": True}
+
+
 def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
     if request.method == "locations.list":
         _NoParams.model_validate(request.params)
@@ -327,8 +404,16 @@ def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
         return _serialize_research_overview(services.workspace)
 
     if request.method == "workspace.research.note.create":
-        note_params = _CreateResearchNoteParams.model_validate(request.params)
-        return _create_research_note(note_params, services.workspace)
+        create_params = _CreateResearchNoteParams.model_validate(request.params)
+        return _create_research_note(create_params, services.workspace)
+
+    if request.method == "workspace.research.note.update":
+        update_params = _UpdateResearchNoteParams.model_validate(request.params)
+        return _update_research_note(update_params, services.workspace)
+
+    if request.method == "workspace.research.note.delete":
+        delete_params = _DeleteResearchNoteParams.model_validate(request.params)
+        return _delete_research_note(delete_params, services.workspace)
 
     refresh_params = _RefreshParams.model_validate(request.params)
     refresh_report = services.locations.refresh_transcript_locations(

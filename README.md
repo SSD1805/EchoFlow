@@ -43,12 +43,12 @@ the local recording-to-evidence lifecycle.
 | Transcript output | canonical JSON plus deterministic TXT, SRT, WebVTT publication views |
 | Search | private BM25 lexical retrieval, optional semantic retrieval, hybrid reciprocal-rank fusion |
 | Evidence navigation | canonical-hash verification, aligned highlights, bounded context, speaker presentation, source seek coordinates |
-| Research workspace | authoritative SQLite notes/tags/collections plus rebuildable DuckDB research projection |
+| Research workspace | authoritative SQLite notes/tags/collections, rebuildable DuckDB projection, desktop browse/create/edit/delete and label assignment |
 | Unified discovery | grouped transcript/note/tag/collection query without fabricated cross-type scores |
 | Saved searches | durable typed query intent that re-resolves current evidence instead of freezing result snapshots |
 | Safe lifecycle | typed plan-bound deletion scopes plus private execution-state retention that preserves evidence/human work by default |
 | Incremental library | cheap refresh/reconciliation plus durable transcript and recording locations |
-| Desktop foundation | Tauri + React shell, native import, Library discovery, verified evidence reader/cursor, Archive/Midnight themes |
+| Desktop foundation | Tauri + React shell, native import, Library discovery, verified evidence reader/cursor, Research workspace, Archive/Midnight themes |
 | Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, Playwright/axe, package verification |
 
 ## From recording to useful evidence
@@ -109,15 +109,25 @@ or accepting a durable note anchor.
 EchoFlow has a thin Tauri + React desktop foundation over the Python application services.
 The current desktop can choose files/folders through native dialogs, remember approved
 locations, discover recordings, search the local library, open verified canonical context,
-and move a source-relative evidence cursor through canonical word coordinates.
+move a source-relative evidence cursor through canonical word coordinates, browse durable
+research, create notes from verified evidence, and edit/delete notes plus their tag and
+collection assignments.
+
+Research edits use the authoritative note `updated_at` as an optimistic-concurrency token.
+The body and label relationships change in one SQLite transaction with one journal event;
+the evidence anchor does not move. If another local surface changed the note first, the
+desktop write fails closed and asks for refresh instead of silently overwriting it.
 
 The browser/webview does **not** receive raw canonical/source filesystem paths for evidence
 navigation. Rust owns native desktop capability; Python owns application rules; React owns
 presentation.
 
-The durable research backend already exists, but the dedicated **Research** desktop
-workspace is the next UI tranche. It will reuse `ResearchWorkspaceService` rather than
-creating browser-owned research state.
+The remaining Research UI work is saved-search lifecycle, research-object → verified
+evidence navigation, explicit stale-anchor review/re-anchor, and advanced typed retrieval
+controls. The broader desktop audit also shows a major processing gap: Python already has
+health/resource/model/job/transcription contracts that still need coherent desktop
+workflows before EchoFlow is a self-contained end-user application. See
+**[ROADMAP.md](ROADMAP.md)** for the complete capability-to-productization map.
 
 There are still no end-user installers or Releases. The supported path remains a source
 build while packaging and first-run behavior are qualified.
@@ -299,24 +309,16 @@ mutation testing is reserved for load-bearing logic.
 
 ## Where the project goes next
 
-Incremental refresh, durable library locations, the desktop shell/import flow, grouped
-Library discovery, and verified evidence reading/cursor are foundation. The next sequence
-is:
+The full capability-to-productization audit now lives in **[ROADMAP.md](ROADMAP.md)**.
+Research browse/create/edit/delete and label assignment are foundation. The immediate
+remaining Research work is saved-search lifecycle, research-object → verified-evidence
+navigation, stale-anchor review, and advanced typed search controls.
 
-1. **Research workspace UI** for browsing/creating/editing notes, assigning
-   tags/collections, and running/managing saved searches through the existing typed backend
-   authority.
-2. **Local media playback** behind a Tauri-owned capability, consuming verified
-   source-relative coordinates without exposing arbitrary raw paths to React.
-3. **Desktop packaging and first run** across Windows, signed/notarized macOS, and a
-   deliberate Linux package, including managed Python/FFmpeg/model custody.
-4. **Backup, restore, and research portability** with evidence-bearing exports and
-   machine-local remembered-path reconciliation.
-5. **Semantic dependency/model qualification** plus representative-device release
-   qualification across ordinary 8/16 GB systems, Apple Silicon, discrete GPUs, and larger
-   workstations.
-
-See **[ROADMAP.md](ROADMAP.md)** for the detailed sequence.
+After that, the next major product gap is a **desktop Processing center** over existing
+health/resource, managed-model, job-lifecycle, transcription-plan/execution/resume,
+enhancement, diarization, and publication contracts. Then come speaker/control polish,
+Tauri-owned local playback, lifecycle/retention UI, packaging, backup/restore/export,
+packaged semantic qualification, and representative-device release qualification.
 
 ---
 

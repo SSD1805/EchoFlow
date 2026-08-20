@@ -48,3 +48,47 @@ test("research workspace refresh remains keyboard reachable", async ({ page }) =
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("2 notes");
 });
+
+test("Susan can edit labels and explicitly delete a durable research note", async ({
+  page,
+}) => {
+  await openResearch(page);
+
+  const noteCard = page.locator(".research-note-card").filter({
+    hasText: "interview-42",
+  });
+  await noteCard.getByRole("button", { name: "Edit note" }).click();
+  await noteCard
+    .getByLabel("Note text for interview-42")
+    .fill("Compare governance with the follow-up interview.");
+  await noteCard.getByLabel("Tags for interview-42").fill("program, follow-up");
+  await noteCard
+    .getByLabel("Collections for interview-42")
+    .fill("Oral histories, Chapter 3");
+  await noteCard.getByRole("button", { name: "Save note" }).click();
+
+  await expect(
+    page.getByText("Note saved. Its verified evidence anchor is unchanged."),
+  ).toBeVisible();
+  await expect(
+    noteCard.getByText("Compare governance with the follow-up interview."),
+  ).toBeVisible();
+  await expect(noteCard.getByText("#follow-up", { exact: true })).toBeVisible();
+  await expect(noteCard.getByText("Chapter 3", { exact: true })).toBeVisible();
+
+  await noteCard.getByRole("button", { name: "Delete note" }).click();
+  await expect(noteCard.getByLabel("Delete note confirmation")).toContainText(
+    "canonical transcript and original recording are not part of this operation",
+  );
+  await noteCard.getByRole("button", { name: "Delete note permanently" }).click();
+
+  await expect(
+    page.getByText("Note deleted. Transcript evidence was not deleted."),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Compare governance with the follow-up interview."),
+  ).toHaveCount(0);
+
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});

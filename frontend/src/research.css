@@ -29,11 +29,10 @@
   line-height: 1.65;
 }
 
-.research-refresh {
-  justify-self: start;
+.research-refresh,
+.research-note-actions button {
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 9px 14px;
   background: var(--surface-raised);
   color: var(--ink);
   font: inherit;
@@ -42,22 +41,36 @@
   cursor: pointer;
 }
 
-.research-refresh:hover:not(:disabled) {
+.research-refresh {
+  justify-self: start;
+  padding: 9px 14px;
+}
+
+.research-refresh:hover:not(:disabled),
+.research-note-actions button:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent-strong);
 }
 
-.research-refresh:disabled {
+.research-refresh:disabled,
+.research-note-actions button:disabled {
   cursor: progress;
   opacity: 0.62;
 }
 
-.research-status {
+.research-status,
+.research-mutation-status {
   max-width: 1180px;
   margin: 24px auto 0;
   color: var(--muted);
   font-size: 0.78rem;
   letter-spacing: 0.015em;
+}
+
+.research-mutation-status {
+  margin-top: 10px;
+  color: var(--accent-strong);
+  font-weight: 700;
 }
 
 .research-error {
@@ -203,6 +216,93 @@
   text-align: right;
 }
 
+.research-note-actions {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.research-note-actions button {
+  padding: 7px 11px;
+  font-size: 0.74rem;
+}
+
+.research-note-actions .research-action-danger {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  color: var(--danger);
+}
+
+.research-note-actions .research-action-danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.research-note-editor {
+  margin-top: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.research-note-editor label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 720;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.research-note-editor textarea,
+.research-note-editor input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.research-note-editor textarea {
+  resize: vertical;
+  min-height: 116px;
+}
+
+.research-note-editor textarea:focus-visible,
+.research-note-editor input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.research-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.research-anchor-note,
+.research-delete-confirm p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.research-delete-confirm {
+  margin-top: 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface-raised));
+}
+
 .saved-search-list {
   display: grid;
 }
@@ -297,5 +397,9 @@
 
   .research-updated {
     text-align: left;
+  }
+
+  .research-editor-grid {
+    grid-template-columns: 1fr;
   }
 }

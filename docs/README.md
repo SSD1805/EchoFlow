@@ -33,11 +33,12 @@ machinery so the user can concentrate on recordings and evidence.
 | Follow a result to evidence | verifies canonical generation and returns justified segment/word/context/seek coordinates |
 | Keep durable research | stores notes/tags/collections in authoritative private SQLite anchored to exact evidence |
 | Edit research safely | atomically replaces note prose/labels and refuses stale desktop writes |
+| Navigate research labels | filters notes through authoritative tag/collection semantics and keeps selected filters inspectable |
 | Reuse research questions | stores saved typed query intent and re-resolves current evidence |
 | Remember libraries | persists explicit transcript/recording location permissions without copying user media |
 | Refresh an evolving corpus | incrementally reconciles changed canonical generations and can verify tracked evidence |
 | Remove something safely | plans typed deletion scopes before mutation and binds confirmation to the exact plan |
-| Use a desktop shell | provides Tauri + React import, Library search, verified evidence reading/cursor, Research browse/create/edit/delete, and Archive/Midnight themes |
+| Use a desktop shell | provides Tauri + React import, Library search, verified evidence reading/cursor, Research browse/create/edit/delete/filter, and Archive/Midnight themes |
 
 The point is not to make users operate the machinery. The point is to make sensitive local
 transcription and research boringly dependable.
@@ -58,10 +59,12 @@ transcription and research boringly dependable.
   retrieval.
 - **[Safe deletion and retention](architecture/safe-deletion-retention.md)** for custody-aware
   deletion.
+- **[Post-MVP research roadmap](post-mvp-roadmap.md)** for second-horizon research-native
+  workflows after the first desktop product is coherent.
 - **[SECURITY.md](../SECURITY.md)** for the security boundary.
 - **[Architecture](architecture/README.md)** for maintainers.
-- **[Development docs](development/)** for testing, benchmarking, mutation qualification,
-  frontend accessibility, and quality gates.
+- **[Development docs](development/)** for desktop prerequisites, testing, benchmarking,
+  mutation qualification, frontend accessibility, and quality gates.
 
 ## The EchoFlow family portrait
 
@@ -134,17 +137,25 @@ gone very wrong.
 ## What comes next
 
 The roadmap now includes a complete backend-capability → desktop-productization audit.
-Research browse/create/edit/delete and label assignment are foundation; the remaining
-Research loop is saved-search lifecycle, research-object → verified-evidence navigation,
-stale-anchor review, and advanced typed search controls.
+Research browse/create/edit/delete, label assignment, first-class tag/collection filtering,
+exact-generation evidence return, and saved-search lifecycle are foundation. The remaining
+Research completion work is explicit stale/unavailable-anchor review and advanced typed
+search controls.
 
 After that, the major missing user journey is the **desktop Processing center** over already
 implemented health/resource, managed-model, job-lifecycle, transcription-plan, execution,
-resume, enhancement, diarization, and publication contracts. Native playback, safe
-lifecycle UI, packaging, portability, semantic packaging qualification, and representative
-hardware qualification follow on the same critical path.
+resume, enhancement, diarization, and publication contracts. Adaptive zero-knob execution
+belongs in that first Processing experience: EchoFlow should inspect the machine, choose a
+safe plan, estimate resource cost, degrade gracefully, and explain its choice without making
+a normal user tune ASR internals.
 
-See **[ROADMAP.md](../ROADMAP.md)** for the capability matrix and detailed sequencing.
+Native playback, safe lifecycle UI, packaging, portability, semantic packaging
+qualification, and representative hardware qualification follow on the same critical path.
+Only after that first desktop product is coherent do the deliberately separate
+**[post-MVP research features](post-mvp-roadmap.md)** become normal roadmap work.
+
+See **[ROADMAP.md](../ROADMAP.md)** for the capability matrix and detailed first-release
+sequencing.
 
 The editorial and Mermaid visual rules live in
 **[documentation-style.md](documentation-style.md)**.

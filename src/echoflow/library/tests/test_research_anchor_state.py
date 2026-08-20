@@ -96,7 +96,9 @@ def test_reanchor_is_optimistic_and_rolls_back_history_on_stale_version(
     newer = state.update_note("note-1", "Changed elsewhere")
     anchor_state = SqliteResearchAnchorStateStore(state.database_path)
 
-    with pytest.raises(ResearchStateError, match="changed since its evidence was reviewed"):
+    with pytest.raises(
+        ResearchStateError, match="changed since its evidence was reviewed"
+    ):
         anchor_state.reanchor_note(
             "note-1",
             _anchor(canonical_digit="c"),
@@ -145,9 +147,7 @@ def test_reanchor_refuses_noop_and_retains_multiple_history_revisions(
         )
 
     first = _anchor(canonical_digit="c", segment_ids=("current-1",))
-    anchor_state.reanchor_note(
-        "note-1", first, expected_updated_at=original.updated_at
-    )
+    anchor_state.reanchor_note("note-1", first, expected_updated_at=original.updated_at)
     after_first = state.note("note-1")
     assert after_first is not None
     second = _anchor(canonical_digit="d", segment_ids=("current-2",))
@@ -181,9 +181,9 @@ def test_anchor_history_cascades_with_note_and_versions_its_extension(
         anchor_state.note_anchor_history("note-1")
 
     with sqlite3.connect(state.database_path) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM note_anchor_history").fetchone() == (
-            0,
-        )
+        assert connection.execute(
+            "SELECT COUNT(*) FROM note_anchor_history"
+        ).fetchone() == (0,)
         connection.execute(
             "UPDATE anchor_history_metadata SET schema_version = 99 WHERE singleton = 1"
         )

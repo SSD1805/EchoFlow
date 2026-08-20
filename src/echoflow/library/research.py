@@ -61,7 +61,7 @@ class ResearchSearchResponse:
                 "research results must preserve retrieval result cardinality"
             )
         if tuple(item.passage for item in self.results) != self.retrieval.results:
-            raise ValueError("research results must preserve navigation result order")
+            raise ValueError("research results must preserve retrieval result order")
 
 
 class ResearchNavigationService:

@@ -362,6 +362,7 @@ class AppContainer(containers.DeclarativeContainer):
         projection=research_projection,
         projector=research_projector,
         metadata=workspace_metadata_store,
+        logger=logger,
     )
     checkpoint_store = providers.Factory(
         LocalCheckpointStore, file_manager=file_manager

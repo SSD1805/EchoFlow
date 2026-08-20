@@ -133,8 +133,10 @@ jobs:
         working-directory: frontend
 
     steps:
-      - name: Check out repository
+      - name: Check out pull-request head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.head_ref || github.ref }}
 
       - name: Verify Rust toolchain
         run: cargo --version && rustc --version
@@ -169,7 +171,7 @@ jobs:
           retention-days: 1
 
       - name: Commit generated Cargo lockfile once
-        if: github.event_name == 'push'
+        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -179,7 +181,7 @@ jobs:
             echo "Cargo.lock is already committed."
           else
             git commit -m "build(desktop): lock native Tauri dependency graph"
-            git push origin HEAD:"${GITHUB_REF_NAME}"
+            git push origin HEAD:"${GITHUB_HEAD_REF}"
           fi
 
   frontend-playwright:

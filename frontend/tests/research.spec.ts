@@ -128,10 +128,20 @@ test("Susan can create rename run and delete durable saved-search intent", async
   await page.getByRole("button", { name: "Save search" }).click();
   await expect(page.getByText("Methods sweep", { exact: true })).toBeVisible();
 
-  const savedCard = page.locator(".saved-search-list article").filter({ hasText: "methodology" });
-  await savedCard.getByRole("button", { name: "Rename" }).click();
-  await savedCard.getByLabel("Saved search name for methodology").fill("Methods follow-up");
-  await savedCard.getByRole("button", { name: "Save name" }).click();
+  const initialSavedCard = page
+    .locator(".saved-search-list article")
+    .filter({ hasText: "methodology" });
+  await initialSavedCard.getByRole("button", { name: "Rename" }).click();
+
+  const savedEditor = page.locator(".saved-search-editor");
+  await savedEditor
+    .getByLabel("Saved search name for methodology")
+    .fill("Methods follow-up");
+  await savedEditor.getByRole("button", { name: "Save name" }).click();
+
+  const savedCard = page
+    .locator(".saved-search-list article")
+    .filter({ hasText: "Methods follow-up" });
   await expect(savedCard.getByText("Methods follow-up", { exact: true })).toBeVisible();
   await expect(savedCard.getByText("methodology", { exact: true })).toBeVisible();
 

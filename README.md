@@ -26,8 +26,8 @@ Start with **[docs/README.md](docs/README.md)** for human-facing documentation o
 
 ## What can it do right now?
 
-EchoFlow is pre-production, but the backend and first desktop slices already cover most of
-the local recording-to-evidence lifecycle.
+EchoFlow is pre-production, but the backend and desktop now cover the first coherent path
+from importing a recording through local processing, evidence search, and durable research.
 
 | Area | Current foundation |
 |---|---|
@@ -43,12 +43,14 @@ the local recording-to-evidence lifecycle.
 | Transcript output | canonical JSON plus deterministic TXT, SRT, WebVTT publication views |
 | Search | private BM25 lexical retrieval, optional semantic retrieval, hybrid reciprocal-rank fusion |
 | Evidence navigation | canonical-hash verification, aligned highlights, bounded context, speaker presentation, source seek coordinates |
-| Research workspace | authoritative SQLite notes/tags/collections, rebuildable DuckDB projection, desktop browse/create/edit/delete and label assignment |
+| Research workspace | authoritative SQLite notes/tags/collections, rebuildable DuckDB projection, desktop browse/create/edit/delete/filter/anchor maintenance |
 | Unified discovery | grouped transcript/note/tag/collection query without fabricated cross-type scores |
 | Saved searches | durable typed query intent that re-resolves current evidence instead of freezing result snapshots |
 | Safe lifecycle | typed plan-bound deletion scopes plus private execution-state retention that preserves evidence/human work by default |
 | Incremental library | cheap refresh/reconciliation plus durable transcript and recording locations |
-| Desktop foundation | Tauri + React shell, native import, Library discovery, verified evidence reader/cursor, Research workspace, Archive/Midnight themes |
+| Processing Center | desktop readiness, machine/model state, preflight, start/cancel, resume versus retry, job-state discard, diarization/enhancement/publication intent |
+| Desktop presentation | Tauri + React import, Library, verified evidence reader, Research, Processing, six semantic-token themes with a compact persisted picker |
+| Accessibility | keyboard/semantic-role tests, axe, explicit light/dark browser schemes, and a six-skin contrast matrix |
 | Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, Playwright/axe, package verification |
 
 ## From recording to useful evidence
@@ -106,31 +108,44 @@ or accepting a durable note anchor.
 
 ## Desktop status
 
-EchoFlow has a thin Tauri + React desktop foundation over the Python application services.
-The current desktop can choose files/folders through native dialogs, remember approved
-locations, discover recordings, search the local library, open verified canonical context,
-move a source-relative evidence cursor through canonical word coordinates, browse durable
-research, create notes from verified evidence, and edit/delete notes plus their tag and
-collection assignments.
+The Tauri + React desktop is no longer only an import/search shell. It currently provides:
 
-Research edits use the authoritative note `updated_at` as an optimistic-concurrency token.
-The body and label relationships change in one SQLite transaction with one journal event;
-the evidence anchor does not move. If another local surface changed the note first, the
-desktop write fails closed and asks for refresh instead of silently overwriting it.
+- native file/folder selection and remembered-location permissions;
+- recording discovery without automatic processing side effects;
+- a Processing Center for readiness, model state, job state, preflight, launch, cancel,
+  resume/retry distinction, and private-state discard;
+- Library search across transcripts, notes, tags, and collections;
+- verified evidence context and source-relative cursor coordinates;
+- Research note create/edit/delete, tag/collection navigation, saved-search lifecycle,
+  typed retrieval controls, exact-generation evidence return, and explicit anchor review;
+- six accessible presentation skins through one compact theme picker; and
+- persisted presentation preference without mixing theme state into evidence or research.
 
 The browser/webview does **not** receive raw canonical/source filesystem paths for evidence
 navigation. Rust owns native desktop capability; Python owns application rules; React owns
 presentation.
 
-The remaining Research UI work is saved-search lifecycle, research-object → verified
-evidence navigation, explicit stale-anchor review/re-anchor, and advanced typed retrieval
-controls. The broader desktop audit also shows a major processing gap: Python already has
-health/resource/model/job/transcription contracts that still need coherent desktop
-workflows before EchoFlow is a self-contained end-user application. See
-**[ROADMAP.md](ROADMAP.md)** for the complete capability-to-productization map.
+The current Research UI deliberately translates backend vocabulary into ordinary choices.
+For example, the user chooses **Any of these words**, **All of these words**, or **Exact
+phrase** instead of separately operating phrase and term-operator plumbing. Retrieval,
+ordering, filters, result count, and context live under **Search options**; backend retrieval
+provenance remains available under **Technical details**.
 
 There are still no end-user installers or Releases. The supported path remains a source
 build while packaging and first-run behavior are qualified.
+
+## Themes and accessibility
+
+EchoFlow currently ships **Archive, Midnight, Paper, Moss, Plum, and Ember**. They are not
+six independent CSS systems. Every skin supplies the same semantic roles for background,
+surfaces, text, borders, accent/on-accent, form controls, focus, errors, and selection.
+Components consume those roles rather than inventing per-screen colors.
+
+Every theme explicitly declares its browser `color-scheme`. Playwright checks the same
+contrast pairs across all six skins, including form-control boundaries and focus state, and
+runs axe against representative Research controls. Read
+**[Desktop themes and accessibility](docs/development/desktop-accessibility.md)** for the
+contract.
 
 ## Install the current source build
 
@@ -144,7 +159,11 @@ uv run echoflow init
 uv run echoflow doctor
 ```
 
-## Plan, transcribe, and resume
+For the native desktop, follow **[Desktop development prerequisites](docs/development/desktop-development.md)**.
+
+## Plan, transcribe, and resume from the CLI
+
+The CLI remains useful for automation and source-build qualification:
 
 ```bash
 uv run echoflow models recommend
@@ -169,21 +188,7 @@ Model acquisition is explicit and network-bearing. Transcription does not silent
 download faster-whisper weights. Resume rechecks source identity and current resource
 admission rather than silently changing the execution contract.
 
-## Optional anonymous speakers
-
-```bash
-uv run echoflow transcribe interview.wav --diarize
-uv run echoflow library speakers name JOB_ID speaker-02 "Dr. Chen"
-uv run echoflow library speakers transcript JOB_ID
-```
-
-A display name is user-authored presentation state. Anonymous speaker refs remain the
-evidence identity. EchoFlow does not perform biometric identity inference or silent
-cross-recording speaker linking.
-
-## Search, navigate, annotate, and save useful questions
-
-Build or refresh the private lexical library and search it:
+## Search, annotate, and save useful questions
 
 ```bash
 uv run echoflow library rebuild
@@ -205,7 +210,6 @@ uv run echoflow library search \
 The notebook itself is durable user state:
 
 ```bash
-uv run echoflow library notes
 uv run echoflow library notes add JOB_ID segment-000042 \
   --body "Compare this with the 2024 survey." \
   --tag methodology \
@@ -217,9 +221,7 @@ Saved searches persist the question, not today's answer:
 ```bash
 uv run echoflow library saved save "Housing chapter" "rent burden" \
   --tag housing --mode hybrid
-uv run echoflow library saved
 uv run echoflow library saved run "Housing chapter"
-uv run echoflow library navigation
 ```
 
 ## Delete exactly what you mean
@@ -233,25 +235,7 @@ uv run echoflow library delete JOB_ID --scope library-view
 
 The plan prints every action, preserved attached notes, affected document-scoped saved
 searches, and a confirmation token. Nothing changes until the same request is repeated
-with that token:
-
-```bash
-uv run echoflow library delete JOB_ID \
-  --scope library-view \
-  --confirm 'delete:...'
-```
-
-Available transcript-scoped custody operations include:
-
-```text
-library-view          remove rebuildable retrieval membership
-derived-artifacts     delete regenerable TXT/SRT/VTT
-execution-state       delete private checkpoints/intermediates
-canonical-transcript  delete canonical JSON plus disposable descendants
-research-notes        delete notes anchored to this exact canonical generation
-saved-searches        delete saved searches explicitly constrained to this transcript
-source-recording      delete original recording only with --allow-source + provenance match
-```
+with that token.
 
 `canonical-transcript` does **not** imply `research-notes`, `saved-searches`, or
 `source-recording`. Shared tags/collections are never cascade-deleted merely because one
@@ -263,13 +247,8 @@ Age-based retention is narrower still:
 uv run echoflow library retention --execution-days 30
 ```
 
-It can delete only old private job workspaces. Completed jobs are eligible by default;
-failed/interrupted jobs require `--include-incomplete` because cleanup removes resume
-capability. Running jobs are never eligible. Canonical transcripts, human research, source
-media, and lightweight lifecycle manifests are preserved.
-
-EchoFlow does not claim that ordinary file deletion proves secure physical erasure on
-SSDs, snapshots, backups, sync history, or copy-on-write storage.
+It can delete only old private job workspaces. Canonical transcripts, human research,
+source media, and lightweight lifecycle manifests are preserved.
 
 Read **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)** for
 the exact contract.
@@ -284,6 +263,7 @@ the exact contract.
 | Notes, tags, collections, evidence anchors | user-authored knowledge | **No** |
 | Saved searches | user-authored query intent | **No** |
 | Remembered library/recording locations | durable app preference | **No, but machine-local** |
+| Theme preference | machine-local presentation preference | Yes / non-evidence |
 | TXT/SRT/WebVTT | publication views | Yes |
 | Normalized/enhanced working audio | private processing material | Yes |
 | Lexical/semantic search state | private search projections | Yes |
@@ -295,32 +275,31 @@ unique evidence or human research exists.
 ## For maintainers
 
 Start with **[docs/architecture/README.md](docs/architecture/README.md)**, especially
+**[Processing Center](docs/architecture/processing-center.md)**,
 **[Corpus search](docs/architecture/corpus-search.md)**,
 **[Durable research state](docs/architecture/research-state.md)**,
 **[Library lifecycle](docs/architecture/library-lifecycle.md)**,
 **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)**, and
-**[SECURITY.md](SECURITY.md)**. The documentation visual/voice contract lives in
-**[docs/documentation-style.md](docs/documentation-style.md)**.
+**[SECURITY.md](SECURITY.md)**.
 
 Normal qualification includes Ruff lint/format/security rules, strict mypy, Vulture,
 Radon, branch coverage, locked dependency audit, package builds, clean-wheel verification,
-frontend type/build/audit gates, Playwright/axe, and Linux/macOS/Windows CI. Targeted
-mutation testing is reserved for load-bearing logic.
+frontend type/build/audit gates, Playwright/axe, the theme contrast matrix, and
+Linux/macOS/Windows CI.
 
 ## Where the project goes next
 
-The full capability-to-productization audit now lives in **[ROADMAP.md](ROADMAP.md)**.
-Research browse/create/edit/delete and label assignment are foundation. The immediate
-remaining Research work is saved-search lifecycle, research-object → verified-evidence
-navigation, stale-anchor review, and advanced typed search controls.
+Research/search and the first Processing Center workflow are built. The next first-release
+sequence is:
 
-After that, the next major product gap is a **desktop Processing center** over existing
-health/resource, managed-model, job-lifecycle, transcription-plan/execution/resume,
-enhancement, diarization, and publication contracts. Then come speaker/control polish,
-Tauri-owned local playback, lifecycle/retention UI, packaging, backup/restore/export,
-packaged semantic qualification, and representative-device release qualification.
+1. transcript and speaker tools plus provenance/details polish;
+2. Tauri-owned local audio/video playback from verified source-relative coordinates;
+3. lifecycle and retention UI over the existing plan-bound custody backend;
+4. architecture/redundancy audit before packaging freezes seams;
+5. packaging, first-run storage setup, signed updates, and evidence-safe uninstall;
+6. backup/restore plus selected research portability;
+7. packaged semantic-model/dependency custody; and
+8. representative-device qualification across ordinary consumer hardware and hostile path,
+   disk, interruption, upgrade, and accessibility cases.
 
----
-
-**Make sensitive local transcription boringly dependable. Make its evidence easy to
-navigate and annotate. Do not give the corpus away.** 💃
+See **[ROADMAP.md](ROADMAP.md)** for the capability matrix and exact sequencing.

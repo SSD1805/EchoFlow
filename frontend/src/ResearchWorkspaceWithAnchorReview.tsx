@@ -18,6 +18,7 @@ export function ResearchWorkspaceWithAnchorReview({
   onThemeChange,
 }: ResearchWorkspaceWithAnchorReviewProps) {
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
+  const researchChanged = () => setWorkspaceRevision((current) => current + 1);
 
   return (
     <>
@@ -27,10 +28,14 @@ export function ResearchWorkspaceWithAnchorReview({
         theme={theme}
         onThemeChange={onThemeChange}
       />
-      <ResearchSearchControlsPanel client={client} revision={workspaceRevision} />
+      <ResearchSearchControlsPanel
+        client={client}
+        revision={workspaceRevision}
+        onResearchChanged={researchChanged}
+      />
       <ResearchAnchorReviewPanel
         client={client}
-        onReanchored={() => setWorkspaceRevision((current) => current + 1)}
+        onReanchored={researchChanged}
       />
     </>
   );

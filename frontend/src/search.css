@@ -81,7 +81,7 @@
   border-radius: 11px;
   padding: 10px 16px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 720;
 }
 .search-control button:disabled { opacity: 0.5; }

@@ -1,50 +1,48 @@
-<!-- mermaid-sha256: 6b7fcddf335ba974f41786c44ea4499384a7bbc2bee6c1249aeb8270a038dd9e -->
-<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 1700 700">
+<!-- mermaid-sha256: 815e51ceb9f98f5d8c5e3d7818fdea9d368b1dcf41fe72939ef25ee303874ae3 -->
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 1800 760">
   <title id="title">EchoFlow system architecture</title>
-  <desc id="desc">Source media moves through inspection, an immutable plan, transcription, and canonical JSON. Rebuildable DuckDB projections rank passages, canonical navigation verifies evidence, SQLite owns durable research, custody planning owns destructive operations, and the desktop bridge exposes narrow Library and evidence presentation with Research next.</desc>
+  <desc id="desc">Source media moves through inspection, an immutable plan, transcription, and canonical JSON. Rebuildable search ranks passages, canonical navigation verifies evidence, SQLite owns durable research, Processing Center composes execution authority, custody planning owns destructive operations, and the desktop bridge exposes current Library, Research, and Processing surfaces.</desc>
   <defs>
     <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#315E63"/></marker>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#1F2930" flood-opacity="0.10"/></filter>
   </defs>
-  <rect width="1700" height="700" rx="30" fill="#FBF9F4"/>
+  <rect width="1800" height="760" rx="30" fill="#FBF9F4"/>
   <text x="70" y="62" fill="#1F2930" font-family="Inter,Segoe UI,sans-serif" font-size="29" font-weight="700">EchoFlow architecture: authority stays separated</text>
-  <text x="70" y="92" fill="#5F6762" font-family="Inter,Segoe UI,sans-serif" font-size="15">Canonical evidence, human research, derived projections, destructive custody, and desktop presentation have different jobs.</text>
+  <text x="70" y="92" fill="#5F6762" font-family="Inter,Segoe UI,sans-serif" font-size="15">Canonical evidence, human research, derived projections, processing authority, destructive custody, and desktop presentation have different jobs.</text>
 
   <g stroke="#315E63" stroke-width="3" fill="none" marker-end="url(#arrow)">
-    <path d="M235 170H300"/><path d="M500 170H565"/><path d="M765 170H830"/><path d="M1030 170H1095"/>
-    <path d="M1195 215V285H1080"/><path d="M880 330H815"/><path d="M715 330H650"/>
-    <path d="M1195 215V285H1320"/><path d="M1420 375V445H1300"/>
-    <path d="M1195 215V540H1060"/><path d="M860 585H795"/>
-    <path d="M595 585H530"/>
-    <path d="M1080 330H1015"/><path d="M915 330H850"/>
-    <path d="M750 375V445H830"/>
-    <path d="M1030 490H1095"/>
-    <path d="M1295 490H1360"/>
+    <path d="M235 165H285"/><path d="M505 165H555"/><path d="M775 165H825"/><path d="M1045 165H1095"/>
+    <path d="M1195 210V285H1035"/><path d="M815 330H765"/><path d="M545 330H495"/>
+    <path d="M1195 210V285H1365"/>
+    <path d="M385 375V445H555"/><path d="M775 490H825"/><path d="M1045 490H1095"/><path d="M1315 490H1365"/>
+    <path d="M665 210V565H825"/><path d="M935 535V510"/>
+    <path d="M1195 210V630H1095"/><path d="M875 675H825"/>
   </g>
 
   <g filter="url(#shadow)" font-family="Inter,Segoe UI,sans-serif" font-size="15" font-weight="700">
-    <g><rect x="70" y="125" width="165" height="90" rx="18" fill="#F9D5E5" stroke="#7B2E52" stroke-width="3"/><text x="152" y="163" text-anchor="middle" fill="#22151B">Source</text><text x="152" y="187" text-anchor="middle" fill="#22151B">media</text></g>
-    <g><rect x="300" y="125" width="200" height="90" rx="18" fill="#D8EEFF" stroke="#2E617B" stroke-width="3"/><text x="400" y="163" text-anchor="middle" fill="#12222A">Media + resource</text><text x="400" y="187" text-anchor="middle" fill="#12222A">inspection</text></g>
-    <g><rect x="565" y="125" width="200" height="90" rx="18" fill="#E8D9FF" stroke="#68469B" stroke-width="3"/><text x="665" y="163" text-anchor="middle" fill="#1F1630">Immutable</text><text x="665" y="187" text-anchor="middle" fill="#1F1630">local plan</text></g>
-    <g><rect x="830" y="125" width="200" height="90" rx="18" fill="#E8D9FF" stroke="#68469B" stroke-width="3"/><text x="930" y="163" text-anchor="middle" fill="#1F1630">Transcription</text><text x="930" y="187" text-anchor="middle" fill="#1F1630">+ checkpoints</text></g>
-    <g><rect x="1095" y="125" width="200" height="90" rx="18" fill="#FFF0B8" stroke="#8A6B18" stroke-width="3"/><text x="1195" y="163" text-anchor="middle" fill="#2C260F">Canonical</text><text x="1195" y="187" text-anchor="middle" fill="#2C260F">transcript JSON</text></g>
+    <g><rect x="70" y="120" width="165" height="90" rx="18" fill="#F9D5E5" stroke="#7B2E52" stroke-width="3"/><text x="152" y="158" text-anchor="middle" fill="#22151B">Source</text><text x="152" y="182" text-anchor="middle" fill="#22151B">media</text></g>
+    <g><rect x="285" y="120" width="220" height="90" rx="18" fill="#E8D9FF" stroke="#68469B" stroke-width="3"/><text x="395" y="158" text-anchor="middle" fill="#1F1630">Media + resource</text><text x="395" y="182" text-anchor="middle" fill="#1F1630">inspection</text></g>
+    <g><rect x="555" y="120" width="220" height="90" rx="18" fill="#E8D9FF" stroke="#68469B" stroke-width="3"/><text x="665" y="158" text-anchor="middle" fill="#1F1630">Immutable</text><text x="665" y="182" text-anchor="middle" fill="#1F1630">local plan</text></g>
+    <g><rect x="825" y="120" width="220" height="90" rx="18" fill="#E8D9FF" stroke="#68469B" stroke-width="3"/><text x="935" y="158" text-anchor="middle" fill="#1F1630">Transcription</text><text x="935" y="182" text-anchor="middle" fill="#1F1630">+ checkpoints</text></g>
+    <g><rect x="1095" y="120" width="200" height="90" rx="18" fill="#FFF0B8" stroke="#8A6B18" stroke-width="3"/><text x="1195" y="158" text-anchor="middle" fill="#2C260F">Canonical</text><text x="1195" y="182" text-anchor="middle" fill="#2C260F">transcript JSON</text></g>
+    <g><rect x="1365" y="285" width="200" height="90" rx="18" fill="#DDF5E3" stroke="#347A46" stroke-width="3"/><text x="1465" y="323" text-anchor="middle" fill="#142719">Derived exports</text><text x="1465" y="347" text-anchor="middle" fill="#142719">TXT / SRT / VTT</text></g>
 
-    <g><rect x="1320" y="285" width="200" height="90" rx="18" fill="#DDF5E3" stroke="#347A46" stroke-width="3"/><text x="1420" y="323" text-anchor="middle" fill="#142719">Derived exports</text><text x="1420" y="347" text-anchor="middle" fill="#142719">TXT / SRT / VTT</text></g>
-    <g><rect x="880" y="285" width="200" height="90" rx="18" fill="#DDF5E3" stroke="#347A46" stroke-width="3"/><text x="980" y="323" text-anchor="middle" fill="#142719">DuckDB search</text><text x="980" y="347" text-anchor="middle" fill="#142719">projections</text></g>
-    <g><rect x="650" y="285" width="200" height="90" rx="18" fill="#DDF5E3" stroke="#347A46" stroke-width="3"/><text x="750" y="323" text-anchor="middle" fill="#142719">Ranked</text><text x="750" y="347" text-anchor="middle" fill="#142719">passages</text></g>
-    <g><rect x="420" y="285" width="200" height="90" rx="18" fill="#FFF0B8" stroke="#8A6B18" stroke-width="3"/><text x="520" y="323" text-anchor="middle" fill="#2C260F">Verified evidence</text><text x="520" y="347" text-anchor="middle" fill="#2C260F">navigation</text></g>
+    <g><rect x="815" y="285" width="220" height="90" rx="18" fill="#DDF5E3" stroke="#347A46" stroke-width="3"/><text x="925" y="323" text-anchor="middle" fill="#142719">DuckDB search</text><text x="925" y="347" text-anchor="middle" fill="#142719">projections</text></g>
+    <g><rect x="545" y="285" width="220" height="90" rx="18" fill="#DDF5E3" stroke="#347A46" stroke-width="3"/><text x="655" y="323" text-anchor="middle" fill="#142719">Ranked</text><text x="655" y="347" text-anchor="middle" fill="#142719">passages</text></g>
+    <g><rect x="275" y="285" width="220" height="90" rx="18" fill="#FFF0B8" stroke="#8A6B18" stroke-width="3"/><text x="385" y="323" text-anchor="middle" fill="#2C260F">Verified evidence</text><text x="385" y="347" text-anchor="middle" fill="#2C260F">navigation</text></g>
 
-    <g><rect x="830" y="445" width="200" height="90" rx="18" fill="#F9D5E5" stroke="#7B2E52" stroke-width="3"/><text x="930" y="483" text-anchor="middle" fill="#22151B">SQLite research</text><text x="930" y="507" text-anchor="middle" fill="#22151B">authority</text></g>
-    <g><rect x="1095" y="445" width="200" height="90" rx="18" fill="#DDF5E3" stroke="#347A46" stroke-width="3"/><text x="1195" y="483" text-anchor="middle" fill="#142719">Research service</text><text x="1195" y="507" text-anchor="middle" fill="#142719">+ discovery</text></g>
-    <g><rect x="1360" y="445" width="200" height="90" rx="18" fill="#D8EEFF" stroke="#2E617B" stroke-width="3"/><text x="1460" y="483" text-anchor="middle" fill="#12222A">Desktop bridge</text><text x="1460" y="507" text-anchor="middle" fill="#12222A">→ React Library</text></g>
+    <g><rect x="555" y="445" width="220" height="90" rx="18" fill="#FFF0B8" stroke="#8A6B18" stroke-width="3"/><text x="665" y="483" text-anchor="middle" fill="#2C260F">SQLite research</text><text x="665" y="507" text-anchor="middle" fill="#2C260F">authority</text></g>
+    <g><rect x="825" y="445" width="220" height="90" rx="18" fill="#D8EEFF" stroke="#2E617B" stroke-width="3"/><text x="935" y="483" text-anchor="middle" fill="#12222A">Research service</text><text x="935" y="507" text-anchor="middle" fill="#12222A">+ discovery</text></g>
+    <g><rect x="1095" y="445" width="220" height="90" rx="18" fill="#D8EEFF" stroke="#2E617B" stroke-width="3"/><text x="1205" y="483" text-anchor="middle" fill="#12222A">Versioned</text><text x="1205" y="507" text-anchor="middle" fill="#12222A">desktop bridge</text></g>
+    <g><rect x="1365" y="445" width="270" height="90" rx="18" fill="#D8EEFF" stroke="#2E617B" stroke-width="3"/><text x="1500" y="483" text-anchor="middle" fill="#12222A">React Library</text><text x="1500" y="507" text-anchor="middle" fill="#12222A">Research + Processing</text></g>
 
-    <g><rect x="860" y="540" width="200" height="90" rx="18" fill="#FFD6D6" stroke="#9E3434" stroke-width="3"/><text x="960" y="578" text-anchor="middle" fill="#351616">Library custody</text><text x="960" y="602" text-anchor="middle" fill="#351616">service</text></g>
-    <g><rect x="595" y="540" width="200" height="90" rx="18" fill="#FFD6D6" stroke="#9E3434" stroke-width="3"/><text x="695" y="578" text-anchor="middle" fill="#351616">Plan-bound</text><text x="695" y="602" text-anchor="middle" fill="#351616">deletion</text></g>
-    <g><rect x="330" y="540" width="200" height="90" rx="18" fill="#E8D9FF" stroke="#68469B" stroke-width="3"/><text x="430" y="578" text-anchor="middle" fill="#1F1630">Next Research</text><text x="430" y="602" text-anchor="middle" fill="#1F1630">workspace UI</text></g>
+    <g><rect x="825" y="565" width="220" height="90" rx="18" fill="#E8D9FF" stroke="#68469B" stroke-width="3"/><text x="935" y="603" text-anchor="middle" fill="#1F1630">ProcessingCenter</text><text x="935" y="627" text-anchor="middle" fill="#1F1630">Service</text></g>
+    <g><rect x="875" y="630" width="220" height="90" rx="18" fill="#FFD6D6" stroke="#9E3434" stroke-width="3"/><text x="985" y="668" text-anchor="middle" fill="#351616">Library custody</text><text x="985" y="692" text-anchor="middle" fill="#351616">service</text></g>
+    <g><rect x="605" y="630" width="220" height="90" rx="18" fill="#FFD6D6" stroke="#9E3434" stroke-width="3"/><text x="715" y="668" text-anchor="middle" fill="#351616">Plan-bound</text><text x="715" y="692" text-anchor="middle" fill="#351616">deletion</text></g>
   </g>
 
   <g font-family="Inter,Segoe UI,sans-serif" font-size="13">
-    <rect x="70" y="650" width="1490" height="30" rx="12" fill="#ECE6DC"/>
-    <text x="815" y="670" text-anchor="middle" fill="#5F6762">Gold = evidence · pink = human/source authority · green = rebuildable views · purple = processing/next UI · red = destructive custody · blue = inspection/presentation boundary</text>
+    <rect x="70" y="726" width="1565" height="26" rx="11" fill="#ECE6DC"/>
+    <text x="852" y="744" text-anchor="middle" fill="#5F6762">Gold = evidence · pink = source authority · green = rebuildable views · purple = processing · red = destructive custody · blue = composition/presentation boundary</text>
   </g>
 </svg>

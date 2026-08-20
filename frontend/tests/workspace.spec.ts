@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 async function openLibrary(page: import("@playwright/test").Page) {
   await page.goto("/?e2e=1");
   await page.getByRole("button", { name: "Library" }).click();
-  await expect(page.getByRole("heading", { name: "Search your evidence." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Search your library." })).toBeVisible();
 }
 
 async function searchWorkspace(
@@ -20,11 +20,11 @@ test("Susan can search grouped evidence and research state", async ({ page }) =>
   await openLibrary(page);
   await searchWorkspace(page);
 
-  await expect(page.getByRole("heading", { name: "Evidence", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Transcript passages", exact: true })).toBeVisible();
   await expect(
     page.getByText("We started the ABC program after the second interview round."),
   ).toBeVisible();
-  await expect(page.getByText("Verified seek point")).toBeVisible();
+  await expect(page.getByText("Transcript location")).toBeVisible();
   await expect(page.locator("[data-seek-seconds='862.43']")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Notes", exact: true })).toBeVisible();
   await expect(
@@ -40,7 +40,7 @@ test("Susan can open a verified transcript window from a search result", async (
   await openLibrary(page);
   await searchWorkspace(page);
 
-  await page.getByRole("button", { name: /Open verified evidence from interview-42/ }).click();
+  await page.getByRole("button", { name: /Open transcript passage from interview-42/ }).click();
 
   const reader = page.getByRole("complementary", { name: "Evidence reader" });
   await expect(reader).toBeVisible();
@@ -71,7 +71,7 @@ test("Susan can open a verified transcript window from a search result", async (
 test("Susan can save a durable note from a verified evidence window", async ({ page }) => {
   await openLibrary(page);
   await searchWorkspace(page);
-  await page.getByRole("button", { name: /Open verified evidence from interview-42/ }).click();
+  await page.getByRole("button", { name: /Open transcript passage from interview-42/ }).click();
 
   const reader = page.getByRole("complementary", { name: "Evidence reader" });
   const body = "Compare this passage with the follow-up interview.";
@@ -123,7 +123,7 @@ test("transcript and note markup remains inert text", async ({ page }) => {
   ).toBeVisible();
   await expect(page.locator(".result-groups img")).toHaveCount(0);
 
-  await page.getByRole("button", { name: /Open verified evidence from interview-42/ }).click();
+  await page.getByRole("button", { name: /Open transcript passage from interview-42/ }).click();
   const reader = page.getByRole("complementary", { name: "Evidence reader" });
   await expect(reader.locator("mark")).toHaveText(hostile);
   await expect(reader.locator("img")).toHaveCount(0);

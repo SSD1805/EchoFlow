@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 async function openResearch(page: import("@playwright/test").Page) {
   await page.goto("/?e2e=1");
   await page.getByRole("button", { name: "Research" }).click();
-  await expect(page.getByRole("heading", { name: "Your research layer." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Research", exact: true })).toBeVisible();
 }
 
 test("Susan can browse authoritative research state without database knowledge", async ({
@@ -32,6 +32,9 @@ test("Susan can browse authoritative research state without database knowledge",
   await expect(navigation.getByRole("button", { name: "#governance" })).toBeVisible();
   await expect(navigation.getByRole("button", { name: "Oral histories" })).toBeVisible();
 
+  await expect(page.getByText("Human knowledge stays human knowledge")).toHaveCount(0);
+  await expect(page.getByText("authoritative annotations", { exact: false })).toHaveCount(0);
+  await expect(page.getByText("durable questions", { exact: false })).toHaveCount(0);
   await expect(page.getByText("/Users/")).toHaveCount(0);
   await expect(page.getByText("canonical_path")).toHaveCount(0);
   await expect(page.getByText("source_path")).toHaveCount(0);
@@ -43,7 +46,7 @@ test("Susan can browse authoritative research state without database knowledge",
 test("research workspace refresh remains keyboard reachable", async ({ page }) => {
   await openResearch(page);
 
-  const refresh = page.getByRole("button", { name: "Refresh research" });
+  const refresh = page.getByRole("button", { name: "Refresh", exact: true });
   await refresh.focus();
   await expect(refresh).toBeFocused();
   await page.keyboard.press("Enter");
@@ -115,7 +118,7 @@ test("Susan can edit labels and explicitly delete a durable research note", asyn
   await noteCard.getByRole("button", { name: "Save note" }).click();
 
   await expect(
-    page.getByText("Note saved. Its verified evidence anchor is unchanged."),
+    page.getByText("Note saved. Its transcript passage is unchanged."),
   ).toBeVisible();
   await expect(
     noteCard.getByText("Compare governance with the follow-up interview."),
@@ -125,12 +128,12 @@ test("Susan can edit labels and explicitly delete a durable research note", asyn
 
   await noteCard.getByRole("button", { name: "Delete note" }).click();
   await expect(noteCard.getByLabel("Delete note confirmation")).toContainText(
-    "canonical transcript and original recording are not part of this operation",
+    "This does not delete the transcript or original recording",
   );
   await noteCard.getByRole("button", { name: "Delete note permanently" }).click();
 
   await expect(
-    page.getByText("Note deleted. Transcript evidence was not deleted."),
+    page.getByText("Note deleted. The transcript was not deleted."),
   ).toBeVisible();
   await expect(
     page.getByText("Compare governance with the follow-up interview."),
@@ -156,7 +159,7 @@ test("Susan can reopen a note against its exact older canonical generation", asy
   await expect(reader.getByText("Preserved research evidence")).toBeVisible();
   await expect(reader.getByRole("heading", { name: "Attach a note to this evidence" })).toHaveCount(0);
   await expect(
-    page.getByText("Opened the exact older evidence generation cited by this note. Nothing was rebound."),
+    page.getByText("Opened the exact older transcript version cited by this note. Nothing was moved."),
   ).toBeVisible();
   await expect(page.getByText("/Users/")).toHaveCount(0);
   await expect(page.getByText("canonical_path")).toHaveCount(0);
@@ -169,24 +172,27 @@ test("Susan can reopen a note against its exact older canonical generation", asy
 test("Susan can create rename run and delete durable saved-search intent", async ({ page }) => {
   await openResearch(page);
 
-  await page.getByLabel("Saved search name").fill("Methods sweep");
-  await page.getByLabel("Saved search query").fill("methodology");
-  await page.getByLabel("Saved search description").fill("Questions across current interviews");
-  await page.getByRole("button", { name: "Save search" }).click();
-  await expect(page.getByText("Methods sweep", { exact: true })).toBeVisible();
+  const navigation = page.getByLabel("Research navigation");
+  await navigation.getByLabel("Saved search name").fill("Methods sweep");
+  await navigation.getByLabel("Saved search query").fill("methodology");
+  await navigation
+    .getByLabel("Saved search description")
+    .fill("Questions across current interviews");
+  await navigation.getByRole("button", { name: "Save search", exact: true }).click();
+  await expect(navigation.getByText("Methods sweep", { exact: true })).toBeVisible();
 
-  const initialSavedCard = page
+  const initialSavedCard = navigation
     .locator(".saved-search-list article")
     .filter({ hasText: "methodology" });
   await initialSavedCard.getByRole("button", { name: "Rename" }).click();
 
-  const savedEditor = page.locator(".saved-search-editor");
+  const savedEditor = navigation.locator(".saved-search-editor");
   await savedEditor
     .getByLabel("Saved search name for methodology")
     .fill("Methods follow-up");
   await savedEditor.getByRole("button", { name: "Save name" }).click();
 
-  const savedCard = page
+  const savedCard = navigation
     .locator(".saved-search-list article")
     .filter({ hasText: "Methods follow-up" });
   await expect(savedCard.getByText("Methods follow-up", { exact: true })).toBeVisible();
@@ -206,9 +212,9 @@ test("Susan can create rename run and delete durable saved-search intent", async
     "Notes, transcripts, and recordings are not part of this operation",
   );
   await savedCard.getByRole("button", { name: "Delete saved search" }).click();
-  await expect(page.getByText("Methods follow-up", { exact: true })).toHaveCount(0);
+  await expect(navigation.getByText("Methods follow-up", { exact: true })).toHaveCount(0);
   await expect(
-    page.getByText("Saved search deleted. Transcript evidence and research notes were untouched."),
+    page.getByText("Saved search deleted. Notes and transcripts were not deleted."),
   ).toBeVisible();
 
   const results = await new AxeBuilder({ page }).analyze();

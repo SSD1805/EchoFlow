@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 async function openResearch(page: import("@playwright/test").Page) {
   await page.goto("/?e2e=1");
   await page.getByRole("button", { name: "Research" }).click();
-  await expect(page.getByRole("heading", { name: "Your research layer." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Research", exact: true })).toBeVisible();
 }
 
 test("Susan can review an older anchor before deliberately re-anchoring it", async ({

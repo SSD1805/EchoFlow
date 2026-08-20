@@ -7,6 +7,7 @@ import { IntakeWorkspace } from "./IntakeWorkspace";
 import { ProcessingCenter } from "./ProcessingCenter";
 import { ResearchWorkspaceWithAnchorReview } from "./ResearchWorkspaceWithAnchorReview";
 import { SearchWorkspace } from "./SearchWorkspace";
+import { DEFAULT_THEME, isTheme, THEME_STORAGE_KEY } from "./themes";
 import "./processing-center.css";
 
 const client = createDesktopClient();
@@ -14,12 +15,26 @@ const processing = createProcessingClient();
 
 type View = "intake" | "processing" | "library" | "research";
 
+function initialTheme(): Theme {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return isTheme(stored) ? stored : DEFAULT_THEME;
+  } catch {
+    return DEFAULT_THEME;
+  }
+}
+
 export function App() {
-  const [theme, setTheme] = useState<Theme>("archive");
+  const [theme, setTheme] = useState<Theme>(initialTheme);
   const [view, setView] = useState<View>("intake");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Presentation preferences must never block the local evidence workspace.
+    }
   }, [theme]);
 
   const workspace = useMemo(() => {

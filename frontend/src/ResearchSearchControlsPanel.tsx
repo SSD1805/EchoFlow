@@ -18,10 +18,11 @@ interface ResearchSearchControlsPanelProps {
   onResearchChanged?: () => void;
 }
 
+type SearchMatch = "any" | "all" | "phrase";
+
 interface SearchDraft {
   queryText: string;
-  phrase: boolean;
-  operator: "any" | "all";
+  match: SearchMatch;
   speakerRefs: string;
   languages: string;
   documentIds: string;
@@ -37,8 +38,7 @@ interface SearchDraft {
 
 const EMPTY_DRAFT: SearchDraft = {
   queryText: "",
-  phrase: false,
-  operator: "any",
+  match: "any",
   speakerRefs: "",
   languages: "",
   documentIds: "",
@@ -59,11 +59,16 @@ function splitList(value: string): string[] {
     .filter(Boolean);
 }
 
+function matchFromIntent(intent: ResearchSearchIntent): SearchMatch {
+  if (intent.phrase) return "phrase";
+  return intent.operator;
+}
+
 function draftToIntent(draft: SearchDraft): ResearchSearchIntent {
   return {
     query_text: draft.queryText,
-    phrase: draft.phrase,
-    operator: draft.operator,
+    phrase: draft.match === "phrase",
+    operator: draft.match === "any" ? "any" : "all",
     speaker_refs: splitList(draft.speakerRefs),
     languages: splitList(draft.languages),
     document_ids: splitList(draft.documentIds),
@@ -81,8 +86,7 @@ function draftToIntent(draft: SearchDraft): ResearchSearchIntent {
 function intentToDraft(intent: ResearchSearchIntent): SearchDraft {
   return {
     queryText: intent.query_text,
-    phrase: intent.phrase,
-    operator: intent.operator,
+    match: matchFromIntent(intent),
     speakerRefs: intent.speaker_refs.join(", "),
     languages: intent.languages.join(", "),
     documentIds: intent.document_ids.join(", "),
@@ -97,26 +101,36 @@ function intentToDraft(intent: ResearchSearchIntent): SearchDraft {
   };
 }
 
+function matchLabel(intent: ResearchSearchIntent): string {
+  if (intent.phrase) return "Exact phrase";
+  return intent.operator === "all" ? "All of these words" : "Any of these words";
+}
+
+function retrievalLabel(mode: string): string {
+  if (mode === "semantic") return "Meaning";
+  if (mode === "hybrid") return "Wording + meaning";
+  return "Wording";
+}
+
 function IntentSummary({ intent }: { intent: ResearchSearchIntent }) {
   const chips = [
-    `phrase: ${intent.phrase ? "exact" : "off"}`,
-    `operator: ${intent.operator.toUpperCase()}`,
-    `mode: ${intent.retrieval_mode}`,
-    `sort: ${intent.sort}`,
-    `limit: ${intent.limit}`,
-    `context: ${intent.context_segments}`,
-    ...intent.speaker_refs.map((value) => `speaker: ${value}`),
-    ...intent.languages.map((value) => `language: ${value}`),
-    ...intent.document_ids.map((value) => `transcript: ${value}`),
-    ...intent.tags.map((value) => `tag: ${value}`),
-    ...intent.collections.map((value) => `collection: ${value}`),
-    ...(intent.note_text ? [`note text: ${intent.note_text}`] : []),
-    ...(intent.with_notes ? ["must have research notes"] : []),
+    `Match: ${matchLabel(intent)}`,
+    `Search by: ${retrievalLabel(intent.retrieval_mode)}`,
+    `Order: ${intent.sort === "timeline" ? "Time" : "Relevance"}`,
+    `Results: ${intent.limit}`,
+    `Context: ${intent.context_segments}`,
+    ...intent.speaker_refs.map((value) => `Speaker: ${value}`),
+    ...intent.languages.map((value) => `Language: ${value}`),
+    ...intent.document_ids.map((value) => `Transcript: ${value}`),
+    ...intent.tags.map((value) => `Tag: ${value}`),
+    ...intent.collections.map((value) => `Collection: ${value}`),
+    ...(intent.note_text ? [`Notes containing: ${intent.note_text}`] : []),
+    ...(intent.with_notes ? ["Only results with notes"] : []),
   ];
 
   return (
-    <div className="typed-search-intent" aria-label="Applied search intent">
-      <strong>Applied by EchoFlow</strong>
+    <div className="typed-search-intent" aria-label="Search details">
+      <strong>Search details</strong>
       <code>{intent.query_text}</code>
       <div className="typed-search-pills">
         {chips.map((chip) => (
@@ -146,9 +160,7 @@ export function ResearchSearchControlsPanel({
   const [busy, setBusy] = useState(false);
   const [savedBusy, setSavedBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState(
-    "Compose a typed evidence query. Python owns how every control is interpreted.",
-  );
+  const [status, setStatus] = useState("Search transcript evidence and your research.");
 
   const loadSavedSearches = useCallback(async () => {
     const overview = await client.researchOverview();
@@ -160,7 +172,7 @@ export function ResearchSearchControlsPanel({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not read saved search metadata.",
+          : "EchoFlow could not read your saved searches.",
       );
     });
   }, [loadSavedSearches, revision]);
@@ -179,14 +191,14 @@ export function ResearchSearchControlsPanel({
       setResult(next);
       setDraft(intentToDraft(next.intent));
       setStatus(
-        `${next.evidence.length} verified evidence result${next.evidence.length === 1 ? "" : "s"}. EchoFlow returned the canonicalized intent shown below.`,
+        `${next.evidence.length} verified evidence result${next.evidence.length === 1 ? "" : "s"}.`,
       );
     } catch (caught) {
       setResult(null);
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not execute that typed research search.",
+          : "EchoFlow could not run that research search.",
       );
     } finally {
       setBusy(false);
@@ -208,12 +220,10 @@ export function ResearchSearchControlsPanel({
       setSavedDescription(saved.description ?? "");
       await loadSavedSearches();
       onResearchChanged?.();
-      setStatus(`Saved “${saved.name}” with its full typed search intent.`);
+      setStatus(`Saved “${saved.name}”.`);
     } catch (caught) {
       setError(
-        caught instanceof Error
-          ? caught.message
-          : "EchoFlow could not save that typed research search.",
+        caught instanceof Error ? caught.message : "EchoFlow could not save that search.",
       );
     } finally {
       setSavedBusy(false);
@@ -229,12 +239,10 @@ export function ResearchSearchControlsPanel({
       setDraft(intentToDraft(inspected.intent));
       setSavedName(inspected.name);
       setSavedDescription(inspected.description ?? "");
-      setStatus(`Loaded “${inspected.name}” into the typed intent editor.`);
+      setStatus(`Loaded “${inspected.name}”.`);
     } catch (caught) {
       setError(
-        caught instanceof Error
-          ? caught.message
-          : "EchoFlow could not inspect that saved search.",
+        caught instanceof Error ? caught.message : "EchoFlow could not open that saved search.",
       );
     } finally {
       setSavedBusy(false);
@@ -258,14 +266,10 @@ export function ResearchSearchControlsPanel({
       setSavedDescription(updated.description ?? "");
       await loadSavedSearches();
       onResearchChanged?.();
-      setStatus(
-        `Updated “${updated.name}”. Display metadata and typed query intent committed together.`,
-      );
+      setStatus(`Updated “${updated.name}”.`);
     } catch (caught) {
       setError(
-        caught instanceof Error
-          ? caught.message
-          : "EchoFlow could not update that saved search.",
+        caught instanceof Error ? caught.message : "EchoFlow could not update that saved search.",
       );
     } finally {
       setSavedBusy(false);
@@ -276,191 +280,182 @@ export function ResearchSearchControlsPanel({
     setEditingSaved(null);
     setSavedName("");
     setSavedDescription("");
-    setStatus("The current typed controls can be saved as a new durable research question.");
+    setStatus("The current search can be saved for later.");
   }
 
   async function createNote(body: string) {
     if (!selectedEvidence) throw new Error("Verified evidence is no longer open.");
     await client.createResearchNote(selectedEvidence, body);
     onResearchChanged?.();
-    setStatus("Saved a research note to the verified current evidence window.");
+    setStatus("Saved a note to this evidence passage.");
   }
 
   return (
     <section className="typed-search-shell" aria-labelledby="typed-search-title">
       <div className="typed-search-heading">
         <div>
-          <p className="mini-label">Advanced evidence search</p>
-          <h2 id="typed-search-title">Make the question inspectable.</h2>
-          <p>
-            These controls are presentation only. Python validates and executes the complete
-            intent, including research-state constraints and retrieval mode.
-          </p>
+          <p className="mini-label">Research search</p>
+          <h2 id="typed-search-title">What are you looking for?</h2>
+          <p>Search transcript evidence, then narrow it with the options you actually need.</p>
         </div>
-        <span className="typed-search-authority">Python authority</span>
       </div>
 
       <form className="typed-search-form" onSubmit={(event) => void executeSearch(event)}>
         <label className="typed-search-query">
-          Query
+          Search
           <input
             type="search"
             required
             maxLength={4096}
             value={draft.queryText}
             onChange={(event) => updateDraft("queryText", event.target.value)}
-            placeholder="What evidence are you looking for?"
+            placeholder="Words, a phrase, a topic…"
           />
         </label>
 
-        <fieldset className="typed-search-group">
-          <legend>Text matching</legend>
-          <label className="typed-search-check">
-            <input
-              type="checkbox"
-              checked={draft.phrase}
-              onChange={(event) => updateDraft("phrase", event.target.checked)}
-            />
-            Exact phrase
-          </label>
-          <label>
-            Term operator
-            <select
-              value={draft.operator}
-              onChange={(event) =>
-                updateDraft("operator", event.target.value as "any" | "all")
-              }
-            >
-              <option value="any">ANY term</option>
-              <option value="all">ALL terms</option>
-            </select>
-          </label>
-        </fieldset>
+        <label className="typed-search-match">
+          Match
+          <select
+            value={draft.match}
+            onChange={(event) => updateDraft("match", event.target.value as SearchMatch)}
+          >
+            <option value="any">Any of these words</option>
+            <option value="all">All of these words</option>
+            <option value="phrase">Exact phrase</option>
+          </select>
+        </label>
 
-        <fieldset className="typed-search-group typed-search-three">
-          <legend>Retrieval and result shape</legend>
-          <label>
-            Retrieval mode
-            <select
-              value={draft.retrievalMode}
-              onChange={(event) =>
-                updateDraft(
-                  "retrievalMode",
-                  event.target.value as "lexical" | "semantic" | "hybrid",
-                )
-              }
-            >
-              <option value="lexical">Lexical</option>
-              <option value="semantic">Semantic</option>
-              <option value="hybrid">Hybrid</option>
-            </select>
-          </label>
-          <label>
-            Sort
-            <select
-              value={draft.sort}
-              onChange={(event) =>
-                updateDraft("sort", event.target.value as "relevance" | "timeline")
-              }
-            >
-              <option value="relevance">Relevance</option>
-              <option value="timeline">Timeline</option>
-            </select>
-          </label>
-          <label>
-            Result limit
-            <input
-              type="number"
-              min={1}
-              max={1000}
-              value={draft.limit}
-              onChange={(event) => updateDraft("limit", event.target.value)}
-            />
-          </label>
-          <label>
-            Context segments
-            <input
-              type="number"
-              min={0}
-              max={10}
-              value={draft.contextSegments}
-              onChange={(event) => updateDraft("contextSegments", event.target.value)}
-            />
-          </label>
-        </fieldset>
+        <details className="typed-search-options">
+          <summary>Search options</summary>
+          <div className="typed-search-options-body">
+            <fieldset className="typed-search-group typed-search-three">
+              <legend>Results</legend>
+              <label>
+                Search by
+                <select
+                  value={draft.retrievalMode}
+                  onChange={(event) =>
+                    updateDraft(
+                      "retrievalMode",
+                      event.target.value as "lexical" | "semantic" | "hybrid",
+                    )
+                  }
+                >
+                  <option value="lexical">Wording</option>
+                  <option value="semantic">Meaning</option>
+                  <option value="hybrid">Wording + meaning</option>
+                </select>
+              </label>
+              <label>
+                Order results by
+                <select
+                  value={draft.sort}
+                  onChange={(event) =>
+                    updateDraft("sort", event.target.value as "relevance" | "timeline")
+                  }
+                >
+                  <option value="relevance">Relevance</option>
+                  <option value="timeline">Time</option>
+                </select>
+              </label>
+              <label>
+                Maximum results
+                <input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  value={draft.limit}
+                  onChange={(event) => updateDraft("limit", event.target.value)}
+                />
+              </label>
+              <label>
+                Context around result
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={draft.contextSegments}
+                  onChange={(event) => updateDraft("contextSegments", event.target.value)}
+                />
+              </label>
+            </fieldset>
 
-        <fieldset className="typed-search-group typed-search-grid">
-          <legend>Transcript evidence filters</legend>
-          <label>
-            Speaker refs
-            <input
-              value={draft.speakerRefs}
-              onChange={(event) => updateDraft("speakerRefs", event.target.value)}
-              placeholder="speaker-1, speaker-2"
-            />
-          </label>
-          <label>
-            Languages
-            <input
-              value={draft.languages}
-              onChange={(event) => updateDraft("languages", event.target.value)}
-              placeholder="en, fr"
-            />
-          </label>
-          <label className="typed-search-wide">
-            Transcript IDs
-            <input
-              value={draft.documentIds}
-              onChange={(event) => updateDraft("documentIds", event.target.value)}
-              placeholder="interview-42, interview-43"
-            />
-          </label>
-        </fieldset>
+            <fieldset className="typed-search-group typed-search-grid">
+              <legend>Transcripts</legend>
+              <label>
+                Speakers
+                <input
+                  value={draft.speakerRefs}
+                  onChange={(event) => updateDraft("speakerRefs", event.target.value)}
+                  placeholder="speaker-1, speaker-2"
+                />
+              </label>
+              <label>
+                Languages
+                <input
+                  value={draft.languages}
+                  onChange={(event) => updateDraft("languages", event.target.value)}
+                  placeholder="en, fr"
+                />
+              </label>
+              <label className="typed-search-wide">
+                Interviews or transcripts
+                <input
+                  value={draft.documentIds}
+                  onChange={(event) => updateDraft("documentIds", event.target.value)}
+                  placeholder="interview-42, interview-43"
+                />
+              </label>
+            </fieldset>
 
-        <fieldset className="typed-search-group typed-search-grid">
-          <legend>Research-state filters</legend>
-          <label>
-            Tags
-            <input
-              value={draft.tags}
-              onChange={(event) => updateDraft("tags", event.target.value)}
-              placeholder="governance, follow-up"
-            />
-          </label>
-          <label>
-            Collections
-            <input
-              value={draft.collections}
-              onChange={(event) => updateDraft("collections", event.target.value)}
-              placeholder="Oral histories"
-            />
-          </label>
-          <label className="typed-search-wide">
-            Note text
-            <input
-              value={draft.noteText}
-              onChange={(event) => updateDraft("noteText", event.target.value)}
-              placeholder="Only evidence related to notes containing…"
-            />
-          </label>
-          <label className="typed-search-check typed-search-wide">
-            <input
-              type="checkbox"
-              checked={draft.withNotes}
-              onChange={(event) => updateDraft("withNotes", event.target.checked)}
-            />
-            Require associated research notes
-          </label>
-        </fieldset>
+            <fieldset className="typed-search-group typed-search-grid">
+              <legend>Your research</legend>
+              <label>
+                Tags
+                <input
+                  value={draft.tags}
+                  onChange={(event) => updateDraft("tags", event.target.value)}
+                  placeholder="governance, follow-up"
+                />
+              </label>
+              <label>
+                Collections
+                <input
+                  value={draft.collections}
+                  onChange={(event) => updateDraft("collections", event.target.value)}
+                  placeholder="Oral histories"
+                />
+              </label>
+              <label className="typed-search-wide">
+                Notes containing
+                <input
+                  value={draft.noteText}
+                  onChange={(event) => updateDraft("noteText", event.target.value)}
+                  placeholder="follow up"
+                />
+              </label>
+              <label className="typed-search-check typed-search-wide">
+                <input
+                  type="checkbox"
+                  checked={draft.withNotes}
+                  onChange={(event) => updateDraft("withNotes", event.target.checked)}
+                />
+                Only results with notes
+              </label>
+            </fieldset>
+
+            <p className="typed-search-option-note">
+              Meaning and Wording + meaning require a qualified local semantic index. If it
+              is not ready, EchoFlow will explain what needs attention rather than silently
+              changing the search.
+            </p>
+          </div>
+        </details>
 
         <div className="typed-search-actions">
           <button type="submit" disabled={busy || savedBusy}>
-            {busy ? "Searching…" : "Run typed search"}
+            {busy ? "Searching…" : "Search"}
           </button>
-          <p>
-            Semantic and hybrid modes require qualified local semantic state. EchoFlow will
-            refuse the request if that backend state is unavailable or stale.
-          </p>
         </div>
       </form>
 
@@ -476,29 +471,33 @@ export function ResearchSearchControlsPanel({
       {result && (
         <div className="typed-search-results">
           <IntentSummary intent={result.intent} />
-          <div className="typed-search-provenance">
-            <strong>Retrieval provenance</strong>
-            <span>{result.retrieval.mode}</span>
-            {result.retrieval.lexical_backend_id && (
-              <span>lexical: {result.retrieval.lexical_backend_id}</span>
-            )}
-            {result.retrieval.semantic_backend_id && (
-              <span>semantic: {result.retrieval.semantic_backend_id}</span>
-            )}
-            {result.retrieval.fusion_profile && (
-              <span>fusion: {result.retrieval.fusion_profile}</span>
-            )}
-            {result.retrieval.semantic_profile && (
-              <span>
-                model: {result.retrieval.semantic_profile.model_id} @ {result.retrieval.semantic_profile.resolved_revision}
-              </span>
-            )}
-          </div>
+          <details className="typed-search-technical">
+            <summary>Technical details</summary>
+            <div className="typed-search-provenance">
+              <strong>Retrieval</strong>
+              <span>{result.retrieval.mode}</span>
+              {result.retrieval.lexical_backend_id && (
+                <span>lexical: {result.retrieval.lexical_backend_id}</span>
+              )}
+              {result.retrieval.semantic_backend_id && (
+                <span>semantic: {result.retrieval.semantic_backend_id}</span>
+              )}
+              {result.retrieval.fusion_profile && (
+                <span>fusion: {result.retrieval.fusion_profile}</span>
+              )}
+              {result.retrieval.semantic_profile && (
+                <span>
+                  model: {result.retrieval.semantic_profile.model_id} @{" "}
+                  {result.retrieval.semantic_profile.resolved_revision}
+                </span>
+              )}
+            </div>
+          </details>
 
           {result.evidence.length === 0 ? (
-            <p className="typed-search-empty">No current verified evidence matched.</p>
+            <p className="typed-search-empty">No verified transcript passages matched.</p>
           ) : (
-            <div className="typed-search-evidence" aria-label="Typed search evidence results">
+            <div className="typed-search-evidence" aria-label="Research search results">
               {result.evidence.map((evidence) => (
                 <article
                   key={`${evidence.document_id}:${evidence.canonical_sha256}:${evidence.segment_ids.join(":")}`}
@@ -526,7 +525,7 @@ export function ResearchSearchControlsPanel({
                     className="open-evidence-button"
                     onClick={() => setSelectedEvidence(evidence)}
                   >
-                    Open verified evidence
+                    Open evidence
                   </button>
                 </article>
               ))}
@@ -539,7 +538,7 @@ export function ResearchSearchControlsPanel({
         <EvidenceReader
           evidence={selectedEvidence}
           generationState="current"
-          resultLabel="Typed search result"
+          resultLabel="Research search result"
           onClose={() => setSelectedEvidence(null)}
           onCreateNote={createNote}
         />
@@ -548,8 +547,8 @@ export function ResearchSearchControlsPanel({
       <section className="typed-saved-searches" aria-labelledby="typed-saved-title">
         <div className="typed-saved-heading">
           <div>
-            <p className="mini-label">Durable questions</p>
-            <h3 id="typed-saved-title">Save or revise the whole intent.</h3>
+            <p className="mini-label">Saved searches</p>
+            <h3 id="typed-saved-title">Save or update this search.</h3>
           </div>
           <button type="button" onClick={newSavedSearch} disabled={savedBusy}>
             New saved search
@@ -557,7 +556,7 @@ export function ResearchSearchControlsPanel({
         </div>
 
         <div className="typed-saved-layout">
-          <div className="typed-saved-list" aria-label="Saved searches available to edit">
+          <div className="typed-saved-list" aria-label="Saved searches">
             {savedSearches.length === 0 ? (
               <p>No saved searches yet.</p>
             ) : (
@@ -570,7 +569,7 @@ export function ResearchSearchControlsPanel({
                   onClick={() => void inspectSavedSearch(saved)}
                 >
                   <strong>{saved.name}</strong>
-                  <span>{saved.retrieval_mode}</span>
+                  <span>{retrievalLabel(saved.retrieval_mode)}</span>
                 </button>
               ))
             )}
@@ -583,7 +582,7 @@ export function ResearchSearchControlsPanel({
                 value={savedName}
                 maxLength={200}
                 onChange={(event) => setSavedName(event.target.value)}
-                placeholder="A durable research question"
+                placeholder="A search you want to return to"
               />
             </label>
             <label>
@@ -592,13 +591,13 @@ export function ResearchSearchControlsPanel({
                 value={savedDescription}
                 maxLength={4000}
                 onChange={(event) => setSavedDescription(event.target.value)}
-                placeholder="Optional context for future you"
+                placeholder="Optional context"
               />
             </label>
             {editingSaved && <IntentSummary intent={editingSaved.intent} />}
             <p>
-              Saving uses the controls above. EchoFlow validates and stores them as typed
-              intent, never as a rendered command or frozen result list.
+              Saving keeps these search choices. Running it later searches the evidence and
+              research that exist then; it does not freeze today&apos;s results.
             </p>
             <button
               type="button"
@@ -607,11 +606,7 @@ export function ResearchSearchControlsPanel({
                 void (editingSaved ? replaceSavedIntent() : createSavedIntent())
               }
             >
-              {savedBusy
-                ? "Saving…"
-                : editingSaved
-                  ? "Save metadata + typed intent"
-                  : "Save current typed intent"}
+              {savedBusy ? "Saving…" : editingSaved ? "Update saved search" : "Save search"}
             </button>
           </div>
         </div>

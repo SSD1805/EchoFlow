@@ -12,6 +12,7 @@ subtle bad decisions into failing tests.
 |---|---|
 | [Desktop development prerequisites](desktop-development.md) | choose browser mock, native Tauri, or real processing setup; understand Node/npm locality, Rust/Cargo, Python, and native prerequisites |
 | [Desktop source-build troubleshooting](troubleshooting.md) | symptom-first recovery for blank browser views, Cargo/Tauri/Python/WebKitGTK/Wayland failures, port collisions, and safe cleanup |
+| [Desktop themes and accessibility](desktop-accessibility.md) | semantic theme tokens, contrast invariants, native-control theming, keyboard/a11y qualification, and adding a skin safely |
 | [Testing and regression bisection](testing-and-bisect.md) | general test strategy, colocation rules, mutation anticipation, and deterministic bisect oracles |
 | [Semantic retrieval qualification](semantic-retrieval-testing.md) | property, negative, boundary, integration, and mutation coverage for lexical/semantic/hybrid search decisions |
 | [Empirical benchmarking and calibration](benchmarking.md) | measuring real execution without turning hosted CI timing into folklore |
@@ -35,6 +36,7 @@ jobs. It includes:
 - rejection of raw-HTML rendering escape hatches in the frontend;
 - a native Tauri/Rust `cargo check --locked` so browser-only builds cannot hide missing native assets, dependency drift, or host errors;
 - Playwright interaction tests plus axe accessibility checks;
+- a six-skin contrast matrix covering text, controls, focus, selection, browser `color-scheme`, and representative Research controls;
 - package build verification and clean-wheel installation; and
 - Linux, macOS, and Windows CI/platform smoke.
 
@@ -90,7 +92,8 @@ Useful tests include:
 - an empty research evidence scope returns zero transcript results rather than widening
   to the corpus;
 - a desktop evidence DTO never exposes canonical/source filesystem paths even though the
-  backend authority knows them; and
+  backend authority knows them;
+- every registered desktop skin satisfies the same semantic-token and contrast contract; and
 - an unexpected internal CLI/bridge error is masked while a known public error preserves
   its intended message/code.
 
@@ -108,7 +111,8 @@ are preferred where IDs, hashes, sequences, and evidence relationships are load-
 
 Frontend tests live beside the frontend harness. A new interactive desktop slice should
 normally include keyboard behavior, semantic-role assertions, path/capability boundary
-checks where relevant, and an axe pass in the same tranche.
+checks where relevant, and an axe pass in the same tranche. Theme-aware components inherit
+the shared contrast matrix rather than adding one-off palette tests.
 
 ## Performance qualification from here
 
@@ -120,8 +124,9 @@ Current performance work should target product workloads:
 - one-edit and large-batch research projection catch-up;
 - full research projection rebuild;
 - realistic multi-recording corpus startup and disk cost;
-- desktop Library responsiveness today;
-- desktop Research responsiveness once that workspace lands; and
+- desktop Library responsiveness;
+- desktop Research responsiveness;
+- Processing Center responsiveness while jobs are active; and
 - local media seek/playback responsiveness once the Tauri media capability lands.
 
 Representative 8/16 GB consumer machines, Apple Silicon, discrete-GPU laptops, and larger

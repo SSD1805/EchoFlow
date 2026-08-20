@@ -120,7 +120,9 @@ class ResearchNoteEvidenceView:
 
     def __post_init__(self) -> None:
         if self.note.note.anchor.document_id != self.located.evidence.document_id:
-            raise ValueError("note and reopened evidence document identities must match")
+            raise ValueError(
+                "note and reopened evidence document identities must match"
+            )
         if (
             self.note.note.anchor.canonical_sha256
             != self.located.evidence.canonical_sha256

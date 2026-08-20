@@ -5,7 +5,6 @@ import pytest
 from echoflow.library.errors import EvidenceNavigationError, ResearchStateError
 from echoflow.library.evidence import EvidenceAnchor, EvidenceContextSegment, EvidenceLocation
 from echoflow.library.index import IndexedDocument, IndexedSegment, IndexedTranscript
-from echoflow.library.research import LocatedCanonicalEvidence
 from echoflow.library.research_anchor_review import (
     ResearchAnchorReviewService,
     ResearchAnchorStatus,
@@ -76,38 +75,37 @@ def _indexed() -> IndexedTranscript:
     )
 
 
-def _located(anchor: EvidenceAnchor, text: str) -> LocatedCanonicalEvidence:
-    return LocatedCanonicalEvidence(
-        evidence=EvidenceLocation(
-            document_id=anchor.document_id,
-            source_sha256=anchor.source_sha256,
-            canonical_sha256=anchor.canonical_sha256,
-            canonical_path=anchor.canonical_path,
-            source_path=anchor.source_path,
-            result_segment_ids=anchor.segment_ids,
-            start_seconds=anchor.start_seconds,
-            end_seconds=anchor.end_seconds,
-            seek_seconds=anchor.start_seconds,
-            result_speaker_refs=(),
-            matched_words=(),
-            context_segments=(
-                EvidenceContextSegment(
-                    segment_id=anchor.segment_ids[0],
-                    start_seconds=anchor.start_seconds,
-                    end_seconds=anchor.end_seconds,
-                    text=text,
-                    speaker_refs=(),
-                    words=(),
-                    is_result_segment=True,
-                    lexical_match=False,
-                ),
+def _evidence(anchor: EvidenceAnchor, text: str) -> EvidenceLocation:
+    return EvidenceLocation(
+        document_id=anchor.document_id,
+        source_sha256=anchor.source_sha256,
+        canonical_sha256=anchor.canonical_sha256,
+        canonical_path=anchor.canonical_path,
+        source_path=anchor.source_path,
+        result_segment_ids=anchor.segment_ids,
+        start_seconds=anchor.start_seconds,
+        end_seconds=anchor.end_seconds,
+        seek_seconds=anchor.start_seconds,
+        result_speaker_refs=(),
+        matched_words=(),
+        context_segments=(
+            EvidenceContextSegment(
+                segment_id=anchor.segment_ids[0],
+                start_seconds=anchor.start_seconds,
+                end_seconds=anchor.end_seconds,
+                text=text,
+                speaker_refs=(),
+                words=(),
+                is_result_segment=True,
+                lexical_match=False,
             ),
         ),
-        speakers=(),
     )
 
 
-def _service(monkeypatch: pytest.MonkeyPatch) -> tuple[ResearchAnchorReviewService, Mock, Mock]:
+def _service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[ResearchAnchorReviewService, Mock, Mock]:
     workspace = Mock()
     workspace.note.return_value = _note_view()
     workspace.transcript_library.documents.return_value = (_document(),)
@@ -123,8 +121,11 @@ def _service(monkeypatch: pytest.MonkeyPatch) -> tuple[ResearchAnchorReviewServi
         end_seconds=2.9,
     )
     workspace.evidence_locator.resolve_anchor.return_value = candidate
-    workspace.navigation.locate_anchor.side_effect = lambda anchor, **_: _located(
-        anchor, "Old evidence" if anchor.canonical_sha256.startswith("b") else "Current evidence"
+    workspace.evidence_locator.locate_anchor.side_effect = lambda anchor, **_: _evidence(
+        anchor,
+        "Old evidence"
+        if anchor.canonical_sha256.startswith("b")
+        else "Current evidence",
     )
     workspace.logger = Mock()
     anchor_state = Mock(spec=ResearchAnchorStateStore)
@@ -149,7 +150,7 @@ def test_review_distinguishes_verified_older_evidence_and_previews_current_candi
     assert review.candidate is not None
     assert review.candidate.evidence.canonical_sha256 == "c" * 64
     workspace.evidence_locator.resolve_anchor.assert_called_once()
-    assert workspace.navigation.locate_anchor.call_count == 2
+    assert workspace.evidence_locator.locate_anchor.call_count == 2
 
 
 def test_review_can_report_unavailable_stored_anchor_without_hiding_candidate(
@@ -157,12 +158,12 @@ def test_review_can_report_unavailable_stored_anchor_without_hiding_candidate(
 ) -> None:
     service, workspace, _ = _service(monkeypatch)
 
-    def locate(anchor: EvidenceAnchor, **_: object) -> LocatedCanonicalEvidence:
+    def locate(anchor: EvidenceAnchor, **_: object) -> EvidenceLocation:
         if anchor.canonical_sha256 == "b" * 64:
             raise EvidenceNavigationError("Stored generation missing")
-        return _located(anchor, "Current evidence")
+        return _evidence(anchor, "Current evidence")
 
-    workspace.navigation.locate_anchor.side_effect = locate
+    workspace.evidence_locator.locate_anchor.side_effect = locate
 
     review = service.review("note-1")
 
@@ -177,8 +178,10 @@ def test_review_current_verified_anchor_never_fabricates_reanchor_candidate(
     service, workspace, _ = _service(monkeypatch)
     current = _note_view(current=True, canonical_digit="c")
     workspace.note.return_value = current
-    workspace.navigation.locate_anchor.side_effect = None
-    workspace.navigation.locate_anchor.return_value = _located(current.note.anchor, "Current")
+    workspace.evidence_locator.locate_anchor.side_effect = None
+    workspace.evidence_locator.locate_anchor.return_value = _evidence(
+        current.note.anchor, "Current"
+    )
 
     review = service.review("note-1")
 
@@ -218,7 +221,10 @@ def test_reanchor_rejects_changed_candidate_and_current_note(
 ) -> None:
     service, workspace, anchor_state = _service(monkeypatch)
 
-    with pytest.raises(ResearchStateError, match="changed since the candidate was reviewed"):
+    with pytest.raises(
+        ResearchStateError,
+        match="changed since the candidate was reviewed",
+    ):
         service.reanchor_to_reviewed_current(
             "note-1",
             expected_updated_at="2026-08-20T08:00:00+00:00",
@@ -243,12 +249,27 @@ def test_candidate_requires_same_source_and_time_overlap(
     assert service._candidate_anchor(_note_view().note) is None
 
     segments = _indexed().segments
-    assert [item.segment_id for item in service._segments_for_time(segments, start_seconds=2.1, end_seconds=2.9)] == [
-        "current-1",
-        "current-2",
-    ]
-    assert [item.segment_id for item in service._segments_for_time(segments, start_seconds=2.5, end_seconds=2.5)] == [
-        "current-1",
-        "current-2",
-    ]
-    assert service._segments_for_time(segments, start_seconds=4.0, end_seconds=5.0) == ()
+    assert [
+        item.segment_id
+        for item in service._segments_for_time(
+            segments,
+            start_seconds=2.1,
+            end_seconds=2.9,
+        )
+    ] == ["current-1", "current-2"]
+    assert [
+        item.segment_id
+        for item in service._segments_for_time(
+            segments,
+            start_seconds=2.5,
+            end_seconds=2.5,
+        )
+    ] == ["current-1", "current-2"]
+    assert (
+        service._segments_for_time(
+            segments,
+            start_seconds=4.0,
+            end_seconds=5.0,
+        )
+        == ()
+    )

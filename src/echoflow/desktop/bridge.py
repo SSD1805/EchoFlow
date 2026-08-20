@@ -579,6 +579,44 @@ def _run_saved_search(
     return _serialize_saved_search_run(saved, report)
 
 
+def _dispatch_research_note(
+    request: _DesktopRequest,
+    workspace: ResearchWorkspaceService,
+) -> object:
+    if request.method == "workspace.research.note.create":
+        create_params = _CreateResearchNoteParams.model_validate(request.params)
+        return _create_research_note(create_params, workspace)
+    if request.method == "workspace.research.note.update":
+        update_params = _UpdateResearchNoteParams.model_validate(request.params)
+        return _update_research_note(update_params, workspace)
+    if request.method == "workspace.research.note.delete":
+        delete_params = _DeleteResearchNoteParams.model_validate(request.params)
+        return _delete_research_note(delete_params, workspace)
+    if request.method == "workspace.research.note.evidence":
+        evidence_params = _OpenResearchNoteEvidenceParams.model_validate(request.params)
+        return _open_research_note_evidence(evidence_params, workspace)
+    raise ValueError("Unsupported research note desktop method")
+
+
+def _dispatch_saved_search(
+    request: _DesktopRequest,
+    workspace: ResearchWorkspaceService,
+) -> object:
+    if request.method == "workspace.research.saved_search.create":
+        create_params = _CreateSavedSearchParams.model_validate(request.params)
+        return _create_saved_search(create_params, workspace)
+    if request.method == "workspace.research.saved_search.update":
+        update_params = _UpdateSavedSearchParams.model_validate(request.params)
+        return _update_saved_search(update_params, workspace)
+    if request.method == "workspace.research.saved_search.delete":
+        delete_params = _DeleteSavedSearchParams.model_validate(request.params)
+        return _delete_saved_search(delete_params, workspace)
+    if request.method == "workspace.research.saved_search.run":
+        run_params = _RunSavedSearchParams.model_validate(request.params)
+        return _run_saved_search(run_params, workspace)
+    raise ValueError("Unsupported saved-search desktop method")
+
+
 def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
     if request.method == "locations.list":
         _NoParams.model_validate(request.params)
@@ -622,37 +660,11 @@ def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
         _NoParams.model_validate(request.params)
         return _serialize_research_overview(services.workspace)
 
-    if request.method == "workspace.research.note.create":
-        create_params = _CreateResearchNoteParams.model_validate(request.params)
-        return _create_research_note(create_params, services.workspace)
+    if request.method.startswith("workspace.research.note."):
+        return _dispatch_research_note(request, services.workspace)
 
-    if request.method == "workspace.research.note.update":
-        update_params = _UpdateResearchNoteParams.model_validate(request.params)
-        return _update_research_note(update_params, services.workspace)
-
-    if request.method == "workspace.research.note.delete":
-        delete_params = _DeleteResearchNoteParams.model_validate(request.params)
-        return _delete_research_note(delete_params, services.workspace)
-
-    if request.method == "workspace.research.note.evidence":
-        evidence_params = _OpenResearchNoteEvidenceParams.model_validate(request.params)
-        return _open_research_note_evidence(evidence_params, services.workspace)
-
-    if request.method == "workspace.research.saved_search.create":
-        saved_create_params = _CreateSavedSearchParams.model_validate(request.params)
-        return _create_saved_search(saved_create_params, services.workspace)
-
-    if request.method == "workspace.research.saved_search.update":
-        saved_update_params = _UpdateSavedSearchParams.model_validate(request.params)
-        return _update_saved_search(saved_update_params, services.workspace)
-
-    if request.method == "workspace.research.saved_search.delete":
-        saved_delete_params = _DeleteSavedSearchParams.model_validate(request.params)
-        return _delete_saved_search(saved_delete_params, services.workspace)
-
-    if request.method == "workspace.research.saved_search.run":
-        saved_run_params = _RunSavedSearchParams.model_validate(request.params)
-        return _run_saved_search(saved_run_params, services.workspace)
+    if request.method.startswith("workspace.research.saved_search."):
+        return _dispatch_saved_search(request, services.workspace)
 
     refresh_params = _RefreshParams.model_validate(request.params)
     refresh_report = services.locations.refresh_transcript_locations(

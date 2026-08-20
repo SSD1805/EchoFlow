@@ -290,37 +290,37 @@ def dispatch_research_search(
     """Dispatch typed search operations after the outer bridge allowlist accepts them."""
     service = ResearchSearchControlService(workspace)
     if method == "workspace.research.search.execute":
-        parsed = _ExecuteParams.model_validate(params)
-        intent = parsed.intent.to_intent()
+        execute_params = _ExecuteParams.model_validate(params)
+        intent = execute_params.intent.to_intent()
         return _serialize_search(intent, service.search(intent))
     if method == "workspace.research.search.saved.create":
-        parsed = _CreateSavedParams.model_validate(params)
-        intent = parsed.intent.to_intent()
+        create_params = _CreateSavedParams.model_validate(params)
+        intent = create_params.intent.to_intent()
         return _serialize_saved(
             service.create_saved_search(
-                parsed.name,
+                create_params.name,
                 intent,
-                description=parsed.description,
+                description=create_params.description,
             )
         )
     if method == "workspace.research.search.saved.inspect":
-        parsed = _InspectSavedParams.model_validate(params)
-        saved = workspace.saved_search(parsed.saved_search_id)
+        inspect_params = _InspectSavedParams.model_validate(params)
+        saved = workspace.saved_search(inspect_params.saved_search_id)
         if saved is None:
             from echoflow.library.errors import ResearchStateError
 
             raise ResearchStateError("Saved search does not exist")
         return _serialize_saved(saved)
     if method == "workspace.research.search.saved.replace":
-        parsed = _ReplaceSavedParams.model_validate(params)
-        intent = parsed.intent.to_intent()
+        replace_params = _ReplaceSavedParams.model_validate(params)
+        intent = replace_params.intent.to_intent()
         return _serialize_saved(
             service.replace_saved_search(
-                parsed.saved_search_id,
-                name=parsed.name,
-                description=parsed.description,
+                replace_params.saved_search_id,
+                name=replace_params.name,
+                description=replace_params.description,
                 intent=intent,
-                expected_updated_at=parsed.expected_updated_at,
+                expected_updated_at=replace_params.expected_updated_at,
             )
         )
     raise ValueError("Unsupported typed Research search desktop method")

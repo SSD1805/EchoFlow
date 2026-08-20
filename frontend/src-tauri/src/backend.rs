@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 
 const MAX_REQUEST_BYTES: usize = 128 * 1024;
 
-fn configured_python() -> PathBuf {
+pub(crate) fn configured_python() -> PathBuf {
     if let Ok(value) = env::var("ECHOFLOW_PYTHON") {
         if !value.trim().is_empty() {
             return PathBuf::from(value);

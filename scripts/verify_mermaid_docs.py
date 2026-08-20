@@ -107,7 +107,9 @@ def _diagram_errors(
             f"diagram {index} must start with portable graph/flowchart/sequence syntax"
         )
     if _inside_details(text, match.start()):
-        errors.append(f"diagram {index} must be directly visible, not nested in <details>")
+        errors.append(
+            f"diagram {index} must be directly visible, not nested in <details>"
+        )
     for token in FORBIDDEN:
         if token in body:
             errors.append(f"diagram {index} uses non-portable construct {token!r}")

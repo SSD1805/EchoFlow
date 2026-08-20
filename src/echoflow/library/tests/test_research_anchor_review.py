@@ -30,7 +30,9 @@ def _anchor(*, canonical_digit: str = "b", segment_id: str = "old-1") -> Evidenc
     )
 
 
-def _note_view(*, current: bool = False, canonical_digit: str = "b") -> ResearchNoteView:
+def _note_view(
+    *, current: bool = False, canonical_digit: str = "b"
+) -> ResearchNoteView:
     return ResearchNoteView(
         note=ResearchNote(
             note_id="note-1",
@@ -125,11 +127,13 @@ def _service(
         end_seconds=2.9,
     )
     workspace.evidence_locator.resolve_anchor.return_value = candidate
-    workspace.evidence_locator.locate_anchor.side_effect = lambda anchor, **_: _evidence(
-        anchor,
-        "Old evidence"
-        if anchor.canonical_sha256.startswith("b")
-        else "Current evidence",
+    workspace.evidence_locator.locate_anchor.side_effect = lambda anchor, **_: (
+        _evidence(
+            anchor,
+            "Old evidence"
+            if anchor.canonical_sha256.startswith("b")
+            else "Current evidence",
+        )
     )
     workspace.logger = Mock()
     anchor_state = Mock(spec=ResearchAnchorStateStore)

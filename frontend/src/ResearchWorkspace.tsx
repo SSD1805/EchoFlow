@@ -125,7 +125,11 @@ export function ResearchWorkspace({
                     </div>
                     <p className="research-note-body">{note.body}</p>
                     <div className="research-note-footer">
-                      <div className="research-pills" aria-label="Research labels">
+                      <div
+                        className="research-pills"
+                        role="group"
+                        aria-label="Research labels"
+                      >
                         {note.tags.map((tag) => (
                           <span key={`${note.note_id}:tag:${tag}`}>#{tag}</span>
                         ))}

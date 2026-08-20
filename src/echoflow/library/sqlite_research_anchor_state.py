@@ -37,9 +37,7 @@ class SqliteResearchAnchorStateStore:
         expected_updated_at: str,
     ) -> None:
         resolved_id = self._validate_id(note_id, "note_id")
-        expected_version = self._validate_id(
-            expected_updated_at, "expected_updated_at"
-        )
+        expected_version = self._validate_id(expected_updated_at, "expected_updated_at")
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
@@ -81,7 +79,9 @@ class SqliteResearchAnchorStateStore:
                 (resolved_id,),
             ).fetchone()
             if revision_row is None:
-                raise ResearchStateError("Research anchor history could not be advanced")
+                raise ResearchStateError(
+                    "Research anchor history could not be advanced"
+                )
             revision = int(revision_row[0])
             replaced_at = self._now()
             connection.execute(

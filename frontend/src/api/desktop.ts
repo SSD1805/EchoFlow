@@ -80,6 +80,11 @@ export interface WorkspaceNoteResult {
   collections: string[];
 }
 
+export interface ResearchNoteResult extends WorkspaceNoteResult {
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WorkspaceNamedResult {
   name: string;
 }
@@ -99,6 +104,22 @@ export interface WorkspaceDiscoveryReport {
   notes: WorkspaceNoteResult[];
   tags: WorkspaceTagResult[];
   collections: WorkspaceCollectionResult[];
+}
+
+export interface ResearchSavedSearchResult {
+  saved_search_id: string;
+  name: string;
+  description: string | null;
+  query_text: string;
+  retrieval_mode: string;
+  updated_at: string;
+}
+
+export interface ResearchOverview {
+  notes: ResearchNoteResult[];
+  tags: WorkspaceTagResult[];
+  collections: WorkspaceCollectionResult[];
+  saved_searches: ResearchSavedSearchResult[];
 }
 
 interface DesktopError {
@@ -126,6 +147,11 @@ export interface DesktopClient {
   discoverRecordings(): Promise<RecordingDiscoveryReport>;
   refreshTranscriptLocations(): Promise<void>;
   discoverWorkspace(text: string): Promise<WorkspaceDiscoveryReport>;
+  researchOverview(): Promise<ResearchOverview>;
+  createResearchNote(
+    evidence: WorkspaceEvidenceResult,
+    body: string,
+  ): Promise<ResearchNoteResult>;
 }
 
 function assertResponse<T>(value: unknown): DesktopResponse<T> {
@@ -232,10 +258,29 @@ class TauriDesktopClient implements DesktopClient {
       context_segments: 1,
     });
   }
+
+  researchOverview(): Promise<ResearchOverview> {
+    return this.request("workspace.research.overview", {});
+  }
+
+  createResearchNote(
+    evidence: WorkspaceEvidenceResult,
+    body: string,
+  ): Promise<ResearchNoteResult> {
+    return this.request("workspace.research.note.create", {
+      document_id: evidence.document_id,
+      canonical_sha256: evidence.canonical_sha256,
+      segment_ids: evidence.segment_ids,
+      body,
+      start_seconds: evidence.start_seconds,
+      end_seconds: evidence.end_seconds,
+    });
+  }
 }
 
 class MockDesktopClient implements DesktopClient {
   private locations: LibraryLocation[] = [];
+  private createdNotes: ResearchNoteResult[] = [];
 
   async chooseFiles(kind: LocationKind): Promise<string[]> {
     return kind === "transcript-library"
@@ -413,6 +458,86 @@ class MockDesktopClient implements DesktopClient {
       tags: [{ tag_id: "tag-3", name: "program" }],
       collections: [{ collection_id: "collection-2", name: "Oral histories" }],
     };
+  }
+
+  async researchOverview(): Promise<ResearchOverview> {
+    return {
+      notes: [
+        ...this.createdNotes,
+        {
+          note_id: "note-7",
+          body: "Follow up on ABC governance during the next interview.",
+          document_id: "interview-42",
+          canonical_sha256: "a".repeat(64),
+          segment_ids: ["segment-17"],
+          start_seconds: 862.1,
+          end_seconds: 870.4,
+          current: true,
+          tags: ["program", "governance"],
+          collections: ["Oral histories"],
+          created_at: "2026-08-19T19:20:00+00:00",
+          updated_at: "2026-08-19T19:25:00+00:00",
+        },
+        {
+          note_id: "note-older",
+          body: "Earlier interpretation retained for provenance.",
+          document_id: "interview-11",
+          canonical_sha256: "c".repeat(64),
+          segment_ids: ["segment-3"],
+          start_seconds: 128.4,
+          end_seconds: 135.2,
+          current: false,
+          tags: ["review"],
+          collections: ["Field notes"],
+          created_at: "2026-08-18T14:10:00+00:00",
+          updated_at: "2026-08-18T14:10:00+00:00",
+        },
+      ],
+      tags: [
+        { tag_id: "tag-3", name: "program" },
+        { tag_id: "tag-4", name: "governance" },
+        { tag_id: "tag-5", name: "review" },
+      ],
+      collections: [
+        { collection_id: "collection-2", name: "Oral histories" },
+        { collection_id: "collection-3", name: "Field notes" },
+      ],
+      saved_searches: [
+        {
+          saved_search_id: "search-9",
+          name: "Governance follow-up",
+          description: "Questions to revisit across interviews",
+          query_text: "governance",
+          retrieval_mode: "lexical",
+          updated_at: "2026-08-19T19:31:00+00:00",
+        },
+      ],
+    };
+  }
+
+  async createResearchNote(
+    evidence: WorkspaceEvidenceResult,
+    body: string,
+  ): Promise<ResearchNoteResult> {
+    const trimmed = body.trim();
+    if (!trimmed) throw new Error("Research note cannot be empty");
+    const now = "2026-08-19T21:44:00+00:00";
+    const note: ResearchNoteResult = {
+      note_id: `note-created-${this.createdNotes.length + 1}`,
+      body: trimmed,
+      document_id: evidence.document_id,
+      canonical_sha256: evidence.canonical_sha256,
+      segment_ids: [...evidence.segment_ids],
+      start_seconds: evidence.start_seconds,
+      end_seconds: evidence.end_seconds,
+      current: true,
+      tags: [],
+      collections: [],
+      created_at: now,
+      updated_at: now,
+    };
+    this.createdNotes.unshift(note);
+    return note;
   }
 }
 

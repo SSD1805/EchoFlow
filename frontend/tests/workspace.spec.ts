@@ -68,6 +68,31 @@ test("Susan can open a verified transcript window from a search result", async (
   expect(results.violations).toEqual([]);
 });
 
+test("Susan can save a durable note from a verified evidence window", async ({ page }) => {
+  await openLibrary(page);
+  await searchWorkspace(page);
+  await page.getByRole("button", { name: /Open verified evidence from interview-42/ }).click();
+
+  const reader = page.getByRole("complementary", { name: "Evidence reader" });
+  const body = "Compare this passage with the follow-up interview.";
+  await reader.getByRole("textbox", { name: "Research note" }).fill(body);
+  await reader.getByRole("button", { name: "Save note" }).click();
+  await expect(
+    reader.getByText("Note saved to this verified evidence.", { exact: true }),
+  ).toBeVisible();
+  await expect(reader.getByText("/Users/")).toHaveCount(0);
+  await expect(reader.getByText("canonical_path")).toHaveCount(0);
+  await expect(reader.getByText("source_path")).toHaveCount(0);
+
+  await reader.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: "Research" }).click();
+  const notes = page.getByLabel("Notes", { exact: true });
+  await expect(notes.getByText(body)).toBeVisible();
+
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test("workspace search is keyboard reachable and accessible after results render", async ({
   page,
 }) => {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 
 import type {
   WorkspaceContextSegment,
@@ -11,6 +12,7 @@ import "./evidence-reader.css";
 interface EvidenceReaderProps {
   evidence: WorkspaceEvidenceResult;
   onClose: () => void;
+  onCreateNote: (body: string) => Promise<void>;
 }
 
 function wordSeparator(current: WorkspaceMatchedWord, next: WorkspaceMatchedWord | undefined) {
@@ -44,11 +46,18 @@ function renderWords(
   ));
 }
 
-export function EvidenceReader({ evidence, onClose }: EvidenceReaderProps) {
+export function EvidenceReader({ evidence, onClose, onCreateNote }: EvidenceReaderProps) {
   const [cursorSeconds, setCursorSeconds] = useState(evidence.seek_seconds);
+  const [noteBody, setNoteBody] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [noteStatus, setNoteStatus] = useState<string | null>(null);
 
   useEffect(() => {
     setCursorSeconds(evidence.seek_seconds);
+    setNoteBody("");
+    setNoteError(null);
+    setNoteStatus(null);
   }, [evidence]);
 
   const cursorBounds = useMemo(() => {
@@ -60,6 +69,33 @@ export function EvidenceReader({ evidence, onClose }: EvidenceReaderProps) {
       end: Math.max(...evidence.context_segments.map((segment) => segment.end_seconds)),
     };
   }, [evidence]);
+
+  async function saveNote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const body = noteBody.trim();
+    if (!body) {
+      setNoteError("Write a note before saving it.");
+      setNoteStatus(null);
+      return;
+    }
+
+    setSavingNote(true);
+    setNoteError(null);
+    setNoteStatus(null);
+    try {
+      await onCreateNote(body);
+      setNoteBody("");
+      setNoteStatus("Note saved to this verified evidence.");
+    } catch (caught) {
+      setNoteError(
+        caught instanceof Error
+          ? caught.message
+          : "EchoFlow could not save the note to this evidence.",
+      );
+    } finally {
+      setSavingNote(false);
+    }
+  }
 
   return (
     <aside className="evidence-reader" aria-labelledby="evidence-reader-title">
@@ -123,6 +159,40 @@ export function EvidenceReader({ evidence, onClose }: EvidenceReaderProps) {
           ))
         )}
       </div>
+
+      <section className="evidence-note-compose" aria-labelledby="evidence-note-title">
+        <div>
+          <p className="mini-label">Durable research</p>
+          <h3 id="evidence-note-title">Attach a note to this evidence</h3>
+          <p>
+            The note is anchored to this verified canonical generation and exact evidence span.
+            If the transcript changes before save, EchoFlow refuses the mutation instead of
+            silently moving the note.
+          </p>
+        </div>
+        <form onSubmit={(event) => void saveNote(event)}>
+          <label htmlFor="evidence-research-note">Research note</label>
+          <textarea
+            id="evidence-research-note"
+            value={noteBody}
+            maxLength={50_000}
+            rows={4}
+            placeholder="What matters about this passage?"
+            onChange={(event) => setNoteBody(event.target.value)}
+          />
+          <div className="evidence-note-actions">
+            <button type="submit" className="open-evidence-button" disabled={savingNote}>
+              {savingNote ? "Saving…" : "Save note"}
+            </button>
+            {noteStatus && <p role="status">{noteStatus}</p>}
+            {noteError && (
+              <p className="evidence-note-error" role="alert">
+                {noteError}
+              </p>
+            )}
+          </div>
+        </form>
+      </section>
 
       <footer className="evidence-seek" data-seek-seconds={evidence.seek_seconds}>
         <div>

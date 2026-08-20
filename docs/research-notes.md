@@ -51,7 +51,7 @@ browser-owned notebook.
 You do not need to operate either database. `ResearchWorkspaceService` presents one
 research workspace over the two storage roles.
 
-## Add, edit, organize, and delete notes
+## Add, edit, organize, delete, and reopen notes
 
 The CLI anchors to real canonical segment IDs rather than a disposable search row or
 formatted timestamp:
@@ -69,21 +69,40 @@ canonical transcript bytes and refuses missing, reordered, or non-contiguous sel
 Optional `--start-seconds` and `--end-seconds` may narrow an anchor inside that verified
 span.
 
-The desktop now uses that same rule when a note is created from the verified Evidence
-reader. It sends document/generation identity and canonical coordinates through one narrow
-bridge method. If the library moved to a newer canonical generation before Save, the write
-is refused instead of silently attaching the note to different evidence.
+The desktop uses that same rule when a note is created from the verified Evidence reader.
+It sends document/generation identity and canonical coordinates through one narrow bridge
+method. If the library moved to a newer canonical generation before Save, the write is
+refused instead of silently attaching the note to different evidence.
 
 Existing notes can be edited in the Research workspace. A desktop edit replaces note body,
 tag assignments, and collection assignments **atomically in authoritative SQLite** and
 emits one projection-journal event. The note’s evidence anchor is not rewritten.
 
-Desktop edit/delete also carries the note’s authoritative `updated_at` version. If a CLI or
+Desktop edit/delete carries the note’s authoritative `updated_at` version. If a CLI or
 another local surface changed that note after it was displayed, EchoFlow refuses the stale
 write and asks the user to refresh. Local-first does not mean lost-update-safe by accident.
 
-Deletion is explicit and deliberately narrow: deleting a note deletes that human-authored
-note. It does not delete the canonical transcript or original recording.
+A note can now reopen the exact canonical generation it cites. The backend reuses the same
+canonical verifier as search navigation: it hashes the stored canonical bytes, checks the
+stored source and document identities, validates the stored segments and timing, expands
+context, and resolves speaker display labels for that exact generation. React does not
+choose a replacement generation.
+
+That means an older note has three honest outcomes:
+
+1. the older canonical generation is still present and verifies, so EchoFlow opens it and
+   labels it as older evidence;
+2. the stored canonical bytes, identity, segments, or timing no longer verify, so EchoFlow
+   refuses to present them as evidence; or
+3. the old evidence is unavailable, so the durable note remains but its cited evidence
+   cannot currently be reopened.
+
+There is deliberately no “close enough, use the current transcript” fallback. New note
+creation is not offered from an older-generation evidence view because that would blur the
+boundary between reviewing old evidence and authoring against current evidence.
+
+Deletion remains explicit and narrow: deleting a note deletes that human-authored note. It
+does not delete the canonical transcript or original recording.
 
 The equivalent CLI operations remain available:
 
@@ -129,10 +148,11 @@ canonical SHA-256, EchoFlow does **not** silently move the old note.
 The old note remains durable historical user state. The projected evidence key includes
 canonical generation identity so stale annotations cannot accidentally attach to new
 evidence. Editing the prose or labels on that old note still leaves its original anchor
-unchanged.
+unchanged. The desktop can now inspect the older generation when those exact canonical
+bytes remain available and valid.
 
 A later re-anchor workflow must be an explicit user decision that shows both generations;
-it must never be an incidental side effect of editing a note.
+it must never be an incidental side effect of opening or editing a note.
 
 ## Why two databases?
 
@@ -159,30 +179,46 @@ DuckDB projection
 
 If the stores disagree, SQLite wins. If DuckDB disappears, rebuild it.
 
-## Saved searches and navigation are foundation
+## Saved searches are durable questions, not screenshots
 
 Saved searches persist typed query intent and re-resolve current evidence rather than
 freezing result snapshots. Frequent/recent tag and collection navigation is derived from
 current relationships instead of persisted popularity counters.
 
+The desktop now supports saved-search create, run, rename, and delete. Creation sends only
+human intent across the desktop bridge; Python constructs and validates the typed
+`SearchQuery` and owns desktop defaults. Running the search replays that typed intent
+through current research-aware retrieval, so new qualifying evidence can appear.
+
+Rename edits display metadata while preserving the typed search intent server-side.
+Rename/delete carry the saved search’s `updated_at` version, and authoritative SQLite checks
+that version inside the same immediate transaction as the mutation. A stale desktop view
+cannot silently overwrite a newer CLI/local change.
+
 The tag is durable user state. “Used 147 times” is disposable navigation metadata.
 
-The desktop currently presents saved-search intent but does not yet create/run/rename/delete
-saved searches. That is the next Research interaction slice, together with returning a
-research object to verified evidence.
+## Operational logs are not a shadow research archive
+
+Research operations use the normal structured application logger for operational evidence:
+operation names, durable object IDs, canonical generation identity where relevant,
+retrieval mode, counts, current/older state, and success/failure outcome.
+
+The logger does **not** receive note bodies, saved-query text, saved-search names or
+descriptions, or raw canonical/source paths from these Research operations. The durable
+research stores remain the authority for human-authored content; logs do not become a
+second notebook.
 
 ## What comes next for the notebook?
 
-The storage, evidence-address, unified-discovery, saved-search backend, Research overview,
-verified note creation, and note edit/delete/label mutation contracts are built.
+The storage, evidence-address, unified-discovery, Research overview, verified note
+creation, note edit/delete/label mutation, exact-generation note return, and saved-search
+create/run/rename/delete contracts are built.
 
-The remaining Research tranche is:
+The remaining Research tranche is narrower:
 
-- create, run, rename, and delete saved searches in the desktop;
-- navigate notes/tags/collections/saved searches back to current verified evidence when
-  possible;
+- make tags and collections first-class navigation/filter affordances;
 - expose advanced typed search/research filters without hidden interpretation;
-- stale-anchor review/re-anchor UX with explicit user confirmation; and
+- stale/unavailable-anchor review and any explicit re-anchor UX with user confirmation; and
 - later, selected/citable result sets and portable evidence-bearing research export.
 
 The product does not currently provide rich-text/WYSIWYG editing, semantic embeddings over

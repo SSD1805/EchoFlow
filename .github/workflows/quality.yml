@@ -6,7 +6,7 @@ on:
     branches: [main, agent/desktop-dev-reproducible]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: quality-${{ github.ref }}
@@ -167,6 +167,20 @@ jobs:
           path: frontend/src-tauri/Cargo.lock
           if-no-files-found: error
           retention-days: 1
+
+      - name: Commit generated Cargo lockfile once
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src-tauri/Cargo.lock
+          if git diff --cached --quiet; then
+            echo "Cargo.lock is already committed."
+          else
+            git commit -m "build(desktop): lock native Tauri dependency graph"
+            git push origin HEAD:"${GITHUB_REF_NAME}"
+          fi
 
   frontend-playwright:
     needs: [static, frontend-static]

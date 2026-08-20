@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -51,23 +51,81 @@ function commandCheck(command, args, label, remedy) {
   return false;
 }
 
+function supportedNodeVersion() {
+  const [major = 0, minor = 0] = process.versions.node.split(".").map(Number);
+  return (major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22;
+}
+
+function looksLikePath(value) {
+  return isAbsolute(value) || value.includes("/") || value.includes("\\");
+}
+
+function checkPythonBackend(command, source) {
+  if (looksLikePath(command) && !existsSync(command)) {
+    fail(
+      "Python backend",
+      `${source} points to a file that does not exist: ${command}`,
+      source === "ECHOFLOW_PYTHON"
+        ? "Fix or unset ECHOFLOW_PYTHON, or create the repository environment with: uv sync --locked --extra transcription"
+        : "From the repository root run: uv sync --locked --extra transcription",
+    );
+    return;
+  }
+
+  const importCheck = run(command, [
+    "-c",
+    "import echoflow; print('EchoFlow Python backend import is ready')",
+  ]);
+  if (importCheck.status === 0) {
+    pass("Python backend", `${firstLine(importCheck.stdout)} (${source})`);
+    return;
+  }
+
+  const detail = importCheck.error?.code === "ENOENT"
+    ? `${source} could not be executed: ${command}`
+    : `${source} cannot import echoflow`;
+  fail(
+    "Python backend",
+    detail,
+    source === "ECHOFLOW_PYTHON"
+      ? "Fix or unset ECHOFLOW_PYTHON, or create the repository environment with: uv sync --locked --extra transcription"
+      : "From the repository root run: uv sync --locked --extra transcription",
+  );
+}
+
 console.log("EchoFlow desktop doctor");
 console.log(`Mode: ${mode === "mock" ? "browser mock" : "native Tauri source build"}\n`);
 
-commandCheck("node", ["--version"], "Node.js", "Install a Node version allowed by frontend/package.json.");
+if (supportedNodeVersion()) {
+  pass("Node.js", `v${process.versions.node} matches frontend/package.json`);
+} else {
+  fail(
+    "Node.js",
+    `v${process.versions.node} is outside EchoFlow's supported range (^20.19.0 or >=22.12.0)`,
+    "Install a supported Node.js release, then run npm ci again.",
+  );
+}
 commandCheck("npm", ["--version"], "npm", "Install npm with the supported Node.js runtime.");
 
 const packageLock = resolve(frontendDir, "package-lock.json");
 if (existsSync(packageLock)) {
   pass("JavaScript lockfile", "frontend/package-lock.json is present");
 } else {
-  fail("JavaScript lockfile", "package-lock.json is missing", "Restore it from Git; do not replace npm ci with an unlocked install.");
+  fail(
+    "JavaScript lockfile",
+    "package-lock.json is missing",
+    "Restore it from Git; do not replace npm ci with an unlocked install.",
+  );
 }
 
 if (existsSync(resolve(frontendDir, "node_modules"))) {
   pass("Project-local JavaScript dependencies", "frontend/node_modules exists");
 } else {
-  fail("Project-local JavaScript dependencies", "frontend/node_modules is missing", "From frontend/, run: npm ci");
+  fail(
+    "Project-local JavaScript dependencies",
+    "frontend/node_modules is missing",
+    "From frontend/, run: npm ci",
+  );
 }
 
 const versionCheck = run(process.execPath, [resolve(scriptDir, "check-tauri-versions.mjs")]);
@@ -76,56 +134,85 @@ if (versionCheck.status === 0) {
 } else {
   fail(
     "Tauri version family",
-    firstLine(versionCheck.stderr || versionCheck.stdout) || "JavaScript and Rust Tauri versions are not aligned",
+    firstLine(versionCheck.stderr || versionCheck.stdout) ||
+      "JavaScript and Rust Tauri versions are not aligned",
     "Restore package.json, tauri-versions.json, and src-tauri/Cargo.toml from the same Git revision.",
   );
 }
 
 if (mode === "mock") {
-  console.log("\nBrowser mock needs no Python, Rust, Cargo, FFmpeg, WebKitGTK, or transcription model.");
+  console.log(
+    "\nBrowser mock needs no Python, Rust, Cargo, FFmpeg, WebKitGTK, or transcription model.",
+  );
   console.log("Start it with: npm run dev:mock");
 } else {
   console.log("\nNative host checks");
-  const cargoReady = commandCheck("cargo", ["--version"], "Cargo", "Install a stable Rust toolchain, then restart your shell if PATH changed.");
-  commandCheck("rustc", ["--version"], "Rust compiler", "Install a stable Rust toolchain.");
+  const cargoReady = commandCheck(
+    "cargo",
+    ["--version"],
+    "Cargo",
+    "Install a stable Rust toolchain, then restart your shell if PATH changed.",
+  );
+  commandCheck(
+    "rustc",
+    ["--version"],
+    "Rust compiler",
+    "Install a stable Rust toolchain.",
+  );
 
   const cargoLock = resolve(frontendDir, "src-tauri", "Cargo.lock");
   if (existsSync(cargoLock)) {
     pass("Rust lockfile", "frontend/src-tauri/Cargo.lock is present");
   } else {
-    fail("Rust lockfile", "Cargo.lock is missing", "Restore the committed lockfile from Git. EchoFlow source builds are intentionally locked.");
+    fail(
+      "Rust lockfile",
+      "Cargo.lock is missing",
+      "Restore the committed lockfile from Git. EchoFlow source builds are intentionally locked.",
+    );
   }
 
   const icon = resolve(frontendDir, "src-tauri", "icons", "icon.png");
   if (existsSync(icon)) {
     pass("Native application icon", "src-tauri/icons/icon.png is present");
   } else {
-    fail("Native application icon", "Tauri's compile-time icon is missing", "Restore frontend/src-tauri/icons/icon.png from Git.");
+    fail(
+      "Native application icon",
+      "Tauri's compile-time icon is missing",
+      "Restore frontend/src-tauri/icons/icon.png from Git.",
+    );
   }
 
-  const overridePython = process.env.ECHOFLOW_PYTHON;
+  const overridePython = process.env.ECHOFLOW_PYTHON?.trim();
   const venvPython = process.platform === "win32"
     ? resolve(repoDir, ".venv", "Scripts", "python.exe")
     : resolve(repoDir, ".venv", "bin", "python");
-  const python = overridePython || venvPython;
-  if (existsSync(python)) {
-    const importCheck = run(python, ["-c", "import echoflow; print('EchoFlow Python backend import is ready')"]);
-    if (importCheck.status === 0) {
-      pass("Python backend", firstLine(importCheck.stdout));
-    } else {
-      fail("Python backend", "the selected Python cannot import echoflow", "From the repository root run: uv sync --locked --extra transcription");
-    }
-  } else if (overridePython) {
-    fail("Python backend", "ECHOFLOW_PYTHON points to a file that does not exist", "Fix or unset ECHOFLOW_PYTHON, or run uv sync --locked from the repository root.");
+  if (overridePython) {
+    checkPythonBackend(overridePython, "ECHOFLOW_PYTHON");
+  } else if (existsSync(venvPython)) {
+    checkPythonBackend(venvPython, "repository .venv");
   } else {
-    fail("Python backend", "the repository .venv is missing", "From the repository root run: uv sync --locked --extra transcription");
+    fail(
+      "Python backend",
+      "the repository .venv is missing",
+      "From the repository root run: uv sync --locked --extra transcription",
+    );
   }
 
   if (process.platform === "linux") {
-    if (commandCheck("pkg-config", ["--version"], "pkg-config", "Install pkg-config plus your distribution's Tauri Linux development prerequisites.")) {
+    if (
+      commandCheck(
+        "pkg-config",
+        ["--version"],
+        "pkg-config",
+        "Install pkg-config plus your distribution's Tauri Linux development prerequisites.",
+      )
+    ) {
       const webkit = run("pkg-config", ["--exists", "webkit2gtk-4.1", "gtk+-3.0"]);
       if (webkit.status === 0) {
-        pass("Linux WebKitGTK/GTK development libraries", "webkit2gtk-4.1 and gtk+-3.0 are discoverable");
+        pass(
+          "Linux WebKitGTK/GTK development libraries",
+          "webkit2gtk-4.1 and gtk+-3.0 are discoverable",
+        );
       } else {
         fail(
           "Linux WebKitGTK/GTK development libraries",
@@ -145,7 +232,11 @@ if (mode === "mock") {
     } else if (process.env.DISPLAY) {
       pass("Display session", `X11/XWayland detected (${process.env.DISPLAY})`);
     } else {
-      warn("Display session", "no WAYLAND_DISPLAY or DISPLAY variable is visible", "A graphical Tauri window needs a desktop display session.");
+      warn(
+        "Display session",
+        "no WAYLAND_DISPLAY or DISPLAY variable is visible",
+        "A graphical Tauri window needs a desktop display session.",
+      );
     }
   }
 
@@ -155,10 +246,18 @@ if (mode === "mock") {
   }
 }
 
-console.log(`\nSummary: ${failures} failure${failures === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"}.`);
+console.log(
+  `\nSummary: ${failures} failure${failures === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"}.`,
+);
 if (failures > 0) {
-  console.log("Fix the failures above, then run the doctor again. The troubleshooting guide explains each class of failure.");
+  console.log(
+    "Fix the failures above, then run the doctor again. The troubleshooting guide explains each class of failure.",
+  );
   process.exitCode = 1;
 } else {
-  console.log(mode === "mock" ? "Browser mock prerequisites look ready." : "Native source-build prerequisites look ready.");
+  console.log(
+    mode === "mock"
+      ? "Browser mock prerequisites look ready."
+      : "Native source-build prerequisites look ready.",
+  );
 }

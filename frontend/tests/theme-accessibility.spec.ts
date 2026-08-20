@@ -15,18 +15,29 @@ function parseHex(value: string): Rgb {
   ];
 }
 
-function luminance(rgb: Rgb): number {
-  const channels = rgb.map((channel) => {
-    const value = channel / 255;
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+function normalizeChannel(channel: number): number {
+  const value = channel / 255;
+  return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+}
+
+function luminance([red, green, blue]: Rgb): number {
+  return (
+    0.2126 * normalizeChannel(red) +
+    0.7152 * normalizeChannel(green) +
+    0.0722 * normalizeChannel(blue)
+  );
 }
 
 function contrast(left: string, right: string): number {
   const a = luminance(parseHex(left));
   const b = luminance(parseHex(right));
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+function token(tokens: Record<string, string>, name: string): string {
+  const value = tokens[name];
+  if (!value) throw new Error(`Missing required semantic theme token: ${name}`);
+  return value;
 }
 
 const TEXT_PAIRS = [
@@ -80,13 +91,13 @@ for (const theme of THEMES) {
     expect(snapshot.colorScheme).toContain(theme.scheme);
     for (const [foreground, background] of TEXT_PAIRS) {
       expect(
-        contrast(snapshot.tokens[foreground], snapshot.tokens[background]),
+        contrast(token(snapshot.tokens, foreground), token(snapshot.tokens, background)),
         `${theme.label}: ${foreground} on ${background}`,
       ).toBeGreaterThanOrEqual(4.5);
     }
     for (const [foreground, background] of NON_TEXT_PAIRS) {
       expect(
-        contrast(snapshot.tokens[foreground], snapshot.tokens[background]),
+        contrast(token(snapshot.tokens, foreground), token(snapshot.tokens, background)),
         `${theme.label}: ${foreground} on ${background}`,
       ).toBeGreaterThanOrEqual(3);
     }

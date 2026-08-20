@@ -404,16 +404,16 @@ def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
         return _serialize_research_overview(services.workspace)
 
     if request.method == "workspace.research.note.create":
-        note_params = _CreateResearchNoteParams.model_validate(request.params)
-        return _create_research_note(note_params, services.workspace)
+        create_params = _CreateResearchNoteParams.model_validate(request.params)
+        return _create_research_note(create_params, services.workspace)
 
     if request.method == "workspace.research.note.update":
-        note_params = _UpdateResearchNoteParams.model_validate(request.params)
-        return _update_research_note(note_params, services.workspace)
+        update_params = _UpdateResearchNoteParams.model_validate(request.params)
+        return _update_research_note(update_params, services.workspace)
 
     if request.method == "workspace.research.note.delete":
-        note_params = _DeleteResearchNoteParams.model_validate(request.params)
-        return _delete_research_note(note_params, services.workspace)
+        delete_params = _DeleteResearchNoteParams.model_validate(request.params)
+        return _delete_research_note(delete_params, services.workspace)
 
     refresh_params = _RefreshParams.model_validate(request.params)
     refresh_report = services.locations.refresh_transcript_locations(

@@ -34,6 +34,24 @@ class ResearchNote:
 
 
 @dataclass(frozen=True, slots=True)
+class ResearchAnchorHistoryEntry:
+    """One superseded note anchor retained as authoritative provenance."""
+
+    note_id: str
+    revision: int
+    anchor: EvidenceAnchor
+    replaced_at: str
+
+    def __post_init__(self) -> None:
+        if not self.note_id.strip():
+            raise ValueError("anchor history note_id cannot be empty")
+        if self.revision < 1:
+            raise ValueError("anchor history revision must be positive")
+        if not self.replaced_at.strip():
+            raise ValueError("anchor history replacement time cannot be empty")
+
+
+@dataclass(frozen=True, slots=True)
 class ResearchTag:
     tag_id: str
     name: str
@@ -94,6 +112,23 @@ class ResearchProjectionSnapshot:
     def __post_init__(self) -> None:
         if self.sequence_id < 0:
             raise ValueError("research snapshot sequence cannot be negative")
+
+
+@runtime_checkable
+class ResearchAnchorStateStore(Protocol):
+    """Narrow same-database port for deliberate evidence-anchor maintenance."""
+
+    def reanchor_note(
+        self,
+        note_id: str,
+        anchor: EvidenceAnchor,
+        *,
+        expected_updated_at: str,
+    ) -> None: ...
+
+    def note_anchor_history(
+        self, note_id: str
+    ) -> tuple[ResearchAnchorHistoryEntry, ...]: ...
 
 
 @runtime_checkable

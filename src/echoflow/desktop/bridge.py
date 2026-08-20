@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
+from echoflow.desktop.research_anchor_bridge import dispatch_research_anchor
 from echoflow.library.errors import ResearchStateError
 from echoflow.library.evidence import EvidenceContextSegment, EvidenceWord
 from echoflow.library.index import SearchQuery
@@ -67,6 +68,8 @@ class _DesktopRequest(BaseModel):
         "workspace.research.note.update",
         "workspace.research.note.delete",
         "workspace.research.note.evidence",
+        "workspace.research.note.anchor.review",
+        "workspace.research.note.anchor.reanchor",
         "workspace.research.saved_search.create",
         "workspace.research.saved_search.update",
         "workspace.research.saved_search.delete",
@@ -619,6 +622,11 @@ def _dispatch_research_note(
     request: _DesktopRequest,
     workspace: ResearchWorkspaceService,
 ) -> object:
+    if request.method in {
+        "workspace.research.note.anchor.review",
+        "workspace.research.note.anchor.reanchor",
+    }:
+        return dispatch_research_anchor(request.method, request.params, workspace)
     if request.method == "workspace.research.note.create":
         create_params = _CreateResearchNoteParams.model_validate(request.params)
         return _create_research_note(create_params, workspace)

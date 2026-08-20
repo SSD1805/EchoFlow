@@ -1,0 +1,326 @@
+"""Narrow desktop adapter for typed Research search intent.
+
+React supplies form values only. Python validates the complete intent, executes search
+semantics, and performs optimistic saved-search replacement. Runtime evidence scopes and
+filesystem paths never cross this adapter as user-editable state.
+"""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from echoflow.library.evidence import EvidenceContextSegment, EvidenceWord
+from echoflow.library.index import SearchOperator, SearchQuery, SearchSort
+from echoflow.library.research_search_controls import (
+    ResearchSearchControlService,
+    ResearchSearchIntent,
+)
+from echoflow.library.research_workspace import (
+    ResearchQueryFilters,
+    ResearchWorkspaceService,
+    WorkspaceSearchPassage,
+    WorkspaceSearchResponse,
+)
+from echoflow.library.retrieval import RetrievalMode
+from echoflow.library.workspace_metadata import SavedSearch
+
+
+class _SearchIntentParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query_text: str = Field(min_length=1, max_length=4_096)
+    phrase: bool = False
+    operator: SearchOperator = SearchOperator.ANY
+    speaker_refs: tuple[str, ...] = Field(default=(), max_length=100)
+    languages: tuple[str, ...] = Field(default=(), max_length=100)
+    document_ids: tuple[str, ...] = Field(default=(), max_length=100)
+    sort: SearchSort = SearchSort.RELEVANCE
+    limit: int = Field(default=20, ge=1, le=1_000)
+    retrieval_mode: RetrievalMode = RetrievalMode.LEXICAL
+    context_segments: int = Field(default=1, ge=0, le=10)
+    tags: tuple[str, ...] = Field(default=(), max_length=100)
+    collections: tuple[str, ...] = Field(default=(), max_length=100)
+    note_text: str | None = Field(default=None, max_length=4_096)
+    with_notes: bool = False
+
+    @field_validator("query_text")
+    @classmethod
+    def strip_query(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("query_text cannot be blank")
+        return stripped
+
+    @field_validator("speaker_refs", "languages", "document_ids")
+    @classmethod
+    def normalize_exact_values(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        normalized = tuple(value.strip() for value in values)
+        if any(not value for value in normalized):
+            raise ValueError("search filters cannot contain blank values")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("search filters cannot contain duplicate values")
+        return normalized
+
+    @field_validator("tags", "collections")
+    @classmethod
+    def normalize_labels(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        normalized: dict[str, str] = {}
+        for raw in values:
+            value = raw.strip()
+            if not value:
+                raise ValueError("research labels cannot be blank")
+            if len(value) > 200:
+                raise ValueError("research labels cannot exceed 200 characters")
+            if any(character in value for character in ("\r", "\n", "\x00")):
+                raise ValueError("research labels contain unsupported control characters")
+            normalized.setdefault(value.casefold(), value)
+        return tuple(normalized[key] for key in sorted(normalized))
+
+    @field_validator("note_text")
+    @classmethod
+    def normalize_note_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    def to_intent(self) -> ResearchSearchIntent:
+        return ResearchSearchIntent(
+            query=SearchQuery(
+                self.query_text,
+                phrase=self.phrase,
+                operator=self.operator,
+                speaker_refs=self.speaker_refs,
+                languages=self.languages,
+                document_ids=self.document_ids,
+                sort=self.sort,
+                limit=self.limit,
+            ),
+            filters=ResearchQueryFilters(
+                tags=self.tags,
+                collections=self.collections,
+                note_text=self.note_text,
+                with_notes=self.with_notes,
+            ),
+            mode=self.retrieval_mode,
+            context_segments=self.context_segments,
+        )
+
+
+class _ExecuteParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    intent: _SearchIntentParams
+
+
+class _CreateSavedParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=4_000)
+    intent: _SearchIntentParams
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("name cannot be blank")
+        return stripped
+
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class _InspectSavedParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    saved_search_id: str = Field(min_length=1, max_length=200)
+
+    @field_validator("saved_search_id")
+    @classmethod
+    def strip_identifier(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("saved_search_id cannot be blank")
+        return stripped
+
+
+class _ReplaceSavedParams(_CreateSavedParams):
+    saved_search_id: str = Field(min_length=1, max_length=200)
+    expected_updated_at: str = Field(min_length=1, max_length=200)
+
+    @field_validator("saved_search_id", "expected_updated_at")
+    @classmethod
+    def strip_version_fields(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("saved search identity and version cannot be blank")
+        return stripped
+
+
+def _serialize_word(word: EvidenceWord) -> dict[str, object]:
+    return {
+        "segment_id": word.segment_id,
+        "word_index": word.word_index,
+        "start_seconds": word.start_seconds,
+        "end_seconds": word.end_seconds,
+        "text": word.text,
+        "speaker_ref": word.speaker_ref,
+        "highlighted": word.highlighted,
+    }
+
+
+def _serialize_context_segment(segment: EvidenceContextSegment) -> dict[str, object]:
+    return {
+        "segment_id": segment.segment_id,
+        "start_seconds": segment.start_seconds,
+        "end_seconds": segment.end_seconds,
+        "text": segment.text,
+        "speaker_refs": list(segment.speaker_refs),
+        "words": [_serialize_word(word) for word in segment.words],
+        "is_result_segment": segment.is_result_segment,
+        "lexical_match": segment.lexical_match,
+    }
+
+
+def _serialize_passage(item: WorkspaceSearchPassage) -> dict[str, object]:
+    return {
+        "document_id": item.located.evidence.document_id,
+        "source_sha256": item.located.evidence.source_sha256,
+        "canonical_sha256": item.located.evidence.canonical_sha256,
+        "segment_ids": list(item.located.evidence.result_segment_ids),
+        "text": item.located.passage.text,
+        "start_seconds": item.located.evidence.start_seconds,
+        "end_seconds": item.located.evidence.end_seconds,
+        "seek_seconds": item.located.evidence.seek_seconds,
+        "languages": list(item.located.passage.languages),
+        "speakers": [
+            {
+                "speaker_ref": speaker.speaker_ref,
+                "display_label": speaker.display_label,
+            }
+            for speaker in item.located.speakers
+        ],
+        "matched_words": [
+            _serialize_word(word) for word in item.located.evidence.matched_words
+        ],
+        "context_segments": [
+            _serialize_context_segment(segment)
+            for segment in item.located.evidence.context_segments
+        ],
+        "note_count": item.research.note_count,
+        "tags": list(item.research.tags),
+        "collections": list(item.research.collections),
+    }
+
+
+def _serialize_intent(intent: ResearchSearchIntent) -> dict[str, object]:
+    query = intent.query
+    return {
+        "query_text": query.text,
+        "phrase": query.phrase,
+        "operator": query.operator.value,
+        "speaker_refs": list(query.speaker_refs),
+        "languages": list(query.languages),
+        "document_ids": list(query.document_ids),
+        "sort": query.sort.value,
+        "limit": query.limit,
+        "retrieval_mode": intent.mode.value,
+        "context_segments": intent.context_segments,
+        "tags": list(intent.filters.tags),
+        "collections": list(intent.filters.collections),
+        "note_text": intent.filters.note_text,
+        "with_notes": intent.filters.with_notes,
+    }
+
+
+def _serialize_saved(saved: SavedSearch) -> dict[str, object]:
+    return {
+        "saved_search_id": saved.saved_search_id,
+        "name": saved.name,
+        "description": saved.description,
+        "intent": _serialize_intent(
+            ResearchSearchIntent.from_saved_intent(saved.intent)
+        ),
+        "created_at": saved.created_at,
+        "updated_at": saved.updated_at,
+    }
+
+
+def _serialize_search(
+    intent: ResearchSearchIntent,
+    response: WorkspaceSearchResponse,
+) -> dict[str, object]:
+    retrieval = response.navigation.retrieval
+    semantic_profile = retrieval.semantic_profile
+    return {
+        "intent": _serialize_intent(intent),
+        "retrieval": {
+            "mode": retrieval.mode.value,
+            "lexical_backend_id": retrieval.lexical_backend_id,
+            "semantic_backend_id": retrieval.semantic_backend_id,
+            "fusion_profile": retrieval.fusion_profile,
+            "semantic_profile": (
+                None
+                if semantic_profile is None
+                else {
+                    "model_id": semantic_profile.model_id,
+                    "resolved_revision": semantic_profile.resolved_revision,
+                    "dimensions": semantic_profile.dimensions,
+                }
+            ),
+        },
+        "evidence": [_serialize_passage(item) for item in response.results],
+    }
+
+
+def dispatch_research_search(
+    method: str,
+    params: dict[str, object],
+    workspace: ResearchWorkspaceService,
+) -> object:
+    """Dispatch typed search operations after the outer bridge allowlist accepts them."""
+    service = ResearchSearchControlService(workspace)
+    if method == "workspace.research.search.execute":
+        parsed = _ExecuteParams.model_validate(params)
+        intent = parsed.intent.to_intent()
+        return _serialize_search(intent, service.search(intent))
+    if method == "workspace.research.search.saved.create":
+        parsed = _CreateSavedParams.model_validate(params)
+        intent = parsed.intent.to_intent()
+        return _serialize_saved(
+            service.create_saved_search(
+                parsed.name,
+                intent,
+                description=parsed.description,
+            )
+        )
+    if method == "workspace.research.search.saved.inspect":
+        parsed = _InspectSavedParams.model_validate(params)
+        saved = workspace.saved_search(parsed.saved_search_id)
+        if saved is None:
+            from echoflow.library.errors import ResearchStateError
+
+            raise ResearchStateError("Saved search does not exist")
+        return _serialize_saved(saved)
+    if method == "workspace.research.search.saved.replace":
+        parsed = _ReplaceSavedParams.model_validate(params)
+        intent = parsed.intent.to_intent()
+        return _serialize_saved(
+            service.replace_saved_search(
+                parsed.saved_search_id,
+                name=parsed.name,
+                description=parsed.description,
+                intent=intent,
+                expected_updated_at=parsed.expected_updated_at,
+            )
+        )
+    raise ValueError("Unsupported typed Research search desktop method")

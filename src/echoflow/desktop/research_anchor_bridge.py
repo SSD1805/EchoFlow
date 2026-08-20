@@ -91,18 +91,21 @@ def dispatch_research_anchor(
     workspace: ResearchWorkspaceService,
 ) -> dict[str, object]:
     if method == "workspace.research.note.anchor.review":
-        parsed = _ReviewAnchorParams.model_validate(params)
+        review_params = _ReviewAnchorParams.model_validate(params)
         service = ResearchAnchorReviewService.for_workspace(workspace)
         return _serialize_review(
-            service.review(parsed.note_id, context_segments=parsed.context_segments)
+            service.review(
+                review_params.note_id,
+                context_segments=review_params.context_segments,
+            )
         )
     if method == "workspace.research.note.anchor.reanchor":
-        parsed = _ReanchorNoteParams.model_validate(params)
+        reanchor_params = _ReanchorNoteParams.model_validate(params)
         service = ResearchAnchorReviewService.for_workspace(workspace)
         updated = service.reanchor_to_reviewed_current(
-            parsed.note_id,
-            expected_updated_at=parsed.expected_updated_at,
-            expected_candidate_sha256=parsed.expected_candidate_sha256,
+            reanchor_params.note_id,
+            expected_updated_at=reanchor_params.expected_updated_at,
+            expected_candidate_sha256=reanchor_params.expected_candidate_sha256,
         )
         return {
             "note_id": updated.note.note_id,

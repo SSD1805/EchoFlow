@@ -193,33 +193,15 @@ class EvidenceLocator:
             document_id=document.document_id,
             source_sha256=document.source_sha256,
         )
-        by_id = {
-            segment.segment_id: index
-            for index, segment in enumerate(canonical.segments)
-        }
-        try:
-            indices = tuple(by_id[item] for item in segment_ids)
-        except KeyError as exc:
-            raise EvidenceNavigationError(
-                "Annotation references canonical evidence that no longer exists"
-            ) from exc
-        if indices != tuple(range(indices[0], indices[0] + len(indices))):
-            raise EvidenceNavigationError(
-                "Annotation evidence segments must be contiguous and in canonical order"
-            )
+        indices = self._anchor_indices(canonical, segment_ids)
         segments = tuple(canonical.segments[index] for index in indices)
-        evidence_start = segments[0].start_seconds
-        evidence_end = segments[-1].end_seconds
-        resolved_start = evidence_start if start_seconds is None else start_seconds
-        resolved_end = evidence_end if end_seconds is None else end_seconds
-        if (
-            resolved_start < evidence_start - 1e-6
-            or resolved_end > evidence_end + 1e-6
-            or resolved_end < resolved_start
-        ):
-            raise EvidenceNavigationError(
-                "Annotation timing must remain inside its canonical evidence segments"
-            )
+        resolved_start = segments[0].start_seconds if start_seconds is None else start_seconds
+        resolved_end = segments[-1].end_seconds if end_seconds is None else end_seconds
+        self._validate_anchor_timing(
+            segments,
+            start_seconds=resolved_start,
+            end_seconds=resolved_end,
+        )
         return EvidenceAnchor(
             document_id=document.document_id,
             source_sha256=document.source_sha256,
@@ -231,16 +213,71 @@ class EvidenceLocator:
             end_seconds=resolved_end,
         )
 
+    def locate_anchor(
+        self,
+        anchor: EvidenceAnchor,
+        *,
+        context_segments: int = 0,
+    ) -> EvidenceLocation:
+        """Reopen one durable anchor against its exact verified canonical generation."""
+        self._validate_context_segments(context_segments)
+        canonical = self._load_canonical_identity(
+            canonical_path=anchor.canonical_path,
+            canonical_sha256=anchor.canonical_sha256,
+            document_id=anchor.document_id,
+            source_sha256=anchor.source_sha256,
+        )
+        indices = self._anchor_indices(canonical, anchor.segment_ids)
+        result_segments = tuple(canonical.segments[index] for index in indices)
+        self._validate_anchor_timing(
+            result_segments,
+            start_seconds=anchor.start_seconds,
+            end_seconds=anchor.end_seconds,
+        )
+        context_start = max(0, indices[0] - context_segments)
+        context_end = min(len(canonical.segments), indices[-1] + context_segments + 1)
+        result_ids = set(anchor.segment_ids)
+        context = tuple(
+            self._context_segment(
+                segment,
+                result_ids=result_ids,
+                lexical_ids=set(),
+                query_tokens=(),
+                phrase=False,
+            )[0]
+            for segment in canonical.segments[context_start:context_end]
+        )
+        result_speakers = tuple(
+            sorted(
+                {
+                    ref
+                    for segment in result_segments
+                    for ref in self._segment_speakers(segment)
+                }
+            )
+        )
+        return EvidenceLocation(
+            document_id=anchor.document_id,
+            source_sha256=anchor.source_sha256,
+            canonical_sha256=anchor.canonical_sha256,
+            canonical_path=anchor.canonical_path,
+            source_path=anchor.source_path,
+            result_segment_ids=anchor.segment_ids,
+            start_seconds=anchor.start_seconds,
+            end_seconds=anchor.end_seconds,
+            seek_seconds=anchor.start_seconds,
+            result_speaker_refs=result_speakers,
+            matched_words=(),
+            context_segments=context,
+        )
+
     def locate_response(
         self,
         response: SearchResponse,
         *,
         context_segments: int = 0,
     ) -> tuple[EvidenceLocation, ...]:
-        if context_segments < 0 or context_segments > _MAX_CONTEXT_SEGMENTS:
-            raise ValueError(
-                f"context_segments must be between 0 and {_MAX_CONTEXT_SEGMENTS}"
-            )
+        self._validate_context_segments(context_segments)
         cache: dict[tuple[str, str], _CanonicalTranscript] = {}
         return tuple(
             self._locate(
@@ -251,6 +288,54 @@ class EvidenceLocator:
             )
             for passage in response.results
         )
+
+    @staticmethod
+    def _validate_context_segments(context_segments: int) -> None:
+        if context_segments < 0 or context_segments > _MAX_CONTEXT_SEGMENTS:
+            raise ValueError(
+                f"context_segments must be between 0 and {_MAX_CONTEXT_SEGMENTS}"
+            )
+
+    @staticmethod
+    def _anchor_indices(
+        canonical: _CanonicalTranscript,
+        segment_ids: tuple[str, ...],
+    ) -> tuple[int, ...]:
+        by_id = {
+            segment.segment_id: index
+            for index, segment in enumerate(canonical.segments)
+        }
+        try:
+            indices = tuple(by_id[item] for item in segment_ids)
+        except KeyError as exc:
+            raise EvidenceNavigationError(
+                "Anchored canonical evidence is no longer available"
+            ) from exc
+        if not indices:
+            raise EvidenceNavigationError("Evidence anchor has no canonical segments")
+        if indices != tuple(range(indices[0], indices[0] + len(indices))):
+            raise EvidenceNavigationError(
+                "Anchored evidence segments must be contiguous and in canonical order"
+            )
+        return indices
+
+    @staticmethod
+    def _validate_anchor_timing(
+        segments: tuple[_CanonicalSegment, ...],
+        *,
+        start_seconds: float,
+        end_seconds: float,
+    ) -> None:
+        evidence_start = segments[0].start_seconds
+        evidence_end = segments[-1].end_seconds
+        if (
+            start_seconds < evidence_start - 1e-6
+            or end_seconds > evidence_end + 1e-6
+            or end_seconds < start_seconds
+        ):
+            raise EvidenceNavigationError(
+                "Annotation timing must remain inside its canonical evidence segments"
+            )
 
     def _locate(
         self,

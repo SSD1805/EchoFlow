@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from echoflow.library.evidence import EvidenceLocation, EvidenceLocator
+from echoflow.library.evidence import EvidenceAnchor, EvidenceLocation, EvidenceLocator
 from echoflow.library.index import SearchQuery
 from echoflow.library.retrieval import RetrievalMode, SearchPassage, SearchResponse
 from echoflow.library.service import TranscriptLibraryService
@@ -23,6 +23,14 @@ class SpeakerDisplay:
         if self.display_label is None:
             return self.speaker_ref
         return f"{self.display_label}\n{self.speaker_ref}"
+
+
+@dataclass(frozen=True, slots=True)
+class LocatedCanonicalEvidence:
+    """Verified canonical evidence plus generation-scoped speaker display state."""
+
+    evidence: EvidenceLocation
+    speakers: tuple[SpeakerDisplay, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +108,30 @@ class ResearchNavigationService:
             for passage, location in zip(retrieval.results, locations, strict=True)
         )
         return ResearchSearchResponse(retrieval=retrieval, results=results)
+
+    def locate_anchor(
+        self,
+        anchor: EvidenceAnchor,
+        *,
+        context_segments: int = 0,
+    ) -> LocatedCanonicalEvidence:
+        """Verify one durable anchor and resolve speaker labels for that exact generation."""
+        evidence = self.evidence_locator.locate_anchor(
+            anchor,
+            context_segments=context_segments,
+        )
+        labels = self.speaker_labels.display_labels(
+            document_id=evidence.document_id,
+            canonical_sha256=evidence.canonical_sha256,
+            speaker_refs=evidence.result_speaker_refs,
+        )
+        return LocatedCanonicalEvidence(
+            evidence=evidence,
+            speakers=tuple(
+                SpeakerDisplay(speaker_ref=ref, display_label=labels.get(ref))
+                for ref in evidence.result_speaker_refs
+            ),
+        )
 
     @staticmethod
     def _located(

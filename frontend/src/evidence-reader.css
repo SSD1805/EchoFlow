@@ -23,6 +23,26 @@
   letter-spacing: -0.03em;
 }
 
+.evidence-generation-banner {
+  margin: 0;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 680;
+  line-height: 1.5;
+}
+
+.evidence-generation-current {
+  color: var(--accent-strong);
+}
+
+.evidence-generation-older {
+  border-left: 4px solid var(--accent);
+  padding-left: 18px;
+}
+
 .quiet-button,
 .open-evidence-button {
   border: 1px solid var(--border);
@@ -168,12 +188,17 @@
   background: var(--surface-raised);
 }
 
+.evidence-note-readonly {
+  grid-template-columns: 1fr;
+}
+
 .evidence-note-compose h3 {
   margin: 5px 0 8px;
   font-size: 1.05rem;
 }
 
-.evidence-note-compose > div > p:last-child {
+.evidence-note-compose > div > p:last-child,
+.evidence-note-readonly > p:last-child {
   margin: 0;
   color: var(--muted);
   font-size: 0.8rem;

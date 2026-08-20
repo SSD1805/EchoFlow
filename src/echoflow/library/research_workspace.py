@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from echoflow.core.ilogger import ILogger
 from echoflow.library.errors import ResearchStateError
 from echoflow.library.evidence import EvidenceLocator
 from echoflow.library.index import IndexedDocument, SearchQuery
 from echoflow.library.research import (
+    LocatedCanonicalEvidence,
     LocatedSearchPassage,
     ResearchNavigationService,
     ResearchSearchResponse,
@@ -110,6 +112,25 @@ class ResearchNoteView:
 
 
 @dataclass(frozen=True, slots=True)
+class ResearchNoteEvidenceView:
+    """One durable note reopened against the exact canonical generation it cites."""
+
+    note: ResearchNoteView
+    located: LocatedCanonicalEvidence
+
+    def __post_init__(self) -> None:
+        if self.note.note.anchor.document_id != self.located.evidence.document_id:
+            raise ValueError(
+                "note and reopened evidence document identities must match"
+            )
+        if (
+            self.note.note.anchor.canonical_sha256
+            != self.located.evidence.canonical_sha256
+        ):
+            raise ValueError("note and reopened canonical generations must match")
+
+
+@dataclass(frozen=True, slots=True)
 class WorkspaceDiscoveryResponse:
     """One query returned as typed groups without cross-type score fabrication."""
 
@@ -147,6 +168,7 @@ class ResearchWorkspaceService:
         projection: ResearchProjectionIndex,
         projector: ResearchStateProjector,
         metadata: WorkspaceMetadataStore | None = None,
+        logger: ILogger | None = None,
     ) -> None:
         self.transcript_library = transcript_library
         self.evidence_locator = evidence_locator
@@ -155,6 +177,7 @@ class ResearchWorkspaceService:
         self.projection = projection
         self.projector = projector
         self.metadata = metadata
+        self.logger = logger
 
     def search(
         self,
@@ -262,12 +285,21 @@ class ResearchWorkspaceService:
             note_text=resolved_filters.note_text,
             with_notes=resolved_filters.with_notes,
         )
-        return self._metadata_store().create_saved_search(
+        saved = self._metadata_store().create_saved_search(
             name,
             intent,
             description=description,
             saved_search_id=saved_search_id,
         )
+        self._info(
+            "research_saved_search_created",
+            saved_search_id=saved.saved_search_id,
+            retrieval_mode=saved.intent.mode.value,
+            context_segments=saved.intent.context_segments,
+            tag_count=len(saved.intent.tags),
+            collection_count=len(saved.intent.collections),
+        )
+        return saved
 
     def saved_search(self, identifier: str) -> SavedSearch | None:
         return self._metadata_store().saved_search(identifier)
@@ -275,25 +307,75 @@ class ResearchWorkspaceService:
     def saved_searches(self, *, limit: int = 1_000) -> tuple[SavedSearch, ...]:
         return self._metadata_store().saved_searches(limit=limit)
 
-    def delete_saved_search(self, identifier: str) -> None:
+    def rename_saved_search(
+        self,
+        identifier: str,
+        *,
+        name: str,
+        description: str | None,
+        expected_updated_at: str | None = None,
+    ) -> SavedSearch:
+        """Change display metadata while preserving the durable typed search intent."""
         saved = self._require_saved_search(identifier)
-        self._metadata_store().delete_saved_search(saved.saved_search_id)
+        updated = self._metadata_store().update_saved_search(
+            saved.saved_search_id,
+            name=name,
+            description=description,
+            intent=saved.intent,
+            expected_updated_at=expected_updated_at,
+        )
+        self._info(
+            "research_saved_search_updated",
+            saved_search_id=updated.saved_search_id,
+        )
+        return updated
+
+    def delete_saved_search(
+        self,
+        identifier: str,
+        *,
+        expected_updated_at: str | None = None,
+    ) -> None:
+        saved = self._require_saved_search(identifier)
+        self._metadata_store().delete_saved_search(
+            saved.saved_search_id,
+            expected_updated_at=expected_updated_at,
+        )
+        self._info(
+            "research_saved_search_deleted",
+            saved_search_id=saved.saved_search_id,
+        )
 
     def run_saved_search(self, identifier: str) -> WorkspaceSearchResponse:
         """Replay durable intent through the same current workspace-search path."""
         saved = self._require_saved_search(identifier)
         intent = saved.intent
-        return self.search(
-            intent.query,
-            filters=ResearchQueryFilters(
-                tags=intent.tags,
-                collections=intent.collections,
-                note_text=intent.note_text,
-                with_notes=intent.with_notes,
-            ),
-            mode=intent.mode,
-            context_segments=intent.context_segments,
+        try:
+            result = self.search(
+                intent.query,
+                filters=ResearchQueryFilters(
+                    tags=intent.tags,
+                    collections=intent.collections,
+                    note_text=intent.note_text,
+                    with_notes=intent.with_notes,
+                ),
+                mode=intent.mode,
+                context_segments=intent.context_segments,
+            )
+        except Exception as exc:
+            self._warning(
+                "research_saved_search_run_failed",
+                saved_search_id=saved.saved_search_id,
+                exception_type=type(exc).__name__,
+            )
+            raise
+        self._info(
+            "research_saved_search_run_completed",
+            saved_search_id=saved.saved_search_id,
+            retrieval_mode=intent.mode.value,
+            result_count=len(result.results),
         )
+        return result
 
     def workspace_navigation(self, *, limit: int = 10) -> WorkspaceNavigation:
         """Return disposable frequent/recent views over current research relationships."""
@@ -323,10 +405,20 @@ class ResearchWorkspaceService:
             tags=tags,
             collections=collections,
         )
-        return self._note_view(note)
+        view = self._note_view(note)
+        self._info(
+            "research_note_created",
+            note_id=note.note_id,
+            document_id=note.anchor.document_id,
+            canonical_sha256=note.anchor.canonical_sha256,
+            segment_count=len(note.anchor.segment_ids),
+        )
+        return view
 
     def update_note(self, note_id: str, body: str) -> ResearchNoteView:
-        return self._note_view(self.state.update_note(note_id, body))
+        note = self.state.update_note(note_id, body)
+        self._info("research_note_updated", note_id=note.note_id)
+        return self._note_view(note)
 
     def replace_note(
         self,
@@ -345,12 +437,55 @@ class ResearchWorkspaceService:
             collections=collections,
             expected_updated_at=expected_updated_at,
         )
+        self._info(
+            "research_note_updated",
+            note_id=note.note_id,
+            tag_count=len(tags),
+            collection_count=len(collections),
+        )
         return self._note_view(note)
 
     def delete_note(
         self, note_id: str, *, expected_updated_at: str | None = None
     ) -> None:
         self.state.delete_note(note_id, expected_updated_at=expected_updated_at)
+        self._info("research_note_deleted", note_id=note_id)
+
+    def open_note_evidence(
+        self,
+        note_id: str,
+        *,
+        context_segments: int = 1,
+    ) -> ResearchNoteEvidenceView:
+        """Reopen a note against its stored generation without silently rebinding it."""
+        note = self.state.note(note_id)
+        if note is None:
+            raise ResearchStateError("Research note does not exist")
+        view = self._note_view(note)
+        try:
+            located = self.navigation.locate_anchor(
+                note.anchor,
+                context_segments=context_segments,
+            )
+        except Exception as exc:
+            self._warning(
+                "research_note_evidence_open_failed",
+                note_id=note.note_id,
+                document_id=note.anchor.document_id,
+                canonical_sha256=note.anchor.canonical_sha256,
+                current=view.current,
+                exception_type=type(exc).__name__,
+            )
+            raise
+        self._info(
+            "research_note_evidence_opened",
+            note_id=note.note_id,
+            document_id=note.anchor.document_id,
+            canonical_sha256=note.anchor.canonical_sha256,
+            current=view.current,
+            context_segments=context_segments,
+        )
+        return ResearchNoteEvidenceView(note=view, located=located)
 
     def set_note_tags(self, note_id: str, names: tuple[str, ...]) -> ResearchNoteView:
         return self._note_view(self.state.set_note_tags(note_id, names))
@@ -583,3 +718,11 @@ class ResearchWorkspaceService:
         if document is None:
             raise ResearchStateError("Transcript is not present in the local library")
         return document
+
+    def _info(self, event: str, **fields: object) -> None:
+        if self.logger is not None:
+            self.logger.info(event, **fields)
+
+    def _warning(self, event: str, **fields: object) -> None:
+        if self.logger is not None:
+            self.logger.warning(event, **fields)

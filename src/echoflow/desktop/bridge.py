@@ -18,19 +18,26 @@ from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
 from echoflow.library.errors import ResearchStateError
 from echoflow.library.evidence import EvidenceContextSegment, EvidenceWord
+from echoflow.library.index import SearchQuery
 from echoflow.library.locations import (
     LibraryLocationKind,
     LibraryLocationService,
     RecordingProcessingPolicy,
 )
 from echoflow.library.research_workspace import (
+    ResearchNoteEvidenceView,
     ResearchNoteView,
     ResearchWorkspaceService,
     WorkspaceDiscoveryResponse,
+    WorkspaceSearchPassage,
+    WorkspaceSearchResponse,
 )
+from echoflow.library.workspace_metadata import SavedSearch
 
 _PROTOCOL_VERSION = 1
 _MAX_REQUEST_BYTES = 128 * 1024
+_DESKTOP_DEFAULT_SEARCH_LIMIT = 20
+_DESKTOP_DEFAULT_CONTEXT_SEGMENTS = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +63,11 @@ class _DesktopRequest(BaseModel):
         "workspace.research.note.create",
         "workspace.research.note.update",
         "workspace.research.note.delete",
+        "workspace.research.note.evidence",
+        "workspace.research.saved_search.create",
+        "workspace.research.saved_search.update",
+        "workspace.research.saved_search.delete",
+        "workspace.research.saved_search.run",
     ]
     params: dict[str, object] = Field(default_factory=dict)
 
@@ -173,6 +185,99 @@ class _DeleteResearchNoteParams(BaseModel):
         return stripped
 
 
+class _OpenResearchNoteEvidenceParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note_id: str = Field(min_length=1, max_length=200)
+    context_segments: int = Field(default=1, ge=0, le=10)
+
+    @field_validator("note_id")
+    @classmethod
+    def strip_note_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("note_id cannot be blank")
+        return stripped
+
+
+class _CreateSavedSearchParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    query_text: str = Field(min_length=1, max_length=4_096)
+    description: str | None = Field(default=None, max_length=4_000)
+
+    @field_validator("name", "query_text")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value cannot be blank")
+        return stripped
+
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class _UpdateSavedSearchParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    saved_search_id: str = Field(min_length=1, max_length=200)
+    expected_updated_at: str = Field(min_length=1, max_length=200)
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=4_000)
+
+    @field_validator("saved_search_id", "expected_updated_at", "name")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value cannot be blank")
+        return stripped
+
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class _DeleteSavedSearchParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    saved_search_id: str = Field(min_length=1, max_length=200)
+    expected_updated_at: str = Field(min_length=1, max_length=200)
+
+    @field_validator("saved_search_id", "expected_updated_at")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value cannot be blank")
+        return stripped
+
+
+class _RunSavedSearchParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    saved_search_id: str = Field(min_length=1, max_length=200)
+
+    @field_validator("saved_search_id")
+    @classmethod
+    def strip_saved_search_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("saved_search_id cannot be blank")
+        return stripped
+
+
 def _success(request_id: str, result: object) -> dict[str, object]:
     return {
         "protocol_version": _PROTOCOL_VERSION,
@@ -235,41 +340,43 @@ def _serialize_note(item: ResearchNoteView) -> dict[str, object]:
     }
 
 
+def _serialize_workspace_passage(item: WorkspaceSearchPassage) -> dict[str, object]:
+    return {
+        "document_id": item.located.evidence.document_id,
+        "source_sha256": item.located.evidence.source_sha256,
+        "canonical_sha256": item.located.evidence.canonical_sha256,
+        "segment_ids": list(item.located.evidence.result_segment_ids),
+        "text": item.located.passage.text,
+        "start_seconds": item.located.evidence.start_seconds,
+        "end_seconds": item.located.evidence.end_seconds,
+        "seek_seconds": item.located.evidence.seek_seconds,
+        "languages": list(item.located.passage.languages),
+        "speakers": [
+            {
+                "speaker_ref": speaker.speaker_ref,
+                "display_label": speaker.display_label,
+            }
+            for speaker in item.located.speakers
+        ],
+        "matched_words": [
+            _serialize_word(word) for word in item.located.evidence.matched_words
+        ],
+        "context_segments": [
+            _serialize_context_segment(segment)
+            for segment in item.located.evidence.context_segments
+        ],
+        "note_count": item.research.note_count,
+        "tags": list(item.research.tags),
+        "collections": list(item.research.collections),
+    }
+
+
 def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object]:
     return {
         "query": report.query,
         "total_count": report.total_count,
         "evidence": [
-            {
-                "document_id": item.located.evidence.document_id,
-                "source_sha256": item.located.evidence.source_sha256,
-                "canonical_sha256": item.located.evidence.canonical_sha256,
-                "segment_ids": list(item.located.evidence.result_segment_ids),
-                "text": item.located.passage.text,
-                "start_seconds": item.located.evidence.start_seconds,
-                "end_seconds": item.located.evidence.end_seconds,
-                "seek_seconds": item.located.evidence.seek_seconds,
-                "languages": list(item.located.passage.languages),
-                "speakers": [
-                    {
-                        "speaker_ref": speaker.speaker_ref,
-                        "display_label": speaker.display_label,
-                    }
-                    for speaker in item.located.speakers
-                ],
-                "matched_words": [
-                    _serialize_word(word)
-                    for word in item.located.evidence.matched_words
-                ],
-                "context_segments": [
-                    _serialize_context_segment(segment)
-                    for segment in item.located.evidence.context_segments
-                ],
-                "note_count": item.research.note_count,
-                "tags": list(item.research.tags),
-                "collections": list(item.research.collections),
-            }
-            for item in report.transcripts.results
+            _serialize_workspace_passage(item) for item in report.transcripts.results
         ],
         "notes": [_serialize_note(item) for item in report.notes],
         "tags": [{"tag_id": item.tag_id, "name": item.name} for item in report.tags],
@@ -277,6 +384,18 @@ def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object
             {"collection_id": item.collection_id, "name": item.name}
             for item in report.collections
         ],
+    }
+
+
+def _serialize_saved_search(item: SavedSearch) -> dict[str, object]:
+    return {
+        "saved_search_id": item.saved_search_id,
+        "name": item.name,
+        "description": item.description,
+        "query_text": item.intent.query.text,
+        "retrieval_mode": item.intent.mode.value,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
     }
 
 
@@ -293,17 +412,58 @@ def _serialize_research_overview(
             {"collection_id": item.collection_id, "name": item.name}
             for item in workspace.collections()
         ],
-        "saved_searches": [
-            {
-                "saved_search_id": item.saved_search_id,
-                "name": item.name,
-                "description": item.description,
-                "query_text": item.intent.query.text,
-                "retrieval_mode": item.intent.mode.value,
-                "updated_at": item.updated_at,
-            }
-            for item in saved_searches
-        ],
+        "saved_searches": [_serialize_saved_search(item) for item in saved_searches],
+    }
+
+
+def _serialize_note_evidence(item: ResearchNoteEvidenceView) -> dict[str, object]:
+    evidence = item.located.evidence
+    result_ids = set(evidence.result_segment_ids)
+    text = " ".join(
+        segment.text
+        for segment in evidence.context_segments
+        if segment.segment_id in result_ids
+    )
+    return {
+        "note_id": item.note.note.note_id,
+        "current": item.note.current,
+        "evidence": {
+            "document_id": evidence.document_id,
+            "source_sha256": evidence.source_sha256,
+            "canonical_sha256": evidence.canonical_sha256,
+            "segment_ids": list(evidence.result_segment_ids),
+            "text": text,
+            "start_seconds": evidence.start_seconds,
+            "end_seconds": evidence.end_seconds,
+            "seek_seconds": evidence.seek_seconds,
+            "languages": [],
+            "speakers": [
+                {
+                    "speaker_ref": speaker.speaker_ref,
+                    "display_label": speaker.display_label,
+                }
+                for speaker in item.located.speakers
+            ],
+            "matched_words": [_serialize_word(word) for word in evidence.matched_words],
+            "context_segments": [
+                _serialize_context_segment(segment)
+                for segment in evidence.context_segments
+            ],
+            "note_count": 1,
+            "tags": list(item.note.tags),
+            "collections": list(item.note.collections),
+        },
+    }
+
+
+def _serialize_saved_search_run(
+    saved: SavedSearch,
+    report: WorkspaceSearchResponse,
+) -> dict[str, object]:
+    return {
+        "saved_search": _serialize_saved_search(saved),
+        "query": report.navigation.retrieval.query.text,
+        "evidence": [_serialize_workspace_passage(item) for item in report.results],
     }
 
 
@@ -360,6 +520,103 @@ def _delete_research_note(
     return {"note_id": params.note_id, "deleted": True}
 
 
+def _open_research_note_evidence(
+    params: _OpenResearchNoteEvidenceParams,
+    workspace: ResearchWorkspaceService,
+) -> dict[str, object]:
+    opened = workspace.open_note_evidence(
+        params.note_id,
+        context_segments=params.context_segments,
+    )
+    return _serialize_note_evidence(opened)
+
+
+def _create_saved_search(
+    params: _CreateSavedSearchParams,
+    workspace: ResearchWorkspaceService,
+) -> dict[str, object]:
+    saved = workspace.save_search(
+        params.name,
+        SearchQuery(params.query_text, limit=_DESKTOP_DEFAULT_SEARCH_LIMIT),
+        context_segments=_DESKTOP_DEFAULT_CONTEXT_SEGMENTS,
+        description=params.description,
+    )
+    return _serialize_saved_search(saved)
+
+
+def _update_saved_search(
+    params: _UpdateSavedSearchParams,
+    workspace: ResearchWorkspaceService,
+) -> dict[str, object]:
+    saved = workspace.rename_saved_search(
+        params.saved_search_id,
+        name=params.name,
+        description=params.description,
+        expected_updated_at=params.expected_updated_at,
+    )
+    return _serialize_saved_search(saved)
+
+
+def _delete_saved_search(
+    params: _DeleteSavedSearchParams,
+    workspace: ResearchWorkspaceService,
+) -> dict[str, object]:
+    workspace.delete_saved_search(
+        params.saved_search_id,
+        expected_updated_at=params.expected_updated_at,
+    )
+    return {"saved_search_id": params.saved_search_id, "deleted": True}
+
+
+def _run_saved_search(
+    params: _RunSavedSearchParams,
+    workspace: ResearchWorkspaceService,
+) -> dict[str, object]:
+    saved = workspace.saved_search(params.saved_search_id)
+    if saved is None:
+        raise ResearchStateError("Saved search does not exist")
+    report = workspace.run_saved_search(saved.saved_search_id)
+    return _serialize_saved_search_run(saved, report)
+
+
+def _dispatch_research_note(
+    request: _DesktopRequest,
+    workspace: ResearchWorkspaceService,
+) -> object:
+    if request.method == "workspace.research.note.create":
+        create_params = _CreateResearchNoteParams.model_validate(request.params)
+        return _create_research_note(create_params, workspace)
+    if request.method == "workspace.research.note.update":
+        update_params = _UpdateResearchNoteParams.model_validate(request.params)
+        return _update_research_note(update_params, workspace)
+    if request.method == "workspace.research.note.delete":
+        delete_params = _DeleteResearchNoteParams.model_validate(request.params)
+        return _delete_research_note(delete_params, workspace)
+    if request.method == "workspace.research.note.evidence":
+        evidence_params = _OpenResearchNoteEvidenceParams.model_validate(request.params)
+        return _open_research_note_evidence(evidence_params, workspace)
+    raise ValueError("Unsupported research note desktop method")
+
+
+def _dispatch_saved_search(
+    request: _DesktopRequest,
+    workspace: ResearchWorkspaceService,
+) -> object:
+    if request.method == "workspace.research.saved_search.create":
+        create_params = _CreateSavedSearchParams.model_validate(request.params)
+        return _create_saved_search(create_params, workspace)
+    if request.method == "workspace.research.saved_search.update":
+        update_params = _UpdateSavedSearchParams.model_validate(request.params)
+        return _update_saved_search(update_params, workspace)
+    if request.method == "workspace.research.saved_search.delete":
+        delete_params = _DeleteSavedSearchParams.model_validate(request.params)
+        return _delete_saved_search(delete_params, workspace)
+    if request.method == "workspace.research.saved_search.run":
+        run_params = _RunSavedSearchParams.model_validate(request.params)
+        return _run_saved_search(run_params, workspace)
+    raise ValueError("Unsupported saved-search desktop method")
+
+
 def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
     if request.method == "locations.list":
         _NoParams.model_validate(request.params)
@@ -403,17 +660,11 @@ def _dispatch(request: _DesktopRequest, services: DesktopServices) -> object:
         _NoParams.model_validate(request.params)
         return _serialize_research_overview(services.workspace)
 
-    if request.method == "workspace.research.note.create":
-        create_params = _CreateResearchNoteParams.model_validate(request.params)
-        return _create_research_note(create_params, services.workspace)
+    if request.method.startswith("workspace.research.note."):
+        return _dispatch_research_note(request, services.workspace)
 
-    if request.method == "workspace.research.note.update":
-        update_params = _UpdateResearchNoteParams.model_validate(request.params)
-        return _update_research_note(update_params, services.workspace)
-
-    if request.method == "workspace.research.note.delete":
-        delete_params = _DeleteResearchNoteParams.model_validate(request.params)
-        return _delete_research_note(delete_params, services.workspace)
+    if request.method.startswith("workspace.research.saved_search."):
+        return _dispatch_saved_search(request, services.workspace)
 
     refresh_params = _RefreshParams.model_validate(request.params)
     refresh_report = services.locations.refresh_transcript_locations(

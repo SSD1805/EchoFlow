@@ -128,9 +128,15 @@ class WorkspaceMetadataStore(Protocol):
         name: str,
         description: str | None,
         intent: SavedSearchIntent,
+        expected_updated_at: str | None = None,
     ) -> SavedSearch: ...
 
-    def delete_saved_search(self, saved_search_id: str) -> None: ...
+    def delete_saved_search(
+        self,
+        saved_search_id: str,
+        *,
+        expected_updated_at: str | None = None,
+    ) -> None: ...
 
     def saved_search(self, identifier: str) -> SavedSearch | None: ...
 
@@ -201,31 +207,28 @@ class SqliteWorkspaceMetadataStore:
         name: str,
         description: str | None,
         intent: SavedSearchIntent,
+        expected_updated_at: str | None = None,
     ) -> SavedSearch:
         resolved_id = self._validate_identifier(saved_search_id, "saved_search_id")
         resolved_name = self._validate_name(name)
         resolved_description = self._normalize_description(description)
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            if self._saved_search_by_id(connection, resolved_id) is None:
+            current = self._saved_search_by_id(connection, resolved_id)
+            if current is None:
                 raise ResearchStateError("Saved search does not exist")
+            self._require_current_version(current, expected_updated_at)
             self._require_unique_name(
                 connection,
                 resolved_name,
                 excluding_id=resolved_id,
             )
-            current = connection.execute(
-                "SELECT created_at FROM saved_searches WHERE saved_search_id = ?",
-                (resolved_id,),
-            ).fetchone()
-            if current is None:
-                raise ResearchStateError("Saved search does not exist")
             values = self._row_values(
                 resolved_id,
                 resolved_name,
                 resolved_description,
                 intent,
-                created_at=str(current[0]),
+                created_at=current.created_at,
                 updated_at=self._now(),
             )
             changed = connection.execute(
@@ -249,10 +252,19 @@ class SqliteWorkspaceMetadataStore:
             raise ResearchStateError("Updated saved search could not be read back")
         return saved
 
-    def delete_saved_search(self, saved_search_id: str) -> None:
+    def delete_saved_search(
+        self,
+        saved_search_id: str,
+        *,
+        expected_updated_at: str | None = None,
+    ) -> None:
         resolved_id = self._validate_identifier(saved_search_id, "saved_search_id")
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            current = self._saved_search_by_id(connection, resolved_id)
+            if current is None:
+                raise ResearchStateError("Saved search does not exist")
+            self._require_current_version(current, expected_updated_at)
             changed = connection.execute(
                 "DELETE FROM saved_searches WHERE saved_search_id = ?",
                 (resolved_id,),
@@ -487,6 +499,18 @@ class SqliteWorkspaceMetadataStore:
             raise ResearchStateError(
                 "Saved search state is corrupt", cause=exc
             ) from exc
+
+    @staticmethod
+    def _require_current_version(
+        saved: SavedSearch,
+        expected_updated_at: str | None,
+    ) -> None:
+        if expected_updated_at is None:
+            return
+        if saved.updated_at != expected_updated_at:
+            raise ResearchStateError(
+                "Saved search changed since it was opened; refresh before saving"
+            )
 
     @staticmethod
     def _encode_tuple(values: tuple[str, ...]) -> str:

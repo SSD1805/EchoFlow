@@ -91,6 +91,12 @@ export interface ResearchNoteUpdate {
   collections: string[];
 }
 
+export interface ResearchNoteEvidenceResult {
+  note_id: string;
+  current: boolean;
+  evidence: WorkspaceEvidenceResult;
+}
+
 export interface WorkspaceNamedResult {
   name: string;
 }
@@ -118,7 +124,14 @@ export interface ResearchSavedSearchResult {
   description: string | null;
   query_text: string;
   retrieval_mode: string;
+  created_at?: string;
   updated_at: string;
+}
+
+export interface SavedSearchRunResult {
+  saved_search: ResearchSavedSearchResult;
+  query: string;
+  evidence: WorkspaceEvidenceResult[];
 }
 
 export interface ResearchOverview {
@@ -163,6 +176,19 @@ export interface DesktopClient {
     update: ResearchNoteUpdate,
   ): Promise<ResearchNoteResult>;
   deleteResearchNote(note: ResearchNoteResult): Promise<void>;
+  openResearchNoteEvidence(note: ResearchNoteResult): Promise<ResearchNoteEvidenceResult>;
+  createSavedSearch(
+    name: string,
+    queryText: string,
+    description: string | null,
+  ): Promise<ResearchSavedSearchResult>;
+  updateSavedSearch(
+    saved: ResearchSavedSearchResult,
+    name: string,
+    description: string | null,
+  ): Promise<ResearchSavedSearchResult>;
+  deleteSavedSearch(saved: ResearchSavedSearchResult): Promise<void>;
+  runSavedSearch(saved: ResearchSavedSearchResult): Promise<SavedSearchRunResult>;
 }
 
 function assertResponse<T>(value: unknown): DesktopResponse<T> {
@@ -316,6 +342,51 @@ class TauriDesktopClient implements DesktopClient {
       expected_updated_at: note.updated_at,
     });
   }
+
+  openResearchNoteEvidence(note: ResearchNoteResult): Promise<ResearchNoteEvidenceResult> {
+    return this.request("workspace.research.note.evidence", {
+      note_id: note.note_id,
+      context_segments: 1,
+    });
+  }
+
+  createSavedSearch(
+    name: string,
+    queryText: string,
+    description: string | null,
+  ): Promise<ResearchSavedSearchResult> {
+    return this.request("workspace.research.saved_search.create", {
+      name,
+      query_text: queryText,
+      description,
+    });
+  }
+
+  updateSavedSearch(
+    saved: ResearchSavedSearchResult,
+    name: string,
+    description: string | null,
+  ): Promise<ResearchSavedSearchResult> {
+    return this.request("workspace.research.saved_search.update", {
+      saved_search_id: saved.saved_search_id,
+      expected_updated_at: saved.updated_at,
+      name,
+      description,
+    });
+  }
+
+  async deleteSavedSearch(saved: ResearchSavedSearchResult): Promise<void> {
+    await this.request("workspace.research.saved_search.delete", {
+      saved_search_id: saved.saved_search_id,
+      expected_updated_at: saved.updated_at,
+    });
+  }
+
+  runSavedSearch(saved: ResearchSavedSearchResult): Promise<SavedSearchRunResult> {
+    return this.request("workspace.research.saved_search.run", {
+      saved_search_id: saved.saved_search_id,
+    });
+  }
 }
 
 class MockDesktopClient implements DesktopClient {
@@ -349,6 +420,17 @@ class MockDesktopClient implements DesktopClient {
       collections: ["Field notes"],
       created_at: "2026-08-18T14:10:00+00:00",
       updated_at: "2026-08-18T14:10:00+00:00",
+    },
+  ];
+  private savedSearches: ResearchSavedSearchResult[] = [
+    {
+      saved_search_id: "search-9",
+      name: "Governance follow-up",
+      description: "Questions to revisit across interviews",
+      query_text: "governance",
+      retrieval_mode: "lexical",
+      created_at: "2026-08-19T19:30:00+00:00",
+      updated_at: "2026-08-19T19:31:00+00:00",
     },
   ];
 
@@ -553,16 +635,7 @@ class MockDesktopClient implements DesktopClient {
         collection_id: `collection-${index + 1}`,
         name,
       })),
-      saved_searches: [
-        {
-          saved_search_id: "search-9",
-          name: "Governance follow-up",
-          description: "Questions to revisit across interviews",
-          query_text: "governance",
-          retrieval_mode: "lexical",
-          updated_at: "2026-08-19T19:31:00+00:00",
-        },
-      ],
+      saved_searches: this.savedSearches.map((saved) => ({ ...saved })),
     };
   }
 
@@ -624,6 +697,161 @@ class MockDesktopClient implements DesktopClient {
       throw new Error("Research note changed since it was opened; refresh before saving");
     }
     this.researchNotes.splice(index, 1);
+  }
+
+  async openResearchNoteEvidence(
+    note: ResearchNoteResult,
+  ): Promise<ResearchNoteEvidenceResult> {
+    const current = this.researchNotes.find((item) => item.note_id === note.note_id);
+    if (!current) throw new Error("Research note does not exist");
+    const old = !current.current;
+    const segmentId = current.segment_ids[0] ?? "segment-unknown";
+    const text = old
+      ? "Earlier verified evidence retained from this transcript generation."
+      : "We started the ABC program after the second interview round.";
+    const beforeText = old
+      ? "Context from the earlier canonical generation."
+      : "We had already completed two rounds of interviews.";
+    const afterText = old
+      ? "Later context from the same earlier generation."
+      : "The first cohort joined the following month.";
+    const speakerRef = old ? "speaker-old" : "speaker-1";
+    return {
+      note_id: current.note_id,
+      current: current.current,
+      evidence: {
+        document_id: current.document_id,
+        source_sha256: old ? "d".repeat(64) : "b".repeat(64),
+        canonical_sha256: current.canonical_sha256,
+        segment_ids: [...current.segment_ids],
+        text,
+        start_seconds: current.start_seconds,
+        end_seconds: current.end_seconds,
+        seek_seconds: current.start_seconds,
+        languages: [],
+        speakers: [
+          {
+            speaker_ref: speakerRef,
+            display_label: old ? "Earlier participant" : "Participant A",
+          },
+        ],
+        matched_words: [],
+        context_segments: [
+          {
+            segment_id: `${segmentId}-before`,
+            start_seconds: Math.max(0, current.start_seconds - 8),
+            end_seconds: current.start_seconds,
+            text: beforeText,
+            speaker_refs: [speakerRef],
+            words: [],
+            is_result_segment: false,
+            lexical_match: false,
+          },
+          {
+            segment_id: segmentId,
+            start_seconds: current.start_seconds,
+            end_seconds: current.end_seconds,
+            text,
+            speaker_refs: [speakerRef],
+            words: [],
+            is_result_segment: true,
+            lexical_match: false,
+          },
+          {
+            segment_id: `${segmentId}-after`,
+            start_seconds: current.end_seconds,
+            end_seconds: current.end_seconds + 8,
+            text: afterText,
+            speaker_refs: [speakerRef],
+            words: [],
+            is_result_segment: false,
+            lexical_match: false,
+          },
+        ],
+        note_count: 1,
+        tags: [...current.tags],
+        collections: [...current.collections],
+      },
+    };
+  }
+
+  async createSavedSearch(
+    name: string,
+    queryText: string,
+    description: string | null,
+  ): Promise<ResearchSavedSearchResult> {
+    const trimmedName = name.trim();
+    const trimmedQuery = queryText.trim();
+    if (!trimmedName || !trimmedQuery) throw new Error("Saved search requires a name and query");
+    if (
+      this.savedSearches.some(
+        (saved) => saved.name.toLocaleLowerCase() === trimmedName.toLocaleLowerCase(),
+      )
+    ) {
+      throw new Error("A saved search with that name already exists");
+    }
+    const now = this.nextResearchTimestamp();
+    const saved: ResearchSavedSearchResult = {
+      saved_search_id: `search-created-${this.savedSearches.length + 1}`,
+      name: trimmedName,
+      description: description?.trim() || null,
+      query_text: trimmedQuery,
+      retrieval_mode: "lexical",
+      created_at: now,
+      updated_at: now,
+    };
+    this.savedSearches.unshift(saved);
+    return { ...saved };
+  }
+
+  async updateSavedSearch(
+    saved: ResearchSavedSearchResult,
+    name: string,
+    description: string | null,
+  ): Promise<ResearchSavedSearchResult> {
+    const index = this.savedSearches.findIndex(
+      (item) => item.saved_search_id === saved.saved_search_id,
+    );
+    const current = this.savedSearches[index];
+    if (index < 0 || !current) throw new Error("Saved search does not exist");
+    if (current.updated_at !== saved.updated_at) {
+      throw new Error("Saved search changed since it was opened; refresh before saving");
+    }
+    const trimmedName = name.trim();
+    if (!trimmedName) throw new Error("Saved search name cannot be blank");
+    const updated: ResearchSavedSearchResult = {
+      ...current,
+      name: trimmedName,
+      description: description?.trim() || null,
+      updated_at: this.nextResearchTimestamp(),
+    };
+    this.savedSearches[index] = updated;
+    return { ...updated };
+  }
+
+  async deleteSavedSearch(saved: ResearchSavedSearchResult): Promise<void> {
+    const index = this.savedSearches.findIndex(
+      (item) => item.saved_search_id === saved.saved_search_id,
+    );
+    const current = this.savedSearches[index];
+    if (index < 0 || !current) throw new Error("Saved search does not exist");
+    if (current.updated_at !== saved.updated_at) {
+      throw new Error("Saved search changed since it was opened; refresh before saving");
+    }
+    this.savedSearches.splice(index, 1);
+  }
+
+  async runSavedSearch(saved: ResearchSavedSearchResult): Promise<SavedSearchRunResult> {
+    const current = this.savedSearches.find(
+      (item) => item.saved_search_id === saved.saved_search_id,
+    );
+    if (!current) throw new Error("Saved search does not exist");
+    const discovery = await this.discoverWorkspace(current.query_text);
+    return {
+      saved_search: { ...current },
+      query: discovery.query,
+      evidence: discovery.evidence,
+    };
   }
 
   private nextResearchTimestamp(): string {

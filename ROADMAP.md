@@ -9,9 +9,9 @@ under clear custody.
 
 Modern EchoFlow restarted on August 2, 2026. The project has moved from “can we transcribe
 a file?” through a substantial backend foundation and into real desktop evidence and
-research workflows. This roadmap now audits the full product surface so backend capability
-and desktop productization can be planned together rather than rediscovered a few features
-at a time.
+research workflows. This roadmap audits the full product surface so backend capability and
+desktop productization can be planned together rather than rediscovered a few features at
+a time.
 
 ```mermaid
 flowchart LR
@@ -29,11 +29,12 @@ flowchart LR
     K --> L[Tauri React desktop]
     L --> M[Import and Library UI]
     M --> N[Verified evidence reader]
-    N --> O[Research workspace UI]
-    O --> P[Local media playback]
-    P --> Q[Desktop packaging]
-    Q --> R[Backup restore portability]
-    R --> S[Release qualification]
+    N --> O[Research evidence loop]
+    O --> P[Processing center]
+    P --> Q[Local media playback]
+    Q --> R[Desktop packaging]
+    R --> S[Backup restore portability]
+    S --> T[Release qualification]
 
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
     classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
@@ -46,7 +47,7 @@ flowchart LR
     class C,E,F evidence
     class D,G,H,I,J,K view
     class L,M,N inspect
-    class O,P,Q,R,S process
+    class O,P,Q,R,S,T process
 ```
 
 <details>
@@ -59,9 +60,10 @@ flowchart LR
 Text fallback: EchoFlow already spans local media, reliable transcription, canonical
 evidence, retrieval, verified navigation, durable research, lifecycle controls, incremental
 refresh, remembered locations, native import, Library discovery, the verified evidence
-reader, and the first Research interactions. Remaining work is primarily productization:
-finish the research loop, expose processing/model/job controls, add playback and lifecycle
-UI, package the application, make durable work portable, and qualify real devices.
+reader, exact-generation research return, note mutation, and saved-search lifecycle.
+Remaining work is primarily productization: finish advanced Research/search controls, expose
+processing/model/job controls, add playback and lifecycle UI, package the application, make
+durable work portable, and qualify real devices.
 
 # What is foundation now
 
@@ -99,6 +101,11 @@ evidence only after EchoFlow reopens the canonical transcript, verifies generati
 identity, resolves exact segment/word coordinates, and returns a source-relative seek
 coordinate.
 
+Durable research anchors now use the same verifier as search navigation. A note can reopen
+its exact stored canonical generation, even when that generation is older than the current
+library document. Missing, changed, or incompatible anchored evidence fails closed rather
+than being silently rebound.
+
 ## Durable research workspace
 
 Authoritative SQLite owns notes, tags, collections, evidence anchors, and saved-search
@@ -106,13 +113,20 @@ intent. A monotonic journal drives a rebuildable DuckDB research projection.
 `ResearchWorkspaceService` composes those stores with verified transcript retrieval.
 
 The desktop can browse current and older-generation notes, create a note from verified
-evidence, and edit/delete notes plus replace tag/collection assignments. Desktop edits are
-optimistic-concurrency checked against the authoritative `updated_at` version and body plus
-labels commit atomically with one research-journal event. Editing research never silently
-rebinds its canonical evidence anchor.
+evidence, edit/delete notes, replace tag/collection assignments, and reopen the exact
+canonical evidence a note cites. Desktop note edits are optimistic-concurrency checked
+against authoritative `updated_at`; body plus labels commit atomically with one
+research-journal event. Editing research never silently rebinds its evidence anchor.
 
-Saved searches are durable questions, not result snapshots. Their backend lifecycle is
-implemented; desktop create/run/rename/delete remains work.
+Saved searches are durable questions, not result snapshots. The desktop can now create,
+run, rename, and delete them. Rename/delete operations are version-checked in the
+authoritative SQLite transaction, while rename preserves the existing typed query intent
+server-side. Running a saved search resolves current evidence and current research
+relationships again.
+
+Research operations emit privacy-safe structured events through the normal application
+logger. Logs carry operation identity, generation identity, modes, counts, and outcomes,
+not note bodies, query text, saved-search names/descriptions, or raw filesystem paths.
 
 ## Safe deletion, refresh, and locations
 
@@ -143,9 +157,12 @@ EchoFlow Desktop
 The shell provides Archive/Midnight themes, keyboard-visible navigation, native file/folder
 selection, one-time versus remembered import choices, recording discovery, transcript
 refresh, grouped Library discovery, verified evidence reading/cursor movement, Research
-browse, provenance-bound note creation, and version-checked note mutation.
+browse, provenance-bound note creation, version-checked note mutation, exact-generation
+research return, and saved-search lifecycle/replay.
 
-React does not receive arbitrary shell, SQL/database, or raw evidence-path capability.
+React does not receive arbitrary shell, SQL/database, or raw evidence-path capability. It
+also does not decide whether a research anchor is valid, which generation should satisfy
+it, how saved-search intent is represented, or whether a stale durable mutation may win.
 
 # Capability → desktop productization audit
 
@@ -171,11 +188,11 @@ or CLI contract worth productizing, not that the desktop should simply expose a 
 | Lexical BM25 retrieval | private corpus ranking | **implemented** through Library discovery | advanced phrase/ANY/ALL and sort controls | Research/search completion |
 | Semantic retrieval | optional local chunks/embeddings | backend ready, not normal packaged path | desktop mode control after model/dependency custody qualification | Search + semantic qualification |
 | Hybrid RRF retrieval | lexical + semantic rank fusion | backend ready | retrieval-mode control and explainable result state | Search + semantic qualification |
-| Verified evidence navigation | generation verification, context, exact word timing and seek coordinate | **implemented** | research-object return path and media playback | Research completion + playback |
+| Verified evidence navigation | generation verification, context, exact word timing and seek coordinate | search results and note anchors **implemented** | tag/collection return path and media playback | Research completion + playback |
 | Unified discovery | typed transcript/note/tag/collection groups without fabricated cross-type score | **implemented** | richer filters and object-specific actions | Research/search completion |
-| Research notes | exact generation-bound anchors in authoritative SQLite | browse/create/edit/delete **implemented in current tranche** | research-object → evidence navigation, stale-anchor review/re-anchor UX | Research completion |
-| Tags and collections | durable names/relationships + rebuildable projection | browse + note assignment **implemented in current tranche** | dedicated navigation/filter/manage flows | Research completion |
-| Saved searches | create/run/delete typed intent, current-corpus re-resolution | browse only | create/run/rename/delete UI, result handoff | Research completion |
+| Research notes | exact generation-bound anchors in authoritative SQLite | browse/create/edit/delete/exact-evidence return **implemented** | explicit unavailable/stale-anchor review and intentional re-anchor UX | Research completion |
+| Tags and collections | durable names/relationships + rebuildable projection | browse + note assignment **implemented** | dedicated navigation/filter/manage flows | Research completion |
+| Saved searches | typed durable intent with current-corpus re-resolution and version-safe rename/delete | create/run/rename/delete + result handoff **implemented** | advanced typed intent editing alongside search controls | Research/search completion |
 | Research-aware filtering | tags/collections/note text constrain evidence before ranking | backend ready | desktop filters with inspectable active state | Research/search completion |
 | Safe deletion | typed dry-run plans, exact confirmation binding, source double-guard | none | custody center with plan review and explicit confirmation | Lifecycle UI |
 | Retention | execution-state-only age policies preserving evidence/research | none | retention settings, preview, cleanup result | Lifecycle UI |
@@ -195,7 +212,7 @@ processing/control plane in Python, but a normal desktop user cannot yet launch 
 that work. Productization should expose that capability before packaging freezes the native
 runtime shape.
 
-## 1. Finish the Research and Library interaction loop
+## 1. Finish Research search, navigation, and stale-anchor polish
 
 Current foundation after this tranche:
 
@@ -204,21 +221,23 @@ Current foundation after this tranche:
 - note creation from a verified evidence window;
 - atomic edit of note body + tag/collection assignments;
 - guarded note deletion;
-- optimistic concurrency using authoritative `updated_at`; and
-- no frontend SQL, SQLite, or raw evidence paths.
+- optimistic concurrency using authoritative `updated_at`;
+- exact-generation note → verified-evidence return with no automatic rebinding;
+- saved-search create/run/rename/delete and result-to-evidence handoff;
+- saved-search mutation concurrency in authoritative SQLite; and
+- no frontend SQL, SQLite, raw evidence paths, or generation-selection logic.
 
 Remaining work:
 
-- create, run, rename, and delete saved searches;
-- navigate a note/tag/collection/saved-search result back to current verified evidence when
-  possible;
-- preserve older-generation anchors visibly and provide explicit review/re-anchor rather
-  than automatic migration; and
+- make tags and collections first-class navigation/filter affordances instead of labels only;
+- provide an explicit stale/unavailable-anchor review workflow and, if added, a deliberate
+  re-anchor operation that never masquerades as the original evidence generation; and
 - expose typed search controls for phrase/ANY/ALL, speaker, language, transcript, research
   filters, retrieval mode, and sort.
 
-This closes the loop: **find evidence → verify → annotate → organize → ask a durable
-question → return to evidence.**
+The primary research circuit is now real: **find evidence → verify → annotate → organize →
+ask a durable question → replay it → return to exact evidence.** The remaining work makes
+that circuit richer rather than inventing its authority.
 
 ## 2. Build the desktop Processing center
 

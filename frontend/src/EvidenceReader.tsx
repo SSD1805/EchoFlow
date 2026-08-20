@@ -12,7 +12,9 @@ import "./evidence-reader.css";
 interface EvidenceReaderProps {
   evidence: WorkspaceEvidenceResult;
   onClose: () => void;
-  onCreateNote: (body: string) => Promise<void>;
+  onCreateNote?: ((body: string) => Promise<void>) | undefined;
+  generationState?: "current" | "older";
+  resultLabel?: string;
 }
 
 function wordSeparator(current: WorkspaceMatchedWord, next: WorkspaceMatchedWord | undefined) {
@@ -46,7 +48,13 @@ function renderWords(
   ));
 }
 
-export function EvidenceReader({ evidence, onClose, onCreateNote }: EvidenceReaderProps) {
+export function EvidenceReader({
+  evidence,
+  onClose,
+  onCreateNote,
+  generationState = "current",
+  resultLabel = "Search result",
+}: EvidenceReaderProps) {
   const [cursorSeconds, setCursorSeconds] = useState(evidence.seek_seconds);
   const [noteBody, setNoteBody] = useState("");
   const [savingNote, setSavingNote] = useState(false);
@@ -76,6 +84,10 @@ export function EvidenceReader({ evidence, onClose, onCreateNote }: EvidenceRead
     if (!body) {
       setNoteError("Write a note before saving it.");
       setNoteStatus(null);
+      return;
+    }
+    if (!onCreateNote) {
+      setNoteError("This evidence generation is preserved for review, not new annotation.");
       return;
     }
 
@@ -109,6 +121,15 @@ export function EvidenceReader({ evidence, onClose, onCreateNote }: EvidenceRead
         </button>
       </header>
 
+      <p
+        className={`evidence-generation-banner evidence-generation-${generationState}`}
+        role="status"
+      >
+        {generationState === "current"
+          ? "Current verified canonical generation"
+          : "Older verified canonical generation · EchoFlow opened the exact evidence this research object cites and did not rebind it to the current transcript."}
+      </p>
+
       <dl className="evidence-proof">
         <div>
           <dt>Transcript</dt>
@@ -135,7 +156,7 @@ export function EvidenceReader({ evidence, onClose, onCreateNote }: EvidenceRead
               <time dateTime={`PT${evidence.start_seconds}S`}>
                 {formatEvidenceTime(evidence.start_seconds)}
               </time>
-              <span>Search result</span>
+              <span>{resultLabel}</span>
             </div>
             <p>{evidence.text}</p>
           </section>
@@ -149,7 +170,7 @@ export function EvidenceReader({ evidence, onClose, onCreateNote }: EvidenceRead
                 <time dateTime={`PT${segment.start_seconds}S`}>
                   {formatEvidenceTime(segment.start_seconds)}
                 </time>
-                <span>{segment.is_result_segment ? "Search result" : "Context"}</span>
+                <span>{segment.is_result_segment ? resultLabel : "Context"}</span>
                 {segment.speaker_refs.length > 0 && (
                   <span>{segment.speaker_refs.join(", ")}</span>
                 )}
@@ -160,39 +181,49 @@ export function EvidenceReader({ evidence, onClose, onCreateNote }: EvidenceRead
         )}
       </div>
 
-      <section className="evidence-note-compose" aria-labelledby="evidence-note-title">
-        <div>
-          <p className="mini-label">Durable research</p>
-          <h3 id="evidence-note-title">Attach a note to this evidence</h3>
-          <p>
-            The note is anchored to this verified canonical generation and exact evidence span.
-            If the transcript changes before save, EchoFlow refuses the mutation instead of
-            silently moving the note.
-          </p>
-        </div>
-        <form onSubmit={(event) => void saveNote(event)}>
-          <label htmlFor="evidence-research-note">Research note</label>
-          <textarea
-            id="evidence-research-note"
-            value={noteBody}
-            maxLength={50_000}
-            rows={4}
-            placeholder="What matters about this passage?"
-            onChange={(event) => setNoteBody(event.target.value)}
-          />
-          <div className="evidence-note-actions">
-            <button type="submit" className="open-evidence-button" disabled={savingNote}>
-              {savingNote ? "Saving…" : "Save note"}
-            </button>
-            {noteStatus && <p role="status">{noteStatus}</p>}
-            {noteError && (
-              <p className="evidence-note-error" role="alert">
-                {noteError}
-              </p>
-            )}
+      {onCreateNote ? (
+        <section className="evidence-note-compose" aria-labelledby="evidence-note-title">
+          <div>
+            <p className="mini-label">Durable research</p>
+            <h3 id="evidence-note-title">Attach a note to this evidence</h3>
+            <p>
+              The note is anchored to this verified canonical generation and exact evidence span.
+              If the transcript changes before save, EchoFlow refuses the mutation instead of
+              silently moving the note.
+            </p>
           </div>
-        </form>
-      </section>
+          <form onSubmit={(event) => void saveNote(event)}>
+            <label htmlFor="evidence-research-note">Research note</label>
+            <textarea
+              id="evidence-research-note"
+              value={noteBody}
+              maxLength={50_000}
+              rows={4}
+              placeholder="What matters about this passage?"
+              onChange={(event) => setNoteBody(event.target.value)}
+            />
+            <div className="evidence-note-actions">
+              <button type="submit" className="open-evidence-button" disabled={savingNote}>
+                {savingNote ? "Saving…" : "Save note"}
+              </button>
+              {noteStatus && <p role="status">{noteStatus}</p>}
+              {noteError && (
+                <p className="evidence-note-error" role="alert">
+                  {noteError}
+                </p>
+              )}
+            </div>
+          </form>
+        </section>
+      ) : (
+        <section className="evidence-note-compose evidence-note-readonly" aria-label="Older evidence annotation policy">
+          <p className="mini-label">Preserved research evidence</p>
+          <p>
+            This older generation remains available for verification. New notes are not silently
+            attached to a different current generation from this view.
+          </p>
+        </section>
+      )}
 
       <footer className="evidence-seek" data-seek-seconds={evidence.seek_seconds}>
         <div>

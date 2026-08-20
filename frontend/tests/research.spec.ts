@@ -12,22 +12,24 @@ test("Susan can browse authoritative research state without database knowledge",
 }) => {
   await openResearch(page);
 
+  const notes = page.getByLabel("Notes", { exact: true });
+  await expect(notes.getByRole("heading", { name: "Notes", exact: true })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Notes", exact: true }),
+    notes.getByText("Follow up on ABC governance during the next interview."),
   ).toBeVisible();
-  await expect(
-    page.getByText("Follow up on ABC governance during the next interview."),
-  ).toBeVisible();
-  await expect(page.getByText("Current evidence", { exact: true })).toBeVisible();
-  await expect(page.getByText("Older evidence generation", { exact: true })).toBeVisible();
+  await expect(notes.getByText("Current evidence", { exact: true })).toBeVisible();
+  await expect(notes.getByText("Older evidence generation", { exact: true })).toBeVisible();
+  await expect(notes.getByText("#governance", { exact: true })).toBeVisible();
 
   await expect(
     page.getByRole("heading", { name: "Saved searches", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Governance follow-up")).toBeVisible();
   await expect(page.getByText("Questions to revisit across interviews")).toBeVisible();
-  await expect(page.getByText("#governance")).toBeVisible();
-  await expect(page.getByText("Oral histories", { exact: true }).first()).toBeVisible();
+
+  const navigation = page.getByLabel("Research navigation");
+  await expect(navigation.getByText("#governance", { exact: true })).toBeVisible();
+  await expect(navigation.getByText("Oral histories", { exact: true })).toBeVisible();
 
   await expect(page.getByText("/Users/")).toHaveCount(0);
   await expect(page.getByText("canonical_path")).toHaveCount(0);

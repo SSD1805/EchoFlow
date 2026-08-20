@@ -8,6 +8,9 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:mock": "vite --open '/?e2e=1'",
+    "doctor:desktop": "node scripts/desktop-doctor.mjs",
+    "check:tauri-versions": "node scripts/check-tauri-versions.mjs",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",

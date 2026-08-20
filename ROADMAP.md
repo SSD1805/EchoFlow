@@ -61,8 +61,8 @@ Text fallback: EchoFlow already spans local media, reliable transcription, canon
 evidence, retrieval, verified navigation, durable research, lifecycle controls, incremental
 refresh, remembered locations, native import, Library discovery, the verified evidence
 reader, exact-generation research return, note mutation, label navigation, saved-search
-lifecycle, and explicit research-anchor maintenance. Remaining work is primarily
-productization: finish advanced Research/search controls, expose processing/model/job
+lifecycle, explicit research-anchor maintenance, and backend-authoritative typed Research
+search controls. Remaining work is primarily productization: expose processing/model/job
 controls, add playback and lifecycle UI, package the application, make durable work
 portable, and qualify real devices.
 
@@ -168,8 +168,9 @@ The shell provides Archive/Midnight themes, keyboard-visible navigation, native 
 selection, one-time versus remembered import choices, recording discovery, transcript
 refresh, grouped Library discovery, verified evidence reading/cursor movement, Research
 browse, provenance-bound note creation, version-checked note mutation, exact-generation
-research return, first-class label navigation, saved-search lifecycle/replay, and explicit
-research-anchor review/re-anchor.
+research return, first-class label navigation, saved-search lifecycle/replay, explicit
+research-anchor review/re-anchor, and advanced typed Research search with whole-intent
+saved-search editing.
 
 React does not receive arbitrary shell, SQL/database, or raw evidence-path capability. It
 also does not decide whether a research anchor is valid, derive a re-anchor candidate,
@@ -197,15 +198,15 @@ or CLI contract worth productizing, not that the desktop should simply expose a 
 | Speaker display labels | durable user-authored names without biometric identity claims | labels can be presented in evidence | rename/manage speakers in desktop | Speaker tools |
 | Canonical JSON authority | reproducible canonical transcript with full provenance | consumed indirectly | transcript/provenance inspector for advanced users | Evidence inspector |
 | TXT/SRT/WebVTT publication | deterministic rebuildable exports | none | export chooser and destination workflow | Evidence/export tools |
-| Lexical BM25 retrieval | private corpus ranking | **implemented** through Library discovery | advanced phrase/ANY/ALL and sort controls | Research/search completion |
+| Lexical BM25 retrieval | private corpus ranking | **implemented** through Library discovery and typed Research controls | optional search-surface polish | Research/search complete |
 | Semantic retrieval | optional local chunks/embeddings | backend ready, not normal packaged path | desktop mode control after model/dependency custody qualification | Search + semantic qualification |
 | Hybrid RRF retrieval | lexical + semantic rank fusion | backend ready | retrieval-mode control and explainable result state | Search + semantic qualification |
 | Verified evidence navigation | generation verification, context, exact word timing and seek coordinate | search results and note anchors **implemented** | media playback | Playback |
-| Unified discovery | typed transcript/note/tag/collection groups without fabricated cross-type score | **implemented** | richer typed filters and object-specific actions | Research/search completion |
-| Research notes | exact generation-bound anchors + superseded anchor history in authoritative SQLite | browse/create/edit/delete/exact-evidence return/review/re-anchor **implemented** | richer typed search integration | Research/search completion |
+| Unified discovery | typed transcript/note/tag/collection groups without fabricated cross-type score | **implemented** alongside advanced typed evidence search | optional object-specific action polish | Research/search complete |
+| Research notes | exact generation-bound anchors + superseded anchor history in authoritative SQLite | browse/create/edit/delete/exact-evidence return/review/re-anchor + typed search integration **implemented** | optional research-surface polish | Research/search complete |
 | Tags and collections | durable names/relationships + rebuildable projection | browse + assignment + first-class navigation/filter **implemented** | optional dedicated label management polish | Settings / research polish |
-| Saved searches | typed durable intent with current-corpus re-resolution and version-safe rename/delete | create/run/rename/delete + result handoff **implemented** | advanced typed intent editing alongside search controls | Research/search completion |
-| Research-aware filtering | tags/collections/note text constrain evidence before ranking | backend ready; label-note filtering visible | expose full transcript search filters with inspectable active state | Research/search completion |
+| Saved searches | typed durable intent with current-corpus re-resolution and version-safe mutation | create/run/delete + inspectable whole-intent editing **implemented** | optional saved-question polish | Research/search complete |
+| Research-aware filtering | tags/collections/note text constrain evidence before ranking | full typed transcript/research filters with inspectable applied intent **implemented** | optional authoritative facet/catalog convenience pickers | Research/search complete |
 | Safe deletion | typed dry-run plans, exact confirmation binding, source double-guard | none | custody center with plan review and explicit confirmation | Lifecycle UI |
 | Retention | execution-state-only age policies preserving evidence/research | none | retention settings, preview, cleanup result | Lifecycle UI |
 | Local source playback | verified source-relative seek coordinate exists | no playback | Tauri-owned media capability, playback state, source mismatch/unavailable handling | Native playback |
@@ -224,9 +225,9 @@ processing/control plane in Python, but a normal desktop user cannot yet launch 
 that work. Productization should expose that capability before packaging freezes the native
 runtime shape.
 
-## 1. Finish advanced Research/search controls
+## 1. Advanced Research/search controls complete
 
-Current foundation after this tranche:
+Current first-release Research foundation after this tranche:
 
 - Research navigation and authoritative overview;
 - current-versus-older canonical generation presentation;
@@ -236,23 +237,20 @@ Current foundation after this tranche:
 - optimistic concurrency using authoritative `updated_at`;
 - exact-generation note → verified-evidence return with no automatic rebinding;
 - first-class tag/collection navigation with backend AND semantics;
-- saved-search create/run/rename/delete and result-to-evidence handoff;
-- saved-search mutation concurrency in authoritative SQLite;
+- saved-search create/run/delete plus version-safe whole-intent inspection/editing;
 - explicit stale/unavailable anchor review;
-- deliberate same-source re-anchor with reviewed-generation confirmation and durable prior-anchor history; and
-- no frontend SQL, SQLite, raw evidence paths, repair-candidate derivation, or generation-selection logic.
+- deliberate same-source re-anchor with reviewed-generation confirmation and durable prior-anchor history;
+- typed phrase/ANY/ALL, speaker, language, transcript, research-filter, retrieval-mode,
+  sort, result-limit, and context controls;
+- backend-returned applied intent and retrieval provenance; and
+- no frontend SQL, SQLite, raw evidence paths, derived evidence-scope construction,
+  repair-candidate derivation, ranking policy, or generation-selection logic.
 
-Remaining first-release Research work:
-
-- expose typed search controls for phrase/ANY/ALL, speaker, language, transcript, research
-  filters, retrieval mode, and sort; and
-- let saved-search intent creation/editing use those same inspectable typed controls rather
-  than a hidden interpretation layer.
-
-The primary research circuit is now real: **find evidence → verify → annotate → organize →
-ask a durable question → replay it → return to exact evidence → deliberately maintain the
-evidence pointer when needed.** The remaining work makes search intent richer rather than
-inventing new authority.
+The primary research circuit is now coherent: **find evidence → verify → annotate →
+organize → ask a durable typed question → replay/edit it → return to exact evidence →
+deliberately maintain the evidence pointer when needed.** Further Research additions
+are polish or second-horizon work rather than blockers for the next first-release
+tranche.
 
 ## 2. Build the desktop Processing center
 

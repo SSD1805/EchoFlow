@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { DesktopClient } from "./api/desktop";
 import type { Theme } from "./components/WorkspaceHeader";
 import { ResearchAnchorReviewPanel } from "./ResearchAnchorReviewPanel";
+import { ResearchSearchControlsPanel } from "./ResearchSearchControlsPanel";
 import { ResearchWorkspace } from "./ResearchWorkspace";
 
 interface ResearchWorkspaceWithAnchorReviewProps {
@@ -26,6 +27,7 @@ export function ResearchWorkspaceWithAnchorReview({
         theme={theme}
         onThemeChange={onThemeChange}
       />
+      <ResearchSearchControlsPanel client={client} revision={workspaceRevision} />
       <ResearchAnchorReviewPanel
         client={client}
         onReanchored={() => setWorkspaceRevision((current) => current + 1)}

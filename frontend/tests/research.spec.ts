@@ -24,10 +24,11 @@ test("Susan can browse authoritative research state without database knowledge",
   await expect(
     page.getByRole("heading", { name: "Saved searches", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Governance follow-up")).toBeVisible();
-  await expect(page.getByText("Questions to revisit across interviews")).toBeVisible();
-
   const navigation = page.getByLabel("Research navigation");
+  await expect(navigation.getByText("Governance follow-up")).toBeVisible();
+  await expect(
+    navigation.getByText("Questions to revisit across interviews"),
+  ).toBeVisible();
   await expect(navigation.getByRole("button", { name: "#governance" })).toBeVisible();
   await expect(navigation.getByRole("button", { name: "Oral histories" })).toBeVisible();
 

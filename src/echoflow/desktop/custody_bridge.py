@@ -1,15 +1,22 @@
-"""Narrow desktop adapter for custody-aware lifecycle operations.
+"""Trusted-host bridge for custody-aware lifecycle operations.
 
-The desktop may request plans and submit plan-bound confirmations. It never receives
-filesystem paths and does not reimplement deletion or retention policy.
+The webview may request plans and submit plan-bound confirmations through a fixed Tauri
+command. It never receives filesystem paths and cannot choose a Python module, SQL query,
+or arbitrary local file operation.
 """
 
 from __future__ import annotations
 
+import json
+import sys
+from contextlib import redirect_stdout
 from pathlib import Path
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from echoflow.app.app_container import AppContainer
+from echoflow.core.errors import EchoFlowError
 from echoflow.library.custody import (
     DeletionPlan,
     DeletionReceipt,
@@ -19,6 +26,25 @@ from echoflow.library.custody import (
     RetentionPolicy,
     RetentionReceipt,
 )
+
+_PROTOCOL_VERSION = 1
+_MAX_REQUEST_BYTES = 128 * 1024
+LifecycleMethod = Literal[
+    "lifecycle.documents.list",
+    "lifecycle.deletion.plan",
+    "lifecycle.deletion.execute",
+    "lifecycle.retention.plan",
+    "lifecycle.retention.execute",
+]
+
+
+class _Request(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    protocol_version: Literal[1]
+    request_id: str = Field(min_length=1, max_length=128)
+    method: LifecycleMethod
+    params: dict[str, object] = Field(default_factory=dict)
 
 
 class _NoParams(BaseModel):
@@ -152,7 +178,7 @@ def dispatch_custody(
     params: dict[str, object],
     service: LibraryCustodyService,
 ) -> object:
-    """Dispatch bounded lifecycle operations after the outer bridge allowlist accepts them."""
+    """Dispatch only the lifecycle methods named by the closed request schema."""
     if method == "lifecycle.documents.list":
         _NoParams.model_validate(params)
         return _serialize_documents(service)
@@ -197,3 +223,85 @@ def dispatch_custody(
             )
         )
     raise ValueError("Unsupported lifecycle desktop method")
+
+
+def _success(request_id: str, result: object) -> dict[str, object]:
+    return {
+        "protocol_version": _PROTOCOL_VERSION,
+        "request_id": request_id,
+        "ok": True,
+        "result": result,
+        "error": None,
+    }
+
+
+def _failure(request_id: str, *, code: str, message: str) -> dict[str, object]:
+    return {
+        "protocol_version": _PROTOCOL_VERSION,
+        "request_id": request_id,
+        "ok": False,
+        "result": None,
+        "error": {"code": code, "message": message},
+    }
+
+
+def handle_request(payload: object, service: LibraryCustodyService) -> dict[str, object]:
+    request_id = "unknown"
+    if isinstance(payload, dict) and isinstance(payload.get("request_id"), str):
+        request_id = payload["request_id"][:128]
+    try:
+        request = _Request.model_validate(payload)
+        return _success(
+            request.request_id,
+            dispatch_custody(request.method, request.params, service),
+        )
+    except ValidationError:
+        return _failure(
+            request_id,
+            code="invalid_request",
+            message="Lifecycle request is invalid or incompatible",
+        )
+    except EchoFlowError as exc:
+        return _failure(
+            request_id,
+            code=exc.code.value,
+            message=exc.public_message,
+        )
+    except ValueError as exc:
+        return _failure(request_id, code="invalid_request", message=str(exc))
+    except Exception:
+        return _failure(
+            request_id,
+            code="internal_error",
+            message="EchoFlow could not complete the local lifecycle request",
+        )
+
+
+def main() -> int:
+    raw = sys.stdin.buffer.read(_MAX_REQUEST_BYTES + 1)
+    if len(raw) > _MAX_REQUEST_BYTES:
+        response = _failure(
+            "unknown",
+            code="invalid_request",
+            message="Lifecycle request exceeded the safe size limit",
+        )
+    else:
+        try:
+            payload = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            response = _failure(
+                "unknown",
+                code="invalid_request",
+                message="Lifecycle request was not valid JSON",
+            )
+        else:
+            with redirect_stdout(sys.stderr):
+                container = AppContainer()
+                response = handle_request(payload, container.library_custody())
+    sys.stdout.write(json.dumps(response, sort_keys=True))
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -47,7 +47,7 @@ The debug Tauri host prefers the repository `.venv` for local backend calls.
 
 You do not need to keep this guide open beside EchoFlow. The sidebar always offers **How this screen works** for the active workspace and **How EchoFlow works** for the overall evidence model.
 
-Evidence reader, Playback, and Transcript tools also expose local help beside their unfamiliar controls. These explanations are re-openable, work with keyboard/touch, close with **Escape**, and do not rely on hover. They describe existing backend rules without recreating those rules in React.
+Evidence reader, Playback, Transcript tools, and multi-track preflight also expose local explanation beside unfamiliar controls. These explanations are re-openable where appropriate, work with keyboard/touch, and do not rely on hover. They describe existing backend rules without recreating those rules in React.
 
 See **[In-app guidance](in-app-guidance.md)** for the interaction and architecture contract.
 
@@ -65,6 +65,7 @@ Choose **Processing**. The current control loop includes:
 - managed model state;
 - outcome-oriented processing profile;
 - backend preflight before execution;
+- explicit embedded-audio-track confirmation when a source contains more than one audio stream;
 - optional deterministic enhancement;
 - optional anonymous diarization;
 - derived publication intent;
@@ -73,9 +74,13 @@ Choose **Processing**. The current control loop includes:
 - checkpoint resume versus fresh retry; and
 - private execution-state discard that does not delete source media, canonical transcript evidence, or research.
 
+For a normal single-track recording, there is no track choice to make. If preflight finds several embedded audio tracks, Processing Center shows the available tracks and bounded source-declared metadata such as title, language, codec, sample rate, channel count, and container-default status. **Start local transcription** remains disabled until you choose one. EchoFlow then sends that exact index back to Python and re-runs preflight before enabling Start.
+
+Those labels are clues from the source file, not EchoFlow recommendations. A container can call something `Lav microphone` or mark it default without proving that the label is correct.
+
 Long transcription is not an hour-long WebView request. Python plans/admisses/executes; Tauri supervises allowlisted child processes; React presents status and user intent.
 
-See **[Processing Center](architecture/processing-center.md)**.
+See **[Processing Center](architecture/processing-center.md)** and **[Audio tracks](audio-tracks.md)**.
 
 ## 3. Process from the CLI when useful
 
@@ -88,6 +93,15 @@ uv run echoflow models install small
 uv run echoflow transcribe interview.m4a --dry-run
 uv run echoflow transcribe interview.m4a
 ```
+
+For a file with several embedded audio tracks, bind an exact FFmpeg stream index explicitly:
+
+```bash
+uv run echoflow transcribe meeting.mkv --audio-stream 3 --dry-run
+uv run echoflow transcribe meeting.mkv --audio-stream 3
+```
+
+An unavailable or non-audio index fails instead of silently falling back. The selected stream is preserved in canonical source provenance and restored on checkpoint resume.
 
 Publication views can be requested with:
 
@@ -125,9 +139,9 @@ EchoFlow does not hand the recording path to React. The request carries only the
 
 After preparation you can use the system audio/video controls or **Play from evidence cursor**. Clicking a timed word moves the same cursor, and preparing/replaying from that cursor uses the verified source-relative coordinate.
 
-Playback is refused when the original recording is missing, its bytes changed, the transcript view is stale, the requested coordinate is invalid, or the source has multiple audio tracks that EchoFlow cannot yet prove the WebView will select correctly. A verified source can also be unsupported by the local system decoder; that is reported as a codec/container limitation rather than silently transcoding the evidence.
+Playback is refused when the original recording is missing, its bytes changed, the transcript view is stale, the requested coordinate is invalid, or the source has multiple audio tracks that EchoFlow cannot yet prove the WebView will select correctly. This playback restriction does **not** prevent multi-track transcription: transcription explicitly extracts the user-selected track, while current WebView playback cannot yet prove its rendered embedded track. A verified source can also be unsupported by the local system decoder; that is reported as a codec/container limitation rather than silently transcoding the evidence.
 
-See **[Verified native playback](native-playback.md)**.
+See **[Verified native playback](native-playback.md)** and **[Audio tracks](audio-tracks.md)**.
 
 ## 6. Use transcript and speaker tools
 
@@ -197,6 +211,8 @@ The desktop WebView does not receive arbitrary SQL, shell, subprocess, database,
 
 Ordinary desktop calls go through a fixed Python bridge. Transcript tools use a separate fixed Tauri command/Python module with an explicit allowlist. Playback is narrower still: its path-bearing Python grant is private to Rust, which opens the file and returns only an opaque session to React. Python remains application/evidence authority.
 
+Multi-track preflight follows the same rule. Python discovers streams and decides whether explicit confirmation is required. React only presents bounded track metadata and submits the user's chosen index; it does not infer the best track or inspect media itself.
+
 The in-app help layer is static local presentation copy. It has no extra filesystem, process, database, model, media, or network capability.
 
 See **[frontend/SECURITY.md](../frontend/SECURITY.md)**.
@@ -215,7 +231,7 @@ Original media and canonical JSON are evidence. Notes/tags/collections, saved se
 
 ## What comes next?
 
-Research/search, Processing, desktop comprehension/themes, transcript/speaker tools, verified native playback, and contextual guidance are foundation. Next:
+Research/search, Processing, desktop comprehension/themes, transcript/speaker tools, explicit embedded-track transcription, verified native playback, and contextual guidance are foundation. Next:
 
 1. lifecycle and retention UI;
 2. architecture/redundancy audit before packaging;

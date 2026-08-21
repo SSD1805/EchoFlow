@@ -1,6 +1,6 @@
 # Frontend testing strategy
 
-EchoFlow tests the desktop according to its architecture: React proves presentation and human interaction; Python proves application, evidence, custody, resource, and playback-authorization decisions; Rust proves narrow native capability wiring, process lifetime, and local media transport.
+EchoFlow tests the desktop according to its architecture: React proves presentation and human interaction; Python proves application, evidence, custody, resource, media-selection, and playback-authorization decisions; Rust proves narrow native capability wiring, process lifetime, and local media transport.
 
 The goal is not equal tool counts in every language. The goal is to place each behavioral oracle beside the authority it can actually judge.
 
@@ -26,7 +26,7 @@ These tests are deliberately small. A pure frontend helper belongs here only whe
 Playwright exercises every primary desktop surface:
 
 - Intake and remembered locations;
-- Processing readiness, preflight, supervised start, resume, and fresh retry;
+- Processing readiness, preflight, explicit embedded-track confirmation, supervised start, resume, and fresh retry;
 - Library search and verified evidence navigation;
 - verified local playback from current and preserved older evidence generations;
 - Transcript and speaker tools;
@@ -35,6 +35,17 @@ Playwright exercises every primary desktop surface:
 - development-mode behavior.
 
 Playback browser qualification covers exact ranked and word-level coordinates, missing and changed sources, deliberate multi-audio refusal, audio/video presentation, keyboard preparation, and path non-disclosure. The browser mock does not reimplement source verification; it exposes already-decided backend outcomes so React tests can verify presentation of success/refusal states.
+
+Processing has a separate multi-track presentation contract. Under the E2E multitrack fixture, Python-shaped mock data reports two embedded audio streams plus `audio_stream_selection_required=true`. The browser test proves that:
+
+- both tracks and their bounded source-declared metadata are visible;
+- neither track is silently treated as confirmed;
+- **Start local transcription** remains disabled;
+- selecting a track causes a new preflight request with that exact integer stream index;
+- the resulting backend-bound plan becomes startable; and
+- axe remains clean in the multi-track state.
+
+The mock deliberately does not score microphones or choose a preferred track. That decision does not belong in React.
 
 `frontend/tests/in-app-help.spec.ts` treats guidance as an interaction/accessibility feature, not as backend policy. It proves that screen help follows the active workspace, overall help remains reachable, Escape closes a panel and restores focus, contextual Evidence/Playback/Transcript guidance is discoverable, sensitive paths do not appear, and axe stays clean while help is open.
 
@@ -50,6 +61,8 @@ Native playback does not autoplay. Its prepare/re-verify action is keyboard reac
 
 In-app guidance is never hover-only. Triggers are ordinary buttons usable by keyboard, pointer, and touch. Expanded state is programmatic, Escape closes the panel, focus returns to the trigger, and every panel has an explicit close control. The responsive layout keeps the explanation reachable on narrow/touch viewports.
 
+The multi-track chooser is a semantic fieldset with radio inputs, a visible legend, and inline explanatory text. It remains usable by keyboard and touch and uses the same semantic theme tokens as the rest of Processing Center.
+
 ### Security-oriented browser assertions
 
 Frontend tests explicitly check that:
@@ -57,6 +70,7 @@ Frontend tests explicitly check that:
 - transcript/research strings containing HTML remain inert text;
 - evidence, transcript-tool, playback, and help views do not expose canonical/source filesystem paths;
 - playback failure does not create a media element/session in the view;
+- multi-track preflight receives only bounded display metadata and stream indices rather than a new path/media-inspection capability;
 - speaker display labels do not erase anonymous evidence refs; and
 - post-hoc publication reports safe filenames instead of rendering the selected destination path.
 
@@ -88,7 +102,8 @@ The important mutants in current desktop policy are questions such as:
 - does publication skip canonical verification?;
 - can collision policy overwrite a file?;
 - can playback proceed after the source bytes change?;
-- can an ambiguous audio track be guessed?; and
+- can an ambiguous playback audio track be guessed?;
+- does multi-track preflight require explicit user confirmation rather than treating a probe default as intent?; and
 - can an unallowlisted desktop method execute?
 
 Those decisions live in Python, so Poodle is the meaningful mutation tool for them. Installing Stryker solely to mutate JSX branches or static guidance copy would increase dependency/runtime surface without improving evidence-policy assurance.
@@ -104,7 +119,9 @@ This is not a permanent ban. Add a frontend mutation layer when all of the follo
 
 Poodle workflows are targeted by design. Routine PR CI already runs static analysis, branch coverage, package checks, browser tests, native compilation/tests, dependency audit, and platform smoke. Mutation should follow decision-heavy backend changes rather than becoming a mandatory tax on unrelated presentation or documentation edits.
 
-Transcript tools retain a manually dispatchable mutation workflow covering generation, speaker, and publication decisions. Playback is stricter because it introduces a privileged evidence-to-native-media boundary: its workflow runs automatically on pull requests that change playback authorization, its trusted-host bridge, their dedicated tests, Poodle configuration, or the workflow itself. It also remains manually dispatchable for explicit requalification. The broader transcript-library mutation workflow continues to cover retrieval/semantic decisions.
+Transcript tools retain a manually dispatchable mutation workflow covering generation, speaker, and publication decisions. Playback is stricter because it introduces a privileged evidence-to-native-media boundary: its workflow runs automatically on pull requests that change playback authorization, its trusted-host bridge, their dedicated tests, Poodle configuration, or the workflow itself. Its baseline also includes the hardened media-probe tests used by playback authorization, so an incompatible probe refactor fails before mutation begins. It remains manually dispatchable for explicit requalification. The broader transcript-library mutation workflow continues to cover retrieval/semantic decisions.
+
+Multi-track display metadata and confirmation policy are qualified by the normal repository-wide Python coverage gate plus dedicated media/Processing tests. The Poodle target remains playback authorization/bridge policy rather than expanding mutation scope merely because playback shares the hardened probe.
 
 ## Adding a desktop feature
 

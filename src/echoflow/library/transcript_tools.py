@@ -14,7 +14,10 @@ from echoflow.core.errors import StorageAlreadyExistsError
 from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.library.errors import TranscriptToolingError
 from echoflow.library.index import IndexedDocument, TranscriptIndex
-from echoflow.library.speaker_label_service import SpeakerLabelService, SpeakerRosterEntry
+from echoflow.library.speaker_label_service import (
+    SpeakerLabelService,
+    SpeakerRosterEntry,
+)
 from echoflow.library.speaker_presentation import (
     SpeakerPresentationService,
     SpeakerPresentationSpan,

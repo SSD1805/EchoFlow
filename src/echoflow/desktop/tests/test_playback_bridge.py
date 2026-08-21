@@ -176,7 +176,10 @@ def test_main_rejects_invalid_json_without_constructing_services(
     response = _run_main(monkeypatch, b"not-json")
 
     assert response["ok"] is False
-    assert response["error"]["message"] == "Playback authorization request was not valid JSON"
+    assert (
+        response["error"]["message"]
+        == "Playback authorization request was not valid JSON"
+    )
 
 
 def test_main_rejects_oversized_request_before_parsing(

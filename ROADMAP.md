@@ -2,7 +2,7 @@
 
 EchoFlow is becoming a **private local workspace for recorded evidence**. Its job is not to out-engine every speech-recognition runtime. Its job is to make local transcription dependable, resumable, inspectable, searchable, navigable, annotatable, portable, and safe on ordinary computers while keeping source evidence and human-authored knowledge under clear custody.
 
-Modern EchoFlow restarted on August 2, 2026. The project has moved from “can we transcribe a file?” through a substantial backend foundation into a native desktop that can import, process, search, verify, annotate, inspect speakers/provenance, publish derived transcript views, and play exact verified source evidence. This roadmap is a productization map, not a class inventory.
+Modern EchoFlow restarted on August 2, 2026. The project has moved from “can we transcribe a file?” through a substantial backend foundation into a native desktop that can import, process, make an explicit embedded-audio-track choice, search, verify, annotate, inspect speakers/provenance, publish derived transcript views, and play exact verified source evidence. This roadmap is a productization map, not a class inventory.
 
 ```mermaid
 flowchart LR
@@ -48,17 +48,23 @@ flowchart LR
 
 </details>
 
-Text fallback: EchoFlow already spans local media, reliable transcription, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, and an accessible multi-theme shell. The next first-release work is lifecycle UI, architecture cleanup, packaging, portability, packaged semantic custody, and real-device qualification.
+Text fallback: EchoFlow already spans local media, reliable transcription, explicit embedded-track selection, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, and an accessible multi-theme shell. The next first-release work is lifecycle UI, architecture cleanup, packaging, portability, packaged semantic custody, and real-device qualification.
 
 # First-release foundation now
 
 “Foundation” means the authority exists in code and is protected by tests. It does not mean installers and representative-device qualification are finished.
 
-## Local processing and model custody
+## Local processing, audio tracks, and model custody
 
-EchoFlow inspects effective CPU/memory and accelerator topology before admitting a local strategy. FFprobe owns deterministic media inspection and stream selection; FFmpeg owns canonical normalization and optional deterministic enhancement. Managed model revisions are explicit, verified, and pinned before transcription.
+EchoFlow inspects effective CPU/memory and accelerator topology before admitting a local strategy. FFprobe owns bounded media inspection; `AudioStreamSelector` owns deterministic exact-stream selection; FFmpeg owns canonical normalization and optional deterministic enhancement. Managed model revisions are explicit, verified, and pinned before transcription.
 
-The Processing Center presents readiness, model state, preflight, supervised start/cancel, durable job status, checkpoint resume, fresh retry, and private execution-state discard. Python remains authoritative for planning, admission, model custody, resume compatibility, and transcript correctness. Tauri owns allowlisted long-running child-process lifetime. React submits intent and presents state.
+The Processing Center presents readiness, model state, preflight, supervised start/cancel, durable job status, checkpoint resume, fresh retry, and private execution-state discard. Python remains authoritative for planning, admission, model custody, stream-selection validation, resume compatibility, and transcript correctness. Tauri owns allowlisted long-running child-process lifetime. React submits intent and presents state.
+
+A single-audio-stream source requires no choice. If preflight discovers several embedded audio streams and no explicit index was supplied, Python marks the plan as requiring stream confirmation. The desktop promotes a semantic track chooser into the ordinary preflight surface, shows only bounded source-declared title/language/default plus basic media facts, and keeps Start disabled. Choosing a track sends its exact integer index back to Python, which re-runs preflight before the choice is considered confirmed.
+
+The source labels are clues, not recommendations or identity. Canonical provenance records the exact audio-stream index that entered transcription, and checkpoint resume restores it. This capability covers several embedded streams inside one source file; synchronized separate recording files remain a different evidence-model problem.
+
+See **[Audio tracks](docs/audio-tracks.md)** and **[Processing Center](docs/architecture/processing-center.md)**.
 
 ## Canonical evidence and transcript tools
 
@@ -82,7 +88,7 @@ The desktop can now play the original local audio/video from the same verified s
 
 Playback is generation-bound rather than path-driven. React submits `(document_id, canonical_sha256, seek_seconds)`. Python verifies canonical bytes, source identity, current source SHA-256/size, duration bounds, and audio-stream identity. Rust opens only the approved source, narrows the verification/open race with metadata checks, stores the opened file behind an opaque active-session ID, and serves bounded `GET`/`HEAD` byte ranges through a dedicated `echoflow-media` protocol.
 
-The webview never receives the source/canonical path and cannot call the private Python playback bridge. Multi-audio sources fail closed until native track selection can prove that the rendered track matches the one canonical evidence says was transcribed. Decoder availability remains an OS/WebView qualification issue, not evidence authority.
+The webview never receives the source/canonical path and cannot call the private Python playback bridge. Multi-track **transcription** is explicitly supported, but multi-track **playback** fails closed until native track selection can prove that the rendered stream matches canonical provenance. Decoder availability remains an OS/WebView qualification issue, not evidence authority.
 
 See **[Verified native playback](docs/native-playback.md)**.
 
@@ -113,7 +119,7 @@ EchoFlow Desktop
 
 The shell now has eight skins: **Archive, Midnight, Paper, Moss, Plum, Ember, Pride, and Monochrome**. All use one semantic token contract for surfaces, text, controls, focus, errors, selection, and accent foregrounds. Pride's rainbow is decorative-only; Monochrome is deliberately grayscale. Theme preference is local presentation state and never evidence/research state.
 
-Playwright iterates every registered skin through WCAG-oriented contrast pairs, real native-style controls, browser `color-scheme`, and axe. See **[Desktop themes and accessibility](docs/development/desktop-accessibility.md)**.
+Playwright iterates every registered skin through WCAG-oriented contrast pairs, real native-style controls, browser `color-scheme`, and axe. The embedded-track chooser uses native radios, visible explanatory text, semantic tokens, and the same accessibility qualification rather than a custom visual-only selector. See **[Desktop themes and accessibility](docs/development/desktop-accessibility.md)**.
 
 # Capability → desktop audit
 
@@ -123,6 +129,7 @@ Playwright iterates every registered skin through WCAG-oriented contrast pairs, 
 | Model custody | verified pinned managed revisions | implemented | progress/offline/package polish |
 | Import/locations | durable permissions/discovery | implemented | settings/forget polish |
 | Processing | plan, execute, checkpoint, resume/retry | implemented | packaging/device qualification |
+| Embedded audio tracks | Python probe/selector/planner + FFmpeg exact map | **implemented explicit desktop confirmation** | future proven multi-track playback; separate-file sync remains out of scope |
 | Enhancement/diarization intent | Python plan/execution | implemented | result polish continues through transcript view |
 | Canonical JSON | authoritative evidence | implemented consumer views | packaging/backup |
 | Speaker labels | generation-bound human state | **implemented desktop management** | optional dedicated organization polish |
@@ -136,7 +143,7 @@ Playwright iterates every registered skin through WCAG-oriented contrast pairs, 
 | Safe deletion/retention | typed plan-bound backend | backend ready | **desktop lifecycle UI next** |
 | Native source playback | generation/source authorization + Rust session | **implemented** | decoder/device qualification; future proven multi-track selection |
 | Themes/accessibility | semantic palette + browser/native controls | **8 skins qualified** | representative OS/forced-colors checks |
-| Frontend tests | strict TS/build + Playwright/axe | primary surfaces + playback covered | grow with features, avoid duplicated backend policy |
+| Frontend tests | strict TS/build + Playwright/axe | primary surfaces + playback + multitrack covered | grow with features, avoid duplicated backend policy |
 | Packaging | Python wheel + source Tauri | development only | managed runtime/installers/update/uninstall |
 | Backup/restore | authority boundaries known | none | manifest/reconcile/restore UI |
 | Representative hardware | policy contracts + platform CI | partial | real 8/16 GB, Apple/dGPU/high-DPI qualification |
@@ -149,7 +156,7 @@ The first-release Research circuit is coherent: find evidence → verify → ann
 
 ## 2. Processing Center complete
 
-The first Processing control loop exists over readiness, model state, durable jobs, preflight, launch, native supervision, cancel, resume versus retry, and private-state discard.
+The first Processing control loop exists over readiness, model state, durable jobs, preflight, explicit embedded-track confirmation, launch, native supervision, cancel, resume versus retry, and private-state discard.
 
 ## 3. Desktop comprehension + theme system complete
 
@@ -159,13 +166,13 @@ Ordinary users see human search language rather than Python/database vocabulary.
 
 The first desktop transcript-inspection loop now exists. Generation-bound backend services own speaker names, overlap-aware presentation, provenance/details, and deterministic post-hoc publication. The React layer submits intent and never becomes canonical authority.
 
-Frontend coverage explicitly spans Intake, Processing, Library/evidence, transcript tools, Research/search/anchor maintenance, themes, development mode, hostile text rendering, path non-disclosure, and accessibility. Backend decision-heavy transcript tools also have property tests and a dedicated targeted Poodle workflow. See **[Frontend testing strategy](docs/development/frontend-testing.md)**.
+Frontend coverage explicitly spans Intake, Processing including multi-track confirmation, Library/evidence, transcript tools, Research/search/anchor maintenance, themes, development mode, hostile text rendering, path non-disclosure, and accessibility. Backend decision-heavy transcript tools also have property tests and a dedicated targeted Poodle workflow. See **[Frontend testing strategy](docs/development/frontend-testing.md)**.
 
 ## 5. Native playback complete
 
 Verified source-relative evidence coordinates now drive local audio/video without giving React arbitrary path authority. Python owns generation/source/stream authorization. Rust owns the opened file handle, opaque session lifetime, and bounded local-media transport. React receives only safe playback state and coordinates.
 
-Qualification covers stale/missing/changed sources, exact word coordinates, preserved older generations, keyboard preparation, path non-disclosure, audio/video presentation, multi-audio refusal, native range parsing, session-token allowlisting, and bounded streaming. A targeted playback Poodle workflow challenges the Python authorization decisions.
+Qualification covers stale/missing/changed sources, exact word coordinates, preserved older generations, keyboard preparation, path non-disclosure, audio/video presentation, multi-audio playback refusal, native range parsing, session-token allowlisting, and bounded streaming. A targeted playback Poodle workflow challenges the Python authorization decisions.
 
 ## 6. Lifecycle + retention UI ← next
 

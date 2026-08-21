@@ -27,14 +27,20 @@ function isGray(hex: string): boolean {
   return normalized.slice(0, 2) === normalized.slice(2, 4) && normalized.slice(2, 4) === normalized.slice(4, 6);
 }
 
-test("Pride uses decoration without changing the semantic theme contract", async ({ page }) => {
+test("Pride uses a full-spectrum backdrop without changing the semantic theme contract", async ({ page }) => {
   await page.goto("/?e2e=1");
   await page.getByLabel("Theme").selectOption("pride");
 
-  const decoration = await page.evaluate(() =>
-    getComputedStyle(document.body, "::before").backgroundImage,
+  const decoration = await page.locator(".app-shell").evaluate(
+    (element) => getComputedStyle(element).backgroundImage,
   );
   expect(decoration).toContain("linear-gradient");
+  expect(decoration.match(/rgb\(/g)?.length ?? 0).toBeGreaterThanOrEqual(6);
+
+  const edge = await page.evaluate(() =>
+    getComputedStyle(document.body, "::before").backgroundImage,
+  );
+  expect(edge).toContain("linear-gradient");
   await expect(page.locator("html")).toHaveCSS("color-scheme", /light/);
 });
 

@@ -2,7 +2,7 @@
 
 EchoFlow is becoming a **private local workspace for recorded evidence**. Its job is not to out-engine every speech-recognition runtime. Its job is to make local transcription dependable, resumable, inspectable, searchable, navigable, annotatable, portable, and safe on ordinary computers while keeping source evidence and human-authored knowledge under clear custody.
 
-Modern EchoFlow restarted on August 2, 2026. The project has moved from “can we transcribe a file?” through a substantial backend foundation into a native desktop that can import, process, search, verify, annotate, inspect speakers/provenance, and publish derived transcript views. This roadmap is a productization map, not a class inventory.
+Modern EchoFlow restarted on August 2, 2026. The project has moved from “can we transcribe a file?” through a substantial backend foundation into a native desktop that can import, process, search, verify, annotate, inspect speakers/provenance, publish derived transcript views, and play exact verified source evidence. This roadmap is a productization map, not a class inventory.
 
 ```mermaid
 flowchart LR
@@ -48,7 +48,7 @@ flowchart LR
 
 </details>
 
-Text fallback: EchoFlow already spans local media, reliable transcription, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, and an accessible multi-theme shell. The next first-release work is native playback, lifecycle UI, architecture cleanup, packaging, portability, packaged semantic custody, and real-device qualification.
+Text fallback: EchoFlow already spans local media, reliable transcription, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, and an accessible multi-theme shell. The next first-release work is lifecycle UI, architecture cleanup, packaging, portability, packaged semantic custody, and real-device qualification.
 
 # First-release foundation now
 
@@ -75,6 +75,16 @@ The desktop transcript-tools tranche is now implemented. Library results can ope
 Every transcript-tool operation carries `(document_id, canonical_sha256)`. Python refuses stale generations rather than letting a long-lived UI silently mutate newer speaker numbering. Tauri exposes a fixed transcript-tools command and Python bridge allowlist; React never parses canonical JSON or receives canonical/source paths.
 
 See **[Transcript and speaker tools](docs/transcript-tools.md)** and **[Speaker display names](docs/speaker-names.md)**.
+
+## Verified native playback
+
+The desktop can now play the original local audio/video from the same verified source-relative cursor used by evidence navigation.
+
+Playback is generation-bound rather than path-driven. React submits `(document_id, canonical_sha256, seek_seconds)`. Python verifies canonical bytes, source identity, current source SHA-256/size, duration bounds, and audio-stream identity. Rust opens only the approved source, narrows the verification/open race with metadata checks, stores the opened file behind an opaque active-session ID, and serves bounded `GET`/`HEAD` byte ranges through a dedicated `echoflow-media` protocol.
+
+The webview never receives the source/canonical path and cannot call the private Python playback bridge. Multi-audio sources fail closed until native track selection can prove that the rendered track matches the one canonical evidence says was transcribed. Decoder availability remains an OS/WebView qualification issue, not evidence authority.
+
+See **[Verified native playback](docs/native-playback.md)**.
 
 ## Retrieval and durable research
 
@@ -116,17 +126,17 @@ Playwright iterates every registered skin through WCAG-oriented contrast pairs, 
 | Enhancement/diarization intent | Python plan/execution | implemented | result polish continues through transcript view |
 | Canonical JSON | authoritative evidence | implemented consumer views | packaging/backup |
 | Speaker labels | generation-bound human state | **implemented desktop management** | optional dedicated organization polish |
-| Speaker transcript | backend derived presentation | **implemented** | playback-linked reading later |
+| Speaker transcript | backend derived presentation | **implemented** | playback-linked reading available through evidence view |
 | Provenance/details | canonical verified inspection | **implemented** | richer troubleshooting optional |
 | TXT/SRT/WebVTT | deterministic derived publication | **implemented post-hoc desktop flow** | optional export organization |
 | Lexical/semantic/hybrid search | private retrieval | implemented | packaged semantic custody |
-| Verified evidence navigation | exact generation + timing/seek | implemented | native media playback |
+| Verified evidence navigation | exact generation + timing/seek | implemented | representative-device playback qualification |
 | Notes/tags/collections | SQLite authority | implemented | optional management polish |
 | Saved searches | durable typed intent | implemented | optional organization polish |
-| Safe deletion/retention | typed plan-bound backend | backend ready | **desktop lifecycle UI** |
-| Native source playback | verified seek coordinate exists | none | **next tranche** |
+| Safe deletion/retention | typed plan-bound backend | backend ready | **desktop lifecycle UI next** |
+| Native source playback | generation/source authorization + Rust session | **implemented** | decoder/device qualification; future proven multi-track selection |
 | Themes/accessibility | semantic palette + browser/native controls | **8 skins qualified** | representative OS/forced-colors checks |
-| Frontend tests | strict TS/build + Playwright/axe | primary surfaces covered | grow with features, avoid duplicated backend policy |
+| Frontend tests | strict TS/build + Playwright/axe | primary surfaces + playback covered | grow with features, avoid duplicated backend policy |
 | Packaging | Python wheel + source Tauri | development only | managed runtime/installers/update/uninstall |
 | Backup/restore | authority boundaries known | none | manifest/reconcile/restore UI |
 | Representative hardware | policy contracts + platform CI | partial | real 8/16 GB, Apple/dGPU/high-DPI qualification |
@@ -149,21 +159,23 @@ Ordinary users see human search language rather than Python/database vocabulary.
 
 The first desktop transcript-inspection loop now exists. Generation-bound backend services own speaker names, overlap-aware presentation, provenance/details, and deterministic post-hoc publication. The React layer submits intent and never becomes canonical authority.
 
-Frontend coverage now explicitly spans Intake, Processing, Library/evidence, transcript tools, Research/search/anchor maintenance, themes, development mode, hostile text rendering, path non-disclosure, and accessibility. Backend decision-heavy transcript tools also have property tests and a dedicated targeted Poodle workflow. See **[Frontend testing strategy](docs/development/frontend-testing.md)**.
+Frontend coverage explicitly spans Intake, Processing, Library/evidence, transcript tools, Research/search/anchor maintenance, themes, development mode, hostile text rendering, path non-disclosure, and accessibility. Backend decision-heavy transcript tools also have property tests and a dedicated targeted Poodle workflow. See **[Frontend testing strategy](docs/development/frontend-testing.md)**.
 
-## 5. Native playback ← next
+## 5. Native playback complete
 
-Let the existing verified source-relative coordinate drive local audio/video without giving React arbitrary path authority. Rust should own file/media capability; Python should own source identity/evidence rules; the webview should receive playback state and safe coordinates.
+Verified source-relative evidence coordinates now drive local audio/video without giving React arbitrary path authority. Python owns generation/source/stream authorization. Rust owns the opened file handle, opaque session lifetime, and bounded local-media transport. React receives only safe playback state and coordinates.
 
-Qualification must include moved/unavailable sources, source mismatch, keyboard transport, reduced motion, long media, and seeking around exact word boundaries.
+Qualification covers stale/missing/changed sources, exact word coordinates, preserved older generations, keyboard preparation, path non-disclosure, audio/video presentation, multi-audio refusal, native range parsing, session-token allowlisting, and bounded streaming. A targeted playback Poodle workflow challenges the Python authorization decisions.
 
-## 6. Lifecycle + retention UI
+## 6. Lifecycle + retention UI ← next
 
 Productize the existing custody contracts before a packaged app invites large local corpora: dry-run plan review, plan-bound confirmation, explicit scopes, source-recording second guard, and retention preview/result state.
 
+The UI must not invent deletion semantics. Python already owns scope expansion, provenance checks, confirmation tokens, source-recording protection, and retention exclusions. The desktop tranche should expose those decisions clearly while keeping filesystem mutation out of React.
+
 ## 7. Architecture/redundancy audit
 
-Do this before packaging freezes seams. Audit bridge DTOs, Pydantic models, React client glue, serializers, service composition, fixtures, Tauri supervisor patterns, stale compatibility paths, and duplicated documentation. Refactor policy duplication or unclear ownership, not merely similar-looking files.
+Do this before packaging freezes seams. Audit bridge DTOs, Pydantic models, React client glue, serializers, service composition, fixtures, Tauri supervisor/media patterns, stale compatibility paths, and duplicated documentation. Refactor policy duplication or unclear ownership, not merely similar-looking files.
 
 ## 8. Packaging + first run + update/uninstall
 
@@ -179,10 +191,10 @@ Lock/qualify embedding dependencies, immutable model acquisition, private cache/
 
 ## 11. Representative-device qualification
 
-Qualify 8 GB Windows, 16 GB commodity systems, Apple Silicon, dGPU laptops, 32/64 GB systems, Unicode/long paths, external disks, low disk, crashes, interrupted downloads, offline use, upgrades/reinstall, scaling, native controls, keyboard use, forced colors, and accessibility.
+Qualify 8 GB Windows, 16 GB commodity systems, Apple Silicon, dGPU laptops, 32/64 GB systems, Unicode/long paths, external disks, low disk, crashes, interrupted downloads, offline use, upgrades/reinstall, scaling, native controls, media codecs, keyboard use, forced colors, and accessibility.
 
 # Later research-native work
 
 Snapshots/diffs, REFI-QDA interoperability, evidence packets, comparison workspaces, evidence-linked writing/script boards, portable research bundles, and live provisional capture remain intentionally separate from the first-release path.
 
-The sequencing rule remains simple: do not build a larger research superstructure while the ordinary desktop still lacks playback, lifecycle UI, packaging, portability, and real-device qualification.
+The sequencing rule remains simple: do not build a larger research superstructure while the ordinary desktop still lacks lifecycle UI, packaging, portability, and real-device qualification.

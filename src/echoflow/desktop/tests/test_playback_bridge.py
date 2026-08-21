@@ -21,9 +21,7 @@ class PlaybackStub:
         expected_canonical_sha256: str,
         seek_seconds: float,
     ) -> PlaybackGrant:
-        self.calls.append(
-            (document_id, expected_canonical_sha256, seek_seconds)
-        )
+        self.calls.append((document_id, expected_canonical_sha256, seek_seconds))
         return PlaybackGrant(
             document_id=document_id,
             canonical_sha256=expected_canonical_sha256,
@@ -130,7 +128,7 @@ def test_unknown_method_is_denied_before_service_dispatch() -> None:
             "protocol_version": 1,
             "request_id": "playback-1",
             "method": "playback.open-path",
-            "params": {"path": "/tmp/secret"},
+            "params": {"path": "attacker-chosen-secret"},
         },
         stub,  # type: ignore[arg-type]
     )

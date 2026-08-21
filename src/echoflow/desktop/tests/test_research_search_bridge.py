@@ -302,7 +302,9 @@ def test_saved_search_replace_is_version_bound_and_carries_full_intent() -> None
     assert persisted.with_notes
 
 
-def test_saved_search_run_replays_current_authority_and_never_serializes_paths() -> None:
+def test_saved_search_run_replays_current_authority_and_never_serializes_paths() -> (
+    None
+):
     services, workspace = _services()
     saved = _saved_search()
     workspace.saved_search.return_value = saved

@@ -81,14 +81,6 @@ def dispatch_playback(
     )
 
 
-def _service(container: AppContainer) -> PlaybackAuthorizationService:
-    return PlaybackAuthorizationService(
-        index=container.transcript_index(),
-        file_manager=container.file_manager(),
-        media_probe=container.media_probe(),
-    )
-
-
 def handle_request(
     payload: object,
     service: PlaybackAuthorizationService,
@@ -125,7 +117,7 @@ def handle_request(
 
 def main() -> int:
     return run_stdio_bridge(
-        lambda payload: handle_request(payload, _service(AppContainer())),
+        lambda payload: handle_request(payload, AppContainer().playback_authorization()),
         oversized_message="Playback authorization request exceeded the safe size limit",
         invalid_json_message="Playback authorization request was not valid JSON",
     )

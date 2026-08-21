@@ -29,8 +29,8 @@ test("transcript tools expose verified details without filesystem paths", async 
 
 test("speaker labels change presentation without replacing anonymous evidence refs", async ({ page }) => {
   const panel = await openTranscriptTools(page);
-  const input = panel.getByRole("textbox", { name: "Display name for speaker-2" });
-  const form = panel.locator("form").filter({ has: input });
+  const form = panel.getByRole("form", { name: "Speaker speaker-2" });
+  const input = form.getByRole("textbox", { name: "Display name for speaker-2" });
 
   await input.fill("Dr. Chen");
   await form.getByRole("button", { name: "Save name" }).click();
@@ -47,7 +47,7 @@ test("speaker transcript represents overlap explicitly instead of flattening it"
   const panel = await openTranscriptTools(page);
 
   await panel.getByRole("button", { name: "Open speaker transcript" }).click();
-  const transcript = panel.getByRole("heading", { name: "Speaker transcript" }).locator("..").locator("..");
+  const transcript = panel.getByRole("region", { name: "Speaker transcript" });
   await expect(transcript.getByText("Overlap", { exact: true })).toBeVisible();
   await expect(transcript.getByText("Participant A (speaker-1) + speaker-2")).toBeVisible();
   await expect(transcript.getByText("Yes, exactly.")).toBeVisible();

@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from echoflow.core.errors import StorageAlreadyExistsError
 from echoflow.core.file_manager_facade import FileManagerFacade
-from echoflow.library.errors import TranscriptToolingError
+from echoflow.library.errors import SpeakerLabelStateError, TranscriptToolingError
 from echoflow.library.index import IndexedDocument, TranscriptIndex
 from echoflow.library.speaker_label_service import (
     SpeakerLabelService,
@@ -209,9 +209,12 @@ class TranscriptToolsService:
             document_id,
             expected_canonical_sha256=expected_canonical_sha256,
         )
-        speakers = self.speaker_labels.roster(
-            document_id, expected_canonical_sha256=expected_canonical_sha256
-        )
+        try:
+            speakers = self.speaker_labels.roster(
+                document_id, expected_canonical_sha256=expected_canonical_sha256
+            )
+        except SpeakerLabelStateError as exc:
+            raise TranscriptToolingError(exc.public_message, cause=exc) from exc
         details = self._details(
             document, expected_canonical_sha256, projection, speaker_count=len(speakers)
         )
@@ -224,7 +227,10 @@ class TranscriptToolsService:
         expected_canonical_sha256: str,
     ) -> tuple[SpeakerPresentationSpan, ...]:
         self._require_generation(document_id, expected_canonical_sha256)
-        spans = self.speaker_presentation.spans(document_id)
+        try:
+            spans = self.speaker_presentation.spans(document_id)
+        except SpeakerLabelStateError as exc:
+            raise TranscriptToolingError(exc.public_message, cause=exc) from exc
         if any(span.canonical_sha256 != expected_canonical_sha256 for span in spans):
             raise TranscriptToolingError(
                 "Transcript changed while speaker presentation was being prepared; reopen it"
@@ -239,12 +245,16 @@ class TranscriptToolsService:
         speaker_ref: str,
         label: str,
     ) -> SpeakerRosterEntry:
-        binding = self.speaker_labels.set_label(
-            document_id,
-            speaker_ref=speaker_ref,
-            label=label,
-            expected_canonical_sha256=expected_canonical_sha256,
-        )
+        self._require_generation(document_id, expected_canonical_sha256)
+        try:
+            binding = self.speaker_labels.set_label(
+                document_id,
+                speaker_ref=speaker_ref,
+                label=label,
+                expected_canonical_sha256=expected_canonical_sha256,
+            )
+        except SpeakerLabelStateError as exc:
+            raise TranscriptToolingError(exc.public_message, cause=exc) from exc
         if binding.canonical_sha256 != expected_canonical_sha256:
             raise TranscriptToolingError(
                 "Transcript changed while the speaker name was being saved; reopen it"
@@ -261,11 +271,15 @@ class TranscriptToolsService:
         expected_canonical_sha256: str,
         speaker_ref: str,
     ) -> bool:
-        return self.speaker_labels.remove_label(
-            document_id,
-            speaker_ref=speaker_ref,
-            expected_canonical_sha256=expected_canonical_sha256,
-        )
+        self._require_generation(document_id, expected_canonical_sha256)
+        try:
+            return self.speaker_labels.remove_label(
+                document_id,
+                speaker_ref=speaker_ref,
+                expected_canonical_sha256=expected_canonical_sha256,
+            )
+        except SpeakerLabelStateError as exc:
+            raise TranscriptToolingError(exc.public_message, cause=exc) from exc
 
     def publish(
         self,

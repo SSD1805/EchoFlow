@@ -21,6 +21,9 @@ from echoflow.library.custody import (
 from echoflow.library.index import IndexedDocument
 from echoflow.workspace.lifecycle import JobStatus
 
+_DELETE_CONFIRMATION = "delete:bound-plan"
+_RETENTION_CONFIRMATION = "retention:bound-plan"
+
 
 class _TranscriptLibrary:
     def documents(self) -> tuple[IndexedDocument, ...]:
@@ -69,7 +72,7 @@ class _CustodyFake:
             ),
             preserved_note_ids=("note-1", "note-2"),
             affected_saved_search_ids=("search-1",),
-            confirmation_token="delete:bound-plan",
+            confirmation_token=_DELETE_CONFIRMATION,
         )
 
     def execute_deletion(
@@ -80,7 +83,7 @@ class _CustodyFake:
         confirmation_token: str,
         allow_source: bool = False,
     ) -> DeletionReceipt:
-        assert confirmation_token == "delete:bound-plan"
+        assert confirmation_token == _DELETE_CONFIRMATION
         self.deletion_allow_source = allow_source
         return DeletionReceipt(
             document_id=document_id,
@@ -103,7 +106,7 @@ class _CustodyFake:
                     resume_capability_lost=True,
                 ),
             ),
-            confirmation_token="retention:bound-plan",
+            confirmation_token=_RETENTION_CONFIRMATION,
         )
 
     def execute_retention(
@@ -112,7 +115,7 @@ class _CustodyFake:
         *,
         confirmation_token: str,
     ) -> RetentionReceipt:
-        assert confirmation_token == "retention:bound-plan"
+        assert confirmation_token == _RETENTION_CONFIRMATION
         self.retention_policy = policy
         return RetentionReceipt(
             confirmation_token=confirmation_token,
@@ -175,7 +178,7 @@ def test_deletion_execute_forwards_exact_plan_confirmation() -> None:
             "document_id": "doc-1",
             "scopes": ["canonical-transcript"],
             "allow_source": False,
-            "confirmation_token": "delete:bound-plan",
+            "confirmation_token": _DELETE_CONFIRMATION,
         },
         _service(fake),
     )
@@ -220,7 +223,7 @@ def test_retention_execute_forwards_reviewed_policy_and_token() -> None:
         {
             "execution_days": 30,
             "include_incomplete": False,
-            "confirmation_token": "retention:bound-plan",
+            "confirmation_token": _RETENTION_CONFIRMATION,
         },
         _service(fake),
     )

@@ -1,15 +1,16 @@
 """Narrow desktop adapter for typed Research search intent.
 
 React supplies form values only. Python validates the complete intent, executes search
-semantics, and performs optimistic saved-search replacement. Runtime evidence scopes and
-filesystem paths never cross this adapter as user-editable state.
+semantics, and performs optimistic saved-search lifecycle operations. Runtime evidence
+scopes and filesystem paths never cross this adapter as user-editable state.
 """
 
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from echoflow.library.evidence import EvidenceContextSegment, EvidenceWord
+from echoflow.desktop.research_serialization import serialize_workspace_passage
+from echoflow.desktop.research_validation import normalize_research_labels
 from echoflow.library.index import SearchOperator, SearchQuery, SearchSort
 from echoflow.library.research_search_controls import (
     ResearchSearchControlService,
@@ -18,7 +19,6 @@ from echoflow.library.research_search_controls import (
 from echoflow.library.research_workspace import (
     ResearchQueryFilters,
     ResearchWorkspaceService,
-    WorkspaceSearchPassage,
     WorkspaceSearchResponse,
 )
 from echoflow.library.retrieval import RetrievalMode
@@ -64,19 +64,7 @@ class _SearchIntentParams(BaseModel):
     @field_validator("tags", "collections")
     @classmethod
     def normalize_labels(cls, values: tuple[str, ...]) -> tuple[str, ...]:
-        normalized: dict[str, str] = {}
-        for raw in values:
-            value = raw.strip()
-            if not value:
-                raise ValueError("research labels cannot be blank")
-            if len(value) > 200:
-                raise ValueError("research labels cannot exceed 200 characters")
-            if any(character in value for character in ("\r", "\n", "\x00")):
-                raise ValueError(
-                    "research labels contain unsupported control characters"
-                )
-            normalized.setdefault(value.casefold(), value)
-        return tuple(normalized[key] for key in sorted(normalized))
+        return normalize_research_labels(values)
 
     @field_validator("note_text")
     @classmethod
@@ -115,6 +103,12 @@ class _ExecuteParams(BaseModel):
     intent: _SearchIntentParams
 
 
+class _ListSavedParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    limit: int = Field(default=200, ge=1, le=1_000)
+
+
 class _CreateSavedParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -139,7 +133,7 @@ class _CreateSavedParams(BaseModel):
         return stripped or None
 
 
-class _InspectSavedParams(BaseModel):
+class _SavedIdentifierParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     saved_search_id: str = Field(min_length=1, max_length=200)
@@ -166,60 +160,16 @@ class _ReplaceSavedParams(_CreateSavedParams):
         return stripped
 
 
-def _serialize_word(word: EvidenceWord) -> dict[str, object]:
-    return {
-        "segment_id": word.segment_id,
-        "word_index": word.word_index,
-        "start_seconds": word.start_seconds,
-        "end_seconds": word.end_seconds,
-        "text": word.text,
-        "speaker_ref": word.speaker_ref,
-        "highlighted": word.highlighted,
-    }
+class _DeleteSavedParams(_SavedIdentifierParams):
+    expected_updated_at: str = Field(min_length=1, max_length=200)
 
-
-def _serialize_context_segment(segment: EvidenceContextSegment) -> dict[str, object]:
-    return {
-        "segment_id": segment.segment_id,
-        "start_seconds": segment.start_seconds,
-        "end_seconds": segment.end_seconds,
-        "text": segment.text,
-        "speaker_refs": list(segment.speaker_refs),
-        "words": [_serialize_word(word) for word in segment.words],
-        "is_result_segment": segment.is_result_segment,
-        "lexical_match": segment.lexical_match,
-    }
-
-
-def _serialize_passage(item: WorkspaceSearchPassage) -> dict[str, object]:
-    return {
-        "document_id": item.located.evidence.document_id,
-        "source_sha256": item.located.evidence.source_sha256,
-        "canonical_sha256": item.located.evidence.canonical_sha256,
-        "segment_ids": list(item.located.evidence.result_segment_ids),
-        "text": item.located.passage.text,
-        "start_seconds": item.located.evidence.start_seconds,
-        "end_seconds": item.located.evidence.end_seconds,
-        "seek_seconds": item.located.evidence.seek_seconds,
-        "languages": list(item.located.passage.languages),
-        "speakers": [
-            {
-                "speaker_ref": speaker.speaker_ref,
-                "display_label": speaker.display_label,
-            }
-            for speaker in item.located.speakers
-        ],
-        "matched_words": [
-            _serialize_word(word) for word in item.located.evidence.matched_words
-        ],
-        "context_segments": [
-            _serialize_context_segment(segment)
-            for segment in item.located.evidence.context_segments
-        ],
-        "note_count": item.research.note_count,
-        "tags": list(item.research.tags),
-        "collections": list(item.research.collections),
-    }
+    @field_validator("expected_updated_at")
+    @classmethod
+    def strip_expected_updated_at(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("expected_updated_at cannot be blank")
+        return stripped
 
 
 def _serialize_intent(intent: ResearchSearchIntent) -> dict[str, object]:
@@ -278,7 +228,7 @@ def _serialize_search(
                 }
             ),
         },
-        "evidence": [_serialize_passage(item) for item in response.results],
+        "evidence": [serialize_workspace_passage(item) for item in response.results],
     }
 
 
@@ -293,6 +243,12 @@ def dispatch_research_search(
         execute_params = _ExecuteParams.model_validate(params)
         intent = execute_params.intent.to_intent()
         return _serialize_search(intent, service.search(intent))
+    if method == "workspace.research.search.saved.list":
+        list_params = _ListSavedParams.model_validate(params)
+        return [
+            _serialize_saved(saved)
+            for saved in service.list_saved_searches(limit=list_params.limit)
+        ]
     if method == "workspace.research.search.saved.create":
         create_params = _CreateSavedParams.model_validate(params)
         intent = create_params.intent.to_intent()
@@ -304,13 +260,10 @@ def dispatch_research_search(
             )
         )
     if method == "workspace.research.search.saved.inspect":
-        inspect_params = _InspectSavedParams.model_validate(params)
-        saved = workspace.saved_search(inspect_params.saved_search_id)
-        if saved is None:
-            from echoflow.library.errors import ResearchStateError
-
-            raise ResearchStateError("Saved search does not exist")
-        return _serialize_saved(saved)
+        inspect_params = _SavedIdentifierParams.model_validate(params)
+        return _serialize_saved(
+            service.inspect_saved_search(inspect_params.saved_search_id)
+        )
     if method == "workspace.research.search.saved.replace":
         replace_params = _ReplaceSavedParams.model_validate(params)
         intent = replace_params.intent.to_intent()
@@ -323,4 +276,16 @@ def dispatch_research_search(
                 expected_updated_at=replace_params.expected_updated_at,
             )
         )
+    if method == "workspace.research.search.saved.run":
+        run_params = _SavedIdentifierParams.model_validate(params)
+        saved, response = service.run_saved_search(run_params.saved_search_id)
+        intent = ResearchSearchIntent.from_saved_intent(saved.intent)
+        return _serialize_search(intent, response)
+    if method == "workspace.research.search.saved.delete":
+        delete_params = _DeleteSavedParams.model_validate(params)
+        service.delete_saved_search(
+            delete_params.saved_search_id,
+            expected_updated_at=delete_params.expected_updated_at,
+        )
+        return {"saved_search_id": delete_params.saved_search_id, "deleted": True}
     raise ValueError("Unsupported typed Research search desktop method")

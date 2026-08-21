@@ -4,8 +4,6 @@ import type {
   DesktopClient,
   ResearchNoteResult,
   ResearchOverview,
-  ResearchSavedSearchResult,
-  SavedSearchRunResult,
   WorkspaceEvidenceResult,
 } from "./api/desktop";
 import { WorkspaceHeader, type Theme } from "./components/WorkspaceHeader";
@@ -57,12 +55,6 @@ function toggleLabel(values: string[], label: string): string[] {
   return normalizeLabels([...values, label]);
 }
 
-function retrievalLabel(mode: string): string {
-  if (mode === "semantic") return "Meaning";
-  if (mode === "hybrid") return "Wording + meaning";
-  return "Wording";
-}
-
 export function ResearchWorkspace({
   client,
   theme,
@@ -86,16 +78,6 @@ export function ResearchWorkspace({
   const [activeCollections, setActiveCollections] = useState<string[]>([]);
   const [filteredNotes, setFilteredNotes] = useState<ResearchNoteResult[] | null>(null);
   const [filterBusy, setFilterBusy] = useState(false);
-
-  const [savedName, setSavedName] = useState("");
-  const [savedQuery, setSavedQuery] = useState("");
-  const [savedDescription, setSavedDescription] = useState("");
-  const [editingSavedId, setEditingSavedId] = useState<string | null>(null);
-  const [deleteSavedId, setDeleteSavedId] = useState<string | null>(null);
-  const [mutatingSavedId, setMutatingSavedId] = useState<string | null>(null);
-  const [savedDraftName, setSavedDraftName] = useState("");
-  const [savedDraftDescription, setSavedDraftDescription] = useState("");
-  const [savedRun, setSavedRun] = useState<SavedSearchRunResult | null>(null);
 
   const hasActiveFilters = activeTags.length > 0 || activeCollections.length > 0;
   const visibleNotes = overview
@@ -273,112 +255,6 @@ export function ResearchWorkspace({
     await refreshActiveFilters();
   }
 
-  async function createSavedSearch(event: FormEvent) {
-    event.preventDefault();
-    setMutatingSavedId("new");
-    setMutationMessage(null);
-    setError(null);
-    try {
-      const created = await client.createSavedSearch(
-        savedName,
-        savedQuery,
-        savedDescription || null,
-      );
-      setSavedName("");
-      setSavedQuery("");
-      setSavedDescription("");
-      await loadOverview();
-      setMutationMessage(`Saved “${created.name}”.`);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "EchoFlow could not save that search.",
-      );
-    } finally {
-      setMutatingSavedId(null);
-    }
-  }
-
-  function beginSavedEdit(saved: ResearchSavedSearchResult) {
-    setEditingSavedId(saved.saved_search_id);
-    setDeleteSavedId(null);
-    setSavedDraftName(saved.name);
-    setSavedDraftDescription(saved.description ?? "");
-    setMutationMessage(null);
-    setError(null);
-  }
-
-  async function saveSavedEdit(event: FormEvent, saved: ResearchSavedSearchResult) {
-    event.preventDefault();
-    setMutatingSavedId(saved.saved_search_id);
-    setMutationMessage(null);
-    setError(null);
-    try {
-      const updated = await client.updateSavedSearch(
-        saved,
-        savedDraftName,
-        savedDraftDescription || null,
-      );
-      setEditingSavedId(null);
-      await loadOverview();
-      setMutationMessage(`Renamed saved search to “${updated.name}”.`);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "EchoFlow could not update that saved search.",
-      );
-    } finally {
-      setMutatingSavedId(null);
-    }
-  }
-
-  async function deleteSavedSearch(saved: ResearchSavedSearchResult) {
-    setMutatingSavedId(saved.saved_search_id);
-    setMutationMessage(null);
-    setError(null);
-    try {
-      await client.deleteSavedSearch(saved);
-      setDeleteSavedId(null);
-      if (editingSavedId === saved.saved_search_id) setEditingSavedId(null);
-      if (savedRun?.saved_search.saved_search_id === saved.saved_search_id) setSavedRun(null);
-      await loadOverview();
-      setMutationMessage("Saved search deleted. Notes and transcripts were not deleted.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "EchoFlow could not delete that saved search.",
-      );
-    } finally {
-      setMutatingSavedId(null);
-    }
-  }
-
-  async function runSavedSearch(saved: ResearchSavedSearchResult) {
-    setMutatingSavedId(saved.saved_search_id);
-    setMutationMessage(null);
-    setError(null);
-    try {
-      const result = await client.runSavedSearch(saved);
-      setSavedRun(result);
-      setMutationMessage(`Ran “${result.saved_search.name}” against what is in your library now.`);
-    } catch (caught) {
-      setSavedRun(null);
-      setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not run that saved search.",
-      );
-    } finally {
-      setMutatingSavedId(null);
-    }
-  }
-
-  function openSavedEvidence(evidence: WorkspaceEvidenceResult) {
-    setReader({ evidence, generationState: "current", resultLabel: "Saved-search result" });
-    setError(null);
-  }
-
   return (
     <>
       <WorkspaceHeader
@@ -390,23 +266,19 @@ export function ResearchWorkspace({
 
       <section className="research-intro" aria-labelledby="research-title">
         <div>
-          <p className="section-kicker">Notes and saved searches</p>
+          <p className="section-kicker">Notes and labels</p>
           <h2 id="research-title">Keep your notes connected to the transcript.</h2>
         </div>
         <div className="research-intro-copy">
           <p>
-            Browse and edit notes, narrow them with tags or collections, reopen the exact
-            transcript passage they cite, and run saved searches against what exists now.
+            Browse and edit notes, narrow them with tags or collections, and reopen the
+            exact transcript passage they cite. Saved research questions live with the
+            search controls below.
           </p>
           <button
             className="research-refresh"
             type="button"
-            disabled={
-              busy ||
-              filterBusy ||
-              mutatingNoteId !== null ||
-              mutatingSavedId !== null
-            }
+            disabled={busy || filterBusy || mutatingNoteId !== null}
             onClick={() => void refreshResearch()}
           >
             {busy || filterBusy ? "Refreshing…" : "Refresh"}
@@ -418,7 +290,7 @@ export function ResearchWorkspace({
         {busy
           ? "Opening your research…"
           : overview
-            ? `${overview.notes.length} notes · ${overview.tags.length} tags · ${overview.collections.length} collections · ${overview.saved_searches.length} saved searches`
+            ? `${overview.notes.length} notes · ${overview.tags.length} tags · ${overview.collections.length} collections`
             : "Research could not be opened."}
       </p>
 
@@ -444,45 +316,6 @@ export function ResearchWorkspace({
             reader.generationState === "current" ? createNoteFromReader : undefined
           }
         />
-      )}
-
-      {savedRun && (
-        <section className="research-run-results" aria-labelledby="saved-run-title">
-          <div className="research-panel-heading">
-            <div>
-              <p className="mini-label">Saved search results</p>
-              <h2 id="saved-run-title">{savedRun.saved_search.name}</h2>
-              <p>
-                Search: <code>{savedRun.query}</code>
-              </p>
-            </div>
-            <span className="research-count">{savedRun.evidence.length}</span>
-          </div>
-          {savedRun.evidence.length === 0 ? (
-            <p className="research-empty">No transcript passages match this saved search right now.</p>
-          ) : (
-            <div className="research-run-list">
-              {savedRun.evidence.map((evidence) => (
-                <article
-                  key={`${evidence.document_id}:${evidence.canonical_sha256}:${evidence.segment_ids.join(":")}`}
-                >
-                  <div>
-                    <strong>{evidence.document_id}</strong>
-                    <span>{formatEvidenceTime(evidence.start_seconds)}</span>
-                  </div>
-                  <p>{evidence.text}</p>
-                  <button
-                    type="button"
-                    className="open-evidence-button"
-                    onClick={() => openSavedEvidence(evidence)}
-                  >
-                    Open verified evidence
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
       )}
 
       {overview && (
@@ -750,189 +583,6 @@ export function ResearchWorkspace({
           </section>
 
           <aside className="research-side" aria-label="Research navigation">
-            <section className="research-panel saved-searches" aria-labelledby="saved-searches">
-              <div className="research-panel-heading">
-                <div>
-                  <p className="mini-label">Saved searches</p>
-                  <h2 id="saved-searches">Saved searches</h2>
-                </div>
-                <span className="research-count">{overview.saved_searches.length}</span>
-              </div>
-
-              <form
-                className="saved-search-create"
-                onSubmit={(event) => void createSavedSearch(event)}
-              >
-                <label>
-                  Name
-                  <input
-                    aria-label="Saved search name"
-                    value={savedName}
-                    maxLength={200}
-                    disabled={mutatingSavedId !== null}
-                    onChange={(event) => setSavedName(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Query
-                  <input
-                    aria-label="Saved search query"
-                    value={savedQuery}
-                    maxLength={4096}
-                    disabled={mutatingSavedId !== null}
-                    onChange={(event) => setSavedQuery(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Description <span>(optional)</span>
-                  <textarea
-                    aria-label="Saved search description"
-                    value={savedDescription}
-                    maxLength={4000}
-                    rows={2}
-                    disabled={mutatingSavedId !== null}
-                    onChange={(event) => setSavedDescription(event.target.value)}
-                  />
-                </label>
-                <p>
-                  Saving keeps this question. Running it later searches what is in your
-                  library then; it does not freeze today&apos;s results.
-                </p>
-                <button
-                  type="submit"
-                  disabled={
-                    mutatingSavedId !== null || !savedName.trim() || !savedQuery.trim()
-                  }
-                >
-                  {mutatingSavedId === "new" ? "Saving…" : "Save search"}
-                </button>
-              </form>
-
-              {overview.saved_searches.length === 0 ? (
-                <p className="research-empty">No saved searches yet.</p>
-              ) : (
-                <div className="saved-search-list">
-                  {overview.saved_searches.map((saved) => {
-                    const editing = editingSavedId === saved.saved_search_id;
-                    const confirmingDelete = deleteSavedId === saved.saved_search_id;
-                    const mutating = mutatingSavedId === saved.saved_search_id;
-                    return (
-                      <article key={saved.saved_search_id}>
-                        {editing ? (
-                          <form
-                            className="saved-search-editor"
-                            onSubmit={(event) => void saveSavedEdit(event, saved)}
-                          >
-                            <label>
-                              Name
-                              <input
-                                aria-label={`Saved search name for ${saved.query_text}`}
-                                value={savedDraftName}
-                                maxLength={200}
-                                disabled={mutating}
-                                onChange={(event) => setSavedDraftName(event.target.value)}
-                              />
-                            </label>
-                            <label>
-                              Description
-                              <textarea
-                                aria-label={`Saved search description for ${saved.query_text}`}
-                                value={savedDraftDescription}
-                                maxLength={4000}
-                                rows={2}
-                                disabled={mutating}
-                                onChange={(event) =>
-                                  setSavedDraftDescription(event.target.value)
-                                }
-                              />
-                            </label>
-                            <p>Renaming changes only the saved search&apos;s display name and description.</p>
-                            <div className="saved-search-actions">
-                              <button type="submit" disabled={mutating || !savedDraftName.trim()}>
-                                {mutating ? "Saving…" : "Save name"}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={mutating}
-                                onClick={() => setEditingSavedId(null)}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </form>
-                        ) : (
-                          <>
-                            <div className="saved-search-title-row">
-                              <strong>{saved.name}</strong>
-                              <span>{retrievalLabel(saved.retrieval_mode)}</span>
-                            </div>
-                            {saved.description && <p>{saved.description}</p>}
-                            <code>{saved.query_text}</code>
-                            <div className="saved-search-actions">
-                              <button
-                                type="button"
-                                disabled={mutatingSavedId !== null}
-                                onClick={() => void runSavedSearch(saved)}
-                              >
-                                {mutating ? "Running…" : "Run"}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={mutatingSavedId !== null}
-                                onClick={() => beginSavedEdit(saved)}
-                              >
-                                Rename
-                              </button>
-                              <button
-                                className="research-action-danger"
-                                type="button"
-                                disabled={mutatingSavedId !== null}
-                                onClick={() => {
-                                  setDeleteSavedId(saved.saved_search_id);
-                                  setMutationMessage(null);
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </>
-                        )}
-                        {confirmingDelete && !editing && (
-                          <div
-                            className="research-delete-confirm"
-                            role="group"
-                            aria-label={`Delete saved search ${saved.name}`}
-                          >
-                            <p>
-                              Delete this saved search? Notes, transcripts, and recordings
-                              are not part of this operation.
-                            </p>
-                            <div className="saved-search-actions">
-                              <button
-                                className="research-action-danger"
-                                type="button"
-                                disabled={mutating}
-                                onClick={() => void deleteSavedSearch(saved)}
-                              >
-                                {mutating ? "Deleting…" : "Delete saved search"}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={mutating}
-                                onClick={() => setDeleteSavedId(null)}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
             <section className="research-panel" aria-labelledby="research-labels">
               <div className="research-panel-heading">
                 <div>
@@ -945,7 +595,11 @@ export function ResearchWorkspace({
               </p>
               <div className="label-section">
                 <h3>Tags</h3>
-                <div className="research-pills research-label-buttons" role="group" aria-label="Research tags">
+                <div
+                  className="research-pills research-label-buttons"
+                  role="group"
+                  aria-label="Research tags"
+                >
                   {overview.tags.length === 0 ? (
                     <span className="research-empty-inline">None yet</span>
                   ) : (

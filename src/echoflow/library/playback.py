@@ -188,7 +188,9 @@ class PlaybackAuthorizationService:
                 raise PlaybackAuthorizationError(
                     "Canonical transcript changed; rebuild the library before playback"
                 )
-            projection = _CanonicalPlaybackProjection.model_validate(json.loads(payload))
+            projection = _CanonicalPlaybackProjection.model_validate(
+                json.loads(payload)
+            )
             if projection.schema_version != 1:
                 raise PlaybackAuthorizationError(
                     "Canonical transcript uses an unsupported schema version"
@@ -255,7 +257,10 @@ class PlaybackAuthorizationService:
             ) from exc
 
         expected_sha = projection.source.sha256
-        if media.input.sha256 != expected_sha or media.input.sha256 != document.source_sha256:
+        if (
+            media.input.sha256 != expected_sha
+            or media.input.sha256 != document.source_sha256
+        ):
             raise PlaybackAuthorizationError(
                 "Original recording no longer matches the source used for this transcript"
             )

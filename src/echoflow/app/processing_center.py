@@ -5,6 +5,7 @@ from typing import cast
 
 from echoflow.core.errors import ErrorCode
 from echoflow.core.health_check import HealthCheck
+from echoflow.media.models import MediaStream
 from echoflow.model_management.models import ModelInventoryItem
 from echoflow.model_management.service import ModelManager
 from echoflow.runner.inspector import RunnerInspector
@@ -81,22 +82,33 @@ def _serialize_job(record: JobLifecycleRecord, *, resumable: bool) -> dict[str, 
     }
 
 
+def _serialize_audio_stream(stream: MediaStream) -> dict[str, object]:
+    document: dict[str, object] = {
+        "index": stream.index,
+        "codec": stream.codec,
+        "duration_seconds": stream.duration_seconds,
+        "sample_rate_hz": stream.sample_rate_hz,
+        "channels": stream.channels,
+    }
+    title = getattr(stream, "title", None)
+    language = getattr(stream, "language", None)
+    is_default = getattr(stream, "is_default", False)
+    if title is not None:
+        document["title"] = title
+    if language is not None:
+        document["language"] = language
+    if is_default is True:
+        document["is_default"] = True
+    return document
+
+
 def _serialize_preflight(
     plan: TranscriptionJobPlan,
     *,
     audio_stream_selection_required: bool = False,
 ) -> dict[str, object]:
     audio_streams = tuple(
-        {
-            "index": stream.index,
-            "codec": stream.codec,
-            "duration_seconds": stream.duration_seconds,
-            "sample_rate_hz": stream.sample_rate_hz,
-            "channels": stream.channels,
-            "title": stream.title,
-            "language": stream.language,
-            "is_default": stream.is_default,
-        }
+        _serialize_audio_stream(stream)
         for stream in plan.media.streams
         if stream.kind.value == "audio"
     )

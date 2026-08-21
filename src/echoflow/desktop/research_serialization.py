@@ -58,7 +58,9 @@ def serialize_workspace_passage(item: WorkspaceSearchPassage) -> dict[str, objec
             }
             for speaker in item.located.speakers
         ],
-        "matched_words": [serialize_word(word) for word in item.located.evidence.matched_words],
+        "matched_words": [
+            serialize_word(word) for word in item.located.evidence.matched_words
+        ],
         "context_segments": [
             serialize_context_segment(segment)
             for segment in item.located.evidence.context_segments

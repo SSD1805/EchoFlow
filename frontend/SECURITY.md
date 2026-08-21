@@ -4,13 +4,15 @@ The desktop client is a presentation and native-host boundary over EchoFlow's lo
 
 ## Trust boundary
 
-The React/WebView layer may display sensitive transcript text, research notes, tags, collection names, speaker labels, paths the user has explicitly selected, and bounded source-declared audio-track labels returned by preflight. Those values are data. They must never become trusted markup or executable content.
+The React/WebView layer may display sensitive transcript text, research notes, tags, collection names, speaker labels, paths the user has explicitly selected, bounded source-declared audio-track labels returned by preflight, and backend-generated lifecycle descriptions. Those values are data. They must never become trusted markup or executable content.
 
 The frontend does not receive arbitrary SQL, shell, database, model-provider, media-probe, or filesystem capabilities. Tauri exposes narrow commands for specific human workflows. Python validates versioned, size-bounded requests with closed schemas before application services run.
 
 The ordinary desktop bridge is fixed to `python -m echoflow.desktop.bridge`. Transcript inspection and speaker management use the separate fixed `python -m echoflow.desktop.transcript_tools_bridge` entry point through Tauri's `transcript_tools_request` command. The webview cannot choose either Python module, substitute a shell command, or provide an arbitrary backend method. The transcript-tools bridge currently allowlists only inspect, speaker presentation, speaker-label set/remove, and deterministic publication operations.
 
 Verified playback has a stricter split. The Python `echoflow.desktop.playback_bridge` is **not** exposed as a Tauri command. Only Rust's fixed `playback_prepare` implementation may call it. That private bridge returns the verified source path to Rust so Rust can open the file, but the raw grant never crosses into the webview.
+
+Lifecycle/storage operations use another fixed boundary. Tauri's `lifecycle_request` can invoke only `python -m echoflow.desktop.custody_bridge`. The bridge's closed protocol allows only document listing, deletion plan/apply, and retention plan/apply. It delegates custody policy to `LibraryCustodyService` and strips destructive filesystem paths before returning presentation DTOs.
 
 Adding a desktop capability requires all three layers to agree deliberately:
 
@@ -48,6 +50,25 @@ Multi-audio **playback** currently fails closed. Canonical evidence records whic
 
 This does not conflict with multi-track transcription. Transcription owns explicit FFmpeg extraction and can prove which selected stream entered ASR; current WebView playback cannot yet prove its rendered embedded track.
 
+## Plan-bound lifecycle mutations
+
+Storage does not expose a generic delete API. React chooses typed intent and requests a preview. Python calculates the exact effective scopes, actions, note-preservation count, affected saved-search count, source safety checks, retention candidates, and resume-loss flags.
+
+A deletion or retention preview returns a confirmation token bound to the current backend plan. Applying the operation sends that token plus the same typed request back to Python. `LibraryCustodyService` recalculates the plan. If evidence, candidates, or requested effects changed, the token no longer matches and execution is refused.
+
+The lifecycle bridge deliberately does **not** serialize:
+
+- `DeletionAction.path`;
+- `RetentionCandidate.workspace_path`;
+- canonical transcript paths; or
+- full source-recording paths.
+
+Document listing exposes at most a source basename as human identification. It never turns that basename into authorization. Source recording removal additionally requires the explicit `source-recording` scope, a second UI acknowledgment that enables `allow_source`, and backend verification that the current source bytes still match transcript provenance.
+
+Retention cleanup is limited by backend policy to private job workspaces. Running jobs are never candidates. Failed/interrupted candidates are included only when the user opts in, and the backend-provided `resume_capability_lost` flag is rendered before application.
+
+EchoFlow does not claim filesystem removal is forensic secure erasure.
+
 ## Opaque native media capability
 
 Rust immediately opens the source authorized by Python and rechecks its size and modification timestamp to narrow the verification/open race. The opened `File` is stored behind an opaque active-session token.
@@ -67,9 +88,9 @@ Session IDs are opaque handles, not independent evidence authority. Creating a s
 
 ## Rendering untrusted local content
 
-React's normal text rendering is the default boundary for transcript, research, filename, speaker, and audio-track metadata. `dangerouslySetInnerHTML` is prohibited unless a future security review adds an explicit sanitizer and a narrowly documented use case. CI rejects its use today.
+React's normal text rendering is the default boundary for transcript, research, filename, speaker, audio-track metadata, and lifecycle descriptions. `dangerouslySetInnerHTML` is prohibited unless a future security review adds an explicit sanitizer and a narrowly documented use case. CI rejects its use today.
 
-Search snippets, note bodies, participant-provided text, filenames, speaker labels, source-declared track titles/languages, and metadata remain text. A malicious recording filename, track title, or transcript containing HTML/script syntax must remain inert in the WebView.
+Search snippets, note bodies, participant-provided text, filenames, speaker labels, source-declared track titles/languages, backend-generated descriptions, and metadata remain text. A malicious recording filename, track title, or transcript containing HTML/script syntax must remain inert in the WebView.
 
 The packaged frontend uses no remote fonts, scripts, stylesheets, analytics, or application telemetry. Network-bearing product behavior must be explicit and separately designed rather than smuggled through presentation code.
 
@@ -77,19 +98,21 @@ The packaged frontend uses no remote fonts, scripts, stylesheets, analytics, or 
 
 `frontend/src/help.ts` contains static local explanatory copy. `InfoPopover` renders that copy through ordinary React text nodes. The guidance layer has no filesystem, database, subprocess, model, media, or network capability and does not load remote documentation.
 
-Help may explain an application rule, such as generation binding, deliberate multi-audio playback refusal, or the need to choose among embedded tracks, but it does not evaluate or enforce those rules. Python remains authoritative. Treating help copy as executable policy would create exactly the duplicate frontend business logic this boundary is designed to avoid.
+Help may explain an application rule, such as generation binding, deliberate multi-audio playback refusal, embedded-track selection, or reviewed lifecycle custody, but it does not evaluate or enforce those rules. Python remains authoritative. Treating help copy as executable policy would create exactly the duplicate frontend business logic this boundary is designed to avoid.
 
-Guidance must not interpolate source/canonical paths, transcript contents, research contents, or other sensitive state into reusable help text. The multi-track chooser is a special inline case: it renders only bounded stream display facts already returned by backend preflight. Tests assert path non-disclosure while help is open.
+Guidance must not interpolate source/canonical paths, transcript contents, research contents, or other sensitive state into reusable help text. Tests assert path non-disclosure while help is open.
 
 ## Path and evidence disclosure
 
-Local paths are sensitive. Intake may intentionally show paths the user has just selected because reviewing that selection is part of the requested action. Evidence navigation, transcript tooling, playback, and multi-track metadata presentation are narrower.
+Local paths are sensitive. Intake may intentionally show paths the user has just selected because reviewing that selection is part of the requested action. Evidence navigation, transcript tooling, playback, lifecycle planning, and multi-track metadata presentation are narrower.
 
 Search/discovery responses return evidence identity, verified segment/word coordinates, seek time, speaker display state, and research metadata without canonical/source filesystem paths. Transcript-tools responses return generation identity, source availability/provenance, speaker state, and publication **filenames**, not canonical/source paths or the selected publication directory. The native folder dialog returns a destination only to the local client so it can submit that explicit intent to Python.
 
 Processing preflight may already operate on a path the user selected, but its returned multi-track DTO exposes only stream index plus bounded descriptive media facts. It does not add another filesystem disclosure surface.
 
 Playback responses to React contain only an opaque session/token, media kind, verified duration, and safe seek coordinate. The source path exists only inside the private Python-to-Rust authorization hop and the Rust session. React never receives it and cannot choose an arbitrary playback file.
+
+Lifecycle responses expose document IDs, canonical digests, safe source basenames, counts, typed scopes/targets, backend descriptions, retention status/timestamps, resume-loss flags, and plan tokens. Full source/canonical/workspace paths stay behind Python.
 
 The frontend must not copy path-bearing values into routine logs. EchoFlow currently has no application telemetry.
 
@@ -115,10 +138,12 @@ Do not hand-edit lockfile integrity hashes.
 
 ## What current tests prove
 
-Python tests cover allowlists, schema validation, stale-generation rejection, error masking, speaker authority, deterministic publication, playback generation/source verification, stream ambiguity, media-probe bounds, embedded-track display metadata, and explicit multi-track confirmation policy. Hypothesis exercises generation-bound and bounded-seek invariants. Targeted Poodle mutation workflows challenge decision-heavy backend code without making every pull request pay the full mutation cost.
+Python tests cover allowlists, schema validation, stale-generation rejection, error masking, speaker authority, deterministic publication, playback generation/source verification, stream ambiguity, media-probe bounds, embedded-track display metadata, explicit multi-track confirmation policy, custody-plan path stripping, lifecycle closed methods, plan-token forwarding, source-gate forwarding, and retention resume-loss presentation data. Hypothesis exercises generation-bound and bounded-seek invariants. Targeted Poodle mutation workflows challenge decision-heavy backend code without making every pull request pay the full mutation cost.
 
-Rust tests cover playback session-token validation, range parsing, unknown sessions, and bounded protocol responses. CI runs both `cargo check --locked` and `cargo test --locked` for the native host.
+Rust tests cover playback session-token validation, range parsing, unknown sessions, and bounded protocol responses. CI runs both `cargo check --locked` and `cargo test --locked` for the native host; lifecycle qualification also compiles the fixed Tauri command mapping.
 
-Frontend tests cover each primary workspace, transcript-tool interactions, verified playback, multi-track Processing preflight, contextual help, hostile-text rendering, keyboard paths, path/capability boundaries, theme persistence/contrast, and axe. Playback qualification includes current and preserved older generations, exact word coordinates, missing/changed/multi-audio failures, audio/video presentation, keyboard preparation, and path non-disclosure. Multi-track Processing qualification proves that no stream is pre-confirmed, Start is blocked until explicit choice, a chosen index is rebound through preflight, and axe remains clean. Guidance qualification includes keyboard dismissal/focus return, screen-sensitive topics, contextual evidence/playback/transcript help, axe with an open panel, and path non-disclosure. Pride and Monochrome use the same semantic-token qualification as every other skin.
+Frontend tests cover each primary workspace, transcript-tool interactions, verified playback, multi-track Processing preflight, lifecycle Storage planning/application, contextual help, hostile-text rendering, keyboard paths, path/capability boundaries, theme persistence/contrast, and axe. Lifecycle tests prove canonical scope expansion is presented from a preview, source removal cannot be previewed without the second guard, private retention distinguishes completed from resumable interrupted work, paths do not enter the DOM, and an open destructive plan remains axe-clean.
+
+Poodle is intentionally not a universal PR tax. The playback mutation workflow is path-filtered to playback authorization/bridge policy. This lifecycle UI tranche does not modify `LibraryCustodyService`, so ordinary quality, boundary tests, and the existing custody service suite are the appropriate qualification. A future change to custody decision logic should receive its own targeted mutation policy rather than making unrelated frontend/docs PRs run every mutant.
 
 These checks do not prove that the host OS, system WebView, Tauri runtime, registry infrastructure, native dependencies, or a compromised same-user process are trustworthy. Native codec availability also varies by operating-system media engine. Packaging, signing, update integrity, managed Python runtime custody, and representative-device WebView qualification remain separate release milestones.

@@ -102,9 +102,9 @@ This is not a permanent ban. Add a frontend mutation layer when all of the follo
 
 ## Backend mutation qualification
 
-Poodle workflows are manual/targeted by design. Routine PR CI already runs static analysis, branch coverage, package checks, browser tests, native compilation/tests, dependency audit, and platform smoke. Full mutation runs are qualification jobs for changed decision-heavy surfaces, not a mandatory tax on every typo.
+Poodle workflows are targeted by design. Routine PR CI already runs static analysis, branch coverage, package checks, browser tests, native compilation/tests, dependency audit, and platform smoke. Mutation should follow decision-heavy backend changes rather than becoming a mandatory tax on unrelated presentation or documentation edits.
 
-Transcript tools have a dedicated mutation workflow covering generation, speaker, and publication decisions. Playback has a dedicated workflow covering exact-generation/source authorization and the private trusted-host bridge. The broader transcript-library mutation workflow continues to cover retrieval/semantic decisions.
+Transcript tools retain a manually dispatchable mutation workflow covering generation, speaker, and publication decisions. Playback is stricter because it introduces a privileged evidence-to-native-media boundary: its workflow runs automatically on pull requests that change playback authorization, its trusted-host bridge, their dedicated tests, Poodle configuration, or the workflow itself. It also remains manually dispatchable for explicit requalification. The broader transcript-library mutation workflow continues to cover retrieval/semantic decisions.
 
 ## Adding a desktop feature
 

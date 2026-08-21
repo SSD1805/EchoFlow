@@ -4,6 +4,7 @@ export type HelpTopicId =
   | "processing"
   | "library"
   | "research"
+  | "storage"
   | "evidence"
   | "playback"
   | "transcript-tools";
@@ -31,13 +32,13 @@ export const HELP_TOPICS: Record<HelpTopicId, HelpTopic> = {
   intake: {
     title: "Adding evidence",
     summary:
-      "This screen decides what local material EchoFlow may use. Selecting something does not silently copy, transcribe, or delete it.",
+      "This screen decides what local material EchoFlow may use. Selecting something does not silently copy, transcribe, or remove it.",
     points: [
       "Choose files for a one-time action, or choose a folder if you may want EchoFlow to remember that location.",
       "Remembering a folder stores a local permission so future refreshes can discover material there.",
       "Discovery and processing are separate. Automatic processing requires its own explicit opt-in.",
     ],
-    note: "Forgetting a remembered folder removes EchoFlow's permission record. It does not delete files inside the folder.",
+    note: "Forgetting a remembered folder removes EchoFlow's permission record. It does not change files inside the folder.",
   },
   processing: {
     title: "Processing recordings",
@@ -72,6 +73,18 @@ export const HELP_TOPICS: Record<HelpTopicId, HelpTopic> = {
       "If an older note cites an older transcript generation, EchoFlow can reopen that exact preserved evidence instead of silently moving the citation.",
       "Re-anchoring is deliberate maintenance, not an automatic rewrite of your research history.",
     ],
+  },
+  storage: {
+    title: "Storage and lifecycle controls",
+    summary:
+      "Storage changes are reviewable custody operations. EchoFlow calculates the exact consequences before it applies a cleanup or removal plan.",
+    points: [
+      "Library search state, derived publications, processing state, canonical evidence, research, saved searches, and source media are separate custody scopes.",
+      "Canonical transcript removal expands only to disposable descendants. Human research and source media remain separately selected.",
+      "Source-media changes require an additional acknowledgment and a provenance check against the bytes used for transcription.",
+      "Processing cleanup is limited to private checkpoints and intermediates, and the preview identifies candidates whose resume capability would be lost.",
+    ],
+    note: "Filesystem removal is not a claim of forensic secure erasure from device history, snapshots, backups, or external sync systems.",
   },
   evidence: {
     title: "Using the Evidence reader",

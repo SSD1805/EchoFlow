@@ -25,10 +25,13 @@ from echoflow.media.models import (
 
 _HASH_BLOCK_SIZE = 1024 * 1024
 _MAX_PROBE_OUTPUT_BYTES = 1024 * 1024
+_MAX_STREAM_TITLE_LENGTH = 200
+_MAX_STREAM_LANGUAGE_LENGTH = 64
 _FFPROBE_ENTRIES = (
     "format=format_name,duration:format_tags=timecode,creation_time:"
     "stream=index,codec_type,codec_name,duration,sample_rate,channels,"
-    "channel_layout,bit_rate:stream_tags=timecode,creation_time"
+    "channel_layout,bit_rate:stream_tags=timecode,creation_time,title,language:"
+    "stream_disposition=default"
 )
 
 
@@ -68,6 +71,30 @@ def _snapshot(path: Path) -> tuple[int, int, int, int]:
     return details.st_size, details.st_mtime_ns, details.st_dev, details.st_ino
 
 
+def _tag_value(raw_tags: object, key: str) -> str | None:
+    if not isinstance(raw_tags, dict):
+        return None
+    value = raw_tags.get(key)
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _display_tag(raw_tags: object, key: str, maximum: int) -> str | None:
+    value = _tag_value(raw_tags, key)
+    if value is None:
+        return None
+    return value[:maximum]
+
+
+def _default_disposition(raw_disposition: object) -> bool:
+    if not isinstance(raw_disposition, dict):
+        return False
+    value = raw_disposition.get("default")
+    return value is True or value == 1 or value == "1"
+
+
 def _parse_stream(raw_stream: object) -> MediaStream:
     if not isinstance(raw_stream, dict):
         raise MediaProbeError("FFprobe stream metadata is invalid")
@@ -78,6 +105,7 @@ def _parse_stream(raw_stream: object) -> MediaStream:
         parsed_index = int(str(index))
     except (TypeError, ValueError) as exc:
         raise MediaProbeError("FFprobe stream index is invalid", cause=exc) from exc
+    tags = raw_stream.get("tags")
     try:
         return MediaStream(
             index=parsed_index,
@@ -92,6 +120,9 @@ def _parse_stream(raw_stream: object) -> MediaStream:
                 else None
             ),
             bit_rate_bps=_optional_int(raw_stream.get("bit_rate")),
+            title=_display_tag(tags, "title", _MAX_STREAM_TITLE_LENGTH),
+            language=_display_tag(tags, "language", _MAX_STREAM_LANGUAGE_LENGTH),
+            is_default=_default_disposition(raw_stream.get("disposition")),
         )
     except ValueError as exc:
         raise MediaProbeError(
@@ -113,16 +144,6 @@ def _audio_duration(
     if duration <= 0:
         raise UnsupportedMediaError("Input audio duration could not be determined")
     return duration
-
-
-def _tag_value(raw_tags: object, key: str) -> str | None:
-    if not isinstance(raw_tags, dict):
-        return None
-    value = raw_tags.get(key)
-    if not isinstance(value, str):
-        return None
-    normalized = value.strip()
-    return normalized or None
 
 
 def _temporal_tags(

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import type {
   DesktopClient,
-  ResearchSavedSearchResult,
   ResearchSearchIntent,
   ResearchSearchResult,
   ResearchTypedSavedSearchResult,
@@ -151,10 +150,11 @@ export function ResearchSearchControlsPanel({
   const [selectedEvidence, setSelectedEvidence] = useState<WorkspaceEvidenceResult | null>(
     null,
   );
-  const [savedSearches, setSavedSearches] = useState<ResearchSavedSearchResult[]>([]);
+  const [savedSearches, setSavedSearches] = useState<ResearchTypedSavedSearchResult[]>([]);
   const [editingSaved, setEditingSaved] = useState<ResearchTypedSavedSearchResult | null>(
     null,
   );
+  const [deleteSavedId, setDeleteSavedId] = useState<string | null>(null);
   const [savedName, setSavedName] = useState("");
   const [savedDescription, setSavedDescription] = useState("");
   const [busy, setBusy] = useState(false);
@@ -163,8 +163,7 @@ export function ResearchSearchControlsPanel({
   const [status, setStatus] = useState("Search transcript evidence and your research.");
 
   const loadSavedSearches = useCallback(async () => {
-    const overview = await client.researchOverview();
-    setSavedSearches(overview.saved_searches);
+    setSavedSearches(await client.listTypedSavedSearches());
   }, [client]);
 
   useEffect(() => {
@@ -215,6 +214,7 @@ export function ResearchSearchControlsPanel({
         draftToIntent(draft),
       );
       setEditingSaved(saved);
+      setDeleteSavedId(null);
       setDraft(intentToDraft(saved.intent));
       setSavedName(saved.name);
       setSavedDescription(saved.description ?? "");
@@ -230,12 +230,13 @@ export function ResearchSearchControlsPanel({
     }
   }
 
-  async function inspectSavedSearch(saved: ResearchSavedSearchResult) {
+  async function inspectSavedSearch(saved: ResearchTypedSavedSearchResult) {
     setSavedBusy(true);
     setError(null);
     try {
       const inspected = await client.inspectTypedSavedSearch(saved.saved_search_id);
       setEditingSaved(inspected);
+      setDeleteSavedId(null);
       setDraft(intentToDraft(inspected.intent));
       setSavedName(inspected.name);
       setSavedDescription(inspected.description ?? "");
@@ -261,6 +262,7 @@ export function ResearchSearchControlsPanel({
         draftToIntent(draft),
       );
       setEditingSaved(updated);
+      setDeleteSavedId(null);
       setDraft(intentToDraft(updated.intent));
       setSavedName(updated.name);
       setSavedDescription(updated.description ?? "");
@@ -276,8 +278,56 @@ export function ResearchSearchControlsPanel({
     }
   }
 
+  async function runSavedSearch(saved: ResearchTypedSavedSearchResult) {
+    setSavedBusy(true);
+    setError(null);
+    setSelectedEvidence(null);
+    try {
+      const next = await client.runTypedSavedSearch(saved);
+      setResult(next);
+      setEditingSaved(saved);
+      setDeleteSavedId(null);
+      setDraft(intentToDraft(next.intent));
+      setSavedName(saved.name);
+      setSavedDescription(saved.description ?? "");
+      setStatus(
+        `Ran “${saved.name}”: ${next.evidence.length} verified evidence result${next.evidence.length === 1 ? "" : "s"}.`,
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "EchoFlow could not run that saved search.",
+      );
+    } finally {
+      setSavedBusy(false);
+    }
+  }
+
+  async function deleteSavedSearch(saved: ResearchTypedSavedSearchResult) {
+    setSavedBusy(true);
+    setError(null);
+    try {
+      await client.deleteTypedSavedSearch(saved);
+      if (editingSaved?.saved_search_id === saved.saved_search_id) {
+        setEditingSaved(null);
+        setSavedName("");
+        setSavedDescription("");
+      }
+      setDeleteSavedId(null);
+      await loadSavedSearches();
+      onResearchChanged?.();
+      setStatus(`Deleted “${saved.name}”.`);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "EchoFlow could not delete that saved search.",
+      );
+    } finally {
+      setSavedBusy(false);
+    }
+  }
+
   function newSavedSearch() {
     setEditingSaved(null);
+    setDeleteSavedId(null);
     setSavedName("");
     setSavedDescription("");
     setStatus("The current search can be saved for later.");
@@ -548,7 +598,7 @@ export function ResearchSearchControlsPanel({
         <div className="typed-saved-heading">
           <div>
             <p className="mini-label">Saved searches</p>
-            <h3 id="typed-saved-title">Save or update this search.</h3>
+            <h3 id="typed-saved-title">Saved research questions</h3>
           </div>
           <button type="button" onClick={newSavedSearch} disabled={savedBusy}>
             New saved search
@@ -560,18 +610,70 @@ export function ResearchSearchControlsPanel({
             {savedSearches.length === 0 ? (
               <p>No saved searches yet.</p>
             ) : (
-              savedSearches.map((saved) => (
-                <button
-                  type="button"
-                  key={saved.saved_search_id}
-                  disabled={savedBusy}
-                  aria-pressed={editingSaved?.saved_search_id === saved.saved_search_id}
-                  onClick={() => void inspectSavedSearch(saved)}
-                >
-                  <strong>{saved.name}</strong>
-                  <span>{retrievalLabel(saved.retrieval_mode)}</span>
-                </button>
-              ))
+              savedSearches.map((saved) => {
+                const selected = editingSaved?.saved_search_id === saved.saved_search_id;
+                const confirmingDelete = deleteSavedId === saved.saved_search_id;
+                return (
+                  <article className="typed-saved-item" key={saved.saved_search_id}>
+                    <button
+                      type="button"
+                      className="typed-saved-select"
+                      disabled={savedBusy}
+                      aria-pressed={selected}
+                      onClick={() => void inspectSavedSearch(saved)}
+                    >
+                      <strong>{saved.name}</strong>
+                      <span>{retrievalLabel(saved.intent.retrieval_mode)}</span>
+                    </button>
+                    <div className="typed-saved-actions">
+                      <button
+                        type="button"
+                        disabled={savedBusy || busy}
+                        onClick={() => void runSavedSearch(saved)}
+                      >
+                        Run
+                      </button>
+                      <button
+                        type="button"
+                        className="research-action-danger"
+                        disabled={savedBusy || busy}
+                        onClick={() => setDeleteSavedId(saved.saved_search_id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    {confirmingDelete && (
+                      <div
+                        className="typed-saved-delete-confirm"
+                        role="group"
+                        aria-label={`Delete saved search ${saved.name}`}
+                      >
+                        <p>
+                          Delete this saved search? This removes only the saved question, not
+                          transcripts, notes, or recordings.
+                        </p>
+                        <div className="typed-saved-actions">
+                          <button
+                            type="button"
+                            className="research-action-danger"
+                            disabled={savedBusy}
+                            onClick={() => void deleteSavedSearch(saved)}
+                          >
+                            Delete saved search
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savedBusy}
+                            onClick={() => setDeleteSavedId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                );
+              })
             )}
           </div>
 
@@ -601,7 +703,7 @@ export function ResearchSearchControlsPanel({
             </p>
             <button
               type="button"
-              disabled={savedBusy || busy}
+              disabled={savedBusy || busy || !savedName.trim() || !draft.queryText.trim()}
               onClick={() =>
                 void (editingSaved ? replaceSavedIntent() : createSavedIntent())
               }

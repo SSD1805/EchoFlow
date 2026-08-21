@@ -183,20 +183,16 @@ def test_authorize_rejects_stale_generation_before_source_probe(tmp_path: Path) 
     assert probe.paths == []
 
 
-def test_authorize_rejects_missing_or_unknown_source_path(tmp_path: Path) -> None:
-    missing, probe, digest, _, _ = _service(tmp_path, source_exists=False)
-    with pytest.raises(PlaybackAuthorizationError, match="unavailable at its recorded location"):
-        missing.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
-    assert probe.paths == []
+def test_authorize_rejects_missing_source_path(tmp_path: Path) -> None:
+    service, probe, digest, _, _ = _service(tmp_path, source_exists=False)
 
-    unknown, _, digest, _, _ = _service(
-        tmp_path / "unknown",
-        source_path_known=False,
-    ) if False else (None, None, None, None, None)
+    with pytest.raises(PlaybackAuthorizationError, match="unavailable at its recorded location"):
+        service.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
+
+    assert probe.paths == []
 
 
 def test_authorize_rejects_unknown_source_location(tmp_path: Path) -> None:
-    tmp_path.mkdir(exist_ok=True)
     service, probe, digest, _, _ = _service(tmp_path, source_path_known=False)
 
     with pytest.raises(PlaybackAuthorizationError, match="location is unavailable"):

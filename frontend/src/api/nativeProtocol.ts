@@ -8,7 +8,7 @@ interface NativeProtocolError {
   message: string;
 }
 
-interface NativeProtocolResponse<T> {
+export interface NativeProtocolResponse<T> {
   protocol_version: 1;
   request_id: string;
   ok: boolean;
@@ -16,13 +16,13 @@ interface NativeProtocolResponse<T> {
   error: NativeProtocolError | null;
 }
 
-interface NativeProtocolMessages {
+export interface NativeProtocolMessages {
   invalid: string;
   incompatible: string;
   failure: string;
 }
 
-function assertResponse<T>(
+export function parseNativeProtocolResponse<T>(
   value: unknown,
   messages: NativeProtocolMessages,
 ): NativeProtocolResponse<T> {
@@ -47,7 +47,7 @@ export async function invokeNativeProtocol<T>(
   messages: NativeProtocolMessages,
 ): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
-  const response = assertResponse<T>(
+  const response = parseNativeProtocolResponse<T>(
     await invoke<unknown>(command, {
       request: {
         protocol_version: 1,

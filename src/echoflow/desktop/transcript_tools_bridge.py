@@ -14,10 +14,7 @@ from echoflow.desktop.host_protocol import (
     success_response,
 )
 from echoflow.library.speaker_label_service import SpeakerRosterEntry
-from echoflow.library.speaker_presentation import (
-    SpeakerPresentationService,
-    SpeakerPresentationSpan,
-)
+from echoflow.library.speaker_presentation import SpeakerPresentationSpan
 from echoflow.library.transcript_tools import TranscriptDetails, TranscriptToolsService
 from echoflow.transcription.export import TranscriptExportFormat
 
@@ -217,20 +214,6 @@ def dispatch_transcript_tools(
     raise ValueError("Unsupported transcript-tools method")
 
 
-def _service(container: AppContainer) -> TranscriptToolsService:
-    labels = container.speaker_label_store()
-    return TranscriptToolsService(
-        index=container.transcript_index(),
-        speaker_labels=container.speaker_labels(),
-        speaker_presentation=SpeakerPresentationService(
-            index=container.transcript_index(),
-            label_store=labels,
-            file_manager=container.file_manager(),
-        ),
-        file_manager=container.file_manager(),
-    )
-
-
 def handle_request(
     payload: object, service: TranscriptToolsService
 ) -> dict[str, object]:
@@ -266,7 +249,7 @@ def handle_request(
 
 def main() -> int:
     return run_stdio_bridge(
-        lambda payload: handle_request(payload, _service(AppContainer())),
+        lambda payload: handle_request(payload, AppContainer().transcript_tools()),
         oversized_message="Transcript-tools request exceeded the safe size limit",
         invalid_json_message="Transcript-tools request was not valid JSON",
     )

@@ -136,6 +136,7 @@ only_files = [
     "src/echoflow/library/service.py",
     "src/echoflow/library/speaker_label_service.py",
     "src/echoflow/library/transcript_tools.py",
+    "src/echoflow/library/playback.py",
     "src/echoflow/media/models.py",
     "src/echoflow/media/probe.py",
     "src/echoflow/model_management/catalog.py",
@@ -165,6 +166,7 @@ only_files = [
     "src/echoflow/transcription/speaker_models.py",
     "src/echoflow/transcription/strategy.py",
     "src/echoflow/desktop/transcript_tools_bridge.py",
+    "src/echoflow/desktop/playback_bridge.py",
     "src/echoflow/workspace/models.py",
     "src/echoflow/workspace/service.py",
 ]

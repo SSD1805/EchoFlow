@@ -199,7 +199,8 @@ def test_publish_requires_one_to_three_closed_formats() -> None:
     )
 
     assert [
-        item["format"] for item in result["publications"]  # type: ignore[index]
+        item["format"]
+        for item in result["publications"]  # type: ignore[index]
     ] == ["txt", "vtt"]
     with pytest.raises(ValidationError):
         dispatch_transcript_tools(

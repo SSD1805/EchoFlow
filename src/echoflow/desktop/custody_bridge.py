@@ -7,9 +7,6 @@ or arbitrary local file operation.
 
 from __future__ import annotations
 
-import json
-import sys
-from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Literal
 
@@ -17,6 +14,11 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
+from echoflow.desktop.host_protocol import (
+    failure_response,
+    run_stdio_bridge,
+    success_response,
+)
 from echoflow.library.custody import (
     DeletionPlan,
     DeletionReceipt,
@@ -27,8 +29,6 @@ from echoflow.library.custody import (
     RetentionReceipt,
 )
 
-_PROTOCOL_VERSION = 1
-_MAX_REQUEST_BYTES = 128 * 1024
 LifecycleMethod = Literal[
     "lifecycle.documents.list",
     "lifecycle.deletion.plan",
@@ -227,26 +227,6 @@ def dispatch_custody(
     raise ValueError("Unsupported lifecycle desktop method")
 
 
-def _success(request_id: str, result: object) -> dict[str, object]:
-    return {
-        "protocol_version": _PROTOCOL_VERSION,
-        "request_id": request_id,
-        "ok": True,
-        "result": result,
-        "error": None,
-    }
-
-
-def _failure(request_id: str, *, code: str, message: str) -> dict[str, object]:
-    return {
-        "protocol_version": _PROTOCOL_VERSION,
-        "request_id": request_id,
-        "ok": False,
-        "result": None,
-        "error": {"code": code, "message": message},
-    }
-
-
 def handle_request(
     payload: object, service: LibraryCustodyService
 ) -> dict[str, object]:
@@ -255,30 +235,30 @@ def handle_request(
         request_id = payload["request_id"][:128]
     try:
         request = _Request.model_validate(payload)
-        return _success(
+        return success_response(
             request.request_id,
             dispatch_custody(request.method, request.params, service),
         )
     except ValidationError:
-        return _failure(
+        return failure_response(
             request_id,
             code="invalid_request",
             message="Lifecycle request is invalid or incompatible",
         )
     except EchoFlowError as exc:
-        return _failure(
+        return failure_response(
             request_id,
             code=exc.code.value,
             message=exc.public_message,
         )
     except ValueError:
-        return _failure(
+        return failure_response(
             request_id,
             code="invalid_request",
             message="Lifecycle request is invalid",
         )
     except Exception:
-        return _failure(
+        return failure_response(
             request_id,
             code="internal_error",
             message="EchoFlow could not complete the local lifecycle request",
@@ -286,29 +266,11 @@ def handle_request(
 
 
 def main() -> int:
-    raw = sys.stdin.buffer.read(_MAX_REQUEST_BYTES + 1)
-    if len(raw) > _MAX_REQUEST_BYTES:
-        response = _failure(
-            "unknown",
-            code="invalid_request",
-            message="Lifecycle request exceeded the safe size limit",
-        )
-    else:
-        try:
-            payload = json.loads(raw)
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            response = _failure(
-                "unknown",
-                code="invalid_request",
-                message="Lifecycle request was not valid JSON",
-            )
-        else:
-            with redirect_stdout(sys.stderr):
-                container = AppContainer()
-                response = handle_request(payload, container.library_custody())
-    sys.stdout.write(json.dumps(response, sort_keys=True))
-    sys.stdout.write("\n")
-    return 0
+    return run_stdio_bridge(
+        lambda payload: handle_request(payload, AppContainer().library_custody()),
+        oversized_message="Lifecycle request exceeded the safe size limit",
+        invalid_json_message="Lifecycle request was not valid JSON",
+    )
 
 
 if __name__ == "__main__":

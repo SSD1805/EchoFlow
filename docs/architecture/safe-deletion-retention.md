@@ -13,6 +13,43 @@ This design protects the central library invariant:
 > **Removing evidence from search must never silently erase canonical transcript evidence,
 > user-authored research knowledge, or an original recording.**
 
+## Desktop Storage workspace
+
+The native desktop now exposes these existing contracts through **Storage & deletion**.
+The desktop does not create a second deletion policy.
+
+For transcript custody, the user:
+
+1. chooses an indexed transcript;
+2. selects explicit custody scopes;
+3. previews a backend-calculated plan;
+4. reviews effective scope expansion, planned actions, preserved-note count, and affected
+   saved-search count; and
+5. applies that exact reviewed plan.
+
+Source-recording removal adds a second explicit acknowledgment before the backend
+`allow_source` safety switch can be submitted.
+
+Private processing cleanup exposes retention age plus an optional failed/interrupted-job
+switch. The preview marks any candidate whose resume capability would be lost. Running jobs
+remain backend-ineligible.
+
+The desktop path is intentionally narrow:
+
+```text
+React Storage
+    -> fixed Tauri lifecycle_request
+    -> python -m echoflow.desktop.custody_bridge
+    -> LibraryCustodyService
+```
+
+The bridge does not serialize `DeletionAction.path`, `RetentionCandidate.workspace_path`,
+canonical paths, or full source paths. React renders typed intent and backend consequences;
+Python remains the authority for scope expansion, provenance checks, retention eligibility,
+confirmation tokens, and execution.
+
+See **[Storage and lifecycle controls](../storage-lifecycle.md)** for the user/native contract.
+
 ## CLI
 
 Plan an operation:
@@ -101,8 +138,10 @@ over:
 canonical deletion cascades into silent loss of human work
 ```
 
-A later UI can present this as an "evidence unavailable" note while still showing the
-recorded document/generation identity.
+The Research workspace already represents older/unavailable anchor states without silently
+moving the note to a different generation. Storage therefore reports how many anchored notes
+will be preserved by the reviewed deletion plan rather than implying that canonical deletion
+owns those notes.
 
 ## Saved searches are preserved unless their own scope is selected
 
@@ -153,7 +192,8 @@ Original recordings are treated read-only throughout normal EchoFlow processing.
 A source recording can be deleted only when all of the following are true:
 
 1. `source-recording` is an explicitly requested scope;
-2. `--allow-source` is supplied;
+2. `--allow-source` is supplied, or the desktop's equivalent second acknowledgment enables
+   that explicit safety switch;
 3. a source path is available;
 4. the source still exists; and
 5. current source integrity is `matches-recorded-source`.
@@ -179,7 +219,7 @@ state/
 It never age-deletes:
 
 - canonical JSON;
-- TXT/SRT/VTT;
+- TXT/SRT/WebVTT;
 - source recordings;
 - notes/tags/collections;
 - speaker labels;
@@ -194,7 +234,7 @@ valid evidence harder to rediscover.
 
 ## Retention defaults
 
-The default CLI policy is:
+The default CLI and desktop policy is:
 
 ```text
 execution_days = 30
@@ -204,7 +244,8 @@ include_incomplete = false
 A completed workspace older than the cutoff is eligible.
 
 Failed/interrupted workspaces remain available for resume unless the user explicitly opts
-into `--include-incomplete`. Running jobs are never eligible, regardless of age.
+into `--include-incomplete`. Running jobs are never eligible, regardless of age. The desktop
+shows backend-provided `resume_capability_lost` state before a reviewed plan can be applied.
 
 Retention plans are recalculated at execution time. If candidates changed, the old token
 no longer matches and EchoFlow refuses to apply the stale plan.
@@ -249,11 +290,11 @@ It does **not** mean EchoFlow can prove the bytes are unrecoverable from:
 - storage-controller caches; or
 - forensic recovery outside the active filesystem namespace.
 
-Both human and JSON CLI output therefore state that secure erasure is not guaranteed.
+CLI output and desktop guidance therefore avoid claiming secure erasure.
 
 ## Test contract
 
-The custody tests cover:
+The custody service tests cover:
 
 - canonical scope expansion;
 - preservation of notes by default;
@@ -274,6 +315,18 @@ The custody tests cover:
 - human and JSON CLI behavior; and
 - safe public/internal error presentation.
 
-Additional saved-search tests added alongside this work cover value-object validation,
-storage bounds, corrupt persisted JSON/enums, missing mutation targets, closed navigation
-dispatch, and human rendering paths that were under-covered in the merged saved-search PR.
+Desktop custody tests add:
+
+- closed lifecycle protocol and bounded parameters;
+- path stripping from deletion/retention DTOs;
+- exact confirmation-token forwarding;
+- explicit source-gate forwarding;
+- plan-first canonical deletion presentation;
+- source second-guard presentation;
+- retention completed/incomplete distinction and resume-loss warning;
+- DOM path non-disclosure; and
+- axe with an open destructive plan.
+
+The desktop tranche does not modify `LibraryCustodyService` decision logic, so no broad new
+mutation workflow is added. Mutation testing remains targeted to decision-heavy policy files
+rather than becoming a cost paid by every UI/docs change.

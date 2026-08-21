@@ -22,6 +22,7 @@ from echoflow.library.duckdb_research_projection import DuckDbResearchProjection
 from echoflow.library.duckdb_semantic import DuckDbSemanticIndex
 from echoflow.library.evidence import EvidenceLocator
 from echoflow.library.locations import JsonLibraryLocationStore, LibraryLocationService
+from echoflow.library.playback import PlaybackAuthorizationService
 from echoflow.library.research import ResearchNavigationService
 from echoflow.library.research_projector import ResearchStateProjector
 from echoflow.library.research_workspace import ResearchWorkspaceService
@@ -29,7 +30,9 @@ from echoflow.library.semantic import EmbeddingProfile, SentenceTransformersE5Pr
 from echoflow.library.service import TranscriptLibraryService
 from echoflow.library.speaker_label_service import SpeakerLabelService
 from echoflow.library.speaker_labels import SpeakerLabelStore
+from echoflow.library.speaker_presentation import SpeakerPresentationService
 from echoflow.library.sqlite_research_state import SqliteResearchStateStore
+from echoflow.library.transcript_tools import TranscriptToolsService
 from echoflow.library.workspace_metadata import SqliteWorkspaceMetadataStore
 from echoflow.media.probe import FfprobeMediaProbe
 from echoflow.media.selection import AudioStreamSelector
@@ -281,6 +284,12 @@ class AppContainer(containers.DeclarativeContainer):
         config=config,
         file_manager=file_manager,
     )
+    playback_authorization = providers.Singleton(
+        PlaybackAuthorizationService,
+        index=transcript_index,
+        file_manager=file_manager,
+        media_probe=media_probe,
+    )
     speaker_label_store = providers.Singleton(
         _create_speaker_label_store,
         config=config,
@@ -295,6 +304,19 @@ class AppContainer(containers.DeclarativeContainer):
         SpeakerLabelService,
         index=transcript_index,
         store=speaker_label_store,
+        file_manager=file_manager,
+    )
+    speaker_presentation = providers.Singleton(
+        SpeakerPresentationService,
+        index=transcript_index,
+        label_store=speaker_label_store,
+        file_manager=file_manager,
+    )
+    transcript_tools = providers.Singleton(
+        TranscriptToolsService,
+        index=transcript_index,
+        speaker_labels=speaker_labels,
+        speaker_presentation=speaker_presentation,
         file_manager=file_manager,
     )
     research_state_store = providers.Singleton(

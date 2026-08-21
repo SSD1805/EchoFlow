@@ -298,7 +298,7 @@ class FfprobeMediaProbe:
         executable: str,
         source: Path,
         *,
-        entries: str,
+        entries: str = _FFPROBE_ENTRIES,
     ) -> Mapping[str, Any]:
         command = [
             executable,

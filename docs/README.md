@@ -4,7 +4,7 @@ EchoFlow is a **private, local-first workspace for recorded evidence**.
 
 It can inspect a recording, choose a safe way to run on the computer you actually have, transcribe locally, survive interruptions, preserve provenance, search a private corpus, navigate results back to verified canonical evidence, keep research notes attached to that evidence, save reusable research questions, manage generation-bound speaker labels, inspect transcript provenance, publish derived transcript views, and play verified local source evidence through a native desktop shell.
 
-You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, or desktop IPC to use the product. Those are implementation details. The desktop should speak in recordings, transcripts, searches, notes, processing, speakers, playback, and evidence.
+You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, or desktop IPC to use the product. Those are implementation details. The desktop should speak in recordings, transcripts, searches, notes, processing, speakers, playback, and evidence. Persistent in-app guidance explains the unusual concepts at the point of use instead of assuming this documentation is open beside the app.
 
 > **The short version:** your recording stays yours, canonical JSON remains inspectable evidence, your notes/speaker names/saved searches remain your knowledge, and most machinery built around those things can be thrown away and rebuilt.
 
@@ -33,11 +33,13 @@ You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, o
 | Remember libraries | persists explicit transcript/recording permissions without copying user media |
 | Refresh an evolving corpus | incrementally reconciles changed canonical generations and can verify tracked evidence |
 | Remove something safely | plans typed deletion scopes before mutation and binds confirmation to the exact plan |
+| Understand an unfamiliar screen | keeps re-openable, keyboard/touch-accessible contextual help in the app instead of relying on hover-only tips |
 | Change appearance | offers Archive, Midnight, Paper, Moss, Plum, Ember, Pride, and Monochrome through one accessible Theme picker |
 
 ## Pick your doorway
 
 - **[Getting started](getting-started.md)** for the source-build path, desktop path, and first transcript.
+- **[In-app guidance](in-app-guidance.md)** for the persistent help controls and why they describe rather than duplicate backend policy.
 - **[Processing Center](architecture/processing-center.md)** for the desktop processing authority split.
 - **[Transcript and speaker tools](transcript-tools.md)** for generation-bound details, speaker management, overlap presentation, and post-hoc publication.
 - **[Verified native playback](native-playback.md)** for source re-verification, opaque media sessions, exact seek coordinates, and the multi-audio fail-closed rule.
@@ -121,9 +123,11 @@ If deleting a search projection destroys unique human-authored information, some
 
 ## The desktop today
 
-Research/search, the Processing Center, desktop comprehension/themes, transcript/speaker tools, and verified native playback are now coherent first-release slices.
+Research/search, the Processing Center, desktop comprehension/themes, transcript/speaker tools, verified native playback, and re-openable contextual guidance are now coherent first-release slices.
 
 Research uses ordinary product language by default. Processing presents backend planning/admission rather than duplicating it. Transcript tools pass exact generation identity into Python for details, speaker mutation, and publication. Playback does the same for source authorization, then Rust owns an opaque opened-file session. The webview does not parse canonical evidence or receive canonical/source paths.
+
+The sidebar keeps **How this screen works** and **How EchoFlow works** available after first use. Evidence, playback, and transcript tools add local help at the point where their evidence semantics become unusual. The help registry is presentation copy only; it never substitutes for Python application policy.
 
 Appearance remains one compact picker. All eight skins share the same semantic text/control/focus contract and the same registry-driven contrast/a11y matrix.
 

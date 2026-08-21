@@ -125,6 +125,14 @@
   border-radius: 12px;
 }
 
+.context-help-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .context-help .info-popover-trigger {
   min-height: 32px;
   padding-block: 5px;

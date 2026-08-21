@@ -29,7 +29,11 @@ A stale view, changed file, missing file, incompatible canonical generation, inv
 
 Canonical evidence records which audio stream EchoFlow transcribed. A generic WebView media element does not give EchoFlow a portable guarantee that it will render that same audio track from every multi-track container.
 
-Playing a different track while presenting transcript evidence would be a provenance error, not merely a UX inconvenience. Therefore first-release playback rejects sources with more than one audio stream instead of guessing. A future multi-track implementation must make track selection explicit and verifiable at the native media layer before this restriction can be relaxed.
+Playing a different track while presenting transcript evidence would be a provenance error, not merely a UX inconvenience. Therefore first-release playback rejects sources with more than one audio stream instead of guessing. A future multi-track playback implementation must make track selection explicit and verifiable at the native media layer before this restriction can be relaxed.
+
+This restriction is **playback-specific**. EchoFlow already supports transcription from a file with several embedded audio streams. Processing Center requires an explicit user choice when preflight discovers multiple tracks, Python re-plans with that exact stream index, FFmpeg maps only that stream into canonical working audio, canonical source provenance records the index, and resume restores it. See **[Audio tracks](audio-tracks.md)**.
+
+The distinction is intentional: transcription owns extraction and can prove which stream entered ASR; current WebView playback of the original container cannot yet prove which embedded stream the platform media engine rendered.
 
 ## Authority split
 
@@ -106,7 +110,9 @@ Playback is covered at multiple layers:
 - Python positive, negative, boundary, tamper, stale-generation, source-mismatch, stream-ambiguity, and Hypothesis seek tests;
 - Python trusted-bridge allowlist, invalid JSON, extra-field, error-redaction, and request-size tests;
 - Rust range-parser, token-allowlist, unknown-session, and bounded-stream tests executed in CI;
-- Playwright current/older generation, exact word-coordinate, missing/changed/multi-audio, audio/video, keyboard, path-nondisclosure, and axe tests;
-- a targeted manual Poodle workflow for playback authorization and bridge decisions.
+- Playwright current/older generation, exact word-coordinate, missing/changed/multi-audio, audio/video, keyboard, path-nondisclosure, and axe tests; and
+- a targeted Poodle workflow that runs when playback authorization/bridge policy changes.
+
+Multi-track transcription has separate backend probe/serialization/confirmation tests plus a Processing Center Playwright/axe flow that proves Start stays disabled until the backend-bound stream choice is confirmed.
 
 The normal quality pipeline still enforces strict TypeScript, frontend build/audit, Ruff, mypy, Vulture, complexity reporting, dependency audit, Python branch coverage, Rust compilation/tests, platform smoke tests, packaging checks, and Playwright.

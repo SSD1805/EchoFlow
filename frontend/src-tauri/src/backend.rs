@@ -100,3 +100,8 @@ pub async fn desktop_request(request: Value) -> Result<Value, String> {
 pub async fn transcript_tools_request(request: Value) -> Result<Value, String> {
     request_module("echoflow.desktop.transcript_tools_bridge", request).await
 }
+
+#[tauri::command]
+pub async fn lifecycle_request(request: Value) -> Result<Value, String> {
+    request_module("echoflow.desktop.custody_bridge", request).await
+}

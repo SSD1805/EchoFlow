@@ -125,15 +125,18 @@ def test_display_lookup_and_multitrack_detection_fail_closed_on_malformed_values
         {"streams": [{"index": True}, {"index": "bad"}, {"index": 2}]}
     ) == {2: {"index": 2}}
     assert probe_module._multiple_audio_streams({"streams": []}) is False
-    assert probe_module._multiple_audio_streams(
-        {
-            "streams": [
-                {"codec_type": "audio"},
-                {"codec_type": "video"},
-                {"codec_type": "audio"},
-            ]
-        }
-    ) is True
+    assert (
+        probe_module._multiple_audio_streams(
+            {
+                "streams": [
+                    {"codec_type": "audio"},
+                    {"codec_type": "video"},
+                    {"codec_type": "audio"},
+                ]
+            }
+        )
+        is True
+    )
 
 
 def test_stream_display_metadata_is_normalized_bounded_and_typed():

@@ -110,6 +110,11 @@
   padding-top: 12px;
 }
 
+.sidebar-guides {
+  display: grid;
+  gap: 6px;
+}
+
 .sidebar-help {
   width: 100%;
 }

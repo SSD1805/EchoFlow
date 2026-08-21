@@ -25,6 +25,7 @@ from echoflow.desktop.research_serialization import (
     serialize_word as _serialize_word,
     serialize_workspace_passage as _serialize_workspace_passage,
 )
+from echoflow.desktop.research_validation import normalize_research_labels
 from echoflow.library.errors import ResearchStateError
 from echoflow.library.locations import (
     LibraryLocationKind,
@@ -123,20 +124,6 @@ class _DiscoverParams(BaseModel):
         return stripped
 
 
-def _normalize_research_labels(values: tuple[str, ...]) -> tuple[str, ...]:
-    normalized: dict[str, str] = {}
-    for raw in values:
-        value = raw.strip()
-        if not value:
-            raise ValueError("research labels cannot be blank")
-        if len(value) > 200:
-            raise ValueError("research labels cannot exceed 200 characters")
-        if any(character in value for character in ("\r", "\n", "\x00")):
-            raise ValueError("research labels contain unsupported control characters")
-        normalized.setdefault(value.casefold(), value)
-    return tuple(normalized[key] for key in sorted(normalized))
-
-
 class _CreateResearchNoteParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -186,7 +173,7 @@ class _UpdateResearchNoteParams(BaseModel):
     @field_validator("tags", "collections")
     @classmethod
     def validate_labels(cls, values: tuple[str, ...]) -> tuple[str, ...]:
-        return _normalize_research_labels(values)
+        return normalize_research_labels(values)
 
 
 class _FilterResearchNotesParams(BaseModel):
@@ -198,7 +185,7 @@ class _FilterResearchNotesParams(BaseModel):
     @field_validator("tags", "collections")
     @classmethod
     def validate_labels(cls, values: tuple[str, ...]) -> tuple[str, ...]:
-        return _normalize_research_labels(values)
+        return normalize_research_labels(values)
 
 
 class _DeleteResearchNoteParams(BaseModel):

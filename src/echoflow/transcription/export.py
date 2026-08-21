@@ -80,7 +80,9 @@ def _speaker_cue_text_value(text: str, speaker_ref: str | None) -> str:
     return f"[{speaker_ref}] {rendered}"
 
 
-def _render_segments(transcript: CanonicalTranscript) -> tuple[TranscriptRenderSegment, ...]:
+def _render_segments(
+    transcript: CanonicalTranscript,
+) -> tuple[TranscriptRenderSegment, ...]:
     return tuple(
         TranscriptRenderSegment(
             segment_id=segment.segment_id,

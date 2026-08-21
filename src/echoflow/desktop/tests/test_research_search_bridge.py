@@ -118,9 +118,37 @@ def _workspace_response() -> WorkspaceSearchResponse:
     )
 
 
+def _saved_search() -> SavedSearch:
+    return SavedSearch(
+        saved_search_id="search-1",
+        name="Governance",
+        description="Questions to revisit",
+        intent=SavedSearchIntent(
+            query=SearchQuery(
+                "governance reform",
+                operator=SearchOperator.ALL,
+                speaker_refs=("speaker-1",),
+                languages=("en",),
+                document_ids=("interview-42",),
+                sort=SearchSort.TIMELINE,
+                limit=25,
+            ),
+            mode=RetrievalMode.LEXICAL,
+            context_segments=2,
+            tags=("governance",),
+            collections=("Oral histories",),
+            note_text="follow up",
+            with_notes=True,
+        ),
+        created_at="2026-08-20T12:00:00+00:00",
+        updated_at="2026-08-20T12:01:00+00:00",
+    )
+
+
 def _services() -> tuple[DesktopServices, Mock]:
     workspace = Mock()
     workspace.search.return_value = _workspace_response()
+    workspace.saved_searches.return_value = ()
     workspace.logger = None
     return (
         DesktopServices(locations=Mock(), workspace=workspace, processing=Mock()),
@@ -194,29 +222,17 @@ def test_typed_search_rejects_extra_fields_before_workspace_execution() -> None:
     workspace.search.assert_not_called()
 
 
-def test_saved_search_inspection_returns_full_typed_intent() -> None:
+def test_saved_search_list_and_inspection_return_full_typed_intent() -> None:
     services, workspace = _services()
-    workspace.saved_search.return_value = SavedSearch(
-        saved_search_id="search-1",
-        name="Governance",
-        description=None,
-        intent=SavedSearchIntent(
-            query=SearchQuery(
-                "governance reform",
-                phrase=True,
-                languages=("en",),
-                limit=50,
-            ),
-            mode=RetrievalMode.HYBRID,
-            context_segments=3,
-            tags=("governance",),
-            with_notes=True,
-        ),
-        created_at="2026-08-20T12:00:00+00:00",
-        updated_at="2026-08-20T12:01:00+00:00",
-    )
+    saved = _saved_search()
+    workspace.saved_searches.return_value = (saved,)
+    workspace.saved_search.return_value = saved
 
-    response = handle_request(
+    listed = handle_request(
+        _request("workspace.research.search.saved.list", {"limit": 25}),
+        services,
+    )
+    inspected = handle_request(
         _request(
             "workspace.research.search.saved.inspect",
             {"saved_search_id": "search-1"},
@@ -224,15 +240,21 @@ def test_saved_search_inspection_returns_full_typed_intent() -> None:
         services,
     )
 
-    assert response["ok"] is True
-    result = response["result"]
+    assert listed["ok"] is True
+    assert workspace.saved_searches.call_args.kwargs["limit"] == 25
+    list_result = listed["result"]
+    assert isinstance(list_result, list)
+    assert list_result[0]["saved_search_id"] == "search-1"
+    assert list_result[0]["intent"]["tags"] == ["governance"]
+
+    assert inspected["ok"] is True
+    result = inspected["result"]
     assert isinstance(result, dict)
-    assert result["saved_search_id"] == "search-1"
     intent = result["intent"]
     assert isinstance(intent, dict)
-    assert intent["phrase"] is True
-    assert intent["retrieval_mode"] == "hybrid"
-    assert intent["context_segments"] == 3
+    assert intent["operator"] == "all"
+    assert intent["retrieval_mode"] == "lexical"
+    assert intent["context_segments"] == 2
     assert intent["tags"] == ["governance"]
     assert intent["with_notes"] is True
 
@@ -247,30 +269,7 @@ def test_saved_search_replace_is_version_bound_and_carries_full_intent() -> None
         created_at="2026-08-20T12:00:00+00:00",
         updated_at="2026-08-20T12:01:00+00:00",
     )
-    updated = SavedSearch(
-        saved_search_id="search-1",
-        name="Governance",
-        description="Updated",
-        intent=SavedSearchIntent(
-            query=SearchQuery(
-                "governance reform",
-                operator=SearchOperator.ALL,
-                speaker_refs=("speaker-1",),
-                languages=("en",),
-                document_ids=("interview-42",),
-                sort=SearchSort.TIMELINE,
-                limit=25,
-            ),
-            mode=RetrievalMode.LEXICAL,
-            context_segments=2,
-            tags=("governance",),
-            collections=("Oral histories",),
-            note_text="follow up",
-            with_notes=True,
-        ),
-        created_at=current.created_at,
-        updated_at="2026-08-20T12:02:00+00:00",
-    )
+    updated = _saved_search()
     workspace.saved_search.return_value = current
     workspace.metadata = Mock()
     workspace.metadata.update_saved_search.return_value = updated
@@ -282,7 +281,7 @@ def test_saved_search_replace_is_version_bound_and_carries_full_intent() -> None
                 "saved_search_id": "search-1",
                 "expected_updated_at": current.updated_at,
                 "name": "Governance",
-                "description": "Updated",
+                "description": "Questions to revisit",
                 "intent": _params(),
             },
         ),
@@ -303,13 +302,70 @@ def test_saved_search_replace_is_version_bound_and_carries_full_intent() -> None
     assert persisted.with_notes
 
 
+def test_saved_search_run_replays_current_authority_and_never_serializes_paths() -> None:
+    services, workspace = _services()
+    saved = _saved_search()
+    workspace.saved_search.return_value = saved
+    workspace.run_saved_search.return_value = _workspace_response()
+
+    response = handle_request(
+        _request(
+            "workspace.research.search.saved.run",
+            {"saved_search_id": saved.saved_search_id},
+        ),
+        services,
+    )
+
+    assert response["ok"] is True
+    workspace.run_saved_search.assert_called_once_with(saved.saved_search_id)
+    result = response["result"]
+    assert isinstance(result, dict)
+    assert result["intent"]["query_text"] == "governance reform"
+    assert result["evidence"][0]["canonical_sha256"] == "b" * 64
+    assert result["evidence"][0]["text"] == "Governance reform evidence"
+    rendered = repr(result)
+    assert "/private/canonical" not in rendered
+    assert "/private/recordings" not in rendered
+    assert "canonical_path" not in rendered
+    assert "source_path" not in rendered
+
+
+def test_saved_search_delete_passes_optimistic_version() -> None:
+    services, workspace = _services()
+    saved = _saved_search()
+
+    response = handle_request(
+        _request(
+            "workspace.research.search.saved.delete",
+            {
+                "saved_search_id": saved.saved_search_id,
+                "expected_updated_at": saved.updated_at,
+            },
+        ),
+        services,
+    )
+
+    assert response["ok"] is True
+    workspace.delete_saved_search.assert_called_once_with(
+        saved.saved_search_id,
+        expected_updated_at=saved.updated_at,
+    )
+    assert response["result"] == {
+        "saved_search_id": saved.saved_search_id,
+        "deleted": True,
+    }
+
+
 @pytest.mark.parametrize(
     "method",
     [
         "workspace.research.search.execute",
+        "workspace.research.search.saved.list",
         "workspace.research.search.saved.create",
         "workspace.research.search.saved.inspect",
         "workspace.research.search.saved.replace",
+        "workspace.research.search.saved.run",
+        "workspace.research.search.saved.delete",
     ],
 )
 def test_typed_search_methods_are_explicitly_allowlisted(method: str) -> None:
@@ -317,11 +373,21 @@ def test_typed_search_methods_are_explicitly_allowlisted(method: str) -> None:
     params: dict[str, object]
     if method == "workspace.research.search.execute":
         params = {"intent": _params()}
+    elif method == "workspace.research.search.saved.list":
+        params = {"limit": 20}
     elif method == "workspace.research.search.saved.create":
         params = {"name": "Governance", "description": None, "intent": _params()}
-    elif method == "workspace.research.search.saved.inspect":
+    elif method in {
+        "workspace.research.search.saved.inspect",
+        "workspace.research.search.saved.run",
+    }:
         services.workspace.saved_search.return_value = None
         params = {"saved_search_id": "search-1"}
+    elif method == "workspace.research.search.saved.delete":
+        params = {
+            "saved_search_id": "search-1",
+            "expected_updated_at": "v1",
+        }
     else:
         services.workspace.saved_search.return_value = None
         params = {

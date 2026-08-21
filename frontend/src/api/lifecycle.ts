@@ -1,3 +1,5 @@
+import { invokeNativeProtocol } from "./nativeProtocol";
+
 export type DeletionScope =
   | "library-view"
   | "derived-artifacts"
@@ -79,51 +81,20 @@ export interface LifecycleClient {
   executeRetention(plan: RetentionPlan): Promise<RetentionReceipt>;
 }
 
-interface DesktopError {
-  code: string;
-  message: string;
-}
-
-interface DesktopResponse<T> {
-  protocol_version: 1;
-  request_id: string;
-  ok: boolean;
-  result: T | null;
-  error: DesktopError | null;
-}
-
-function assertResponse<T>(value: unknown): DesktopResponse<T> {
-  if (!value || typeof value !== "object") {
-    throw new Error("EchoFlow lifecycle service returned an invalid response");
-  }
-  const candidate = value as Partial<DesktopResponse<T>>;
-  if (
-    candidate.protocol_version !== 1 ||
-    typeof candidate.request_id !== "string" ||
-    typeof candidate.ok !== "boolean"
-  ) {
-    throw new Error("EchoFlow lifecycle service returned an incompatible response");
-  }
-  return candidate as DesktopResponse<T>;
-}
+const LIFECYCLE_PROTOCOL_MESSAGES = {
+  invalid: "EchoFlow lifecycle service returned an invalid response",
+  incompatible: "EchoFlow lifecycle service returned an incompatible response",
+  failure: "EchoFlow could not complete that lifecycle request",
+} as const;
 
 class TauriLifecycleClient implements LifecycleClient {
-  private async request<T>(method: string, params: Record<string, unknown>): Promise<T> {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const response = assertResponse<T>(
-      await invoke<unknown>("lifecycle_request", {
-        request: {
-          protocol_version: 1,
-          request_id: crypto.randomUUID(),
-          method,
-          params,
-        },
-      }),
+  private request<T>(method: string, params: Record<string, unknown>): Promise<T> {
+    return invokeNativeProtocol<T>(
+      "lifecycle_request",
+      method,
+      params,
+      LIFECYCLE_PROTOCOL_MESSAGES,
     );
-    if (!response.ok || response.result === null) {
-      throw new Error(response.error?.message ?? "EchoFlow could not complete that lifecycle request");
-    }
-    return response.result;
   }
 
   documents(): Promise<LifecycleDocument[]> {

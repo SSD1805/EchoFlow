@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { parseNativeProtocolResponse } from "../src/api/nativeProtocol";
 import { formatEvidenceTime } from "../src/format";
 import { DEFAULT_THEME, isTheme, THEMES } from "../src/themes";
 
@@ -45,4 +46,41 @@ test("evidence time formatting is deterministic at minute and hour boundaries", 
 test("Pride and Monochrome advertise the correct native scheme", () => {
   expect(THEMES.find((theme) => theme.id === "pride")?.scheme).toBe("light");
   expect(THEMES.find((theme) => theme.id === "monochrome")?.scheme).toBe("dark");
+});
+
+test("native protocol parser accepts version one and rejects malformed envelopes", () => {
+  const messages = {
+    invalid: "invalid native response",
+    incompatible: "incompatible native response",
+    failure: "native request failed",
+  } as const;
+
+  expect(
+    parseNativeProtocolResponse<{ value: number }>(
+      {
+        protocol_version: 1,
+        request_id: "request-1",
+        ok: true,
+        result: { value: 7 },
+        error: null,
+      },
+      messages,
+    ),
+  ).toEqual({
+    protocol_version: 1,
+    request_id: "request-1",
+    ok: true,
+    result: { value: 7 },
+    error: null,
+  });
+
+  expect(() => parseNativeProtocolResponse(null, messages)).toThrow(
+    "invalid native response",
+  );
+  expect(() =>
+    parseNativeProtocolResponse(
+      { protocol_version: 2, request_id: "request-1", ok: true },
+      messages,
+    ),
+  ).toThrow("incompatible native response");
 });

@@ -1,4 +1,5 @@
 import type { ResearchNoteResult } from "./api/desktop";
+import { invokeNativeProtocol } from "./api/nativeProtocol";
 
 export type ResearchAnchorStatus = "current_verified" | "older_verified" | "unavailable";
 
@@ -37,18 +38,11 @@ interface ReanchorResult {
   current: boolean;
 }
 
-interface DesktopError {
-  code: string;
-  message: string;
-}
-
-interface DesktopResponse<T> {
-  protocol_version: 1;
-  request_id: string;
-  ok: boolean;
-  result: T | null;
-  error: DesktopError | null;
-}
+const ANCHOR_PROTOCOL_MESSAGES = {
+  invalid: "EchoFlow desktop bridge returned an incompatible response",
+  incompatible: "EchoFlow desktop bridge returned an incompatible response",
+  failure: "EchoFlow could not complete that request",
+} as const;
 
 let mockReanchored = false;
 
@@ -56,28 +50,13 @@ function isMockMode(): boolean {
   return new URLSearchParams(window.location.search).get("e2e") === "1";
 }
 
-async function request<T>(method: string, params: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  const response = (await invoke<unknown>("desktop_request", {
-    request: {
-      protocol_version: 1,
-      request_id: crypto.randomUUID(),
-      method,
-      params,
-    },
-  })) as DesktopResponse<T>;
-  if (
-    !response ||
-    response.protocol_version !== 1 ||
-    typeof response.request_id !== "string" ||
-    typeof response.ok !== "boolean"
-  ) {
-    throw new Error("EchoFlow desktop bridge returned an incompatible response");
-  }
-  if (!response.ok || response.result === null) {
-    throw new Error(response.error?.message ?? "EchoFlow could not complete that request");
-  }
-  return response.result;
+function request<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  return invokeNativeProtocol<T>(
+    "desktop_request",
+    method,
+    params,
+    ANCHOR_PROTOCOL_MESSAGES,
+  );
 }
 
 function mockPreview(

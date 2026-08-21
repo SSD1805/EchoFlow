@@ -1,3 +1,5 @@
+import { invokeNativeProtocol } from "./nativeProtocol";
+
 export type TranscriptExportFormat = "txt" | "srt" | "vtt";
 export type SpeakerPresentationKind =
   | "single-speaker"
@@ -94,19 +96,6 @@ export interface TranscriptPublishResult {
   publications: TranscriptPublication[];
 }
 
-interface TranscriptToolsError {
-  code: string;
-  message: string;
-}
-
-interface TranscriptToolsResponse<T> {
-  protocol_version: 1;
-  request_id: string;
-  ok: boolean;
-  result: T | null;
-  error: TranscriptToolsError | null;
-}
-
 export interface TranscriptToolsClient {
   inspect(ref: TranscriptGenerationRef): Promise<TranscriptToolsSnapshot>;
   speakerSpans(ref: TranscriptGenerationRef): Promise<TranscriptSpeakerSpan[]>;
@@ -124,39 +113,20 @@ export interface TranscriptToolsClient {
   ): Promise<TranscriptPublishResult>;
 }
 
-function assertResponse<T>(value: unknown): TranscriptToolsResponse<T> {
-  if (!value || typeof value !== "object") {
-    throw new Error("EchoFlow transcript tools returned an invalid response");
-  }
-  const candidate = value as Partial<TranscriptToolsResponse<T>>;
-  if (
-    candidate.protocol_version !== 1 ||
-    typeof candidate.request_id !== "string" ||
-    typeof candidate.ok !== "boolean"
-  ) {
-    throw new Error("EchoFlow transcript tools returned an incompatible response");
-  }
-  return candidate as TranscriptToolsResponse<T>;
-}
+const TRANSCRIPT_TOOLS_PROTOCOL_MESSAGES = {
+  invalid: "EchoFlow transcript tools returned an invalid response",
+  incompatible: "EchoFlow transcript tools returned an incompatible response",
+  failure: "EchoFlow could not complete that transcript-tools request",
+} as const;
 
 class TauriTranscriptToolsClient implements TranscriptToolsClient {
-  private async request<T>(method: string, params: Record<string, unknown>): Promise<T> {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const request = {
-      protocol_version: 1,
-      request_id: crypto.randomUUID(),
+  private request<T>(method: string, params: Record<string, unknown>): Promise<T> {
+    return invokeNativeProtocol<T>(
+      "transcript_tools_request",
       method,
       params,
-    };
-    const response = assertResponse<T>(
-      await invoke<unknown>("transcript_tools_request", { request }),
+      TRANSCRIPT_TOOLS_PROTOCOL_MESSAGES,
     );
-    if (!response.ok || response.result === null) {
-      throw new Error(
-        response.error?.message ?? "EchoFlow could not complete that transcript-tools request",
-      );
-    }
-    return response.result;
   }
 
   inspect(ref: TranscriptGenerationRef): Promise<TranscriptToolsSnapshot> {

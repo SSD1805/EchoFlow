@@ -96,6 +96,13 @@ class ResearchSearchControlService:
             saved_search_id=saved_search_id,
         )
 
+    def inspect_saved_search(self, identifier: str) -> SavedSearch:
+        """Resolve one durable saved search or fail through the application error contract."""
+        saved = self.workspace.saved_search(identifier)
+        if saved is None:
+            raise ResearchStateError("Saved search does not exist")
+        return saved
+
     def replace_saved_search(
         self,
         identifier: str,
@@ -106,9 +113,7 @@ class ResearchSearchControlService:
         expected_updated_at: str,
     ) -> SavedSearch:
         """Atomically replace display metadata and typed intent with optimistic concurrency."""
-        current = self.workspace.saved_search(identifier)
-        if current is None:
-            raise ResearchStateError("Saved search does not exist")
+        current = self.inspect_saved_search(identifier)
         metadata = self.workspace.metadata
         if metadata is None:
             raise ResearchStateError("Workspace metadata storage is not configured")
@@ -133,3 +138,22 @@ class ResearchSearchControlService:
                 with_notes=updated.intent.with_notes,
             )
         return updated
+
+    def run_saved_search(
+        self, identifier: str
+    ) -> tuple[SavedSearch, WorkspaceSearchResponse]:
+        """Replay durable intent through the workspace's current evidence/search authority."""
+        saved = self.inspect_saved_search(identifier)
+        return saved, self.workspace.run_saved_search(saved.saved_search_id)
+
+    def delete_saved_search(
+        self,
+        identifier: str,
+        *,
+        expected_updated_at: str,
+    ) -> None:
+        """Delete durable saved intent with optimistic concurrency."""
+        self.workspace.delete_saved_search(
+            identifier,
+            expected_updated_at=expected_updated_at,
+        )

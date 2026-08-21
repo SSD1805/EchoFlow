@@ -42,7 +42,10 @@ test("starting work uses the supervised local-task path", async ({ page }) => {
   await page.getByRole("button", { name: "Run preflight" }).click();
   await page.getByRole("button", { name: "Start local transcription" }).click();
 
-  await expect(page.getByRole("status")).toContainText("supervised local process");
+  const launchStatus = page
+    .getByRole("status")
+    .filter({ hasText: "Transcription launched as a supervised local process" });
+  await expect(launchStatus).toBeVisible();
   await expect(page.getByText(/Transcribing interview-01\.m4a/)).toBeVisible();
 });
 

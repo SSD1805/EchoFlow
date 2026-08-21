@@ -78,6 +78,10 @@ class ResearchSearchControlService:
             context_segments=intent.context_segments,
         )
 
+    def list_saved_searches(self, *, limit: int = 200) -> tuple[SavedSearch, ...]:
+        """List durable typed search intent through the same workspace authority."""
+        return self.workspace.saved_searches(limit=limit)
+
     def create_saved_search(
         self,
         name: str,

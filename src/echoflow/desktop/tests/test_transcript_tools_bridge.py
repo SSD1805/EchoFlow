@@ -1,11 +1,22 @@
+import io
+import json
+import sys
+
 import pytest
 from pydantic import ValidationError
 
 from echoflow.desktop.transcript_tools_bridge import (
     dispatch_transcript_tools,
     handle_request,
+    main,
 )
+from echoflow.library.errors import TranscriptToolingError
 from echoflow.library.speaker_label_service import SpeakerRosterEntry
+from echoflow.library.speaker_presentation import (
+    PresentedSpeaker,
+    SpeakerPresentationKind,
+    SpeakerPresentationSpan,
+)
 from echoflow.library.transcript_tools import (
     TranscriptDetails,
     TranscriptDiarizationDetails,
@@ -70,7 +81,18 @@ class ToolingStub:
 
     def speaker_spans(self, document_id: str, *, expected_canonical_sha256: str):
         self.calls.append(("spans", (document_id, expected_canonical_sha256)))
-        return ()
+        return (
+            SpeakerPresentationSpan(
+                document_id=document_id,
+                canonical_sha256=expected_canonical_sha256,
+                segment_id="segment-1",
+                start_seconds=1.0,
+                end_seconds=2.0,
+                text="Hello",
+                speakers=(PresentedSpeaker("speaker-01", "Interviewer"),),
+                kind=SpeakerPresentationKind.SINGLE,
+            ),
+        )
 
     def set_speaker_label(
         self,
@@ -120,6 +142,38 @@ class ToolingStub:
         )
 
 
+class EchoFlowFailureStub(ToolingStub):
+    def inspect(self, document_id: str, *, expected_canonical_sha256: str):
+        raise TranscriptToolingError("Transcript tools are unavailable")
+
+
+class ValueFailureStub(ToolingStub):
+    def inspect(self, document_id: str, *, expected_canonical_sha256: str):
+        raise ValueError("Bad transcript-tools value")
+
+
+class UnexpectedFailureStub(ToolingStub):
+    def inspect(self, document_id: str, *, expected_canonical_sha256: str):
+        raise RuntimeError("private implementation detail")
+
+
+class BinaryInput:
+    def __init__(self, payload: bytes) -> None:
+        self.buffer = io.BytesIO(payload)
+
+
+def _valid_request() -> dict[str, object]:
+    return {
+        "protocol_version": 1,
+        "request_id": "request-1",
+        "method": "transcripts.tools.inspect",
+        "params": {
+            "document_id": "interview-1",
+            "canonical_sha256": "a" * 64,
+        },
+    }
+
+
 def test_inspect_serialization_exposes_details_without_paths() -> None:
     stub = ToolingStub()
     digest = "a" * 64
@@ -139,6 +193,31 @@ def test_inspect_serialization_exposes_details_without_paths() -> None:
     )
     assert "path" not in str(result).lower()
     assert stub.calls == [("inspect", ("interview-1", digest))]
+
+
+def test_speaker_span_and_remove_methods_are_closed_and_serialized() -> None:
+    stub = ToolingStub()
+    digest = "a" * 64
+
+    spans = dispatch_transcript_tools(
+        "transcripts.tools.speakers",
+        {"document_id": "interview-1", "canonical_sha256": digest},
+        stub,  # type: ignore[arg-type]
+    )
+    removed = dispatch_transcript_tools(
+        "transcripts.tools.speaker.remove",
+        {
+            "document_id": "interview-1",
+            "canonical_sha256": digest,
+            "speaker_ref": " speaker-01 ",
+        },
+        stub,  # type: ignore[arg-type]
+    )
+
+    assert spans["spans"][0]["kind"] == "single-speaker"  # type: ignore[index]
+    assert spans["spans"][0]["overlap"] is False  # type: ignore[index]
+    assert removed == {"removed": True}
+    assert stub.calls[-1] == ("remove", ("interview-1", digest, "speaker-01"))
 
 
 def test_set_label_trims_human_input_before_application_call() -> None:
@@ -169,6 +248,7 @@ def test_set_label_trims_human_input_before_application_call() -> None:
         {"document_id": "x", "canonical_sha256": "A" * 64},
         {"document_id": "x", "canonical_sha256": "a" * 63},
         {"document_id": "", "canonical_sha256": "a" * 64},
+        {"document_id": "   ", "canonical_sha256": "a" * 64},
         {"document_id": "x", "canonical_sha256": "a" * 64, "extra": True},
     ],
 )
@@ -178,6 +258,57 @@ def test_inspect_rejects_invalid_or_extra_request_values(
     with pytest.raises(ValidationError):
         dispatch_transcript_tools(
             "transcripts.tools.inspect",
+            params,
+            ToolingStub(),  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    ("method", "params"),
+    [
+        (
+            "transcripts.tools.speaker.set",
+            {
+                "document_id": "interview-1",
+                "canonical_sha256": "a" * 64,
+                "speaker_ref": "   ",
+                "label": "Interviewer",
+            },
+        ),
+        (
+            "transcripts.tools.speaker.set",
+            {
+                "document_id": "interview-1",
+                "canonical_sha256": "a" * 64,
+                "speaker_ref": "speaker-01",
+                "label": "   ",
+            },
+        ),
+        (
+            "transcripts.tools.speaker.remove",
+            {
+                "document_id": "interview-1",
+                "canonical_sha256": "a" * 64,
+                "speaker_ref": "   ",
+            },
+        ),
+        (
+            "transcripts.tools.publish",
+            {
+                "document_id": "interview-1",
+                "canonical_sha256": "a" * 64,
+                "destination": "   ",
+                "formats": ["txt"],
+            },
+        ),
+    ],
+)
+def test_trimmed_blank_mutation_values_are_rejected(
+    method: str, params: dict[str, object]
+) -> None:
+    with pytest.raises(ValidationError):
+        dispatch_transcript_tools(
+            method,
             params,
             ToolingStub(),  # type: ignore[arg-type]
         )
@@ -226,6 +357,53 @@ def test_publish_requires_one_to_three_closed_formats() -> None:
         )
 
 
+def test_handle_request_success_preserves_request_identity() -> None:
+    response = handle_request(
+        _valid_request(),
+        ToolingStub(),  # type: ignore[arg-type]
+    )
+
+    assert response["ok"] is True
+    assert response["request_id"] == "request-1"
+    assert response["error"] is None
+
+
+@pytest.mark.parametrize(
+    ("stub", "expected_code", "expected_message"),
+    [
+        (
+            EchoFlowFailureStub(),
+            "internal_error",
+            "Transcript tools are unavailable",
+        ),
+        (ValueFailureStub(), "invalid_request", "Bad transcript-tools value"),
+        (
+            UnexpectedFailureStub(),
+            "internal_error",
+            "EchoFlow could not complete that transcript-tools request",
+        ),
+    ],
+)
+def test_handle_request_translates_failures_without_leaking_details(
+    stub: ToolingStub,
+    expected_code: str,
+    expected_message: str,
+) -> None:
+    response = handle_request(
+        _valid_request(),
+        stub,  # type: ignore[arg-type]
+    )
+
+    assert response["ok"] is False
+    assert response["request_id"] == "request-1"
+    assert response["result"] is None
+    assert response["error"] == {
+        "code": expected_code,
+        "message": expected_message,
+    }
+    assert "private implementation detail" not in str(response)
+
+
 def test_unknown_operation_is_denied_before_service_dispatch() -> None:
     stub = ToolingStub()
     response = handle_request(
@@ -244,3 +422,36 @@ def test_unknown_operation_is_denied_before_service_dispatch() -> None:
         "message": "Transcript-tools request is invalid",
     }
     assert stub.calls == []
+
+
+def _run_main(monkeypatch: pytest.MonkeyPatch, payload: bytes) -> dict[str, object]:
+    stdout = io.StringIO()
+    monkeypatch.setattr(sys, "stdin", BinaryInput(payload))
+    monkeypatch.setattr(sys, "stdout", stdout)
+
+    assert main() == 0
+    return json.loads(stdout.getvalue())
+
+
+def test_main_rejects_invalid_json_without_starting_application(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = _run_main(monkeypatch, b"{")
+
+    assert response["ok"] is False
+    assert response["error"] == {
+        "code": "invalid_request",
+        "message": "Transcript-tools request was not valid JSON",
+    }
+
+
+def test_main_rejects_oversized_request_before_parsing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = _run_main(monkeypatch, b"x" * (128 * 1024 + 1))
+
+    assert response["ok"] is False
+    assert response["error"] == {
+        "code": "invalid_request",
+        "message": "Transcript-tools request exceeded the safe size limit",
+    }

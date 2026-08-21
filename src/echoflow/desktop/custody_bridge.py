@@ -68,7 +68,9 @@ class _DeletionPlanParams(BaseModel):
 
     @field_validator("scopes")
     @classmethod
-    def unique_scopes(cls, values: tuple[DeletionScope, ...]) -> tuple[DeletionScope, ...]:
+    def unique_scopes(
+        cls, values: tuple[DeletionScope, ...]
+    ) -> tuple[DeletionScope, ...]:
         if len(values) != len(set(values)):
             raise ValueError("deletion scopes cannot repeat")
         return values
@@ -245,7 +247,9 @@ def _failure(request_id: str, *, code: str, message: str) -> dict[str, object]:
     }
 
 
-def handle_request(payload: object, service: LibraryCustodyService) -> dict[str, object]:
+def handle_request(
+    payload: object, service: LibraryCustodyService
+) -> dict[str, object]:
     request_id = "unknown"
     if isinstance(payload, dict) and isinstance(payload.get("request_id"), str):
         request_id = payload["request_id"][:128]

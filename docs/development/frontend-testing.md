@@ -30,10 +30,13 @@ Playwright exercises every primary desktop surface:
 - Library search and verified evidence navigation;
 - verified local playback from current and preserved older evidence generations;
 - Transcript and speaker tools;
-- Research notes, filtering, saved searches, typed search, and anchor maintenance; and
+- Research notes, filtering, saved searches, typed search, and anchor maintenance;
+- persistent and contextual in-app guidance; and
 - development-mode behavior.
 
 Playback browser qualification covers exact ranked and word-level coordinates, missing and changed sources, deliberate multi-audio refusal, audio/video presentation, keyboard preparation, and path non-disclosure. The browser mock does not reimplement source verification; it exposes already-decided backend outcomes so React tests can verify presentation of success/refusal states.
+
+`frontend/tests/in-app-help.spec.ts` treats guidance as an interaction/accessibility feature, not as backend policy. It proves that screen help follows the active workspace, overall help remains reachable, Escape closes a panel and restores focus, contextual Evidence/Playback/Transcript guidance is discoverable, sensitive paths do not appear, and axe stays clean while help is open.
 
 Tests use semantic roles and accessible names where possible. A selector that depends on implementation-only class names should have a specific reason.
 
@@ -45,15 +48,19 @@ Pride has a dedicated assertion that its rainbow remains decorative. Monochrome 
 
 Native playback does not autoplay. Its prepare/re-verify action is keyboard reachable, the system media controls remain native semantic controls, and the surrounding presentation honors reduced-motion preferences.
 
+In-app guidance is never hover-only. Triggers are ordinary buttons usable by keyboard, pointer, and touch. Expanded state is programmatic, Escape closes the panel, focus returns to the trigger, and every panel has an explicit close control. The responsive layout keeps the explanation reachable on narrow/touch viewports.
+
 ### Security-oriented browser assertions
 
 Frontend tests explicitly check that:
 
 - transcript/research strings containing HTML remain inert text;
-- evidence, transcript-tool, and playback views do not expose canonical/source filesystem paths;
+- evidence, transcript-tool, playback, and help views do not expose canonical/source filesystem paths;
 - playback failure does not create a media element/session in the view;
 - speaker display labels do not erase anonymous evidence refs; and
 - post-hoc publication reports safe filenames instead of rendering the selected destination path.
+
+Help content is static local presentation text. It must not become a remote-document embed, analytics surface, or a second executable copy of backend rules.
 
 ## Native Rust qualification
 
@@ -84,7 +91,7 @@ The important mutants in current desktop policy are questions such as:
 - can an ambiguous audio track be guessed?; and
 - can an unallowlisted desktop method execute?
 
-Those decisions live in Python, so Poodle is the meaningful mutation tool for them. Installing Stryker solely to mutate JSX branches would increase dependency/runtime surface without improving evidence-policy assurance.
+Those decisions live in Python, so Poodle is the meaningful mutation tool for them. Installing Stryker solely to mutate JSX branches or static guidance copy would increase dependency/runtime surface without improving evidence-policy assurance.
 
 This is not a permanent ban. Add a frontend mutation layer when all of the following are true:
 
@@ -108,8 +115,9 @@ A new interactive slice should normally ship with:
 - at least one meaningful negative/boundary case;
 - keyboard/semantic-role coverage where interactive;
 - axe on the rendered slice;
+- contextual guidance when the user must understand a non-obvious EchoFlow concept;
 - explicit path/capability assertions if sensitive local state is involved;
 - native tests when Rust gains a new privileged capability; and
 - backend property/mutation tests when the feature changes decision-heavy application policy.
 
-If writing the browser test requires recreating a backend rule in the mock or component, inspect the architecture first. The better fix may be moving that rule back behind the Python service boundary.
+If writing the browser test or help copy requires recreating a backend rule in the component, inspect the architecture first. The better fix may be moving that rule back behind the Python service boundary and letting the frontend describe its outcome.

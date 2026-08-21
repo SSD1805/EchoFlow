@@ -1,22 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createDesktopClient } from "./api/desktop";
+import { createPlaybackClient } from "./api/playback";
 import { createProcessingClient } from "./api/processing";
 import { createTranscriptToolsClient } from "./api/transcriptTools";
+import { InfoPopover } from "./components/InfoPopover";
 import { type Theme } from "./components/WorkspaceHeader";
+import type { HelpTopicId } from "./help";
 import { IntakeWorkspace } from "./IntakeWorkspace";
+import { PlaybackProvider } from "./PlaybackContext";
 import { ProcessingCenter } from "./ProcessingCenter";
 import { ResearchWorkspaceWithAnchorReview } from "./ResearchWorkspaceWithAnchorReview";
 import { SearchWorkspace } from "./SearchWorkspace";
 import { DEFAULT_THEME, isTheme, THEME_STORAGE_KEY } from "./themes";
+import "./help.css";
 import "./processing-center.css";
 import "./theme-extras.css";
 
 const client = createDesktopClient();
+const playback = createPlaybackClient();
 const processing = createProcessingClient();
 const transcriptTools = createTranscriptToolsClient();
 
 type View = "intake" | "processing" | "library" | "research";
+
+const VIEW_HELP_TOPIC: Record<View, HelpTopicId> = {
+  intake: "intake",
+  processing: "processing",
+  library: "library",
+  research: "research",
+};
 
 function initialTheme(): Theme {
   try {
@@ -123,6 +136,21 @@ export function App() {
           </button>
         </nav>
 
+        <div className="sidebar-guides" aria-label="In-app help">
+          <InfoPopover
+            topic={VIEW_HELP_TOPIC[view]}
+            label="How this screen works"
+            align="start"
+            className="sidebar-help"
+          />
+          <InfoPopover
+            topic="overview"
+            label="How EchoFlow works"
+            align="start"
+            className="sidebar-help"
+          />
+        </div>
+
         <div className="privacy-note">
           <span className="privacy-dot" aria-hidden="true" />
           <div>
@@ -132,7 +160,9 @@ export function App() {
         </div>
       </aside>
 
-      <main className="workspace">{workspace}</main>
+      <PlaybackProvider client={playback}>
+        <main className="workspace">{workspace}</main>
+      </PlaybackProvider>
     </div>
   );
 }

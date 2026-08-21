@@ -161,6 +161,31 @@
 .preflight-hero strong { display: block; margin-top: 5px; font-size: 1.06rem; }
 .preflight-hero p { margin: 5px 0 0; font-size: 0.78rem; }
 .preflight-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.audio-track-chooser {
+  margin: 18px 0 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  padding: 16px;
+}
+.audio-track-chooser legend { padding: 0 6px; font-weight: 720; }
+.audio-track-chooser > p { margin: 0; max-width: 820px; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
+.audio-track-chooser .audio-track-required { margin-top: 8px; color: var(--accent-strong); font-weight: 650; }
+.audio-track-options { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.audio-track-option {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 12px;
+}
+.audio-track-option-active { border-color: var(--accent); background: var(--accent-soft); }
+.audio-track-option input { margin-top: 4px; accent-color: var(--accent); }
+.audio-track-option span { min-width: 0; display: grid; gap: 3px; }
+.audio-track-option strong { overflow-wrap: anywhere; }
+.audio-track-option small { color: var(--muted); line-height: 1.4; }
 .processing-advanced { margin: 18px 0 0; }
 .advanced-processing-grid { padding: 0 17px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .advanced-processing-grid label { display: grid; gap: 6px; font-size: 0.78rem; font-weight: 650; }
@@ -191,7 +216,8 @@
   .processing-intro,
   .processing-grid { grid-template-columns: 1fr; gap: 14px; }
   .processing-intro { margin-top: 48px; }
-  .recording-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .recording-choices,
+  .audio-track-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .preflight-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -207,6 +233,7 @@
   .processing-metrics,
   .recording-choices,
   .preflight-metrics,
+  .audio-track-options,
   .advanced-processing-grid { grid-template-columns: 1fr; }
   .model-actions,
   .job-actions,

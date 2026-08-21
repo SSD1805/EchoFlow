@@ -31,6 +31,12 @@ class TranscriptToolingError(TranscriptLibraryError):
     exit_code = 2
 
 
+class PlaybackAuthorizationError(TranscriptLibraryError):
+    """Verified local-source playback could not be authorized safely."""
+
+    exit_code = 2
+
+
 class EvidenceNavigationError(TranscriptLibraryError):
     """A ranked result cannot be reconciled safely with canonical evidence."""
 

@@ -158,6 +158,9 @@ jobs:
       - name: Compile locked native Tauri host
         run: cargo check --locked --manifest-path src-tauri/Cargo.toml
 
+      - name: Test locked native Tauri host
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+
   frontend-playwright:
     needs: [static, frontend-static]
     runs-on: ubuntu-latest

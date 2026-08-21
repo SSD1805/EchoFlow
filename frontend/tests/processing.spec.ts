@@ -1,8 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-async function openProcessing(page: import("@playwright/test").Page) {
-  await page.goto("/?e2e=1");
+async function openProcessing(
+  page: import("@playwright/test").Page,
+  querySuffix = "",
+) {
+  await page.goto(`/?e2e=1${querySuffix}`);
   await page.getByRole("button", { name: "Processing" }).click();
   await expect(
     page.getByRole("heading", { name: "Turn recordings into durable evidence." }),
@@ -34,6 +37,35 @@ test("Susan can choose a recording and obtain a backend preflight before start",
   await expect(preflight).toBeVisible();
   await expect(page.getByRole("status")).toContainText("Preflight complete");
   await expect(page.getByRole("button", { name: "Start local transcription" })).toBeEnabled();
+  await expect(page.getByRole("group", { name: "Choose the audio track to transcribe" })).toHaveCount(0);
+});
+
+test("multiple embedded audio tracks require an explicit backend-bound choice", async ({ page }) => {
+  await openProcessing(page, "&multitrack=1");
+
+  await page.getByRole("button", { name: "Choose recording" }).click();
+  await page.getByRole("button", { name: "Run preflight" }).click();
+
+  const chooser = page.getByRole("group", { name: "Choose the audio track to transcribe" });
+  await expect(chooser).toBeVisible();
+  await expect(chooser).toContainText("Camera scratch");
+  await expect(chooser).toContainText("Lav microphone");
+  await expect(chooser).toContainText("eng");
+  await expect(chooser).toContainText("container default");
+  await expect(chooser.getByRole("radio")).toHaveCount(2);
+  await expect(chooser.getByRole("radio").first()).not.toBeChecked();
+  await expect(chooser.getByRole("radio").last()).not.toBeChecked();
+
+  const start = page.getByRole("button", { name: "Start local transcription" });
+  await expect(start).toBeDisabled();
+
+  await chooser.getByRole("radio", { name: /Lav microphone/ }).check();
+  await expect(page.getByRole("status")).toContainText("Audio track #3 confirmed");
+  await expect(chooser.getByRole("radio", { name: /Lav microphone/ })).toBeChecked();
+  await expect(start).toBeEnabled();
+
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations).toEqual([]);
 });
 
 test("starting work uses the supervised local-task path", async ({ page }) => {

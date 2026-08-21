@@ -6,7 +6,10 @@ import type {
   WorkspaceEvidenceResult,
   WorkspaceMatchedWord,
 } from "./api/desktop";
+import { InfoPopover } from "./components/InfoPopover";
+import { EvidencePlayback } from "./EvidencePlayback";
 import { formatEvidenceTime } from "./format";
+import { usePlaybackClient } from "./PlaybackContext";
 import "./evidence-reader.css";
 
 interface EvidenceReaderProps {
@@ -55,6 +58,7 @@ export function EvidenceReader({
   generationState = "current",
   resultLabel = "Search result",
 }: EvidenceReaderProps) {
+  const playback = usePlaybackClient();
   const [cursorSeconds, setCursorSeconds] = useState(evidence.seek_seconds);
   const [noteBody, setNoteBody] = useState("");
   const [savingNote, setSavingNote] = useState(false);
@@ -116,9 +120,17 @@ export function EvidenceReader({
           <p className="mini-label">Verified canonical window</p>
           <h2 id="evidence-reader-title">Evidence reader</h2>
         </div>
-        <button type="button" className="quiet-button" onClick={onClose}>
-          Close
-        </button>
+        <div className="context-help-actions">
+          <InfoPopover
+            topic="evidence"
+            label="How to use this"
+            align="end"
+            className="context-help"
+          />
+          <button type="button" className="quiet-button" onClick={onClose}>
+            Close
+          </button>
+        </div>
       </header>
 
       <p
@@ -225,6 +237,16 @@ export function EvidenceReader({
         </section>
       )}
 
+      <EvidencePlayback
+        client={playback}
+        generation={{
+          document_id: evidence.document_id,
+          canonical_sha256: evidence.canonical_sha256,
+        }}
+        cursorSeconds={cursorSeconds}
+        onPositionChange={setCursorSeconds}
+      />
+
       <footer className="evidence-seek" data-seek-seconds={evidence.seek_seconds}>
         <div>
           <span className="mini-label">Source-relative evidence cursor</span>
@@ -250,9 +272,8 @@ export function EvidenceReader({
             onChange={(event) => setCursorSeconds(Number(event.target.value))}
           />
           <p>
-            This source-relative coordinate is verified against canonical evidence. Media
-            playback can consume it without exposing source or canonical filesystem paths to
-            the webview.
+            This source-relative coordinate is verified against canonical evidence. Native playback
+            consumes it without exposing source or canonical filesystem paths to the webview.
           </p>
         </div>
       </footer>

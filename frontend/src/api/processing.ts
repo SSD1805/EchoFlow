@@ -79,6 +79,9 @@ export interface ProcessingAudioStream {
   duration_seconds: number | null;
   sample_rate_hz: number | null;
   channels: number | null;
+  title: string | null;
+  language: string | null;
+  is_default: boolean;
 }
 
 export interface ProcessingPreflight {
@@ -89,6 +92,7 @@ export interface ProcessingPreflight {
   duration_seconds: number;
   audio_streams: ProcessingAudioStream[];
   selected_audio_stream_index: number;
+  audio_stream_selection_required: boolean;
   profile: ProcessingProfile;
   provisional: boolean;
   strategy_id: string;
@@ -578,14 +582,51 @@ class MockProcessingClient implements ProcessingClient {
   private plan(recordingName: string, options: PreflightOptions): ProcessingPreflight {
     const model = options.profile === "screening" ? "tiny" : options.profile === "accuracy" ? "medium" : "small";
     const strategy = options.strategyId ?? `${model}-cpu-int8`;
+    const multitrack = new URLSearchParams(window.location.search).get("multitrack") === "1";
+    const audioStreams: ProcessingAudioStream[] = multitrack
+      ? [
+          {
+            index: 1,
+            codec: "aac",
+            duration_seconds: 3_642.5,
+            sample_rate_hz: 48_000,
+            channels: 2,
+            title: "Camera scratch",
+            language: "eng",
+            is_default: false,
+          },
+          {
+            index: 3,
+            codec: "pcm_s16le",
+            duration_seconds: 3_642.5,
+            sample_rate_hz: 48_000,
+            channels: 1,
+            title: "Lav microphone",
+            language: "eng",
+            is_default: true,
+          },
+        ]
+      : [
+          {
+            index: 1,
+            codec: "aac",
+            duration_seconds: 3_642.5,
+            sample_rate_hz: 48_000,
+            channels: 2,
+            title: null,
+            language: null,
+            is_default: false,
+          },
+        ];
     return {
       job_id: `job-planned-${this.jobMutation + 10}`,
       recording_name: recordingName,
       source_sha256: "e".repeat(64),
       container_format: "mov,mp4,m4a,3gp,3g2,mj2",
       duration_seconds: 3_642.5,
-      audio_streams: [{ index: 1, codec: "aac", duration_seconds: 3_642.5, sample_rate_hz: 48_000, channels: 2 }],
-      selected_audio_stream_index: options.audioStreamIndex ?? 1,
+      audio_streams: audioStreams,
+      selected_audio_stream_index: options.audioStreamIndex ?? audioStreams[0]!.index,
+      audio_stream_selection_required: multitrack && options.audioStreamIndex == null,
       profile: options.profile,
       provisional: options.profile === "screening",
       strategy_id: strategy,

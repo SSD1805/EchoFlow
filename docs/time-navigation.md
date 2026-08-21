@@ -31,7 +31,7 @@ flowchart LR
     A --> C[Verified search seek coordinate]
     A --> D[Durable note anchor]
     A --> E[Desktop evidence cursor]
-    E --> F[Future Tauri media playback]
+    E --> F[Verified Tauri media playback]
 
     classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
     classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
@@ -47,8 +47,8 @@ flowchart LR
 ```
 
 Text fallback: one canonical numeric time drives human clock display, verified search
-navigation, durable research anchors, and the current desktop evidence cursor. Actual
-local media playback remains a separate native capability.
+navigation, durable research anchors, the desktop evidence cursor, and verified local
+media playback through the native host.
 
 ## Can search find the exact place now?
 
@@ -65,19 +65,22 @@ passage and its start time rather than fabricating a word highlight.
 
 ## Can I click a word and jump around now?
 
-**The desktop evidence cursor can. The media player cannot yet.**
+**Yes. The evidence cursor and verified native player now share the same source-relative coordinate.**
 
 The Library screen can open a verified Evidence reader. Canonical timed words are
 interactive: selecting one moves the reader's evidence cursor to that exact
 source-relative coordinate, while **Return to match** restores the backend-selected seek
 position.
 
-That is deliberately not the same thing as playing the recording. The current React
-surface does not receive an arbitrary source path or open local media itself.
+Preparing playback submits that current coordinate with the exact canonical generation.
+Python re-verifies the original source and transcript identity, then Rust opens the source
+behind an opaque local media session. React receives playback state and coordinates, not a
+raw source path or general filesystem authority.
 
-The next native media step is a Tauri-owned playback capability that consumes a verified
-coordinate and safe source capability. React should receive playback state and coordinates,
-not general filesystem authority.
+Normal media transport and seeking stay in the native/WebView media layer after the
+session is authorized. EchoFlow does not re-hash a multi-gigabyte source on every seek.
+See **[Verified native playback](native-playback.md)** for the authorization and range-stream
+contract.
 
 ## What about notes and annotations? 📝
 
@@ -99,9 +102,10 @@ echoflow library notes add JOB_ID segment-000042 \
   --body "Compare this with the 2024 survey."
 ```
 
-The desktop Evidence reader already exposes the verified segment/word coordinate system.
-The next **Research workspace UI** should browse those durable anchors and create/edit notes
-from verified selections without inventing a UI-only coordinate model.
+The desktop Evidence reader and Research workspace both consume the verified
+segment/word coordinate system. Current evidence can accept a new durable note; older
+research anchors can reopen the exact preserved canonical generation without silently
+rebinding it to the current transcript.
 
 A note should not anchor only to a rendered clock such as `01:19:48.370`, because that is
 presentation. It also should not anchor only to a semantic-search chunk ID because chunks
@@ -179,7 +183,8 @@ yet qualify**.
 | Neighboring reading context | bounded canonical segment expansion after ranking |
 | Desktop word interaction | canonical timed words move the evidence cursor; Return to match restores backend seek |
 | Durable notes/annotations | verified evidence anchors stored with authoritative user state |
-| Play original audio/video | not yet; Tauri media capability is next |
+| Play original audio/video | generation/source-verified Tauri session from the same evidence cursor |
+| Multi-audio playback | intentionally refused until native track selection can prove the transcribed stream |
 | SMPTE frame arithmetic | intentionally not inferred without qualified frame semantics |
 
 ## The small rule underneath all of this
@@ -190,5 +195,6 @@ the three.** ✨
 For the exact implementation contract, see
 **[Media normalization and transcript timeline](architecture/media-and-timeline.md)**,
 **[Word-level timestamp alignment](architecture/word-alignment.md)**,
-**[Evidence-first corpus search](architecture/corpus-search.md)**, and
+**[Evidence-first corpus search](architecture/corpus-search.md)**,
+**[Verified native playback](native-playback.md)**, and
 **[Your notes should survive the machinery](research-notes.md)**.

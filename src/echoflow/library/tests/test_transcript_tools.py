@@ -127,7 +127,8 @@ def _service(
     index = DocumentIndex((document,))
     files = LocalFileManager()
     labels = SpeakerLabelStore(
-        tmp_path / "speaker-labels.json", files  # type: ignore[arg-type]
+        tmp_path / "speaker-labels.json",
+        files,  # type: ignore[arg-type]
     )
     label_service = SpeakerLabelService(
         index=index,  # type: ignore[arg-type]
@@ -185,7 +186,9 @@ def test_inspect_reports_missing_source_without_invalidating_canonical_evidence(
 def test_generation_guard_rejects_stale_desktop_mutation(tmp_path: Path) -> None:
     service, _ = _service(tmp_path)
 
-    with pytest.raises(TranscriptToolingError, match="changed since this view was opened"):
+    with pytest.raises(
+        TranscriptToolingError, match="changed since this view was opened"
+    ):
         service.set_speaker_label(
             "job-1",
             expected_canonical_sha256="b" * 64,
@@ -194,7 +197,9 @@ def test_generation_guard_rejects_stale_desktop_mutation(tmp_path: Path) -> None
         )
 
 
-def test_label_mutation_preserves_anonymous_ref_and_can_be_removed(tmp_path: Path) -> None:
+def test_label_mutation_preserves_anonymous_ref_and_can_be_removed(
+    tmp_path: Path,
+) -> None:
     service, digest = _service(tmp_path)
 
     named = service.set_speaker_label(
@@ -213,9 +218,12 @@ def test_label_mutation_preserves_anonymous_ref_and_can_be_removed(tmp_path: Pat
         expected_canonical_sha256=digest,
         speaker_ref="speaker-01",
     )
-    assert service.inspect(
-        "job-1", expected_canonical_sha256=digest
-    ).speakers[0].display_label is None
+    assert (
+        service.inspect("job-1", expected_canonical_sha256=digest)
+        .speakers[0]
+        .display_label
+        is None
+    )
 
 
 def test_speaker_presentation_is_generation_bound(tmp_path: Path) -> None:
@@ -231,7 +239,9 @@ def test_speaker_presentation_is_generation_bound(tmp_path: Path) -> None:
     }
 
 
-def test_publish_is_deterministic_deduplicated_and_collision_safe(tmp_path: Path) -> None:
+def test_publish_is_deterministic_deduplicated_and_collision_safe(
+    tmp_path: Path,
+) -> None:
     service, digest = _service(tmp_path)
     destination = tmp_path / "exports"
     destination.mkdir()
@@ -257,7 +267,9 @@ def test_publish_is_deterministic_deduplicated_and_collision_safe(tmp_path: Path
         "[speaker-01] Hello there\n[speaker-02] Second line\n"
     )
     assert (destination / "interview.vtt").read_text().startswith("WEBVTT\n\n")
-    assert str(destination) not in " ".join(item.filename for item in result.publications)
+    assert str(destination) not in " ".join(
+        item.filename for item in result.publications
+    )
 
 
 def test_publish_rejects_empty_formats_and_missing_destination(tmp_path: Path) -> None:
@@ -292,9 +304,11 @@ def test_tampered_canonical_is_rejected_even_when_index_generation_is_stale(
 
 @given(
     st.text(min_size=0, max_size=80).filter(
-        lambda value: not (
-            len(value) == 64
-            and all(character in "0123456789abcdef" for character in value)
+        lambda value: (
+            not (
+                len(value) == 64
+                and all(character in "0123456789abcdef" for character in value)
+            )
         )
     )
 )

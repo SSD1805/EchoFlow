@@ -6,19 +6,19 @@ host must convert it to an opaque media session before returning anything to the
 
 from __future__ import annotations
 
-import json
-import sys
-from contextlib import redirect_stdout
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from echoflow.app.app_container import AppContainer
 from echoflow.core.errors import EchoFlowError
+from echoflow.desktop.host_protocol import (
+    failure_response,
+    run_stdio_bridge,
+    success_response,
+)
 from echoflow.library.playback import PlaybackAuthorizationService, PlaybackGrant
 
-_PROTOCOL_VERSION = 1
-_MAX_REQUEST_BYTES = 128 * 1024
 PlaybackMethod = Literal["playback.authorize"]
 
 
@@ -81,26 +81,6 @@ def dispatch_playback(
     )
 
 
-def _success(request_id: str, result: object) -> dict[str, object]:
-    return {
-        "protocol_version": _PROTOCOL_VERSION,
-        "request_id": request_id,
-        "ok": True,
-        "result": result,
-        "error": None,
-    }
-
-
-def _failure(request_id: str, *, code: str, message: str) -> dict[str, object]:
-    return {
-        "protocol_version": _PROTOCOL_VERSION,
-        "request_id": request_id,
-        "ok": False,
-        "result": None,
-        "error": {"code": code, "message": message},
-    }
-
-
 def _service(container: AppContainer) -> PlaybackAuthorizationService:
     return PlaybackAuthorizationService(
         index=container.transcript_index(),
@@ -117,26 +97,26 @@ def handle_request(
     try:
         request = _Request.model_validate(payload)
         request_id = request.request_id
-        return _success(
+        return success_response(
             request_id,
             dispatch_playback(request.method, request.params, service),
         )
     except ValidationError:
-        return _failure(
+        return failure_response(
             request_id,
             code="invalid_request",
             message="Playback authorization request is invalid",
         )
     except EchoFlowError as exc:
-        return _failure(
+        return failure_response(
             request_id,
             code=exc.code.value,
             message=exc.public_message,
         )
     except ValueError as exc:
-        return _failure(request_id, code="invalid_request", message=str(exc))
+        return failure_response(request_id, code="invalid_request", message=str(exc))
     except Exception:
-        return _failure(
+        return failure_response(
             request_id,
             code="internal_error",
             message="EchoFlow could not authorize local playback",
@@ -144,29 +124,11 @@ def handle_request(
 
 
 def main() -> int:
-    raw = sys.stdin.buffer.read(_MAX_REQUEST_BYTES + 1)
-    if len(raw) > _MAX_REQUEST_BYTES:
-        response = _failure(
-            "unknown",
-            code="invalid_request",
-            message="Playback authorization request exceeded the safe size limit",
-        )
-    else:
-        try:
-            payload = json.loads(raw)
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            response = _failure(
-                "unknown",
-                code="invalid_request",
-                message="Playback authorization request was not valid JSON",
-            )
-        else:
-            with redirect_stdout(sys.stderr):
-                container = AppContainer()
-                response = handle_request(payload, _service(container))
-    sys.stdout.write(json.dumps(response, sort_keys=True))
-    sys.stdout.write("\n")
-    return 0
+    return run_stdio_bridge(
+        lambda payload: handle_request(payload, _service(AppContainer())),
+        oversized_message="Playback authorization request exceeded the safe size limit",
+        invalid_json_message="Playback authorization request was not valid JSON",
+    )
 
 
 if __name__ == "__main__":

@@ -53,6 +53,14 @@ Search snippets, note bodies, participant-provided text, filenames, speaker labe
 
 The packaged frontend uses no remote fonts, scripts, stylesheets, analytics, or application telemetry. Network-bearing product behavior must be explicit and separately designed rather than smuggled through presentation code.
 
+## In-app guidance is presentation only
+
+`frontend/src/help.ts` contains static local explanatory copy. `InfoPopover` renders that copy through ordinary React text nodes. The guidance layer has no filesystem, database, subprocess, model, media, or network capability and does not load remote documentation.
+
+Help may explain an application rule, such as generation binding or deliberate multi-audio playback refusal, but it does not evaluate or enforce that rule. Python remains authoritative. Treating help copy as executable policy would create exactly the duplicate frontend business logic this boundary is designed to avoid.
+
+Guidance must not interpolate source/canonical paths, transcript contents, research contents, or other sensitive state into reusable help text. Tests assert path non-disclosure while help is open.
+
 ## Path and evidence disclosure
 
 Local paths are sensitive. Intake may intentionally show paths the user has just selected because reviewing that selection is part of the requested action. Evidence navigation, transcript tooling, and playback are narrower.
@@ -89,6 +97,6 @@ Python tests cover allowlists, schema validation, stale-generation rejection, er
 
 Rust tests cover playback session-token validation, range parsing, unknown sessions, and bounded protocol responses. CI runs both `cargo check --locked` and `cargo test --locked` for the native host.
 
-Frontend tests cover each primary workspace, transcript-tool interactions, verified playback, hostile-text rendering, keyboard paths, path/capability boundaries, theme persistence/contrast, and axe. Playback qualification includes current and preserved older generations, exact word coordinates, missing/changed/multi-audio failures, audio/video presentation, keyboard preparation, and path non-disclosure. Pride and Monochrome use the same semantic-token qualification as every other skin.
+Frontend tests cover each primary workspace, transcript-tool interactions, verified playback, contextual help, hostile-text rendering, keyboard paths, path/capability boundaries, theme persistence/contrast, and axe. Playback qualification includes current and preserved older generations, exact word coordinates, missing/changed/multi-audio failures, audio/video presentation, keyboard preparation, and path non-disclosure. Guidance qualification includes keyboard dismissal/focus return, screen-sensitive topics, contextual evidence/playback/transcript help, axe with an open panel, and path non-disclosure. Pride and Monochrome use the same semantic-token qualification as every other skin.
 
 These checks do not prove that the host OS, system WebView, Tauri runtime, registry infrastructure, native dependencies, or a compromised same-user process are trustworthy. Native codec availability also varies by operating-system media engine. Packaging, signing, update integrity, managed Python runtime custody, and representative-device WebView qualification remain separate release milestones.

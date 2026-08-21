@@ -1,8 +1,8 @@
 """Narrow desktop adapter for typed Research search intent.
 
 React supplies form values only. Python validates the complete intent, executes search
-semantics, and performs optimistic saved-search replacement. Runtime evidence scopes and
-filesystem paths never cross this adapter as user-editable state.
+semantics, and performs optimistic saved-search lifecycle operations. Runtime evidence
+scopes and filesystem paths never cross this adapter as user-editable state.
 """
 
 from __future__ import annotations
@@ -139,7 +139,7 @@ class _CreateSavedParams(BaseModel):
         return stripped or None
 
 
-class _InspectSavedParams(BaseModel):
+class _SavedIdentifierParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     saved_search_id: str = Field(min_length=1, max_length=200)
@@ -163,6 +163,18 @@ class _ReplaceSavedParams(_CreateSavedParams):
         stripped = value.strip()
         if not stripped:
             raise ValueError("saved search identity and version cannot be blank")
+        return stripped
+
+
+class _DeleteSavedParams(_SavedIdentifierParams):
+    expected_updated_at: str = Field(min_length=1, max_length=200)
+
+    @field_validator("expected_updated_at")
+    @classmethod
+    def strip_expected_updated_at(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("expected_updated_at cannot be blank")
         return stripped
 
 
@@ -304,13 +316,10 @@ def dispatch_research_search(
             )
         )
     if method == "workspace.research.search.saved.inspect":
-        inspect_params = _InspectSavedParams.model_validate(params)
-        saved = workspace.saved_search(inspect_params.saved_search_id)
-        if saved is None:
-            from echoflow.library.errors import ResearchStateError
-
-            raise ResearchStateError("Saved search does not exist")
-        return _serialize_saved(saved)
+        inspect_params = _SavedIdentifierParams.model_validate(params)
+        return _serialize_saved(
+            service.inspect_saved_search(inspect_params.saved_search_id)
+        )
     if method == "workspace.research.search.saved.replace":
         replace_params = _ReplaceSavedParams.model_validate(params)
         intent = replace_params.intent.to_intent()
@@ -323,4 +332,16 @@ def dispatch_research_search(
                 expected_updated_at=replace_params.expected_updated_at,
             )
         )
+    if method == "workspace.research.search.saved.run":
+        run_params = _SavedIdentifierParams.model_validate(params)
+        saved, response = service.run_saved_search(run_params.saved_search_id)
+        intent = ResearchSearchIntent.from_saved_intent(saved.intent)
+        return _serialize_search(intent, response)
+    if method == "workspace.research.search.saved.delete":
+        delete_params = _DeleteSavedParams.model_validate(params)
+        service.delete_saved_search(
+            delete_params.saved_search_id,
+            expected_updated_at=delete_params.expected_updated_at,
+        )
+        return {"saved_search_id": delete_params.saved_search_id, "deleted": True}
     raise ValueError("Unsupported typed Research search desktop method")

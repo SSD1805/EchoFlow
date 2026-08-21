@@ -252,7 +252,9 @@ def _service(container: AppContainer) -> TranscriptToolsService:
     )
 
 
-def handle_request(payload: object, service: TranscriptToolsService) -> dict[str, object]:
+def handle_request(
+    payload: object, service: TranscriptToolsService
+) -> dict[str, object]:
     request_id = "unknown"
     try:
         request = _Request.model_validate(payload)

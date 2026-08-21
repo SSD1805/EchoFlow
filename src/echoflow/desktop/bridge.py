@@ -14,18 +14,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-import echoflow.desktop.research_validation as research_validation
 from echoflow.app.app_container import AppContainer
 from echoflow.app.processing_center import ProcessingCenterService
 from echoflow.core.errors import EchoFlowError
+from echoflow.desktop import research_serialization, research_validation
 from echoflow.desktop.processing_bridge import dispatch_processing
 from echoflow.desktop.research_anchor_bridge import dispatch_research_anchor
 from echoflow.desktop.research_search_bridge import dispatch_research_search
-from echoflow.desktop.research_serialization import (
-    serialize_context_segment as _serialize_context_segment,
-    serialize_word as _serialize_word,
-    serialize_workspace_passage as _serialize_workspace_passage,
-)
 from echoflow.library.errors import ResearchStateError
 from echoflow.library.locations import (
     LibraryLocationKind,
@@ -260,7 +255,8 @@ def _serialize_discovery(report: WorkspaceDiscoveryResponse) -> dict[str, object
         "query": report.query,
         "total_count": report.total_count,
         "evidence": [
-            _serialize_workspace_passage(item) for item in report.transcripts.results
+            research_serialization.serialize_workspace_passage(item)
+            for item in report.transcripts.results
         ],
         "notes": [_serialize_note(item) for item in report.notes],
         "tags": [{"tag_id": item.tag_id, "name": item.name} for item in report.tags],
@@ -317,9 +313,12 @@ def _serialize_note_evidence(item: ResearchNoteEvidenceView) -> dict[str, object
                 }
                 for speaker in item.located.speakers
             ],
-            "matched_words": [_serialize_word(word) for word in evidence.matched_words],
+            "matched_words": [
+                research_serialization.serialize_word(word)
+                for word in evidence.matched_words
+            ],
             "context_segments": [
-                _serialize_context_segment(segment)
+                research_serialization.serialize_context_segment(segment)
                 for segment in evidence.context_segments
             ],
             "note_count": 1,

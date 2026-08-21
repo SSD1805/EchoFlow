@@ -13,6 +13,7 @@ import type {
   ProcessingReadiness,
   ProcessingTaskStatus,
 } from "./api/processing";
+import { AudioTrackChooser } from "./components/AudioTrackChooser";
 import { WorkspaceHeader, type Theme } from "./components/WorkspaceHeader";
 
 interface ProcessingCenterProps {
@@ -198,6 +199,7 @@ export function ProcessingCenter({
     if (!path) return;
     setSelectedPath(path);
     setRetrySourceJobId(null);
+    setAudioStreamIndex(null);
     setPreflight(null);
     setStatus(`${basename(path)} selected. Run preflight before starting.`);
   }
@@ -209,10 +211,14 @@ export function ProcessingCenter({
     try {
       const plan = await processing.preflight(path, preflightOptions);
       setPreflight(plan);
-      setAudioStreamIndex(plan.selected_audio_stream_index);
+      setAudioStreamIndex(
+        plan.audio_stream_selection_required ? null : plan.selected_audio_stream_index,
+      );
       setRetrySourceJobId(null);
       setStatus(
-        `Preflight complete. EchoFlow admitted ${plan.model} on ${plan.device}/${plan.compute_type}.`,
+        plan.audio_stream_selection_required
+          ? `Preflight found ${plan.audio_streams.length} audio tracks. Choose the track EchoFlow should transcribe.`
+          : `Preflight complete. EchoFlow admitted ${plan.model} on ${plan.device}/${plan.compute_type}.`,
       );
     } catch (caught) {
       setPreflight(null);
@@ -226,17 +232,27 @@ export function ProcessingCenter({
     }
   }
 
-  async function prepareRetry(job: ProcessingJob) {
+  async function prepareRetry(
+    job: ProcessingJob,
+    requestedAudioStreamIndex = audioStreamIndex,
+  ) {
     setBusy(true);
     setError(null);
     try {
-      const plan = await processing.retryPreflight(job.job_id, preflightOptions);
+      const plan = await processing.retryPreflight(job.job_id, {
+        ...preflightOptions,
+        audioStreamIndex: requestedAudioStreamIndex,
+      });
       setPreflight(plan);
       setSelectedPath(null);
       setRetrySourceJobId(job.job_id);
-      setAudioStreamIndex(plan.selected_audio_stream_index);
+      setAudioStreamIndex(
+        plan.audio_stream_selection_required ? null : plan.selected_audio_stream_index,
+      );
       setStatus(
-        `Fresh retry preflight complete for ${job.recording_name}. The interrupted job was not changed.`,
+        plan.audio_stream_selection_required
+          ? `Fresh retry preflight found ${plan.audio_streams.length} audio tracks. Choose the track EchoFlow should transcribe.`
+          : `Fresh retry preflight complete for ${job.recording_name}. The interrupted job was not changed.`,
       );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "EchoFlow could not plan a fresh retry.");
@@ -245,8 +261,37 @@ export function ProcessingCenter({
     }
   }
 
-  async function startPlannedJob() {
+  async function chooseAudioStream(index: number) {
     if (!preflight) return;
+    if (!selectedPath && !retrySourceJobId) return;
+    setBusy(true);
+    setError(null);
+    const previousIndex = audioStreamIndex;
+    setAudioStreamIndex(index);
+    try {
+      const options = { ...preflightOptions, audioStreamIndex: index };
+      const plan = retrySourceJobId
+        ? await processing.retryPreflight(retrySourceJobId, options)
+        : await processing.preflight(selectedPath ?? "", options);
+      setPreflight(plan);
+      setAudioStreamIndex(plan.selected_audio_stream_index);
+      setStatus(
+        `Audio track #${plan.selected_audio_stream_index} confirmed. EchoFlow re-ran backend preflight with that exact stream.`,
+      );
+    } catch (caught) {
+      setAudioStreamIndex(previousIndex);
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "EchoFlow could not safely bind that audio track.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startPlannedJob() {
+    if (!preflight || preflight.audio_stream_selection_required) return;
     if (!retrySourceJobId && !selectedPath) return;
     setBusy(true);
     setError(null);
@@ -538,6 +583,7 @@ export function ProcessingCenter({
                 onClick={() => {
                   setSelectedPath(recording.path);
                   setRetrySourceJobId(null);
+                  setAudioStreamIndex(null);
                   setPreflight(null);
                 }}
               >
@@ -581,6 +627,13 @@ export function ProcessingCenter({
               <div><dt>Disk estimate</dt><dd>{formatBytes(preflight.estimated_disk_bytes)}</dd></div>
               <div><dt>Audio stream</dt><dd>#{preflight.selected_audio_stream_index}</dd></div>
             </dl>
+            <AudioTrackChooser
+              streams={preflight.audio_streams}
+              selectedIndex={audioStreamIndex}
+              selectionRequired={preflight.audio_stream_selection_required}
+              busy={busy}
+              onSelect={(index) => void chooseAudioStream(index)}
+            />
             <details className="advanced-card processing-advanced">
               <summary>Expert controls and optional processing</summary>
               <div className="advanced-processing-grid">
@@ -596,20 +649,6 @@ export function ProcessingCenter({
                     <option value="">Automatic recommendation</option>
                     {feasibleStrategies.map((strategy) => (
                       <option key={strategy.strategy_id} value={strategy.strategy_id}>{strategy.strategy_id}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Audio stream</span>
-                  <select
-                    value={audioStreamIndex ?? preflight.selected_audio_stream_index}
-                    onChange={(event) => {
-                      setAudioStreamIndex(Number(event.target.value));
-                      setPreflight(null);
-                    }}
-                  >
-                    {preflight.audio_streams.map((stream) => (
-                      <option key={stream.index} value={stream.index}>#{stream.index} · {stream.codec} · {stream.channels ?? "?"} ch</option>
                     ))}
                   </select>
                 </label>
@@ -645,9 +684,20 @@ export function ProcessingCenter({
             </details>
             <div className="launch-row">
               <p>
-                Start re-runs backend admission immediately before execution. A changed machine, model, source, or strategy fails closed instead of trusting this displayed plan.
+                {preflight.audio_stream_selection_required
+                  ? "Choose an audio track above before starting. EchoFlow will not treat the container's first track as user intent."
+                  : "Start re-runs backend admission immediately before execution. A changed machine, model, source, or strategy fails closed instead of trusting this displayed plan."}
               </p>
-              <button type="button" className="primary-action" disabled={busy || !preflight.fits_memory_budget} onClick={() => void startPlannedJob()}>
+              <button
+                type="button"
+                className="primary-action"
+                disabled={
+                  busy ||
+                  !preflight.fits_memory_budget ||
+                  preflight.audio_stream_selection_required
+                }
+                onClick={() => void startPlannedJob()}
+              >
                 Start local transcription
               </button>
             </div>
@@ -696,7 +746,7 @@ export function ProcessingCenter({
                   <button type="button" className="primary-action compact-action" onClick={() => void resumeJob(job)}>Resume checkpoint</button>
                 )}
                 {job.status !== "running" && (
-                  <button type="button" onClick={() => void prepareRetry(job)}>Plan fresh retry</button>
+                  <button type="button" onClick={() => void prepareRetry(job, null)}>Plan fresh retry</button>
                 )}
                 {job.status !== "running" && (
                   <button type="button" className="danger-link" onClick={() => setPendingDiscard(job)}>Discard private state</button>

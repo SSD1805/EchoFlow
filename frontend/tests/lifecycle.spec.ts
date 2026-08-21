@@ -22,7 +22,9 @@ test("canonical deletion is previewed before backend-bound application", async (
   await expect(
     plan.getByRole("heading", { name: "Review 4 planned actions" }),
   ).toBeVisible();
-  await expect(plan.getByText("delete canonical transcript evidence")).toBeVisible();
+  await expect(
+    plan.getByText("delete canonical transcript evidence", { exact: true }),
+  ).toBeVisible();
   await expect(plan.getByText(/2 anchored notes preserved/)).toBeVisible();
   await plan.getByText("Why did EchoFlow expand my selection?").click();
   await expect(

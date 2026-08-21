@@ -14,10 +14,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+import echoflow.desktop.research_validation as research_validation
 from echoflow.app.app_container import AppContainer
 from echoflow.app.processing_center import ProcessingCenterService
 from echoflow.core.errors import EchoFlowError
-from echoflow.desktop import research_validation
 from echoflow.desktop.processing_bridge import dispatch_processing
 from echoflow.desktop.research_anchor_bridge import dispatch_research_anchor
 from echoflow.desktop.research_search_bridge import dispatch_research_search

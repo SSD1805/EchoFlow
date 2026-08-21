@@ -1,3 +1,5 @@
+import { invokeNativeProtocol } from "./nativeProtocol";
+
 export type ProcessingProfile = "screening" | "balanced" | "accuracy";
 export type ExportFormat = "txt" | "srt" | "vtt";
 
@@ -162,33 +164,11 @@ export interface ProcessingClient {
   cancelTask(taskId: string): Promise<ProcessingTaskStatus>;
 }
 
-interface DesktopError {
-  code: string;
-  message: string;
-}
-
-interface DesktopResponse<T> {
-  protocol_version: 1;
-  request_id: string;
-  ok: boolean;
-  result: T | null;
-  error: DesktopError | null;
-}
-
-function assertResponse<T>(value: unknown): DesktopResponse<T> {
-  if (!value || typeof value !== "object") {
-    throw new Error("EchoFlow Processing Center returned an invalid response");
-  }
-  const candidate = value as Partial<DesktopResponse<T>>;
-  if (
-    candidate.protocol_version !== 1 ||
-    typeof candidate.request_id !== "string" ||
-    typeof candidate.ok !== "boolean"
-  ) {
-    throw new Error("EchoFlow Processing Center returned an incompatible response");
-  }
-  return candidate as DesktopResponse<T>;
-}
+const PROCESSING_PROTOCOL_MESSAGES = {
+  invalid: "EchoFlow Processing Center returned an invalid response",
+  incompatible: "EchoFlow Processing Center returned an incompatible response",
+  failure: "EchoFlow could not complete that request",
+} as const;
 
 function taskId(): string {
   return crypto.randomUUID();
@@ -215,21 +195,13 @@ function taskPayload(
 }
 
 class TauriProcessingClient implements ProcessingClient {
-  private async request<T>(method: string, params: Record<string, unknown>): Promise<T> {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const request = {
-      protocol_version: 1,
-      request_id: crypto.randomUUID(),
+  private request<T>(method: string, params: Record<string, unknown>): Promise<T> {
+    return invokeNativeProtocol<T>(
+      "desktop_request",
       method,
       params,
-    };
-    const response = assertResponse<T>(
-      await invoke<unknown>("desktop_request", { request }),
+      PROCESSING_PROTOCOL_MESSAGES,
     );
-    if (!response.ok || response.result === null) {
-      throw new Error(response.error?.message ?? "EchoFlow could not complete that request");
-    }
-    return response.result;
   }
 
   private async startTask(task: Record<string, unknown>): Promise<ProcessingTaskStatus> {

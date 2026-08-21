@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createDesktopClient } from "./api/desktop";
+import { createPlaybackClient } from "./api/playback";
 import { createProcessingClient } from "./api/processing";
 import { createTranscriptToolsClient } from "./api/transcriptTools";
 import { type Theme } from "./components/WorkspaceHeader";
 import { IntakeWorkspace } from "./IntakeWorkspace";
+import { PlaybackProvider } from "./PlaybackContext";
 import { ProcessingCenter } from "./ProcessingCenter";
 import { ResearchWorkspaceWithAnchorReview } from "./ResearchWorkspaceWithAnchorReview";
 import { SearchWorkspace } from "./SearchWorkspace";
@@ -13,6 +15,7 @@ import "./processing-center.css";
 import "./theme-extras.css";
 
 const client = createDesktopClient();
+const playback = createPlaybackClient();
 const processing = createProcessingClient();
 const transcriptTools = createTranscriptToolsClient();
 
@@ -132,7 +135,9 @@ export function App() {
         </div>
       </aside>
 
-      <main className="workspace">{workspace}</main>
+      <PlaybackProvider client={playback}>
+        <main className="workspace">{workspace}</main>
+      </PlaybackProvider>
     </div>
   );
 }

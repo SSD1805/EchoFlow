@@ -114,7 +114,7 @@ def _service(
     tmp_path: Path,
     *,
     payload: bytes | None = None,
-    indexed_digest: str | None | object = ..., 
+    indexed_digest: str | None | object = ...,
     documents: bool = True,
     probe: MediaInfo | BaseException | None = None,
     reported_size: int | None = None,
@@ -168,7 +168,9 @@ def test_playback_grant_rejects_invalid_kind_and_seek() -> None:
         PlaybackGrant(**{**values, "seek_seconds": 11.0})
 
 
-def test_authorize_rejects_invalid_digest_blank_id_and_missing_document(tmp_path: Path) -> None:
+def test_authorize_rejects_invalid_digest_blank_id_and_missing_document(
+    tmp_path: Path,
+) -> None:
     service, digest = _service(tmp_path)
 
     with pytest.raises(ValueError, match="lowercase 64-character"):
@@ -177,7 +179,9 @@ def test_authorize_rejects_invalid_digest_blank_id_and_missing_document(tmp_path
         service.authorize("   ", expected_canonical_sha256=digest, seek_seconds=1.0)
 
     missing, _ = _service(tmp_path, documents=False)
-    with pytest.raises(PlaybackAuthorizationError, match="not present in the local library"):
+    with pytest.raises(
+        PlaybackAuthorizationError, match="not present in the local library"
+    ):
         missing.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
 
 
@@ -210,9 +214,7 @@ def test_authorize_rejects_canonical_identity_drift(
     source = tmp_path / "source.mp4"
     source.write_bytes(b"source evidence")
     source_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
-    base = json.loads(
-        _canonical_payload(source_sha256, source.stat().st_size).decode()
-    )
+    base = json.loads(_canonical_payload(source_sha256, source.stat().st_size).decode())
     mutated = payload_mutation(base)  # type: ignore[operator]
     payload = json.dumps(mutated, sort_keys=True).encode()
     service, digest = _service(tmp_path, payload=payload)
@@ -225,7 +227,9 @@ def test_authorize_normalizes_invalid_canonical_json(tmp_path: Path) -> None:
     payload = b"not-json"
     service, digest = _service(tmp_path, payload=payload)
 
-    with pytest.raises(PlaybackAuthorizationError, match="could not be validated safely"):
+    with pytest.raises(
+        PlaybackAuthorizationError, match="could not be validated safely"
+    ):
         service.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
 
 
@@ -243,11 +247,15 @@ def test_authorize_rejects_single_audio_stream_with_wrong_index(tmp_path: Path) 
     wrong_media = _media(source, source_sha256, source.stat().st_size, audio_index=3)
     service, digest = _service(tmp_path, probe=wrong_media)
 
-    with pytest.raises(PlaybackAuthorizationError, match="audio stream no longer matches"):
+    with pytest.raises(
+        PlaybackAuthorizationError, match="audio stream no longer matches"
+    ):
         service.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
 
 
-def test_authorize_normalizes_probe_failures_without_private_detail(tmp_path: Path) -> None:
+def test_authorize_normalizes_probe_failures_without_private_detail(
+    tmp_path: Path,
+) -> None:
     for failure in (
         ProbeFailure("private probe detail"),
         RuntimeError("private runtime detail"),
@@ -257,7 +265,9 @@ def test_authorize_normalizes_probe_failures_without_private_detail(tmp_path: Pa
             PlaybackAuthorizationError,
             match="could not be verified safely for playback",
         ) as caught:
-            service.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
+            service.authorize(
+                "job-1", expected_canonical_sha256=digest, seek_seconds=1.0
+            )
         assert "private" not in caught.value.public_message
 
 

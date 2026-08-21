@@ -8,61 +8,58 @@ speaker-02
 speaker-03
 ```
 
-That is excellent for provenance and terrible for remembering which person was Dr. Chen.
-
-EchoFlow therefore keeps **two different facts** instead of pretending they are the same:
+That is good provenance and inconvenient human memory. EchoFlow therefore keeps two different facts:
 
 - `speaker-02` is machine-produced diarization evidence;
-- `Dr. Chen` is a name **you** assigned to that anonymous speaker in this transcript
-  generation.
+- `Dr. Chen` is a name **you** assigned to that anonymous speaker in one exact transcript generation.
 
 The friendly label never rewrites the evidence underneath it.
 
-```mermaid
-flowchart LR
-    A[Anonymous diarization evidence] --> B[speaker-02]
-    B --> C[Canonical transcript coordinates]
-    B --> D[User display label]
-    D --> E[Dr. Chen plus speaker-02]
+## Desktop
+
+From a Library transcript result, open **Transcript tools**. The **Name anonymous speakers** section shows the anonymous evidence ref beside an editable display name. Saving `Dr. Chen` produces presentation such as:
+
+```text
+Dr. Chen · speaker-02
 ```
 
-Text fallback: the anonymous speaker ref remains evidence; the human name is separate
-user-authored presentation state bound to that exact transcript generation.
+Removing the display name removes only the human-authored label. The anonymous ref remains canonical/diarization identity.
 
-🦝 **The raccoon may rebuild the search index. The raccoon may not eat your names.**
+The desktop also exposes **Open speaker transcript**, which presents backend-derived spans as **Speaker**, **Overlap**, **Mixed speakers**, or **Unattributed**. When two speakers are simultaneously active, EchoFlow lists both rather than choosing a winner.
 
-## Naming a speaker
+See **[Transcript and speaker tools](transcript-tools.md)** for the desktop authority, publication, security, and testing contract.
 
-First make sure the transcript is present in the local library, then inspect its anonymous
-speaker refs:
+## CLI
+
+Inspect anonymous refs:
 
 ```bash
 echoflow library speakers list TRANSCRIPT_ID
 ```
 
-Assign a human-readable display label:
+Assign a display label:
 
 ```bash
 echoflow library speakers name TRANSCRIPT_ID speaker-02 "Dr. Chen"
 ```
 
-EchoFlow keeps `speaker-02` as the evidence reference and can present:
-
-```text
-Dr. Chen (speaker-02)
-```
-
-If you change your mind:
+Remove it:
 
 ```bash
 echoflow library speakers forget-name TRANSCRIPT_ID speaker-02
+```
+
+Read the derived speaker presentation:
+
+```bash
+echoflow library speakers transcript TRANSCRIPT_ID
 ```
 
 Every command also supports `--json` for machine-readable output.
 
 ## Why not replace `speaker-02` with the name?
 
-Because those statements come from different authorities.
+Those statements come from different authorities.
 
 Diarization says:
 
@@ -72,17 +69,11 @@ You say:
 
 > I know this person is Dr. Chen, so show me that name while I work.
 
-Overwriting one with the other would destroy the distinction between machine-produced
-evidence and human knowledge. That distinction matters for reproducibility, correction,
-auditing, search, and durable research notes.
+Overwriting one with the other would destroy the distinction between machine-produced evidence and human knowledge. That distinction matters for reproducibility, correction, auditing, search, and durable research.
 
-## What if the transcript changes?
+## Generation binding
 
-Speaker numbering is meaningful only inside the canonical transcript generation that
-produced it.
-
-A re-transcription could change speaker boundaries. Tomorrow's `speaker-02` could even
-represent somebody different from today's `speaker-02`.
+Speaker numbering is meaningful only inside the canonical transcript generation that produced it. A re-transcription can change speaker boundaries, and tomorrow's `speaker-02` could represent somebody different from today's `speaker-02`.
 
 A display label is therefore bound to:
 
@@ -92,137 +83,52 @@ transcript ID
 + anonymous speaker ref
 ```
 
-If the canonical transcript changes, EchoFlow **keeps the old user-authored label** but
-refuses to silently apply it to the new generation.
+If the canonical transcript changes, EchoFlow keeps old user-authored label state but does not silently apply it to the new generation.
 
-```mermaid
-flowchart TD
-    A[Canonical generation A] --> B[speaker-02]
-    B --> C[Dr. Chen label]
-    A --> D[Canonical generation B]
-    D --> E[speaker-02]
-    C --> F[Retained historical user state]
-    C -. not silently reused .-> E
-```
+This rule is especially important in a long-lived desktop view. Every transcript-tools inspect, speaker transcript, set-label, remove-label, and publication request carries the exact canonical SHA-256 the user opened. Python checks that expected generation at the service/mutation boundary. If the library changed meanwhile, the request fails and the user reopens the current transcript rather than mutating reused speaker numbering.
 
-That is slightly fussy on purpose. EchoFlow would rather require an explicit human action
-than confidently attach Dr. Chen to the wrong person.
+## Handoffs and overlap
 
-## What about speaker handoffs inside one transcript segment?
+Word-level timing matters. A mixed ASR segment may have no single segment-level `speaker_ref` because the speaker changes halfway through. Individual aligned words can still carry `speaker-01` and `speaker-02` evidence.
 
-Word-level timing matters here.
+The speaker-label service inspects both segment-level and aligned-word speaker evidence, so those speakers remain available to name even when the enclosing sentence cannot honestly be assigned to one person.
 
-A mixed ASR segment may have no single segment-level `speaker_ref` because the speaker
-changes halfway through. Its individual aligned words can still carry `speaker-01` and
-`speaker-02` evidence.
-
-The speaker-label service inspects **both segment-level and aligned-word speaker evidence**,
-so those speakers remain available to name even when the enclosing sentence cannot
-honestly be assigned to one person.
-
-## Reading handoffs and overlap without flattening them
-
-The derived speaker transcript view combines canonical word timing with the preserved
-speaker-turn timeline:
-
-```bash
-echoflow library speakers transcript TRANSCRIPT_ID
-```
-
-A clean handoff can become two readable spans:
+The derived speaker transcript combines canonical word timing with the preserved speaker-turn timeline:
 
 ```text
 00:00:04.100  Interviewer (speaker-01)       single-speaker  What happened next?
 00:00:05.900  Dr. Chen (speaker-02)          single-speaker  We moved the samples.
 ```
 
-If two diarized speakers are simultaneously active over the same aligned word interval,
-EchoFlow does not choose a winner:
+If two diarized speakers are simultaneously active over the same aligned word interval, EchoFlow does not choose a winner:
 
 ```text
 00:00:12.200  Interviewer (speaker-01)
               + Dr. Chen (speaker-02)         overlap         Sorry…
 ```
 
-If a coarse segment contains more than one speaker but lacks word timing precise enough
-to assign its text, the view says `mixed-unresolved` rather than pretending the whole
-sentence belongs to either person.
+If a coarse segment contains more than one speaker but lacks word timing precise enough to assign its text, the view says `mixed-unresolved` rather than pretending the whole sentence belongs to either person.
 
-```mermaid
-flowchart LR
-    A[Canonical word timing] --> D[Derived speaker presentation]
-    B[Speaker-turn timeline] --> D
-    C[User display labels] --> D
-    D --> E[single-speaker]
-    D --> F[overlap]
-    D --> G[mixed-unresolved]
-    D --> H[unattributed]
-```
+One conservative rule matters: if a canonical aligned word is unattributed, presentation will not promote it to one named speaker merely because a diarization turn overlaps. Presentation may expose multi-speaker overlap; it does not manufacture a stronger single-speaker claim than canonical evidence supports.
 
-This view is **derived presentation**, not a new canonical transcript. Numeric
-source-relative seconds and original anonymous refs remain visible in JSON, along with
-the canonical transcript SHA-256 that produced the view.
+## Search
 
-One conservative rule matters: if a canonical aligned word is unattributed, presentation
-will not promote it to one named speaker merely because a diarization turn overlaps.
-Presentation may expose additional multi-speaker overlap, but it does not manufacture a
-stronger single-speaker claim than canonical evidence supports.
+Ordinary transcript-library search consumes the same current-generation display-label state. Ranking and speaker filters still operate on anonymous evidence refs. Human results may show the friendly label while machine-readable evidence keeps the ref separately.
 
-## Do the names show up when I search too?
+The navigation layer resolves names only for the exact canonical generation behind the result and batches label lookup per generation.
 
-Yes. Ordinary transcript-library search consumes the same current display-label state.
+See **[From search result to the exact evidence](evidence-navigation.md)** for highlighting, context, source seek behavior, and evidence coordinates reused by notes.
 
-If you assigned:
+## Storage and custody
 
-```text
-speaker-02 → Dr. Chen
-```
+Speaker names are private user-authored state, not rebuildable search state. They live under EchoFlow's private application state using the atomic private-file boundary, separate from canonical evidence, lexical/semantic indexes, research projection state, and checkpoints.
 
-then a human search result can show:
+Rebuilding lexical, semantic, or research projections must not erase names. A later consolidation into the transactional research-state store is possible if it earns its value, but presentation code should continue to depend on the application service rather than a physical adapter.
 
-```text
-Dr. Chen (speaker-02)
-```
+## Not biometric identification
 
-Machine-readable output keeps `speaker-02` in `speaker_refs` and exposes the friendly
-label separately. Ranking and speaker filters still operate on anonymous evidence refs.
+Speaker display labels are not biometric identification. EchoFlow does not infer that `speaker-01` in two recordings is the same person and does not search for somebody's identity from their voice.
 
-The navigation layer resolves names only for the exact canonical generation behind the
-result and batches label lookup per generation.
+Overlap-aware presentation also does not perform source separation. Separating mixed speech into estimated sources would be a materially heavier later capability with its own compute, model-custody, and provenance requirements.
 
-See **[From search result to the exact evidence](evidence-navigation.md)** for
-highlighting, context, source seek behavior, and the evidence coordinate reused by notes.
-
-## Where are these labels stored?
-
-Speaker names are **private user-authored state**, not rebuildable search state.
-
-They currently live under EchoFlow's private application state using the existing atomic
-private-file boundary, separate from:
-
-- canonical transcript evidence;
-- the lexical DuckDB index;
-- semantic chunks and vectors;
-- SQLite research notes/tags/collections; and
-- checkpoint/recovery machinery.
-
-This means rebuilding lexical, semantic, or research query projections must not erase the
-names you assigned.
-
-A later consolidation into the transactional research-state store is possible if it earns
-its value, but presentation code should continue to use the application service rather
-than depend on the physical adapter.
-
-## What this does not do
-
-Speaker display labels are not biometric identification. EchoFlow does not infer that
-`speaker-01` in two recordings is the same person, and it does not search for somebody's
-identity from their voice.
-
-Overlap-aware presentation also does not perform source separation. It represents
-simultaneous speaker evidence using the timeline EchoFlow already has. Separating
-mixed speech into estimated sources remains later and materially heavier, with its own
-compute, model-custody, and provenance requirements.
-
-For the underlying diarization evidence model, security gate, and overlap rules, see
-**[Anonymous speaker diarization](architecture/diarization.md)**.
+For the underlying diarization evidence/security gate, see **[Anonymous speaker diarization](architecture/diarization.md)**.

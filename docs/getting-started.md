@@ -43,6 +43,14 @@ npm run tauri dev
 
 The debug Tauri host prefers the repository `.venv` for local backend calls.
 
+## Help is built into the desktop
+
+You do not need to keep this guide open beside EchoFlow. The sidebar always offers **How this screen works** for the active workspace and **How EchoFlow works** for the overall evidence model.
+
+Evidence reader, Playback, and Transcript tools also expose local help beside their unfamiliar controls. These explanations are re-openable, work with keyboard/touch, close with **Escape**, and do not rely on hover. They describe existing backend rules without recreating those rules in React.
+
+See **[In-app guidance](in-app-guidance.md)** for the interaction and architecture contract.
+
 ## 1. Add or remember recordings
 
 Use **Add evidence** to select recordings, existing transcript JSON, or folders you want EchoFlow to remember. Remembered locations are explicit permissions, not media custody.
@@ -189,6 +197,8 @@ The desktop WebView does not receive arbitrary SQL, shell, subprocess, database,
 
 Ordinary desktop calls go through a fixed Python bridge. Transcript tools use a separate fixed Tauri command/Python module with an explicit allowlist. Playback is narrower still: its path-bearing Python grant is private to Rust, which opens the file and returns only an opaque session to React. Python remains application/evidence authority.
 
+The in-app help layer is static local presentation copy. It has no extra filesystem, process, database, model, media, or network capability.
+
 See **[frontend/SECURITY.md](../frontend/SECURITY.md)**.
 
 ## 10. Optional semantic/hybrid search
@@ -205,7 +215,7 @@ Original media and canonical JSON are evidence. Notes/tags/collections, saved se
 
 ## What comes next?
 
-Research/search, Processing, desktop comprehension/themes, transcript/speaker tools, and verified native playback are foundation. Next:
+Research/search, Processing, desktop comprehension/themes, transcript/speaker tools, verified native playback, and contextual guidance are foundation. Next:
 
 1. lifecycle and retention UI;
 2. architecture/redundancy audit before packaging;

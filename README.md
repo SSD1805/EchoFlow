@@ -4,7 +4,7 @@
 
 EchoFlow turns audio and video into reproducible canonical transcripts, preserves source and processing provenance, lets people search a private corpus and navigate results back to exact verified evidence, and keeps notes, tags, collections, speaker labels, and saved research questions as durable user-owned knowledge.
 
-Transcription is the engine room, not the whole product. EchoFlow also inspects the machine, chooses a safe local execution strategy, manages model custody, survives interrupted work, keeps word-level timing and anonymous-speaker evidence, publishes portable transcript views, incrementally reconciles an evolving library, and gives deletion the same explicit custody rules as creation.
+Transcription is the engine room, not the whole product. EchoFlow also inspects the machine, chooses a safe local execution strategy, manages model custody, survives interrupted work, keeps word-level timing and anonymous-speaker evidence, publishes portable transcript views, incrementally reconciles an evolving library, plays verified local source evidence, and gives deletion the same explicit custody rules as creation.
 
 Canonical transcript JSON is authoritative transcript evidence. Human-authored research state is authoritative user knowledge. DuckDB search/research projections and publication formats are rebuildable. The original recording is read-only throughout normal processing and can only be deleted through a separate explicit provenance-checked operation.
 
@@ -14,7 +14,7 @@ Start with **[docs/README.md](docs/README.md)** for human-facing documentation o
 
 ## What can it do right now?
 
-EchoFlow is pre-production, but the backend and desktop cover a coherent path from importing a recording through local processing, evidence search, durable research, and post-processing transcript/speaker management.
+EchoFlow is pre-production, but the backend and desktop cover a coherent path from importing a recording through local processing, evidence search, durable research, transcript/speaker management, and verified local playback.
 
 | Area | Current foundation |
 |---|---|
@@ -29,6 +29,7 @@ EchoFlow is pre-production, but the backend and desktop cover a coherent path fr
 | Transcript output | canonical JSON plus deterministic TXT, SRT, WebVTT publication views |
 | Search | private BM25 lexical retrieval, optional semantic retrieval, hybrid reciprocal-rank fusion |
 | Evidence navigation | canonical-hash verification, aligned highlights, bounded context, speaker presentation, source seek coordinates |
+| Verified playback | exact-generation/source re-verification, opaque Tauri media sessions, bounded native range streaming, current/older evidence coordinates |
 | Research workspace | authoritative SQLite notes/tags/collections, rebuildable DuckDB projection, desktop browse/create/edit/delete/filter/anchor maintenance |
 | Unified discovery | grouped transcript/note/tag/collection query without fabricated cross-type scores |
 | Saved searches | durable typed query intent that re-resolves current evidence instead of freezing result snapshots |
@@ -36,9 +37,9 @@ EchoFlow is pre-production, but the backend and desktop cover a coherent path fr
 | Incremental library | cheap refresh/reconciliation plus durable transcript and recording locations |
 | Processing Center | readiness, machine/model state, preflight, supervised start/cancel, resume versus retry, job-state discard, diarization/enhancement/publication intent |
 | Transcript tools | generation-bound transcript/provenance inspection, speaker naming/removal, overlap-aware transcript view, post-hoc TXT/SRT/VTT publication |
-| Desktop presentation | Tauri + React Intake, Processing, Library, verified evidence reader, Research, transcript tools, and eight semantic-token themes |
+| Desktop presentation | Tauri + React Intake, Processing, Library, verified evidence reader/playback, Research, transcript tools, and eight semantic-token themes |
 | Accessibility | keyboard/semantic-role tests, axe, explicit light/dark browser schemes, and an eight-skin contrast matrix |
-| Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, Playwright/axe, package verification, targeted mutation qualification |
+| Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, Playwright/axe, native Rust tests, package verification, targeted mutation qualification |
 
 ## From recording to useful evidence
 
@@ -97,14 +98,17 @@ The Tauri + React desktop currently provides:
 - a Processing Center for readiness, model state, job state, preflight, launch, cancel, resume/retry distinction, and private-state discard;
 - Library search across transcripts, notes, tags, and collections;
 - verified evidence context and source-relative cursor coordinates;
+- generation/source-verified local audio/video playback from that evidence cursor without exposing source paths to React;
 - Research note create/edit/delete, tag/collection navigation, saved-search lifecycle, typed retrieval controls, exact-generation evidence return, and explicit anchor review;
 - transcript details/provenance, generation-safe speaker-name management, explicit speaker-overlap presentation, and post-hoc derived publication;
 - eight accessible presentation skins through one compact theme picker; and
 - persisted presentation preference without mixing theme state into evidence or research.
 
-The browser/webview does **not** receive canonical/source filesystem paths for evidence navigation or transcript tools. Rust owns native desktop capability; Python owns application/evidence/custody rules; React owns presentation and explicit user intent.
+The browser/webview does **not** receive canonical/source filesystem paths for evidence navigation, transcript tools, or playback. Rust owns native desktop capability and opened media sessions; Python owns application/evidence/custody rules; React owns presentation and explicit user intent.
 
 Transcript tools are generation-bound. A long-lived UI cannot silently rename a speaker in a newer transcript generation: every inspect/mutation/publication request carries the exact canonical SHA-256 the user opened, and Python rejects stale identity. See **[Transcript and speaker tools](docs/transcript-tools.md)**.
+
+Playback follows the same evidence discipline. Python re-verifies the exact canonical generation, original source bytes, bounded coordinate, and audio-stream identity; Rust then turns the approved source into an opaque local media session. Multi-audio sources currently fail closed rather than risking playback of a different track than the one transcribed. See **[Verified native playback](docs/native-playback.md)**.
 
 There are still no end-user installers or Releases. The supported path remains a source build while packaging and first-run behavior are qualified.
 
@@ -205,20 +209,19 @@ A database is allowed to make evidence useful. It is not allowed to become the o
 
 ## For maintainers
 
-Start with **[docs/architecture/README.md](docs/architecture/README.md)**, **[Processing Center](docs/architecture/processing-center.md)**, **[Transcript and speaker tools](docs/transcript-tools.md)**, **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)**, and **[frontend/SECURITY.md](frontend/SECURITY.md)**.
+Start with **[docs/architecture/README.md](docs/architecture/README.md)**, **[Processing Center](docs/architecture/processing-center.md)**, **[Transcript and speaker tools](docs/transcript-tools.md)**, **[Verified native playback](docs/native-playback.md)**, **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)**, and **[frontend/SECURITY.md](frontend/SECURITY.md)**.
 
-Normal qualification includes Ruff, strict mypy, Vulture, Radon, branch coverage, dependency audit, package verification, TypeScript/build/audit gates, native Cargo compilation, Playwright/axe, the eight-theme contrast matrix, targeted Poodle mutation workflows, and Linux/macOS/Windows CI. See **[Frontend testing strategy](docs/development/frontend-testing.md)** for frontend/backend test ownership.
+Normal qualification includes Ruff, strict mypy, Vulture, Radon, branch coverage, dependency audit, package verification, TypeScript/build/audit gates, native Cargo compilation/tests, Playwright/axe, the eight-theme contrast matrix, targeted Poodle mutation workflows, and Linux/macOS/Windows CI. See **[Frontend testing strategy](docs/development/frontend-testing.md)** for frontend/backend test ownership.
 
 ## Where the project goes next
 
-Research/search, Processing, desktop comprehension/themes, and transcript/speaker tools are built. The next first-release sequence is:
+Research/search, Processing, desktop comprehension/themes, transcript/speaker tools, and verified native playback are built. The next first-release sequence is:
 
-1. Tauri-owned local audio/video playback from verified source-relative coordinates;
-2. lifecycle and retention UI over the existing plan-bound custody backend;
-3. architecture/redundancy audit before packaging freezes seams;
-4. packaging, first-run storage setup, signed updates, and evidence-safe uninstall;
-5. backup/restore plus selected research portability;
-6. packaged semantic-model/dependency custody; and
-7. representative-device qualification across ordinary consumer hardware and hostile path, disk, interruption, upgrade, and accessibility cases.
+1. lifecycle and retention UI over the existing plan-bound custody backend;
+2. architecture/redundancy audit before packaging freezes seams;
+3. packaging, first-run storage setup, signed updates, and evidence-safe uninstall;
+4. backup/restore plus selected research portability;
+5. packaged semantic-model/dependency custody; and
+6. representative-device qualification across ordinary consumer hardware and hostile path, disk, interruption, upgrade, and accessibility cases.
 
 See **[ROADMAP.md](ROADMAP.md)** for the capability audit and sequencing.

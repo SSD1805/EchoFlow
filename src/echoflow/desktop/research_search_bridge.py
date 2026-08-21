@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from echoflow.library.evidence import EvidenceContextSegment, EvidenceWord
+from echoflow.desktop.research_serialization import serialize_workspace_passage
 from echoflow.library.index import SearchOperator, SearchQuery, SearchSort
 from echoflow.library.research_search_controls import (
     ResearchSearchControlService,
@@ -18,7 +18,6 @@ from echoflow.library.research_search_controls import (
 from echoflow.library.research_workspace import (
     ResearchQueryFilters,
     ResearchWorkspaceService,
-    WorkspaceSearchPassage,
     WorkspaceSearchResponse,
 )
 from echoflow.library.retrieval import RetrievalMode
@@ -115,6 +114,12 @@ class _ExecuteParams(BaseModel):
     intent: _SearchIntentParams
 
 
+class _ListSavedParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    limit: int = Field(default=200, ge=1, le=1_000)
+
+
 class _CreateSavedParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -178,62 +183,6 @@ class _DeleteSavedParams(_SavedIdentifierParams):
         return stripped
 
 
-def _serialize_word(word: EvidenceWord) -> dict[str, object]:
-    return {
-        "segment_id": word.segment_id,
-        "word_index": word.word_index,
-        "start_seconds": word.start_seconds,
-        "end_seconds": word.end_seconds,
-        "text": word.text,
-        "speaker_ref": word.speaker_ref,
-        "highlighted": word.highlighted,
-    }
-
-
-def _serialize_context_segment(segment: EvidenceContextSegment) -> dict[str, object]:
-    return {
-        "segment_id": segment.segment_id,
-        "start_seconds": segment.start_seconds,
-        "end_seconds": segment.end_seconds,
-        "text": segment.text,
-        "speaker_refs": list(segment.speaker_refs),
-        "words": [_serialize_word(word) for word in segment.words],
-        "is_result_segment": segment.is_result_segment,
-        "lexical_match": segment.lexical_match,
-    }
-
-
-def _serialize_passage(item: WorkspaceSearchPassage) -> dict[str, object]:
-    return {
-        "document_id": item.located.evidence.document_id,
-        "source_sha256": item.located.evidence.source_sha256,
-        "canonical_sha256": item.located.evidence.canonical_sha256,
-        "segment_ids": list(item.located.evidence.result_segment_ids),
-        "text": item.located.passage.text,
-        "start_seconds": item.located.evidence.start_seconds,
-        "end_seconds": item.located.evidence.end_seconds,
-        "seek_seconds": item.located.evidence.seek_seconds,
-        "languages": list(item.located.passage.languages),
-        "speakers": [
-            {
-                "speaker_ref": speaker.speaker_ref,
-                "display_label": speaker.display_label,
-            }
-            for speaker in item.located.speakers
-        ],
-        "matched_words": [
-            _serialize_word(word) for word in item.located.evidence.matched_words
-        ],
-        "context_segments": [
-            _serialize_context_segment(segment)
-            for segment in item.located.evidence.context_segments
-        ],
-        "note_count": item.research.note_count,
-        "tags": list(item.research.tags),
-        "collections": list(item.research.collections),
-    }
-
-
 def _serialize_intent(intent: ResearchSearchIntent) -> dict[str, object]:
     query = intent.query
     return {
@@ -290,7 +239,7 @@ def _serialize_search(
                 }
             ),
         },
-        "evidence": [_serialize_passage(item) for item in response.results],
+        "evidence": [serialize_workspace_passage(item) for item in response.results],
     }
 
 
@@ -305,6 +254,12 @@ def dispatch_research_search(
         execute_params = _ExecuteParams.model_validate(params)
         intent = execute_params.intent.to_intent()
         return _serialize_search(intent, service.search(intent))
+    if method == "workspace.research.search.saved.list":
+        list_params = _ListSavedParams.model_validate(params)
+        return [
+            _serialize_saved(saved)
+            for saved in service.list_saved_searches(limit=list_params.limit)
+        ]
     if method == "workspace.research.search.saved.create":
         create_params = _CreateSavedParams.model_validate(params)
         intent = create_params.intent.to_intent()

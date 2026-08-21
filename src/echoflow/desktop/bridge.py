@@ -99,7 +99,7 @@ class _AddLocationParams(BaseModel):
 
     path: str = Field(min_length=1, max_length=32_768)
     kind: LibraryLocationKind
-    processing_policy: ProcessingPolicy = RecordingProcessingPolicy.MANUAL
+    processing_policy: RecordingProcessingPolicy = RecordingProcessingPolicy.MANUAL
 
 
 class _RefreshParams(BaseModel):

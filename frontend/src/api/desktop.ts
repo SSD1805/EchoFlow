@@ -124,27 +124,10 @@ export interface WorkspaceDiscoveryReport {
   collections: WorkspaceCollectionResult[];
 }
 
-export interface ResearchSavedSearchResult {
-  saved_search_id: string;
-  name: string;
-  description: string | null;
-  query_text: string;
-  retrieval_mode: string;
-  created_at?: string;
-  updated_at: string;
-}
-
-export interface SavedSearchRunResult {
-  saved_search: ResearchSavedSearchResult;
-  query: string;
-  evidence: WorkspaceEvidenceResult[];
-}
-
 export interface ResearchOverview {
   notes: ResearchNoteResult[];
   tags: WorkspaceTagResult[];
   collections: WorkspaceCollectionResult[];
-  saved_searches: ResearchSavedSearchResult[];
 }
 
 export type ResearchSearchOperator = "any" | "all";
@@ -232,19 +215,8 @@ export interface DesktopClient {
   ): Promise<ResearchNoteResult>;
   deleteResearchNote(note: ResearchNoteResult): Promise<void>;
   openResearchNoteEvidence(note: ResearchNoteResult): Promise<ResearchNoteEvidenceResult>;
-  createSavedSearch(
-    name: string,
-    queryText: string,
-    description: string | null,
-  ): Promise<ResearchSavedSearchResult>;
-  updateSavedSearch(
-    saved: ResearchSavedSearchResult,
-    name: string,
-    description: string | null,
-  ): Promise<ResearchSavedSearchResult>;
-  deleteSavedSearch(saved: ResearchSavedSearchResult): Promise<void>;
-  runSavedSearch(saved: ResearchSavedSearchResult): Promise<SavedSearchRunResult>;
   executeResearchSearch(intent: ResearchSearchIntent): Promise<ResearchSearchResult>;
+  listTypedSavedSearches(): Promise<ResearchTypedSavedSearchResult[]>;
   createTypedSavedSearch(
     name: string,
     description: string | null,
@@ -257,6 +229,8 @@ export interface DesktopClient {
     description: string | null,
     intent: ResearchSearchIntent,
   ): Promise<ResearchTypedSavedSearchResult>;
+  runTypedSavedSearch(saved: ResearchTypedSavedSearchResult): Promise<ResearchSearchResult>;
+  deleteTypedSavedSearch(saved: ResearchTypedSavedSearchResult): Promise<void>;
 }
 
 function assertResponse<T>(value: unknown): DesktopResponse<T> {
@@ -305,6 +279,23 @@ function defaultResearchSearchIntent(queryText: string): ResearchSearchIntent {
     note_text: null,
     with_notes: false,
   };
+}
+
+function copyResearchSearchIntent(intent: ResearchSearchIntent): ResearchSearchIntent {
+  return {
+    ...intent,
+    speaker_refs: [...intent.speaker_refs],
+    languages: [...intent.languages],
+    document_ids: [...intent.document_ids],
+    tags: [...intent.tags],
+    collections: [...intent.collections],
+  };
+}
+
+function copyTypedSavedSearch(
+  saved: ResearchTypedSavedSearchResult,
+): ResearchTypedSavedSearchResult {
+  return { ...saved, intent: copyResearchSearchIntent(saved.intent) };
 }
 
 class TauriDesktopClient implements DesktopClient {
@@ -452,46 +443,12 @@ class TauriDesktopClient implements DesktopClient {
     });
   }
 
-  createSavedSearch(
-    name: string,
-    queryText: string,
-    description: string | null,
-  ): Promise<ResearchSavedSearchResult> {
-    return this.request("workspace.research.saved_search.create", {
-      name,
-      query_text: queryText,
-      description,
-    });
-  }
-
-  updateSavedSearch(
-    saved: ResearchSavedSearchResult,
-    name: string,
-    description: string | null,
-  ): Promise<ResearchSavedSearchResult> {
-    return this.request("workspace.research.saved_search.update", {
-      saved_search_id: saved.saved_search_id,
-      expected_updated_at: saved.updated_at,
-      name,
-      description,
-    });
-  }
-
-  async deleteSavedSearch(saved: ResearchSavedSearchResult): Promise<void> {
-    await this.request("workspace.research.saved_search.delete", {
-      saved_search_id: saved.saved_search_id,
-      expected_updated_at: saved.updated_at,
-    });
-  }
-
-  runSavedSearch(saved: ResearchSavedSearchResult): Promise<SavedSearchRunResult> {
-    return this.request("workspace.research.saved_search.run", {
-      saved_search_id: saved.saved_search_id,
-    });
-  }
-
   executeResearchSearch(intent: ResearchSearchIntent): Promise<ResearchSearchResult> {
     return this.request("workspace.research.search.execute", { intent });
+  }
+
+  listTypedSavedSearches(): Promise<ResearchTypedSavedSearchResult[]> {
+    return this.request("workspace.research.search.saved.list", { limit: 200 });
   }
 
   createTypedSavedSearch(
@@ -524,6 +481,19 @@ class TauriDesktopClient implements DesktopClient {
       name,
       description,
       intent,
+    });
+  }
+
+  runTypedSavedSearch(saved: ResearchTypedSavedSearchResult): Promise<ResearchSearchResult> {
+    return this.request("workspace.research.search.saved.run", {
+      saved_search_id: saved.saved_search_id,
+    });
+  }
+
+  async deleteTypedSavedSearch(saved: ResearchTypedSavedSearchResult): Promise<void> {
+    await this.request("workspace.research.search.saved.delete", {
+      saved_search_id: saved.saved_search_id,
+      expected_updated_at: saved.updated_at,
     });
   }
 }
@@ -559,17 +529,6 @@ class MockDesktopClient implements DesktopClient {
       collections: ["Field notes"],
       created_at: "2026-08-18T14:10:00+00:00",
       updated_at: "2026-08-18T14:10:00+00:00",
-    },
-  ];
-  private savedSearches: ResearchSavedSearchResult[] = [
-    {
-      saved_search_id: "search-9",
-      name: "Governance follow-up",
-      description: "Questions to revisit across interviews",
-      query_text: "governance",
-      retrieval_mode: "lexical",
-      created_at: "2026-08-19T19:30:00+00:00",
-      updated_at: "2026-08-19T19:31:00+00:00",
     },
   ];
   private typedSavedSearches: ResearchTypedSavedSearchResult[] = [
@@ -788,7 +747,6 @@ class MockDesktopClient implements DesktopClient {
         collection_id: `collection-${index + 1}`,
         name,
       })),
-      saved_searches: this.savedSearches.map((saved) => ({ ...saved })),
     };
   }
 
@@ -952,122 +910,10 @@ class MockDesktopClient implements DesktopClient {
     };
   }
 
-  async createSavedSearch(
-    name: string,
-    queryText: string,
-    description: string | null,
-  ): Promise<ResearchSavedSearchResult> {
-    const trimmedName = name.trim();
-    const trimmedQuery = queryText.trim();
-    if (!trimmedName || !trimmedQuery) {
-      throw new Error("Saved search requires a name and query");
-    }
-    if (
-      this.savedSearches.some(
-        (saved) => saved.name.toLocaleLowerCase() === trimmedName.toLocaleLowerCase(),
-      )
-    ) {
-      throw new Error("A saved search with that name already exists");
-    }
-    const now = this.nextResearchTimestamp();
-    const saved: ResearchSavedSearchResult = {
-      saved_search_id: `search-created-${this.savedSearches.length + 1}`,
-      name: trimmedName,
-      description: description?.trim() || null,
-      query_text: trimmedQuery,
-      retrieval_mode: "lexical",
-      created_at: now,
-      updated_at: now,
-    };
-    this.savedSearches.unshift(saved);
-    this.typedSavedSearches.unshift({
-      saved_search_id: saved.saved_search_id,
-      name: saved.name,
-      description: saved.description,
-      intent: defaultResearchSearchIntent(saved.query_text),
-      created_at: now,
-      updated_at: now,
-    });
-    return { ...saved };
-  }
-
-  async updateSavedSearch(
-    saved: ResearchSavedSearchResult,
-    name: string,
-    description: string | null,
-  ): Promise<ResearchSavedSearchResult> {
-    const index = this.savedSearches.findIndex(
-      (item) => item.saved_search_id === saved.saved_search_id,
-    );
-    const current = this.savedSearches[index];
-    if (index < 0 || !current) throw new Error("Saved search does not exist");
-    if (current.updated_at !== saved.updated_at) {
-      throw new Error("Saved search changed since it was opened; refresh before saving");
-    }
-    const trimmedName = name.trim();
-    if (!trimmedName) throw new Error("Saved search name cannot be blank");
-    const updated: ResearchSavedSearchResult = {
-      ...current,
-      name: trimmedName,
-      description: description?.trim() || null,
-      updated_at: this.nextResearchTimestamp(),
-    };
-    this.savedSearches[index] = updated;
-    const typedIndex = this.typedSavedSearches.findIndex(
-      (item) => item.saved_search_id === saved.saved_search_id,
-    );
-    const typed = this.typedSavedSearches[typedIndex];
-    if (typedIndex >= 0 && typed) {
-      this.typedSavedSearches[typedIndex] = {
-        ...typed,
-        name: updated.name,
-        description: updated.description,
-        updated_at: updated.updated_at,
-      };
-    }
-    return { ...updated };
-  }
-
-  async deleteSavedSearch(saved: ResearchSavedSearchResult): Promise<void> {
-    const index = this.savedSearches.findIndex(
-      (item) => item.saved_search_id === saved.saved_search_id,
-    );
-    const current = this.savedSearches[index];
-    if (index < 0 || !current) throw new Error("Saved search does not exist");
-    if (current.updated_at !== saved.updated_at) {
-      throw new Error("Saved search changed since it was opened; refresh before saving");
-    }
-    this.savedSearches.splice(index, 1);
-    const typedIndex = this.typedSavedSearches.findIndex(
-      (item) => item.saved_search_id === saved.saved_search_id,
-    );
-    if (typedIndex >= 0) this.typedSavedSearches.splice(typedIndex, 1);
-  }
-
-  async runSavedSearch(saved: ResearchSavedSearchResult): Promise<SavedSearchRunResult> {
-    const current = this.savedSearches.find(
-      (item) => item.saved_search_id === saved.saved_search_id,
-    );
-    if (!current) throw new Error("Saved search does not exist");
-    const discovery = await this.discoverWorkspace(current.query_text);
-    return {
-      saved_search: { ...current },
-      query: discovery.query,
-      evidence: discovery.evidence,
-    };
-  }
-
   async executeResearchSearch(intent: ResearchSearchIntent): Promise<ResearchSearchResult> {
     const discovery = await this.discoverWorkspace(intent.query_text);
     return {
-      intent: {
-        ...intent,
-        speaker_refs: [...intent.speaker_refs],
-        languages: [...intent.languages],
-        document_ids: [...intent.document_ids],
-        tags: [...intent.tags],
-        collections: [...intent.collections],
-      },
+      intent: copyResearchSearchIntent(intent),
       retrieval: {
         mode: intent.retrieval_mode,
         lexical_backend_id: intent.retrieval_mode === "semantic" ? null : "mock-lexical",
@@ -1086,6 +932,10 @@ class MockDesktopClient implements DesktopClient {
     };
   }
 
+  async listTypedSavedSearches(): Promise<ResearchTypedSavedSearchResult[]> {
+    return this.typedSavedSearches.map(copyTypedSavedSearch);
+  }
+
   async createTypedSavedSearch(
     name: string,
     description: string | null,
@@ -1095,34 +945,28 @@ class MockDesktopClient implements DesktopClient {
     if (!trimmedName || !intent.query_text.trim()) {
       throw new Error("Saved search requires a name and query");
     }
+    if (
+      this.typedSavedSearches.some(
+        (saved) => saved.name.toLocaleLowerCase() === trimmedName.toLocaleLowerCase(),
+      )
+    ) {
+      throw new Error("A saved search with that name already exists");
+    }
     const now = this.nextResearchTimestamp();
+    const normalizedIntent = copyResearchSearchIntent({
+      ...intent,
+      query_text: intent.query_text.trim(),
+    });
     const saved: ResearchTypedSavedSearchResult = {
       saved_search_id: `search-typed-${this.typedSavedSearches.length + 1}`,
       name: trimmedName,
       description: description?.trim() || null,
-      intent: {
-        ...intent,
-        query_text: intent.query_text.trim(),
-        speaker_refs: [...intent.speaker_refs],
-        languages: [...intent.languages],
-        document_ids: [...intent.document_ids],
-        tags: [...intent.tags],
-        collections: [...intent.collections],
-      },
+      intent: normalizedIntent,
       created_at: now,
       updated_at: now,
     };
     this.typedSavedSearches.unshift(saved);
-    this.savedSearches.unshift({
-      saved_search_id: saved.saved_search_id,
-      name: saved.name,
-      description: saved.description,
-      query_text: saved.intent.query_text,
-      retrieval_mode: saved.intent.retrieval_mode,
-      created_at: saved.created_at,
-      updated_at: saved.updated_at,
-    });
-    return { ...saved, intent: { ...saved.intent } };
+    return copyTypedSavedSearch(saved);
   }
 
   async inspectTypedSavedSearch(
@@ -1132,7 +976,7 @@ class MockDesktopClient implements DesktopClient {
       (item) => item.saved_search_id === savedSearchId,
     );
     if (!saved) throw new Error("Saved search does not exist");
-    return { ...saved, intent: { ...saved.intent } };
+    return copyTypedSavedSearch(saved);
   }
 
   async replaceTypedSavedSearch(
@@ -1149,38 +993,45 @@ class MockDesktopClient implements DesktopClient {
     if (current.updated_at !== saved.updated_at) {
       throw new Error("Saved search changed since it was opened; refresh before saving");
     }
+    const trimmedName = name.trim();
+    if (!trimmedName || !intent.query_text.trim()) {
+      throw new Error("Saved search requires a name and query");
+    }
     const now = this.nextResearchTimestamp();
     const updated: ResearchTypedSavedSearchResult = {
       ...current,
-      name: name.trim(),
+      name: trimmedName,
       description: description?.trim() || null,
-      intent: {
+      intent: copyResearchSearchIntent({
         ...intent,
         query_text: intent.query_text.trim(),
-        speaker_refs: [...intent.speaker_refs],
-        languages: [...intent.languages],
-        document_ids: [...intent.document_ids],
-        tags: [...intent.tags],
-        collections: [...intent.collections],
-      },
+      }),
       updated_at: now,
     };
     this.typedSavedSearches[index] = updated;
-    const simpleIndex = this.savedSearches.findIndex(
+    return copyTypedSavedSearch(updated);
+  }
+
+  async runTypedSavedSearch(
+    saved: ResearchTypedSavedSearchResult,
+  ): Promise<ResearchSearchResult> {
+    const current = this.typedSavedSearches.find(
       (item) => item.saved_search_id === saved.saved_search_id,
     );
-    const simple = this.savedSearches[simpleIndex];
-    if (simpleIndex >= 0 && simple) {
-      this.savedSearches[simpleIndex] = {
-        ...simple,
-        name: updated.name,
-        description: updated.description,
-        query_text: updated.intent.query_text,
-        retrieval_mode: updated.intent.retrieval_mode,
-        updated_at: updated.updated_at,
-      };
+    if (!current) throw new Error("Saved search does not exist");
+    return this.executeResearchSearch(current.intent);
+  }
+
+  async deleteTypedSavedSearch(saved: ResearchTypedSavedSearchResult): Promise<void> {
+    const index = this.typedSavedSearches.findIndex(
+      (item) => item.saved_search_id === saved.saved_search_id,
+    );
+    const current = this.typedSavedSearches[index];
+    if (index < 0 || !current) throw new Error("Saved search does not exist");
+    if (current.updated_at !== saved.updated_at) {
+      throw new Error("Saved search changed since it was opened; refresh before deleting");
     }
-    return { ...updated, intent: { ...updated.intent } };
+    this.typedSavedSearches.splice(index, 1);
   }
 
   private nextResearchTimestamp(): string {

@@ -62,7 +62,7 @@ test("evidence playback and transcript tools carry help at the point of use", as
   await expect(page.getByRole("heading", { name: "Verified local playback" })).toBeVisible();
   await expect(page.getByText(/Recordings with multiple audio streams are refused/)).toBeVisible();
 
-  await reader.getByRole("button", { name: "Close" }).click();
+  await reader.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("button", { name: /Open transcript tools for interview-42/ }).click();
   const tools = page.getByRole("complementary", { name: "Transcript tools" });
   await tools.getByRole("button", { name: "How these work" }).click();

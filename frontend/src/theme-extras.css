@@ -1,31 +1,50 @@
 :root[data-theme="pride"] {
   color-scheme: light;
-  --bg: #fff7fb;
-  --surface: #ffffff;
+  --bg: #fff9fb;
+  --surface: #fffefe;
   --surface-raised: #ffffff;
-  --surface-soft: #f5e7f1;
-  --ink: #251f28;
-  --muted: #625665;
-  --border: #8b7789;
-  --accent: #6d2f7d;
-  --accent-strong: #552160;
-  --accent-soft: #f0dcec;
+  --surface-soft: #f3edf3;
+  --ink: #201f25;
+  --muted: #5f5864;
+  --border: #857a87;
+  --accent: #4f3c78;
+  --accent-strong: #3b2c61;
+  --accent-soft: #e9e3f5;
   --on-accent: #ffffff;
-  --focus: #005a73;
+  --focus: #005d73;
   --danger: #8f3341;
   --control-bg: #ffffff;
-  --control-ink: #251f28;
-  --control-border: #786878;
-  --selection-bg: #6d2f7d;
+  --control-ink: #201f25;
+  --control-border: #766d79;
+  --selection-bg: #4f3c78;
   --selection-ink: #ffffff;
-  --shadow: 0 24px 70px rgba(88, 41, 78, 0.1);
+  --shadow: 0 24px 70px rgba(64, 47, 69, 0.1);
+}
+
+:root[data-theme="pride"] .app-shell {
+  background: linear-gradient(
+    120deg,
+    #ffd8e0 0%,
+    #ffe6c7 16%,
+    #fff5bf 32%,
+    #d8f1d8 48%,
+    #d7e8ff 64%,
+    #e3dcff 80%,
+    #f3d8f0 100%
+  );
+  background-attachment: fixed;
+}
+
+:root[data-theme="pride"] .sidebar {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  backdrop-filter: blur(14px);
 }
 
 :root[data-theme="pride"] body::before {
   content: "";
   position: fixed;
   inset: 0 0 auto;
-  height: 4px;
+  height: 5px;
   z-index: 1000;
   pointer-events: none;
   background: linear-gradient(

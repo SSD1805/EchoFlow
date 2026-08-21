@@ -95,3 +95,44 @@ test("saved Research questions can replace the whole search without backend voca
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations).toEqual([]);
 });
+
+test("saved Research questions have one lifecycle surface for create run and delete", async ({ page }) => {
+  const panel = await openResearchSearch(page);
+  const savedList = panel.getByLabel("Saved searches");
+
+  await expect(
+    page.getByRole("heading", { name: "Saved searches", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    panel.getByRole("heading", { name: "Saved research questions", exact: true }),
+  ).toBeVisible();
+
+  await panel.getByRole("button", { name: "New saved search" }).click();
+  await panel.getByRole("searchbox", { name: "Search", exact: true }).fill("methodology");
+  await panel.getByLabel("Name").fill("Methods sweep");
+  await panel.getByLabel("Description").fill("Questions across current interviews");
+  await panel.getByRole("button", { name: "Save search", exact: true }).click();
+  await expect(panel.locator(".typed-search-status")).toContainText("Saved “Methods sweep”");
+
+  const savedItem = savedList.locator(".typed-saved-item").filter({ hasText: "Methods sweep" });
+  await expect(savedItem).toBeVisible();
+  await savedItem.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(panel.locator(".typed-search-status")).toContainText("Ran “Methods sweep”");
+  await expect(panel.getByLabel("Research search results")).toContainText(
+    "We started the methodology program after the second interview round.",
+  );
+
+  await savedItem.getByRole("button", { name: "Delete", exact: true }).click();
+  const confirmation = savedItem.getByRole("group", {
+    name: "Delete saved search Methods sweep",
+  });
+  await expect(confirmation).toContainText(
+    "removes only the saved question, not transcripts, notes, or recordings",
+  );
+  await confirmation.getByRole("button", { name: "Delete saved search" }).click();
+  await expect(savedList.getByText("Methods sweep", { exact: true })).toHaveCount(0);
+  await expect(panel.locator(".typed-search-status")).toContainText("Deleted “Methods sweep”");
+
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations).toEqual([]);
+});

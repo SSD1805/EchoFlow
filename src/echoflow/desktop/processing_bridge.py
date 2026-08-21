@@ -25,18 +25,19 @@ class _ReadinessParams(BaseModel):
     profile: ProcessingProfile = ProcessingProfile.BALANCED
 
 
-class _PreflightParams(BaseModel):
+class _PlanningOptionsParams(BaseModel):
+    """Options shared by first-run and retry preflight requests."""
+
     model_config = ConfigDict(extra="forbid")
 
-    input_path: str = Field(min_length=1, max_length=32_768)
     profile: ProcessingProfile = ProcessingProfile.BALANCED
     strategy_id: str | None = Field(default=None, min_length=1, max_length=200)
     audio_stream_index: int | None = Field(default=None, ge=0, le=10_000)
     enhance: bool = False
 
-    @field_validator("input_path", "strategy_id")
+    @field_validator("strategy_id")
     @classmethod
-    def strip_optional_text(cls, value: str | None) -> str | None:
+    def strip_strategy_id(cls, value: str | None) -> str | None:
         if value is None:
             return None
         stripped = value.strip()
@@ -45,20 +46,24 @@ class _PreflightParams(BaseModel):
         return stripped
 
 
-class _RetryPreflightParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class _PreflightParams(_PlanningOptionsParams):
+    input_path: str = Field(min_length=1, max_length=32_768)
 
-    source_job_id: str = Field(min_length=1, max_length=200)
-    profile: ProcessingProfile = ProcessingProfile.BALANCED
-    strategy_id: str | None = Field(default=None, min_length=1, max_length=200)
-    audio_stream_index: int | None = Field(default=None, ge=0, le=10_000)
-    enhance: bool = False
-
-    @field_validator("source_job_id", "strategy_id")
+    @field_validator("input_path")
     @classmethod
-    def strip_optional_text(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
+    def strip_input_path(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("processing text values cannot be blank")
+        return stripped
+
+
+class _RetryPreflightParams(_PlanningOptionsParams):
+    source_job_id: str = Field(min_length=1, max_length=200)
+
+    @field_validator("source_job_id")
+    @classmethod
+    def strip_source_job_id(cls, value: str) -> str:
         stripped = value.strip()
         if not stripped:
             raise ValueError("processing text values cannot be blank")

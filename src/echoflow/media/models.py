@@ -9,6 +9,22 @@ _STREAM_TITLE_MAX_LENGTH = 200
 _STREAM_LANGUAGE_MAX_LENGTH = 64
 
 
+def _normalize_optional_display_text(
+    value: str | None,
+    *,
+    field_name: str,
+    maximum: int,
+) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    if len(normalized) > maximum:
+        raise ValueError(f"{field_name} exceeds safe display length")
+    return normalized
+
+
 class StreamKind(StrEnum):
     AUDIO = "audio"
     VIDEO = "video"
@@ -114,20 +130,24 @@ class MediaStream:
             value = getattr(self, name)
             if value is not None and value < 1:
                 raise ValueError(f"{name} must be positive")
-        for name, maximum in (
-            ("title", _STREAM_TITLE_MAX_LENGTH),
-            ("language", _STREAM_LANGUAGE_MAX_LENGTH),
-        ):
-            value = getattr(self, name)
-            if value is None:
-                continue
-            normalized = value.strip()
-            if not normalized:
-                object.__setattr__(self, name, None)
-                continue
-            if len(normalized) > maximum:
-                raise ValueError(f"{name} exceeds safe display length")
-            object.__setattr__(self, name, normalized)
+        object.__setattr__(
+            self,
+            "title",
+            _normalize_optional_display_text(
+                self.title,
+                field_name="title",
+                maximum=_STREAM_TITLE_MAX_LENGTH,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "language",
+            _normalize_optional_display_text(
+                self.language,
+                field_name="language",
+                maximum=_STREAM_LANGUAGE_MAX_LENGTH,
+            ),
+        )
         if not isinstance(self.is_default, bool):
             raise ValueError("is_default must be boolean")
 

@@ -117,7 +117,9 @@ def handle_request(
 
 def main() -> int:
     return run_stdio_bridge(
-        lambda payload: handle_request(payload, AppContainer().playback_authorization()),
+        lambda payload: handle_request(
+            payload, AppContainer().playback_authorization()
+        ),
         oversized_message="Playback authorization request exceeded the safe size limit",
         invalid_json_message="Playback authorization request was not valid JSON",
     )

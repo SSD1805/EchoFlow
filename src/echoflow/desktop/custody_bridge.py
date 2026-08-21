@@ -267,8 +267,12 @@ def handle_request(payload: object, service: LibraryCustodyService) -> dict[str,
             code=exc.code.value,
             message=exc.public_message,
         )
-    except ValueError as exc:
-        return _failure(request_id, code="invalid_request", message=str(exc))
+    except ValueError:
+        return _failure(
+            request_id,
+            code="invalid_request",
+            message="Lifecycle request is invalid",
+        )
     except Exception:
         return _failure(
             request_id,

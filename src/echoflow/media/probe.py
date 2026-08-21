@@ -94,7 +94,13 @@ def _default_disposition(raw_disposition: object) -> bool:
     if not isinstance(raw_disposition, dict):
         return False
     value = raw_disposition.get("default")
-    return value is True or value == 1 or value == "1"
+    if value is True:
+        return True
+    if isinstance(value, int):
+        return value == 1
+    if isinstance(value, str):
+        return value == "1"
+    return False
 
 
 def _raw_stream_index(raw_stream: object) -> int | None:

@@ -30,8 +30,10 @@ _MAX_STREAM_LANGUAGE_LENGTH = 64
 _FFPROBE_ENTRIES = (
     "format=format_name,duration:format_tags=timecode,creation_time:"
     "stream=index,codec_type,codec_name,duration,sample_rate,channels,"
-    "channel_layout,bit_rate:stream_tags=timecode,creation_time,title,language:"
-    "stream_disposition=default"
+    "channel_layout,bit_rate:stream_tags=timecode,creation_time"
+)
+_FFPROBE_TRACK_DISPLAY_ENTRIES = (
+    "stream=index:stream_tags=title,language:stream_disposition=default"
 )
 
 
@@ -95,7 +97,47 @@ def _default_disposition(raw_disposition: object) -> bool:
     return value is True or value == 1 or value == "1"
 
 
-def _parse_stream(raw_stream: object) -> MediaStream:
+def _raw_stream_index(raw_stream: object) -> int | None:
+    if not isinstance(raw_stream, dict):
+        return None
+    index = raw_stream.get("index")
+    if isinstance(index, bool):
+        return None
+    try:
+        return int(str(index))
+    except (TypeError, ValueError):
+        return None
+
+
+def _multiple_audio_streams(payload: Mapping[str, Any]) -> bool:
+    raw_streams = payload.get("streams")
+    if not isinstance(raw_streams, list):
+        return False
+    return (
+        sum(
+            isinstance(stream, dict) and stream.get("codec_type") == "audio"
+            for stream in raw_streams
+        )
+        > 1
+    )
+
+
+def _display_stream_lookup(payload: Mapping[str, Any]) -> dict[int, Mapping[str, Any]]:
+    raw_streams = payload.get("streams")
+    if not isinstance(raw_streams, list):
+        return {}
+    lookup: dict[int, Mapping[str, Any]] = {}
+    for stream in raw_streams:
+        index = _raw_stream_index(stream)
+        if index is not None and isinstance(stream, dict):
+            lookup[index] = stream
+    return lookup
+
+
+def _parse_stream(
+    raw_stream: object,
+    display_stream: Mapping[str, Any] | None = None,
+) -> MediaStream:
     if not isinstance(raw_stream, dict):
         raise MediaProbeError("FFprobe stream metadata is invalid")
     index = raw_stream.get("index")
@@ -105,7 +147,8 @@ def _parse_stream(raw_stream: object) -> MediaStream:
         parsed_index = int(str(index))
     except (TypeError, ValueError) as exc:
         raise MediaProbeError("FFprobe stream index is invalid", cause=exc) from exc
-    tags = raw_stream.get("tags")
+    display_source = display_stream if display_stream is not None else raw_stream
+    tags = display_source.get("tags")
     try:
         return MediaStream(
             index=parsed_index,
@@ -122,7 +165,7 @@ def _parse_stream(raw_stream: object) -> MediaStream:
             bit_rate_bps=_optional_int(raw_stream.get("bit_rate")),
             title=_display_tag(tags, "title", _MAX_STREAM_TITLE_LENGTH),
             language=_display_tag(tags, "language", _MAX_STREAM_LANGUAGE_LENGTH),
-            is_default=_default_disposition(raw_stream.get("disposition")),
+            is_default=_default_disposition(display_source.get("disposition")),
         )
     except ValueError as exc:
         raise MediaProbeError(
@@ -220,7 +263,15 @@ class FfprobeMediaProbe:
                 "FFprobe is required to inspect audio input"
             )
 
-        payload = self._run(executable, source)
+        payload = self._run(executable, source, entries=_FFPROBE_ENTRIES)
+        display_lookup: Mapping[int, Mapping[str, Any]] = {}
+        if _multiple_audio_streams(payload):
+            display_payload = self._run(
+                executable,
+                source,
+                entries=_FFPROBE_TRACK_DISPLAY_ENTRIES,
+            )
+            display_lookup = _display_stream_lookup(display_payload)
         try:
             sha256 = _fingerprint(source)
             after = _snapshot(source)
@@ -239,9 +290,16 @@ class FfprobeMediaProbe:
                 modified_ns=after[1],
                 sha256=sha256,
             ),
+            display_lookup=display_lookup,
         )
 
-    def _run(self, executable: str, source: Path) -> Mapping[str, Any]:
+    def _run(
+        self,
+        executable: str,
+        source: Path,
+        *,
+        entries: str,
+    ) -> Mapping[str, Any]:
         command = [
             executable,
             "-v",
@@ -249,7 +307,7 @@ class FfprobeMediaProbe:
             "-protocol_whitelist",
             "file",
             "-show_entries",
-            _FFPROBE_ENTRIES,
+            entries,
             "-of",
             "json",
             str(source),
@@ -289,13 +347,25 @@ class FfprobeMediaProbe:
         return payload
 
     @staticmethod
-    def _parse(payload: Mapping[str, Any], identity: InputIdentity) -> MediaInfo:
+    def _parse(
+        payload: Mapping[str, Any],
+        identity: InputIdentity,
+        *,
+        display_lookup: Mapping[int, Mapping[str, Any]] | None = None,
+    ) -> MediaInfo:
         raw_streams = payload.get("streams")
         raw_format = payload.get("format")
         if not isinstance(raw_streams, list) or not isinstance(raw_format, dict):
             raise MediaProbeError("FFprobe metadata is incomplete")
 
-        streams = [_parse_stream(raw_stream) for raw_stream in raw_streams]
+        track_display = display_lookup or {}
+        streams = [
+            _parse_stream(
+                raw_stream,
+                track_display.get(_raw_stream_index(raw_stream) or -1),
+            )
+            for raw_stream in raw_streams
+        ]
 
         audio_streams = [
             stream for stream in streams if stream.kind is StreamKind.AUDIO

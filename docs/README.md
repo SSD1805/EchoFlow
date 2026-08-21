@@ -17,7 +17,8 @@ You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, o
 | Process from the desktop | provides readiness, model state, preflight, supervised start/cancel, progress, resume versus retry, and private-state discard |
 | Survive interruption | checkpoints completed work and validates the original contract on resume |
 | Keep the original intact | treats source media as read-only during normal processing and writes artifacts separately |
-| Handle audio/video | selects one audio stream deterministically and canonicalizes locally |
+| Handle audio/video | selects one audio stream deterministically, requires an explicit user choice when a file contains multiple audio tracks, and canonicalizes the chosen track locally |
+| Understand several embedded tracks | shows bounded source-declared title/language/default metadata, then re-runs backend preflight with the exact selected stream |
 | Clean noisy audio | optionally applies deterministic local suppression with provenance/timeline checks |
 | Work across languages | supports multilingual decoding plus conservative local language attribution |
 | Distinguish speakers | preserves anonymous recording-scoped speaker evidence without claiming identity |
@@ -27,7 +28,7 @@ You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, o
 | Publish useful formats | produces canonical JSON plus rebuildable TXT/SRT/WebVTT, including post-hoc desktop publication |
 | Search a private corpus | supports lexical BM25, optional semantic retrieval, hybrid RRF, and inspectable Research search options |
 | Follow a result to evidence | verifies canonical generation and returns justified segment/word/context/seek coordinates |
-| Play the cited recording | re-verifies the exact transcript generation and source before opening an opaque native audio/video session |
+| Play the cited recording | re-verifies the exact transcript generation and source before opening an opaque native audio/video session; multi-track sources currently refuse playback rather than risk the wrong embedded track |
 | Keep durable research | stores notes/tags/collections in authoritative private SQLite anchored to exact evidence |
 | Reuse questions | stores and edits full typed saved-search intent, then re-resolves current evidence |
 | Remember libraries | persists explicit transcript/recording permissions without copying user media |
@@ -39,6 +40,7 @@ You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, o
 ## Pick your doorway
 
 - **[Getting started](getting-started.md)** for the source-build path, desktop path, and first transcript.
+- **[Audio tracks](audio-tracks.md)** for single-track behavior, explicit multi-track selection, source-declared track labels, canonical stream provenance, and the current playback limitation.
 - **[In-app guidance](in-app-guidance.md)** for the persistent help controls and why they describe rather than duplicate backend policy.
 - **[Processing Center](architecture/processing-center.md)** for the desktop processing authority split.
 - **[Transcript and speaker tools](transcript-tools.md)** for generation-bound details, speaker management, overlap presentation, and post-hoc publication.
@@ -125,9 +127,9 @@ If deleting a search projection destroys unique human-authored information, some
 
 Research/search, the Processing Center, desktop comprehension/themes, transcript/speaker tools, verified native playback, and re-openable contextual guidance are now coherent first-release slices.
 
-Research uses ordinary product language by default. Processing presents backend planning/admission rather than duplicating it. Transcript tools pass exact generation identity into Python for details, speaker mutation, and publication. Playback does the same for source authorization, then Rust owns an opaque opened-file session. The webview does not parse canonical evidence or receive canonical/source paths.
+Research uses ordinary product language by default. Processing presents backend planning/admission rather than duplicating it. If a source contains several embedded audio tracks, Python tells the desktop that explicit selection is required; React presents bounded track facts and submits the chosen stream index, then Python replans before Start is enabled. Transcript tools pass exact generation identity into Python for details, speaker mutation, and publication. Playback does the same for source authorization, then Rust owns an opaque opened-file session. The webview does not parse canonical evidence or receive canonical/source paths.
 
-The sidebar keeps **How this screen works** and **How EchoFlow works** available after first use. Evidence, playback, and transcript tools add local help at the point where their evidence semantics become unusual. The help registry is presentation copy only; it never substitutes for Python application policy.
+The sidebar keeps **How this screen works** and **How EchoFlow works** available after first use. Evidence, playback, transcript tools, and multi-track preflight add local explanation at the point where their evidence semantics become unusual. The help registry and inline copy are presentation only; they never substitute for Python application policy.
 
 Appearance remains one compact picker. All eight skins share the same semantic text/control/focus contract and the same registry-driven contrast/a11y matrix.
 

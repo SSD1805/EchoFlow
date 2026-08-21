@@ -8,12 +8,74 @@ real composition root unclear.
 
 ## Status
 
-The first cleanup tranche is implemented on the architecture-audit branch. It removes shared
-transport/composition boilerplate without widening any native capability. A second Research
-cleanup remains before the product-identity/packaging checkpoint because saved-search
-management is currently duplicated on the same screen.
+Two cleanup tranches are now implemented:
 
-## Changes made in this tranche
+1. trusted-host transport/composition consolidation; and
+2. Research saved-question/evidence-contract consolidation.
+
+The Research tranche removes the largest product-level redundancy found by the audit without
+migrating or rewriting authoritative research data. Saved questions remain the same SQLite
+`SavedSearch` / `SavedSearchIntent` objects; only their duplicate desktop ingress and UI are
+collapsed.
+
+## Reconsolidation patterns
+
+The audit uses a small set of patterns rather than a generic abstraction framework.
+
+### Capability-blind shared plumbing
+
+Share mechanics that cannot grant new authority. `echoflow.desktop.host_protocol` knows how
+to bound/read JSON and emit a versioned response, but it does not know which service, method,
+path, or database capability a bridge owns.
+
+### Authority-preserving adapters
+
+A shared transport helper does not imply a shared capability. Playback, custody, transcript
+tools, lifecycle, and ordinary desktop operations keep separate closed schemas, dispatchers,
+and public error policies when their authority differs.
+
+### Composition-root centralization
+
+Application services are assembled by `AppContainer` rather than quietly rebuilt inside
+adapters. Bridges translate contracts; they do not become second dependency graphs.
+
+### Fixed-command transport
+
+Frontend protocol helpers accept a closed set of native commands. Consolidation must never
+turn a hard-coded native seam into `invokeAnything(command: string)` or allow the webview to
+choose a Python module.
+
+### Shared contract, not shared policy
+
+`echoflow.desktop.research_serialization` serializes already-authorized Research evidence into
+one frontend shape. It does not choose generations, resolve evidence, query storage, or expose
+paths. Search policy stays in application/library services.
+
+### Facade completion before adapter retirement
+
+Before deleting an older ingress, complete the richer application facade so it can express the
+whole user lifecycle. The typed Research search service gained list/inspect/replace/run/delete
+operations before the older `workspace.research.saved_search.*` desktop family was retired.
+
+### Remove duplicate ingress, preserve domain capability
+
+Retiring a duplicate desktop API does not mean deleting the underlying capability. CLI and
+internal callers still use `ResearchWorkspaceService` saved-search operations. One redundant
+front door disappeared; the room did not.
+
+### Test-double isomorphism
+
+Mocks should reflect the same conceptual authority graph as production. The browser mock now
+keeps one typed saved-question store instead of mirroring the same saved search into separate
+"simple" and "typed" arrays.
+
+### Extract stable invariants, not utility grab-bags
+
+Research label normalization is one stable boundary invariant: trim, reject blank/oversized or
+control-character values, de-duplicate case-insensitively, preserve display spelling. That rule
+is appropriate to share. Unrelated one-field validators remain next to their request models.
+
+## First tranche: trusted-host and composition cleanup
 
 ### Trusted-host Python protocol mechanics
 
@@ -65,6 +127,44 @@ contract:
 It does not accept an arbitrary command string. Playback remains separate because its Rust
 API returns opaque media-session state rather than the Python desktop protocol envelope.
 
+## Second tranche: Research contract consolidation
+
+### One saved-question authority in the desktop product
+
+`ResearchWorkspace` and `ResearchSearchControlsPanel` previously rendered two saved-search
+management surfaces on the same screen. Both operated on the same authoritative SQLite
+objects, but one used the older query-only `workspace.research.saved_search.*` desktop family
+and the other used the richer typed `workspace.research.search.saved.*` family.
+
+The typed Research search surface now owns the complete lifecycle:
+
+- list;
+- create;
+- inspect/load;
+- replace full typed intent;
+- run against current evidence/research; and
+- explicitly confirmed delete with optimistic concurrency.
+
+`ResearchWorkspace` now owns notes, labels, and anchored evidence only. The older desktop
+saved-search methods, DTOs, client methods, result block, and duplicate browser mock state are
+removed. The underlying workspace/domain API remains available to the CLI and internal code.
+
+### One Research evidence presentation contract
+
+Ordinary workspace discovery and typed Research search previously serialized
+`EvidenceWord`, `EvidenceContextSegment`, speaker presentation, exact canonical generation,
+timing, research labels, and `WorkspaceSearchPassage` independently.
+
+They now depend on `echoflow.desktop.research_serialization`. The module is intentionally
+pure presentation mapping. Private `canonical_path` / `source_path` fields remain absent from
+the frontend contract, and evidence resolution remains owned by library/application services.
+
+### Research label validation
+
+Typed search and note/filter requests apply the same Research label invariant. The invariant
+lives in `echoflow.desktop.research_validation` rather than being independently reimplemented
+by adapters.
+
 ## Patterns intentionally retained
 
 ### Fixed Rust module wrappers
@@ -94,62 +194,17 @@ literal duplication while making path-disclosure and human-copy tests harder to 
 
 ## Remaining high-value cleanup
 
-### 1. Consolidate saved-search management
+### 1. Finish frontend protocol migration
 
-This is the largest real product redundancy found by the audit.
+The fixed-command native protocol helper should also replace equivalent transport boilerplate
+inside the broader `api/desktop.ts` and `api/processing.ts` clients. Do this in a focused
+change with their interaction tests; do not widen the helper to arbitrary commands.
 
-`ResearchWorkspace` and `ResearchSearchControlsPanel` currently render two saved-search
-management surfaces on the same Research screen. Both operate on the same authoritative
-SQLite `SavedSearch` / `SavedSearchIntent` objects, but one surface uses the older simple
-`workspace.research.saved_search.*` bridge family while the typed search panel uses
-`workspace.research.search.saved.*`.
-
-The older create operation is not a different research primitive. It simply compiles a
-query-only request into default lexical typed intent. The typed panel can express the full
-saved question and should become the single creation/edit/run/delete surface.
-
-The cleanup should:
-
-1. add typed saved-search run and delete operations under the Research search control
-   service/bridge;
-2. keep optimistic concurrency on destructive/update operations;
-3. move run/delete presentation into the typed saved-search panel;
-4. remove the duplicate saved-search editor/results block from `ResearchWorkspace`;
-5. remove the older simple desktop methods and client calls once no UI uses them; and
-6. migrate the existing backend/browser lifecycle tests instead of deleting coverage.
-
-No SQLite data migration is required because both endpoint families already use the same
-saved-search authority.
-
-### 2. Share Research evidence serialization
-
-`echoflow.desktop.bridge` and `research_search_bridge` independently serialize the same
-`EvidenceWord`, `EvidenceContextSegment`, speaker labels, exact canonical generation, timing,
-research labels, and `WorkspaceSearchPassage` fields. That can eventually make ordinary
-Library discovery and typed Research search disagree about what an evidence DTO means.
-
-Extract one presentation serializer module and have both adapters depend on it. This is a
-contract-drift fix, not an attempt to move search semantics into serialization.
-
-### 3. Finish frontend protocol migration
-
-The new fixed-command helper should also replace the equivalent transport boilerplate inside
-`api/desktop.ts` and `api/processing.ts`. Those files are broader clients, so migrate them in
-a focused change with their existing interaction tests rather than coupling the change to the
-smaller adapter cleanup above.
-
-### 4. Move Processing Center composition into `AppContainer`
+### 2. Move Processing Center composition into `AppContainer`
 
 The ordinary desktop bridge still manually assembles `ProcessingCenterService`. Its
 dependencies are already container-owned. Move that composition after the general bridge is
-made smaller so the edit does not combine a composition change with unrelated dispatch
-rewrites.
-
-### 5. Share Research label normalization
-
-The generic research bridge and typed search bridge enforce the same trim/length/control-
-character/case-fold de-duplication rules. Move that exact rule to one small Research desktop
-validation helper when the saved-search/Research adapter cleanup touches both files.
+made smaller so the change does not combine dependency wiring with unrelated dispatch work.
 
 ## Lower-value repetition not worth a framework
 
@@ -165,16 +220,18 @@ validation helper when the saved-search/Research adapter cleanup touches both fi
 
 The shared Python host transport has direct unit tests for bounded JSON input, response
 versioning, dispatch suppression on malformed input, and stdout isolation. The frontend
-response parser has a pure contract test in the Playwright test runner in addition to the
-existing feature-flow tests.
+response parser has a pure contract test in the Playwright test runner in addition to feature
+flows.
 
-Because this tranche changes `playback_bridge.py`, the targeted Playback Mutation workflow is
-expected to run. That is appropriate: mutation testing remains path-targeted to a changed
-security-sensitive seam rather than becoming a universal CI tax.
+The Research tranche migrates, rather than deletes, lifecycle coverage: browser tests now
+qualify the one typed saved-question surface, backend tests qualify the typed list/inspect/
+replace/run/delete contract, and exact-generation note evidence safety tests remain separate.
+Because this tranche does not alter playback authorization decisions, the Playback Mutation
+workflow should not be selected merely because Research adapters changed.
 
 ## Exit criterion for the audit
 
-Before the product-identity checkpoint, finish the saved-search consolidation and shared
-Research evidence serialization, then re-run the ordinary quality matrix plus only the
-mutation workflows selected by touched decision-heavy files. At that point the remaining
-similarity should be intentional authority separation, not evolutionary residue.
+The product-level Research redundancy and evidence-contract drift identified by the audit are
+resolved. The remaining two high-value items are transport/composition cleanup in the broad
+desktop path. Once those are complete and qualified, remaining similarity should be
+intentional authority separation rather than evolutionary residue.

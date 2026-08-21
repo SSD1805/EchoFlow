@@ -40,7 +40,7 @@ test("speaker labels change presentation without replacing anonymous evidence re
 
   await form.getByRole("button", { name: "Remove name" }).click();
   await expect(panel.getByRole("status")).toContainText("anonymous evidence ref remains");
-  await expect(form.getByText("speaker-2", { exact: true })).toBeVisible();
+  await expect(form.getByRole("code")).toHaveText("speaker-2");
 });
 
 test("speaker transcript represents overlap explicitly instead of flattening it", async ({ page }) => {

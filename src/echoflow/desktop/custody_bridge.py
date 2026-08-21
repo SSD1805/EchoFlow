@@ -108,7 +108,7 @@ class _RetentionExecuteParams(_RetentionPlanParams):
 
 
 def _serialize_documents(service: LibraryCustodyService) -> list[dict[str, object]]:
-    documents = []
+    documents: list[dict[str, object]] = []
     for document in service.transcript_library.documents():
         source_name = Path(document.source_path).name if document.source_path else None
         documents.append(
@@ -185,43 +185,43 @@ def dispatch_custody(
         _NoParams.model_validate(params)
         return _serialize_documents(service)
     if method == "lifecycle.deletion.plan":
-        request = _DeletionPlanParams.model_validate(params)
+        deletion_plan = _DeletionPlanParams.model_validate(params)
         return _serialize_deletion_plan(
             service.plan_deletion(
-                request.document_id,
-                request.scopes,
-                allow_source=request.allow_source,
+                deletion_plan.document_id,
+                deletion_plan.scopes,
+                allow_source=deletion_plan.allow_source,
             )
         )
     if method == "lifecycle.deletion.execute":
-        request = _DeletionExecuteParams.model_validate(params)
+        deletion_execute = _DeletionExecuteParams.model_validate(params)
         return _serialize_deletion_receipt(
             service.execute_deletion(
-                request.document_id,
-                request.scopes,
-                confirmation_token=request.confirmation_token,
-                allow_source=request.allow_source,
+                deletion_execute.document_id,
+                deletion_execute.scopes,
+                confirmation_token=deletion_execute.confirmation_token,
+                allow_source=deletion_execute.allow_source,
             )
         )
     if method == "lifecycle.retention.plan":
-        request = _RetentionPlanParams.model_validate(params)
+        retention_plan = _RetentionPlanParams.model_validate(params)
         return _serialize_retention_plan(
             service.plan_retention(
                 RetentionPolicy(
-                    execution_days=request.execution_days,
-                    include_incomplete=request.include_incomplete,
+                    execution_days=retention_plan.execution_days,
+                    include_incomplete=retention_plan.include_incomplete,
                 )
             )
         )
     if method == "lifecycle.retention.execute":
-        request = _RetentionExecuteParams.model_validate(params)
+        retention_execute = _RetentionExecuteParams.model_validate(params)
         return _serialize_retention_receipt(
             service.execute_retention(
                 RetentionPolicy(
-                    execution_days=request.execution_days,
-                    include_incomplete=request.include_incomplete,
+                    execution_days=retention_execute.execution_days,
+                    include_incomplete=retention_execute.include_incomplete,
                 ),
-                confirmation_token=request.confirmation_token,
+                confirmation_token=retention_execute.confirmation_token,
             )
         )
     raise ValueError("Unsupported lifecycle desktop method")

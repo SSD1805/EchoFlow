@@ -119,13 +119,16 @@ def _multiple_audio_streams(payload: Mapping[str, Any]) -> bool:
     raw_streams = payload.get("streams")
     if not isinstance(raw_streams, list):
         return False
-    return (
-        sum(
-            isinstance(stream, dict) and stream.get("codec_type") == "audio"
-            for stream in raw_streams
-        )
-        > 1
-    )
+    audio_count = 0
+    for stream in raw_streams:
+        if not isinstance(stream, dict):
+            continue
+        codec_type = stream.get("codec_type")
+        if isinstance(codec_type, str) and codec_type == "audio":
+            audio_count += 1
+            if audio_count > 1:
+                return True
+    return False
 
 
 def _display_stream_lookup(payload: Mapping[str, Any]) -> dict[int, Mapping[str, Any]]:

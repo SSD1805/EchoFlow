@@ -20,7 +20,7 @@ EchoFlow is pre-production, but the backend and desktop cover a coherent path fr
 |---|---|
 | Local transcription | faster-whisper CPU/int8 and CUDA-capable strategies with explicit managed model revisions |
 | Hardware awareness | process-visible CPU/RAM, affinity/cgroup limits, accelerator topology, engine capability negotiation, resource admission |
-| Media handling | FFprobe inspection, deterministic stream selection, FFmpeg canonicalization, exact source-relative work windows |
+| Media handling | FFprobe inspection, explicit embedded-audio-track confirmation for multi-track files, deterministic exact-stream FFmpeg canonicalization, exact source-relative work windows |
 | Reliability | private checkpoints, validated resume, contiguous checkpoint ordering, bounded accelerated prefetch |
 | Languages | multilingual decoding plus conservative local text-language attribution |
 | Speakers | optional anonymous recording-scoped diarization, word-level handoffs, generation-bound display labels, honest overlap/mixed presentation |
@@ -29,15 +29,15 @@ EchoFlow is pre-production, but the backend and desktop cover a coherent path fr
 | Transcript output | canonical JSON plus deterministic TXT, SRT, WebVTT publication views |
 | Search | private BM25 lexical retrieval, optional semantic retrieval, hybrid reciprocal-rank fusion |
 | Evidence navigation | canonical-hash verification, aligned highlights, bounded context, speaker presentation, source seek coordinates |
-| Verified playback | exact-generation/source re-verification, opaque Tauri media sessions, bounded native range streaming, current/older evidence coordinates |
+| Verified playback | exact-generation/source re-verification, opaque Tauri media sessions, bounded native range streaming, current/older evidence coordinates; multi-track sources currently fail closed for playback |
 | Research workspace | authoritative SQLite notes/tags/collections, rebuildable DuckDB projection, desktop browse/create/edit/delete/filter/anchor maintenance |
 | Unified discovery | grouped transcript/note/tag/collection query without fabricated cross-type scores |
 | Saved searches | durable typed query intent that re-resolves current evidence instead of freezing result snapshots |
 | Safe lifecycle | typed plan-bound deletion scopes plus private execution-state retention that preserves evidence/human work by default |
 | Incremental library | cheap refresh/reconciliation plus durable transcript and recording locations |
-| Processing Center | readiness, machine/model state, preflight, supervised start/cancel, resume versus retry, job-state discard, diarization/enhancement/publication intent |
+| Processing Center | readiness, machine/model state, preflight, explicit multi-track stream confirmation, supervised start/cancel, resume versus retry, job-state discard, diarization/enhancement/publication intent |
 | Transcript tools | generation-bound transcript/provenance inspection, speaker naming/removal, overlap-aware transcript view, post-hoc TXT/SRT/VTT publication |
-| Desktop guidance | persistent screen/overview help plus contextual Evidence, Playback, and Transcript explanations without duplicating backend policy |
+| Desktop guidance | persistent screen/overview help plus contextual Evidence, Playback, Transcript, and multi-track preflight explanations without duplicating backend policy |
 | Desktop presentation | Tauri + React Intake, Processing, Library, verified evidence reader/playback, Research, transcript tools, and eight semantic-token themes |
 | Accessibility | keyboard/semantic-role tests, axe, non-hover contextual help, explicit light/dark browser schemes, and an eight-skin contrast matrix |
 | Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, Playwright/axe, native Rust tests, package verification, targeted mutation qualification |
@@ -96,23 +96,25 @@ The Tauri + React desktop currently provides:
 
 - native file/folder selection and remembered-location permissions;
 - recording discovery without automatic processing side effects;
-- a Processing Center for readiness, model state, job state, preflight, launch, cancel, resume/retry distinction, and private-state discard;
+- a Processing Center for readiness, model state, job state, preflight, explicit embedded-audio-track confirmation, launch, cancel, resume/retry distinction, and private-state discard;
 - Library search across transcripts, notes, tags, and collections;
 - verified evidence context and source-relative cursor coordinates;
 - generation/source-verified local audio/video playback from that evidence cursor without exposing source paths to React;
 - Research note create/edit/delete, tag/collection navigation, saved-search lifecycle, typed retrieval controls, exact-generation evidence return, and explicit anchor review;
 - transcript details/provenance, generation-safe speaker-name management, explicit speaker-overlap presentation, and post-hoc derived publication;
-- persistent **How this screen works** and **How EchoFlow works** guidance plus local Evidence/Playback/Transcript explanations;
+- persistent **How this screen works** and **How EchoFlow works** guidance plus local Evidence/Playback/Transcript/multi-track explanations;
 - eight accessible presentation skins through one compact theme picker; and
 - persisted presentation preference without mixing theme state into evidence or research.
 
-The browser/webview does **not** receive canonical/source filesystem paths for evidence navigation, transcript tools, or playback. Rust owns native desktop capability and opened media sessions; Python owns application/evidence/custody rules; React owns presentation and explicit user intent.
+The browser/webview does **not** receive canonical/source filesystem paths for evidence navigation, transcript tools, or playback. Rust owns native desktop capability and opened media sessions; Python owns application/evidence/custody/media-selection rules; React owns presentation and explicit user intent.
+
+When a file contains several embedded audio streams, Python reports that explicit confirmation is required. The desktop shows bounded source-declared title/language/default metadata when available, accepts the user's stream choice, and sends only that exact index back to Python for a fresh preflight. Start remains disabled until the backend returns a plan bound to that stream. Canonical provenance records the exact stream index and resume restores it. See **[Audio tracks](docs/audio-tracks.md)**.
 
 Transcript tools are generation-bound. A long-lived UI cannot silently rename a speaker in a newer transcript generation: every inspect/mutation/publication request carries the exact canonical SHA-256 the user opened, and Python rejects stale identity. See **[Transcript and speaker tools](docs/transcript-tools.md)**.
 
-Playback follows the same evidence discipline. Python re-verifies the exact canonical generation, original source bytes, bounded coordinate, and audio-stream identity; Rust then turns the approved source into an opaque local media session. Multi-audio sources currently fail closed rather than risking playback of a different track than the one transcribed. See **[Verified native playback](docs/native-playback.md)**.
+Playback follows the same evidence discipline. Python re-verifies the exact canonical generation, original source bytes, bounded coordinate, and audio-stream identity; Rust then turns the approved source into an opaque local media session. Multi-track transcription is supported, but multi-track playback currently fails closed because the system WebView cannot yet prove it rendered the same embedded stream that produced the transcript. See **[Verified native playback](docs/native-playback.md)**.
 
-In-app guidance is deliberately re-openable and non-hover-only. It explains those contracts where users encounter them but carries no filesystem/database/process authority and does not recreate application policy in React. See **[In-app guidance](docs/in-app-guidance.md)**.
+In-app guidance is deliberately re-openable and non-hover-only where popovers are used, with inline help for required multi-track selection. It explains those contracts where users encounter them but carries no filesystem/database/process authority and does not recreate application policy in React. See **[In-app guidance](docs/in-app-guidance.md)**.
 
 There are still no end-user installers or Releases. The supported path remains a source build while packaging and first-run behavior are qualified.
 
@@ -147,6 +149,13 @@ uv run echoflow transcribe interview.m4a --dry-run
 uv run echoflow transcribe interview.m4a
 ```
 
+For a source with several embedded audio tracks, bind the exact FFmpeg stream index:
+
+```bash
+uv run echoflow transcribe meeting.mkv --audio-stream 3 --dry-run
+uv run echoflow transcribe meeting.mkv --audio-stream 3
+```
+
 Add derived publication formats when useful:
 
 ```bash
@@ -159,7 +168,7 @@ Resume a validated interrupted job:
 uv run echoflow transcribe interview.m4a --resume JOB_ID
 ```
 
-Model acquisition is explicit and network-bearing. Resume rechecks source identity and current resource admission rather than silently changing the execution contract.
+Model acquisition is explicit and network-bearing. Resume rechecks source identity and current resource admission rather than silently changing the execution contract, including its selected audio stream.
 
 ## Search, annotate, and name speakers
 
@@ -213,13 +222,13 @@ A database is allowed to make evidence useful. It is not allowed to become the o
 
 ## For maintainers
 
-Start with **[docs/architecture/README.md](docs/architecture/README.md)**, **[Processing Center](docs/architecture/processing-center.md)**, **[Transcript and speaker tools](docs/transcript-tools.md)**, **[Verified native playback](docs/native-playback.md)**, **[In-app guidance](docs/in-app-guidance.md)**, **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)**, and **[frontend/SECURITY.md](frontend/SECURITY.md)**.
+Start with **[docs/architecture/README.md](docs/architecture/README.md)**, **[Processing Center](docs/architecture/processing-center.md)**, **[Audio tracks](docs/audio-tracks.md)**, **[Transcript and speaker tools](docs/transcript-tools.md)**, **[Verified native playback](docs/native-playback.md)**, **[In-app guidance](docs/in-app-guidance.md)**, **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)**, and **[frontend/SECURITY.md](frontend/SECURITY.md)**.
 
 Normal qualification includes Ruff, strict mypy, Vulture, Radon, branch coverage, dependency audit, package verification, TypeScript/build/audit gates, native Cargo compilation/tests, Playwright/axe, the eight-theme contrast matrix, targeted Poodle mutation workflows, and Linux/macOS/Windows CI. See **[Frontend testing strategy](docs/development/frontend-testing.md)** for frontend/backend test ownership.
 
 ## Where the project goes next
 
-Research/search, Processing, desktop comprehension/themes, transcript/speaker tools, verified native playback, and contextual guidance are built. The next first-release sequence is:
+Research/search, Processing, explicit embedded-track transcription, desktop comprehension/themes, transcript/speaker tools, verified native playback, and contextual guidance are built. The next first-release sequence is:
 
 1. lifecycle and retention UI over the existing plan-bound custody backend;
 2. architecture/redundancy audit before packaging freezes seams;

@@ -142,8 +142,8 @@
 }
 .danger-action {
   border: 1px solid var(--danger);
-  background: var(--danger);
-  color: var(--surface-raised);
+  background: var(--surface-raised);
+  color: var(--danger);
 }
 
 .lifecycle-plan {

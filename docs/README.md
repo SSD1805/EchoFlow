@@ -2,9 +2,9 @@
 
 EchoFlow is a **private, local-first workspace for recorded evidence**.
 
-It can inspect a recording, choose a safe way to run on the computer you actually have, transcribe locally, survive interruptions, preserve provenance, search a private corpus, navigate results back to verified canonical evidence, keep research notes attached to that evidence, save reusable research questions, manage generation-bound speaker labels, inspect transcript provenance, and publish derived transcript views through a native desktop shell.
+It can inspect a recording, choose a safe way to run on the computer you actually have, transcribe locally, survive interruptions, preserve provenance, search a private corpus, navigate results back to verified canonical evidence, keep research notes attached to that evidence, save reusable research questions, manage generation-bound speaker labels, inspect transcript provenance, publish derived transcript views, and play verified local source evidence through a native desktop shell.
 
-You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, or desktop IPC to use the product. Those are implementation details. The desktop should speak in recordings, transcripts, searches, notes, processing, speakers, and evidence.
+You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, or desktop IPC to use the product. Those are implementation details. The desktop should speak in recordings, transcripts, searches, notes, processing, speakers, playback, and evidence.
 
 > **The short version:** your recording stays yours, canonical JSON remains inspectable evidence, your notes/speaker names/saved searches remain your knowledge, and most machinery built around those things can be thrown away and rebuilt.
 
@@ -27,6 +27,7 @@ You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, o
 | Publish useful formats | produces canonical JSON plus rebuildable TXT/SRT/WebVTT, including post-hoc desktop publication |
 | Search a private corpus | supports lexical BM25, optional semantic retrieval, hybrid RRF, and inspectable Research search options |
 | Follow a result to evidence | verifies canonical generation and returns justified segment/word/context/seek coordinates |
+| Play the cited recording | re-verifies the exact transcript generation and source before opening an opaque native audio/video session |
 | Keep durable research | stores notes/tags/collections in authoritative private SQLite anchored to exact evidence |
 | Reuse questions | stores and edits full typed saved-search intent, then re-resolves current evidence |
 | Remember libraries | persists explicit transcript/recording permissions without copying user media |
@@ -39,6 +40,7 @@ You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, o
 - **[Getting started](getting-started.md)** for the source-build path, desktop path, and first transcript.
 - **[Processing Center](architecture/processing-center.md)** for the desktop processing authority split.
 - **[Transcript and speaker tools](transcript-tools.md)** for generation-bound details, speaker management, overlap presentation, and post-hoc publication.
+- **[Verified native playback](native-playback.md)** for source re-verification, opaque media sessions, exact seek coordinates, and the multi-audio fail-closed rule.
 - **[Find things across the whole local library](library-discovery.md)** for grouped Library discovery.
 - **[Research search](research-search.md)** for Match, Search options, saved searches, and the typed backend contract beneath the ordinary UI.
 - **[Your notes should survive the machinery](research-notes.md)** for notes, tags, collections, saved research intent, and anchor maintenance.
@@ -97,7 +99,7 @@ flowchart LR
 
 </details>
 
-Text fallback: canonical evidence feeds rebuildable search; search resolves back to verified evidence; durable notes/tags/collections, speaker labels, and saved searches remain authoritative human knowledge; lifecycle and refresh reuse those identities; the desktop Processing, Library, transcript-tools, and Research surfaces consume the same application authorities.
+Text fallback: canonical evidence feeds rebuildable search; search resolves back to verified evidence; durable notes/tags/collections, speaker labels, and saved searches remain authoritative human knowledge; lifecycle and refresh reuse those identities; the desktop Processing, Library, transcript-tools, playback, and Research surfaces consume the same application authorities.
 
 ## What belongs to you, and what can the raccoon rebuild? 🦝
 
@@ -119,9 +121,9 @@ If deleting a search projection destroys unique human-authored information, some
 
 ## The desktop today
 
-Research/search, the Processing Center, desktop comprehension/themes, and transcript/speaker tools are now coherent first-release slices.
+Research/search, the Processing Center, desktop comprehension/themes, transcript/speaker tools, and verified native playback are now coherent first-release slices.
 
-Research uses ordinary product language by default. Processing presents backend planning/admission rather than duplicating it. Transcript tools pass exact generation identity into Python for details, speaker mutation, and publication. The webview does not parse canonical evidence or receive canonical/source paths.
+Research uses ordinary product language by default. Processing presents backend planning/admission rather than duplicating it. Transcript tools pass exact generation identity into Python for details, speaker mutation, and publication. Playback does the same for source authorization, then Rust owns an opaque opened-file session. The webview does not parse canonical evidence or receive canonical/source paths.
 
 Appearance remains one compact picker. All eight skins share the same semantic text/control/focus contract and the same registry-driven contrast/a11y matrix.
 
@@ -129,13 +131,12 @@ Appearance remains one compact picker. All eight skins share the same semantic t
 
 The next critical path is:
 
-1. Tauri-owned local media playback from verified source-relative coordinates;
-2. lifecycle and retention UI over the existing custody backend;
-3. architecture/redundancy audit before packaging;
-4. packaging, first run, signed updates, and evidence-safe uninstall;
-5. backup/restore and selected research portability;
-6. packaged semantic custody; and
-7. representative-device qualification.
+1. lifecycle and retention UI over the existing custody backend;
+2. architecture/redundancy audit before packaging;
+3. packaging, first run, signed updates, and evidence-safe uninstall;
+4. backup/restore and selected research portability;
+5. packaged semantic custody; and
+6. representative-device qualification.
 
 Only after the first desktop product is coherent do the deliberately separate **[post-MVP research features](post-mvp-roadmap.md)** become normal roadmap work.
 

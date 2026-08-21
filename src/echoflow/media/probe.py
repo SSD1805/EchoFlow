@@ -359,13 +359,13 @@ class FfprobeMediaProbe:
             raise MediaProbeError("FFprobe metadata is incomplete")
 
         track_display = display_lookup or {}
-        streams = [
-            _parse_stream(
-                raw_stream,
-                track_display.get(_raw_stream_index(raw_stream) or -1),
+        streams: list[MediaStream] = []
+        for raw_stream in raw_streams:
+            stream_index = _raw_stream_index(raw_stream)
+            display_stream = (
+                track_display.get(stream_index) if stream_index is not None else None
             )
-            for raw_stream in raw_streams
-        ]
+            streams.append(_parse_stream(raw_stream, display_stream))
 
         audio_streams = [
             stream for stream in streams if stream.kind is StreamKind.AUDIO

@@ -10,7 +10,7 @@ Canonical transcript JSON is authoritative transcript evidence. Human-authored r
 
 > **EchoFlow's product rule:** do complicated work locally, keep the evidence understandable, portable, and owned by the user.
 
-Start with **[docs/README.md](docs/README.md)** for human-facing documentation or **[Getting started](docs/getting-started.md)** for the shortest clone-to-transcript path.
+Start with **[docs/README.md](docs/README.md)** for human-facing documentation or **[Getting started](docs/getting-started.md)** for the shortest clone-to-transcript path. The desktop also keeps contextual help available inside the app so ordinary use does not depend on having repository docs open.
 
 ## What can it do right now?
 
@@ -37,8 +37,9 @@ EchoFlow is pre-production, but the backend and desktop cover a coherent path fr
 | Incremental library | cheap refresh/reconciliation plus durable transcript and recording locations |
 | Processing Center | readiness, machine/model state, preflight, supervised start/cancel, resume versus retry, job-state discard, diarization/enhancement/publication intent |
 | Transcript tools | generation-bound transcript/provenance inspection, speaker naming/removal, overlap-aware transcript view, post-hoc TXT/SRT/VTT publication |
+| Desktop guidance | persistent screen/overview help plus contextual Evidence, Playback, and Transcript explanations without duplicating backend policy |
 | Desktop presentation | Tauri + React Intake, Processing, Library, verified evidence reader/playback, Research, transcript tools, and eight semantic-token themes |
-| Accessibility | keyboard/semantic-role tests, axe, explicit light/dark browser schemes, and an eight-skin contrast matrix |
+| Accessibility | keyboard/semantic-role tests, axe, non-hover contextual help, explicit light/dark browser schemes, and an eight-skin contrast matrix |
 | Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, Playwright/axe, native Rust tests, package verification, targeted mutation qualification |
 
 ## From recording to useful evidence
@@ -101,6 +102,7 @@ The Tauri + React desktop currently provides:
 - generation/source-verified local audio/video playback from that evidence cursor without exposing source paths to React;
 - Research note create/edit/delete, tag/collection navigation, saved-search lifecycle, typed retrieval controls, exact-generation evidence return, and explicit anchor review;
 - transcript details/provenance, generation-safe speaker-name management, explicit speaker-overlap presentation, and post-hoc derived publication;
+- persistent **How this screen works** and **How EchoFlow works** guidance plus local Evidence/Playback/Transcript explanations;
 - eight accessible presentation skins through one compact theme picker; and
 - persisted presentation preference without mixing theme state into evidence or research.
 
@@ -109,6 +111,8 @@ The browser/webview does **not** receive canonical/source filesystem paths for e
 Transcript tools are generation-bound. A long-lived UI cannot silently rename a speaker in a newer transcript generation: every inspect/mutation/publication request carries the exact canonical SHA-256 the user opened, and Python rejects stale identity. See **[Transcript and speaker tools](docs/transcript-tools.md)**.
 
 Playback follows the same evidence discipline. Python re-verifies the exact canonical generation, original source bytes, bounded coordinate, and audio-stream identity; Rust then turns the approved source into an opaque local media session. Multi-audio sources currently fail closed rather than risking playback of a different track than the one transcribed. See **[Verified native playback](docs/native-playback.md)**.
+
+In-app guidance is deliberately re-openable and non-hover-only. It explains those contracts where users encounter them but carries no filesystem/database/process authority and does not recreate application policy in React. See **[In-app guidance](docs/in-app-guidance.md)**.
 
 There are still no end-user installers or Releases. The supported path remains a source build while packaging and first-run behavior are qualified.
 
@@ -209,13 +213,13 @@ A database is allowed to make evidence useful. It is not allowed to become the o
 
 ## For maintainers
 
-Start with **[docs/architecture/README.md](docs/architecture/README.md)**, **[Processing Center](docs/architecture/processing-center.md)**, **[Transcript and speaker tools](docs/transcript-tools.md)**, **[Verified native playback](docs/native-playback.md)**, **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)**, and **[frontend/SECURITY.md](frontend/SECURITY.md)**.
+Start with **[docs/architecture/README.md](docs/architecture/README.md)**, **[Processing Center](docs/architecture/processing-center.md)**, **[Transcript and speaker tools](docs/transcript-tools.md)**, **[Verified native playback](docs/native-playback.md)**, **[In-app guidance](docs/in-app-guidance.md)**, **[Safe deletion and retention](docs/architecture/safe-deletion-retention.md)**, and **[frontend/SECURITY.md](frontend/SECURITY.md)**.
 
 Normal qualification includes Ruff, strict mypy, Vulture, Radon, branch coverage, dependency audit, package verification, TypeScript/build/audit gates, native Cargo compilation/tests, Playwright/axe, the eight-theme contrast matrix, targeted Poodle mutation workflows, and Linux/macOS/Windows CI. See **[Frontend testing strategy](docs/development/frontend-testing.md)** for frontend/backend test ownership.
 
 ## Where the project goes next
 
-Research/search, Processing, desktop comprehension/themes, transcript/speaker tools, and verified native playback are built. The next first-release sequence is:
+Research/search, Processing, desktop comprehension/themes, transcript/speaker tools, verified native playback, and contextual guidance are built. The next first-release sequence is:
 
 1. lifecycle and retention UI over the existing plan-bound custody backend;
 2. architecture/redundancy audit before packaging freezes seams;

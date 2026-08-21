@@ -8,6 +8,7 @@ import pytest
 
 from echoflow.desktop.host_protocol import (
     MAX_REQUEST_BYTES,
+    BridgeHandler,
     failure_response,
     run_stdio_bridge,
     success_response,
@@ -22,7 +23,7 @@ class _BinaryInput:
 def _run(
     monkeypatch: pytest.MonkeyPatch,
     payload: bytes,
-    handler,
+    handler: BridgeHandler,
 ) -> tuple[dict[str, object], str]:
     stdout = io.StringIO()
     stderr = io.StringIO()

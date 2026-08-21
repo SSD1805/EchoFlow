@@ -160,13 +160,13 @@ class TauriTranscriptToolsClient implements TranscriptToolsClient {
   }
 
   inspect(ref: TranscriptGenerationRef): Promise<TranscriptToolsSnapshot> {
-    return this.request("transcripts.tools.inspect", ref);
+    return this.request("transcripts.tools.inspect", { ...ref });
   }
 
   async speakerSpans(ref: TranscriptGenerationRef): Promise<TranscriptSpeakerSpan[]> {
     const result = await this.request<{ spans: TranscriptSpeakerSpan[] }>(
       "transcripts.tools.speakers",
-      ref,
+      { ...ref },
     );
     return result.spans;
   }

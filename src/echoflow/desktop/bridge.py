@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from echoflow.app.app_container import AppContainer
 from echoflow.app.processing_center import ProcessingCenterService
 from echoflow.core.errors import EchoFlowError
+from echoflow.desktop import research_validation
 from echoflow.desktop.processing_bridge import dispatch_processing
 from echoflow.desktop.research_anchor_bridge import dispatch_research_anchor
 from echoflow.desktop.research_search_bridge import dispatch_research_search
@@ -25,7 +26,6 @@ from echoflow.desktop.research_serialization import (
     serialize_word as _serialize_word,
     serialize_workspace_passage as _serialize_workspace_passage,
 )
-from echoflow.desktop.research_validation import normalize_research_labels
 from echoflow.library.errors import ResearchStateError
 from echoflow.library.locations import (
     LibraryLocationKind,
@@ -99,7 +99,7 @@ class _AddLocationParams(BaseModel):
 
     path: str = Field(min_length=1, max_length=32_768)
     kind: LibraryLocationKind
-    processing_policy: RecordingProcessingPolicy = RecordingProcessingPolicy.MANUAL
+    processing_policy: ProcessingPolicy = RecordingProcessingPolicy.MANUAL
 
 
 class _RefreshParams(BaseModel):
@@ -173,7 +173,7 @@ class _UpdateResearchNoteParams(BaseModel):
     @field_validator("tags", "collections")
     @classmethod
     def validate_labels(cls, values: tuple[str, ...]) -> tuple[str, ...]:
-        return normalize_research_labels(values)
+        return research_validation.normalize_research_labels(values)
 
 
 class _FilterResearchNotesParams(BaseModel):
@@ -185,7 +185,7 @@ class _FilterResearchNotesParams(BaseModel):
     @field_validator("tags", "collections")
     @classmethod
     def validate_labels(cls, values: tuple[str, ...]) -> tuple[str, ...]:
-        return normalize_research_labels(values)
+        return research_validation.normalize_research_labels(values)
 
 
 class _DeleteResearchNoteParams(BaseModel):

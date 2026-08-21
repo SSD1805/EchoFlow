@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { PlaybackClient, PlaybackSession } from "./api/playback";
 import type { TranscriptGenerationRef } from "./api/transcriptTools";
+import { InfoPopover } from "./components/InfoPopover";
 import { formatEvidenceTime } from "./format";
 import "./playback.css";
 
@@ -103,9 +104,22 @@ export function EvidencePlayback({
           <p className="mini-label">Verified local source</p>
           <h3 id="evidence-playback-title">Playback</h3>
         </div>
-        <button type="button" className="quiet-button" disabled={preparing} onClick={() => void prepare()}>
-          {preparing ? "Verifying…" : session ? "Re-verify source" : "Prepare playback"}
-        </button>
+        <div className="context-help-actions">
+          <InfoPopover
+            topic="playback"
+            label="Why verify?"
+            align="end"
+            className="context-help"
+          />
+          <button
+            type="button"
+            className="quiet-button"
+            disabled={preparing}
+            onClick={() => void prepare()}
+          >
+            {preparing ? "Verifying…" : session ? "Re-verify source" : "Prepare playback"}
+          </button>
+        </div>
       </div>
 
       <p className="evidence-playback-copy">

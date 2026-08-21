@@ -32,7 +32,7 @@ flowchart LR
 ```
 
 Text fallback: retrieval ranks a passage, canonical navigation verifies it, and the same
-verified evidence coordinates feed the desktop reader and durable research notes.
+verified evidence coordinates feed the desktop reader, native playback, and durable research notes.
 
 🦝 Search may know the neighborhood. The canonical transcript still owns the street
 address.
@@ -96,9 +96,9 @@ thing.
 
 The desktop Evidence reader renders that verified context directly.
 
-## Can this jump to the original audio or video?
+## Jump to the original audio or video
 
-The application contract exposes the coordinate a player needs.
+The same application contract now drives verified native playback.
 
 If an exact aligned lexical match begins at `4788.370` seconds, that can render as
 `01:19:48.370` and become the preferred seek point. If a result has no justified exact-word
@@ -108,9 +108,15 @@ The desktop Evidence reader exposes this as an interactive **evidence cursor**. 
 canonical timed word moves the cursor to that verified source-relative coordinate;
 **Return to match** restores the backend-selected match coordinate.
 
-EchoFlow does not yet ship local audio/video playback. Playback belongs behind a
-Tauri-owned capability so React can consume safe playback state and verified coordinates
-without receiving arbitrary raw source paths.
+**Prepare playback** submits only `(document_id, canonical_sha256, seek_seconds)` to the
+native playback boundary. Python re-verifies the exact canonical generation and original
+source bytes, and Rust opens that approved file behind an opaque local media session. React
+receives the safe session URL, duration, media kind, and seek coordinate, not the source or
+canonical filesystem path.
+
+Playback is intentionally fail-closed for stale generations, missing/changed sources,
+out-of-range coordinates, and multi-audio sources whose browser track cannot be proven to
+match the stream that was transcribed. See **[Verified native playback](native-playback.md)**.
 
 ## Durable research uses the same coordinate system 📝
 
@@ -145,7 +151,7 @@ flowchart TD
     D --> E[SQLite note]
     E --> F[Rebuildable DuckDB research projection]
     B --> G[Desktop evidence cursor]
-    G --> H[Future Tauri media capability]
+    G --> H[Verified Tauri media capability]
 
     classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
@@ -161,8 +167,8 @@ flowchart TD
 ```
 
 Text fallback: verified canonical coordinates drive result presentation, durable SQLite
-research anchors, rebuildable research projection, and the current desktop evidence cursor;
-native media playback is a later capability.
+research anchors, rebuildable research projection, the desktop evidence cursor, and
+verified native playback without exposing raw source paths to React.
 
 ## Research metadata can constrain later retrieval
 
@@ -177,15 +183,17 @@ echoflow library search \
   --with-notes
 ```
 
-Saved searches persist that typed intent and re-resolve current evidence later. A dedicated
-desktop Research workspace over this existing authority is the next UI tranche.
+Saved searches persist that typed intent and re-resolve current evidence later. Research
+can reopen either current evidence or the exact older canonical generation cited by a
+preserved note; playback uses whichever verified generation the reader actually opened.
 
 ## What this deliberately does not do
 
 Evidence navigation still does not change ranking, claim an exact word for semantic-only
 relevance, rewrite canonical JSON, bake display names into diarization evidence,
 automatically re-anchor notes across changed generations, expose arbitrary raw
-source/canonical paths to React, or ship graphical audio/video playback yet.
+source/canonical paths to React, guess an audio track in a multi-track container, or
+silently transcode media that the system WebView cannot decode.
 
 For the retrieval internals, open **[Evidence-first corpus search](architecture/corpus-search.md)**.
 For durable notebook custody, see **[Your notes should survive the machinery](research-notes.md)**.

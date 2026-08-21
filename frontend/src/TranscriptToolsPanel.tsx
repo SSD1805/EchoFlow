@@ -236,6 +236,7 @@ export function TranscriptToolsPanel({
                   <form
                     className="speaker-row"
                     key={speaker.speaker_ref}
+                    aria-label={`Speaker ${speaker.speaker_ref}`}
                     onSubmit={(event) => void saveName(event, speaker.speaker_ref)}
                   >
                     <div className="speaker-identity">

@@ -40,9 +40,9 @@ volume, or storage responsibility today.
 
 ## Custody deletion and retention boundary
 
-Normal transcription, indexing, research, and navigation continue to treat the original
-recording as read-only source evidence. Deletion is a separate explicit custody operation,
-not a side effect of processing or library rebuild.
+Normal transcription, indexing, research, navigation, and playback preparation continue
+to treat the original recording as read-only source evidence. Deletion is a separate
+explicit custody operation, not a side effect of processing, playback, or library rebuild.
 
 `echoflow library delete` is plan-first. Without `--confirm`, it reports the exact current
 canonical generation, effective deletion scopes, concrete mutations, preserved attached
@@ -151,17 +151,29 @@ network access.
 
 ## Media inspection boundary
 
-Dry-run inspection resolves a regular local file, restricts FFprobe protocols to
-`file`, does not invoke a shell, selects bounded metadata fields, enforces timeout and
-parser-output limits, and suppresses native stderr from public errors.
+Dry-run and Processing Center inspection resolve a regular local file, restrict FFprobe
+protocols to `file`, do not invoke a shell, select bounded metadata fields, enforce timeout
+and parser-output limits, and suppress native stderr from public errors.
+
+The primary FFprobe query remains the normal inspection contract. If that bounded query
+discovers more than one audio stream, EchoFlow performs one additional bounded,
+file-protocol-only metadata query for stream index, title, language, and default disposition.
+Title and language are length-bounded before they can enter the media model or desktop DTO.
+They remain untrusted source-declared display metadata, not a recommendation or source
+identity claim.
 
 EchoFlow fingerprints the complete input with SHA-256 and rejects a file whose observed
 filesystem identity changes during inspection. `AudioStreamSelector` then selects the
-first audio stream by default or a validated explicit `--audio-stream INDEX`. The
-selected stream becomes part of source/checkpoint provenance rather than an incidental
-FFmpeg argument.
+first audio stream by low-level deterministic default or a validated explicit
+`--audio-stream INDEX`/desktop stream index. The selected stream becomes part of
+source/checkpoint provenance rather than an incidental FFmpeg argument.
 
-The output limit bounds parsed FFprobe JSON after the process returns; it is not a hard
+Processing Center does not treat the deterministic probe default as user intent when
+several embedded audio streams exist. Python marks the first preflight as requiring
+explicit stream confirmation. React can present the bounded stream metadata and return an
+integer choice, but Python validates/replans the exact stream before execution.
+
+The output limit bounds parsed FFprobe JSON after each process returns; it is not a hard
 memory cage for the native child process. FFprobe remains native media-parsing code
 operating on user-selected input.
 
@@ -169,8 +181,9 @@ operating on user-selected input.
 
 For media not already canonical mono 16 kHz PCM16 WAV, EchoFlow invokes FFmpeg without
 a shell/stdin, restricts input protocols to `file`, maps exactly the selected audio
-stream, discards video/subtitle/data streams, suppresses native diagnostics from public
-failures, and enforces a configurable process timeout.
+stream, discards video/subtitle/data and unrelated audio streams from the working path,
+suppresses native diagnostics from public failures, and enforces a configurable process
+timeout.
 
 Normalized audio is private derived state in the job workspace and is removed after the
 attempt where possible.
@@ -188,6 +201,34 @@ padding, resampling, or channel changes.
 ASR consumes enhanced audio only when enhancement succeeded. EchoFlow does not silently
 fall back to raw ASR after a requested enhancement failure. Anonymous diarization still
 consumes the unmodified canonical decode in enhancement v1.
+
+## Verified playback boundary
+
+Playback is not path-driven from React. A webview request contains only a document ID, the
+exact canonical SHA-256 already opened in the evidence view, and a finite non-negative
+source-relative seek coordinate.
+
+Python playback authorization re-reads and hashes canonical JSON, verifies source/job
+identity, probes the remembered original recording, verifies current source SHA-256 and
+size, checks duration bounds, and verifies audio-stream identity. Changed/missing source
+bytes, stale generations, invalid coordinates, and ambiguous multi-audio sources fail
+closed.
+
+The path-bearing playback grant is private to the fixed Rust host; it is not exposed as a
+general Tauri command. Rust opens the approved source, narrows the verify/open race with
+metadata checks, and stores the opened file behind an opaque active session ID. React
+receives only opaque session/media state and safe coordinates.
+
+The dedicated `echoflow-media` protocol accepts active closed-shape session IDs rather than
+paths, permits only `GET`/`HEAD`, rejects multipart/invalid ranges, caps each response body
+at 1 MiB, limits active sessions, and uses `Cache-Control: no-store`. The CSP allows this
+dedicated media protocol rather than general `file:`, `blob:`, or arbitrary localhost media.
+
+Multi-track transcription and playback intentionally have different support levels.
+Transcription owns exact FFmpeg stream extraction and can prove which stream entered ASR.
+Current system-WebView playback of the original container cannot portably prove which
+embedded audio stream was rendered, so multi-track playback remains refused instead of
+guessing.
 
 ## Resource and storage admission
 
@@ -260,7 +301,8 @@ Resume accepts only a contiguous prefix whose manifest, windows, payload integri
 source identity, engine version, and current resource admission all agree. It never
 downloads replacement ASR weights or substitutes a new model revision. Enhancement
 cannot be switched on/off or changed during resume because preprocessing identity is
-part of the contract digest.
+part of the contract digest. The selected embedded audio stream is also restored from the
+checkpointed contract rather than reselected from current container defaults.
 
 After canonical publication, checkpoint payloads are removed on a best-effort basis.
 Interrupted jobs retain them. Ordinary filesystem deletion is not secure erasure.
@@ -268,12 +310,16 @@ Interrupted jobs retain them. Ordinary filesystem deletion is not secure erasure
 ## Canonical transcript provenance
 
 Canonical JSON omits source path, source filename, and model-cache path. It retains
-source SHA-256, size, modification timestamp, container, audio stream, and duration.
+source SHA-256, size, modification timestamp, container, exact audio stream, and duration.
 
 The current transcript contract also records managed engine/model/revision and execution
 parameters, language evidence, optional anonymous speaker evidence, and optional
 enhancement provider/version/operation/parameters. Enhancement provenance explains how
 ASR input was transformed; it does not make the derived WAV authoritative or public.
+
+Source-declared track title/language/default metadata shown during multi-track preflight is
+not promoted into cryptographic identity. The exact stream index is the durable provenance
+coordinate that answers which embedded track was transcribed.
 
 Command result envelopes may include job/artifact paths because those are explicit
 command results.
@@ -312,9 +358,9 @@ guarantees.
 
 ## Risks outside the implemented boundary
 
-FFmpeg, FFprobe, ASR, optional model/native dependencies, SQLite, and DuckDB execute in
-the current process/user security context rather than an OS sandbox. EchoFlow does not
-currently provide:
+FFmpeg, FFprobe, ASR, optional model/native dependencies, SQLite, DuckDB, Tauri, and the
+system WebView execute in the current process/user security context rather than an OS
+sandbox. EchoFlow does not currently provide:
 
 - independent upstream model signatures/allowlists;
 - process-wide network egress enforcement;
@@ -325,6 +371,6 @@ currently provide:
 - malicious same-user TOCTOU protection; or
 - protection from a compromised account or local administrator.
 
-Resource admission, private-storage controls, custody-aware deletion/retention, and the
-authority/projection split are meaningful safety boundaries, but none of the stronger
-properties above should be inferred from “local-first.”
+Resource admission, private-storage controls, custody-aware deletion/retention, playback
+capability narrowing, and the authority/projection split are meaningful safety boundaries,
+but none of the stronger properties above should be inferred from “local-first.”

@@ -40,6 +40,7 @@ jobs:
         run: >-
           uv run pytest
           src/echoflow/library/tests/test_playback.py
+          src/echoflow/library/tests/test_playback_edges.py
           src/echoflow/desktop/tests/test_playback_bridge.py
           src/echoflow/media/tests/test_probe.py
           --cov=echoflow

@@ -157,7 +157,9 @@ def test_authorize_binds_exact_generation_source_and_seek(tmp_path: Path) -> Non
     assert probe.paths == [source.resolve()]
 
 
-def test_authorize_detects_video_without_changing_audio_evidence(tmp_path: Path) -> None:
+def test_authorize_detects_video_without_changing_audio_evidence(
+    tmp_path: Path,
+) -> None:
     service, _, canonical_sha256, _, _ = _service(tmp_path, video=True)
 
     grant = service.authorize(
@@ -173,7 +175,9 @@ def test_authorize_detects_video_without_changing_audio_evidence(tmp_path: Path)
 def test_authorize_rejects_stale_generation_before_source_probe(tmp_path: Path) -> None:
     service, probe, _, _, _ = _service(tmp_path)
 
-    with pytest.raises(PlaybackAuthorizationError, match="changed since this evidence view"):
+    with pytest.raises(
+        PlaybackAuthorizationError, match="changed since this evidence view"
+    ):
         service.authorize(
             "job-1",
             expected_canonical_sha256="b" * 64,
@@ -186,7 +190,9 @@ def test_authorize_rejects_stale_generation_before_source_probe(tmp_path: Path) 
 def test_authorize_rejects_missing_source_path(tmp_path: Path) -> None:
     service, probe, digest, _, _ = _service(tmp_path, source_exists=False)
 
-    with pytest.raises(PlaybackAuthorizationError, match="unavailable at its recorded location"):
+    with pytest.raises(
+        PlaybackAuthorizationError, match="unavailable at its recorded location"
+    ):
         service.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
 
     assert probe.paths == []
@@ -203,7 +209,9 @@ def test_authorize_rejects_unknown_source_location(tmp_path: Path) -> None:
 
 def test_authorize_rejects_source_hash_or_size_mismatch(tmp_path: Path) -> None:
     service, _, digest, _, _ = _service(tmp_path, probe_sha256="b" * 64)
-    with pytest.raises(PlaybackAuthorizationError, match="no longer matches the source"):
+    with pytest.raises(
+        PlaybackAuthorizationError, match="no longer matches the source"
+    ):
         service.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
 
     service, _, digest, _, _ = _service(tmp_path, probe_size=999)
@@ -211,24 +219,34 @@ def test_authorize_rejects_source_hash_or_size_mismatch(tmp_path: Path) -> None:
         service.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
 
 
-def test_authorize_rejects_multi_audio_instead_of_guessing_track(tmp_path: Path) -> None:
+def test_authorize_rejects_multi_audio_instead_of_guessing_track(
+    tmp_path: Path,
+) -> None:
     service, _, digest, _, _ = _service(tmp_path, audio_indices=(2, 4))
 
     with pytest.raises(PlaybackAuthorizationError, match="multiple audio streams"):
         service.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
 
 
-def test_authorize_rejects_tampered_canonical_and_out_of_range_seek(tmp_path: Path) -> None:
+def test_authorize_rejects_tampered_canonical_and_out_of_range_seek(
+    tmp_path: Path,
+) -> None:
     service, probe, digest, _, _ = _service(tmp_path)
     (tmp_path / "interview.json").write_text("{}")
 
-    with pytest.raises(PlaybackAuthorizationError, match="Canonical transcript changed"):
+    with pytest.raises(
+        PlaybackAuthorizationError, match="Canonical transcript changed"
+    ):
         service.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=1.0)
     assert probe.paths == []
 
     service, _, digest, _, _ = _service(tmp_path)
-    with pytest.raises(PlaybackAuthorizationError, match="outside the verified recording"):
-        service.authorize("job-1", expected_canonical_sha256=digest, seek_seconds=8.5001)
+    with pytest.raises(
+        PlaybackAuthorizationError, match="outside the verified recording"
+    ):
+        service.authorize(
+            "job-1", expected_canonical_sha256=digest, seek_seconds=8.5001
+        )
 
 
 @pytest.mark.parametrize("seek", [-1.0, math.inf, -math.inf, math.nan])

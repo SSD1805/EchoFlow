@@ -82,7 +82,6 @@ export function EvidencePlayback({
   }
 
   const mediaProps = {
-    ref: mediaRef,
     src: session?.media_url,
     controls: true,
     preload: "metadata" as const,
@@ -117,11 +116,27 @@ export function EvidencePlayback({
       {error && <p className="error-banner evidence-playback-error" role="alert">{error}</p>}
 
       {session && (
-        <div className="evidence-playback-player">
+        <div
+          className="evidence-playback-player"
+          data-session-seek-seconds={session.seek_seconds}
+          data-media-kind={session.media_kind}
+        >
           {session.media_kind === "video" ? (
-            <video {...mediaProps} aria-label="Verified evidence video" />
+            <video
+              {...mediaProps}
+              ref={(node) => {
+                mediaRef.current = node;
+              }}
+              aria-label="Verified evidence video"
+            />
           ) : (
-            <audio {...mediaProps} aria-label="Verified evidence audio" />
+            <audio
+              {...mediaProps}
+              ref={(node) => {
+                mediaRef.current = node;
+              }}
+              aria-label="Verified evidence audio"
+            />
           )}
           <div className="evidence-playback-actions">
             <button type="button" className="secondary-action" onClick={() => void playFromCursor()}>

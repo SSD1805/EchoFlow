@@ -6,6 +6,7 @@ from echoflow.desktop.bridge import DesktopServices, handle_request
 from echoflow.library.evidence import EvidenceContextSegment, EvidenceLocation
 from echoflow.library.index import SearchOperator, SearchQuery, SearchSort
 from echoflow.library.research import LocatedSearchPassage, ResearchSearchResponse
+from echoflow.library.research_search_controls import ResearchSearchControlService
 from echoflow.library.research_workspace import (
     ResearchEvidenceView,
     ResearchQueryFilters,
@@ -151,7 +152,12 @@ def _services() -> tuple[DesktopServices, Mock]:
     workspace.saved_searches.return_value = ()
     workspace.logger = None
     return (
-        DesktopServices(locations=Mock(), workspace=workspace, processing=Mock()),
+        DesktopServices(
+            locations=Mock(),
+            workspace=workspace,
+            research_search=ResearchSearchControlService(workspace),
+            processing=Mock(),
+        ),
         workspace,
     )
 

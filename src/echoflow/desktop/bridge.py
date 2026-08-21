@@ -6,9 +6,6 @@ provide arbitrary shell, filesystem, SQL, or database access to the frontend.
 
 from __future__ import annotations
 
-import json
-import sys
-from contextlib import redirect_stdout
 from dataclasses import dataclass
 from typing import Literal
 
@@ -18,6 +15,11 @@ from echoflow.app.app_container import AppContainer
 from echoflow.app.processing_center import ProcessingCenterService
 from echoflow.core.errors import EchoFlowError
 from echoflow.desktop import research_serialization, research_validation
+from echoflow.desktop.host_protocol import (
+    failure_response,
+    run_stdio_bridge,
+    success_response,
+)
 from echoflow.desktop.processing_bridge import dispatch_processing
 from echoflow.desktop.research_anchor_bridge import dispatch_research_anchor
 from echoflow.desktop.research_search_bridge import dispatch_research_search
@@ -27,6 +29,7 @@ from echoflow.library.locations import (
     LibraryLocationService,
     RecordingProcessingPolicy,
 )
+from echoflow.library.research_search_controls import ResearchSearchControlService
 from echoflow.library.research_workspace import (
     ResearchNoteEvidenceView,
     ResearchNoteView,
@@ -35,8 +38,6 @@ from echoflow.library.research_workspace import (
     WorkspaceDiscoveryResponse,
 )
 
-_PROTOCOL_VERSION = 1
-_MAX_REQUEST_BYTES = 128 * 1024
 _DESKTOP_RESEARCH_LIST_LIMIT = 200
 
 
@@ -46,6 +47,7 @@ class DesktopServices:
 
     locations: LibraryLocationService
     workspace: ResearchWorkspaceService
+    research_search: ResearchSearchControlService
     processing: ProcessingCenterService
 
 
@@ -211,26 +213,6 @@ class _OpenResearchNoteEvidenceParams(BaseModel):
         if not stripped:
             raise ValueError("note_id cannot be blank")
         return stripped
-
-
-def _success(request_id: str, result: object) -> dict[str, object]:
-    return {
-        "protocol_version": _PROTOCOL_VERSION,
-        "request_id": request_id,
-        "ok": True,
-        "result": result,
-        "error": None,
-    }
-
-
-def _failure(request_id: str, *, code: str, message: str) -> dict[str, object]:
-    return {
-        "protocol_version": _PROTOCOL_VERSION,
-        "request_id": request_id,
-        "ok": False,
-        "result": None,
-        "error": {"code": code, "message": message},
-    }
 
 
 def _serialize_note(item: ResearchNoteView) -> dict[str, object]:
@@ -439,7 +421,9 @@ def _dispatch_control_plane(
         return dispatch_processing(request.method, request.params, services.processing)
     if request.method.startswith("workspace.research.search."):
         return dispatch_research_search(
-            request.method, request.params, services.workspace
+            request.method,
+            request.params,
+            services.research_search,
         )
     if request.method.startswith("workspace.research.note."):
         return _dispatch_research_note(request, services.workspace)
@@ -520,63 +504,44 @@ def handle_request(payload: object, services: DesktopServices) -> dict[str, obje
         request_id = payload["request_id"][:128]
     try:
         request = _DesktopRequest.model_validate(payload)
-        return _success(request.request_id, _dispatch(request, services))
+        return success_response(request.request_id, _dispatch(request, services))
     except ValidationError:
-        return _failure(
+        return failure_response(
             request_id,
             code="invalid_request",
             message="The desktop request was invalid or incompatible",
         )
     except EchoFlowError as exc:
-        return _failure(
+        return failure_response(
             request_id,
             code=exc.code.value,
             message=exc.public_message,
         )
     except Exception:
-        return _failure(
+        return failure_response(
             request_id,
             code="internal_error",
             message="EchoFlow could not complete the local desktop request",
         )
 
 
+def _handle_with_application_services(payload: object) -> dict[str, object]:
+    container = AppContainer()
+    services = DesktopServices(
+        locations=container.library_locations(),
+        workspace=container.research_workspace(),
+        research_search=container.research_search_control(),
+        processing=container.processing_center(),
+    )
+    return handle_request(payload, services)
+
+
 def main() -> int:
-    raw = sys.stdin.buffer.read(_MAX_REQUEST_BYTES + 1)
-    if len(raw) > _MAX_REQUEST_BYTES:
-        response = _failure(
-            "unknown",
-            code="invalid_request",
-            message="The desktop request exceeded the safe size limit",
-        )
-    else:
-        try:
-            payload = json.loads(raw)
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            response = _failure(
-                "unknown",
-                code="invalid_request",
-                message="The desktop request was not valid JSON",
-            )
-        else:
-            with redirect_stdout(sys.stderr):
-                container = AppContainer()
-                services = DesktopServices(
-                    locations=container.library_locations(),
-                    workspace=container.research_workspace(),
-                    processing=ProcessingCenterService(
-                        health_check=container.health_check(),
-                        runner_inspector=container.runner_inspector(),
-                        policy_planner=container.runner_policy_planner(),
-                        planner=container.transcription_planner(),
-                        model_manager=container.model_manager(),
-                        lifecycle_store=container.job_lifecycle_store(),
-                    ),
-                )
-                response = handle_request(payload, services)
-    sys.stdout.write(json.dumps(response, separators=(",", ":")))
-    sys.stdout.write("\n")
-    return 0
+    return run_stdio_bridge(
+        _handle_with_application_services,
+        oversized_message="The desktop request exceeded the safe size limit",
+        invalid_json_message="The desktop request was not valid JSON",
+    )
 
 
 if __name__ == "__main__":

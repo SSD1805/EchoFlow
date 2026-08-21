@@ -124,9 +124,9 @@ test("theme picker is compact, complete, and persists locally", async ({ page })
   const picker = page.getByLabel("Theme");
   await expect(picker.locator("option")).toHaveCount(THEMES.length);
   await expect(page.getByRole("button", { name: "Archive" })).toHaveCount(0);
-  await picker.selectOption("plum");
+  await picker.selectOption("monochrome");
   await page.reload();
 
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "plum");
-  await expect(page.getByLabel("Theme")).toHaveValue("plum");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "monochrome");
+  await expect(page.getByLabel("Theme")).toHaveValue("monochrome");
 });

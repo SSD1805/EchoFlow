@@ -6,24 +6,34 @@ import type {
   WorkspaceDiscoveryReport,
   WorkspaceEvidenceResult,
 } from "./api/desktop";
+import type {
+  TranscriptGenerationRef,
+  TranscriptToolsClient,
+} from "./api/transcriptTools";
 import { WorkspaceHeader, type Theme } from "./components/WorkspaceHeader";
 import { EvidenceReader } from "./EvidenceReader";
 import { formatEvidenceTime } from "./format";
+import { TranscriptToolsPanel } from "./TranscriptToolsPanel";
 import "./search.css";
 
 interface SearchWorkspaceProps {
   client: DesktopClient;
+  transcriptTools: TranscriptToolsClient;
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
 }
 
-export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspaceProps) {
+export function SearchWorkspace({
+  client,
+  transcriptTools,
+  theme,
+  onThemeChange,
+}: SearchWorkspaceProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [report, setReport] = useState<WorkspaceDiscoveryReport | null>(null);
-  const [selectedEvidence, setSelectedEvidence] = useState<WorkspaceEvidenceResult | null>(
-    null,
-  );
+  const [selectedEvidence, setSelectedEvidence] = useState<WorkspaceEvidenceResult | null>(null);
+  const [selectedTools, setSelectedTools] = useState<TranscriptGenerationRef | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Search transcripts and your research.");
@@ -50,6 +60,7 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
     setBusy(true);
     setError(null);
     setSelectedEvidence(null);
+    setSelectedTools(null);
     try {
       const next = await client.discoverWorkspace(text);
       setReport(next);
@@ -65,8 +76,18 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
   }
 
   function openEvidence(item: WorkspaceEvidenceResult) {
+    setSelectedTools(null);
     setSelectedEvidence(item);
     setStatus(`Opened ${item.document_id} at ${formatEvidenceTime(item.seek_seconds)}.`);
+  }
+
+  function openTools(item: WorkspaceEvidenceResult) {
+    setSelectedEvidence(null);
+    setSelectedTools({
+      document_id: item.document_id,
+      canonical_sha256: item.canonical_sha256,
+    });
+    setStatus(`Opening transcript tools for ${item.document_id}.`);
   }
 
   async function createNote(body: string) {
@@ -91,7 +112,7 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
           <p className="section-kicker">Search</p>
           <h2 id="search-title">Search transcripts, notes, tags, and collections.</h2>
         </div>
-        <p>Open a transcript result to see the exact passage and its surrounding context.</p>
+        <p>Open a transcript result to see the exact passage, manage speakers, or publish a derived copy.</p>
       </section>
 
       <form className="global-search" role="search" onSubmit={(event) => void search(event)}>
@@ -125,6 +146,14 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
           evidence={selectedEvidence}
           onClose={() => setSelectedEvidence(null)}
           onCreateNote={createNote}
+        />
+      )}
+
+      {selectedTools && (
+        <TranscriptToolsPanel
+          client={transcriptTools}
+          generation={selectedTools}
+          onClose={() => setSelectedTools(null)}
         />
       )}
 
@@ -168,14 +197,24 @@ export function SearchWorkspace({ client, theme, onThemeChange }: SearchWorkspac
                       {item.note_count > 0 && <span>{item.note_count} note{item.note_count === 1 ? "" : "s"}</span>}
                       {item.tags.map((tag) => <span key={`tag:${tag}`}>#{tag}</span>)}
                     </div>
-                    <button
-                      type="button"
-                      className="open-evidence-button"
-                      aria-label={`Open transcript passage from ${item.document_id} at ${formatEvidenceTime(item.seek_seconds)}`}
-                      onClick={() => openEvidence(item)}
-                    >
-                      Open transcript passage
-                    </button>
+                    <div className="result-actions">
+                      <button
+                        type="button"
+                        className="open-evidence-button"
+                        aria-label={`Open transcript passage from ${item.document_id} at ${formatEvidenceTime(item.seek_seconds)}`}
+                        onClick={() => openEvidence(item)}
+                      >
+                        Open transcript passage
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-action"
+                        aria-label={`Open transcript tools for ${item.document_id}`}
+                        onClick={() => openTools(item)}
+                      >
+                        Transcript tools
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>

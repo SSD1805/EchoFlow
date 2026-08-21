@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { createDesktopClient } from "./api/desktop";
 import { createProcessingClient } from "./api/processing";
+import { createTranscriptToolsClient } from "./api/transcriptTools";
 import { type Theme } from "./components/WorkspaceHeader";
 import { IntakeWorkspace } from "./IntakeWorkspace";
 import { ProcessingCenter } from "./ProcessingCenter";
@@ -9,9 +10,11 @@ import { ResearchWorkspaceWithAnchorReview } from "./ResearchWorkspaceWithAnchor
 import { SearchWorkspace } from "./SearchWorkspace";
 import { DEFAULT_THEME, isTheme, THEME_STORAGE_KEY } from "./themes";
 import "./processing-center.css";
+import "./theme-extras.css";
 
 const client = createDesktopClient();
 const processing = createProcessingClient();
+const transcriptTools = createTranscriptToolsClient();
 
 type View = "intake" | "processing" | "library" | "research";
 
@@ -54,7 +57,14 @@ export function App() {
       );
     }
     if (view === "library") {
-      return <SearchWorkspace client={client} theme={theme} onThemeChange={setTheme} />;
+      return (
+        <SearchWorkspace
+          client={client}
+          transcriptTools={transcriptTools}
+          theme={theme}
+          onThemeChange={setTheme}
+        />
+      );
     }
     return (
       <ResearchWorkspaceWithAnchorReview

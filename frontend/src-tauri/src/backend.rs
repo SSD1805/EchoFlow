@@ -87,6 +87,10 @@ async fn request_module(module: &'static str, request: Value) -> Result<Value, S
         .map_err(|_| "EchoFlow's local service task could not be completed".to_string())?
 }
 
+pub(crate) async fn playback_authorization_request(request: Value) -> Result<Value, String> {
+    request_module("echoflow.desktop.playback_bridge", request).await
+}
+
 #[tauri::command]
 pub async fn desktop_request(request: Value) -> Result<Value, String> {
     request_module("echoflow.desktop.bridge", request).await

@@ -6,6 +6,7 @@ import type {
   WorkspaceEvidenceResult,
   WorkspaceMatchedWord,
 } from "./api/desktop";
+import { InfoPopover } from "./components/InfoPopover";
 import { EvidencePlayback } from "./EvidencePlayback";
 import { formatEvidenceTime } from "./format";
 import { usePlaybackClient } from "./PlaybackContext";
@@ -119,9 +120,17 @@ export function EvidenceReader({
           <p className="mini-label">Verified canonical window</p>
           <h2 id="evidence-reader-title">Evidence reader</h2>
         </div>
-        <button type="button" className="quiet-button" onClick={onClose}>
-          Close
-        </button>
+        <div className="context-help-actions">
+          <InfoPopover
+            topic="evidence"
+            label="How to use this"
+            align="end"
+            className="context-help"
+          />
+          <button type="button" className="quiet-button" onClick={onClose}>
+            Close
+          </button>
+        </div>
       </header>
 
       <p

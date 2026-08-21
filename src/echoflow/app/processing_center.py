@@ -89,6 +89,9 @@ def _serialize_preflight(plan: TranscriptionJobPlan) -> dict[str, object]:
             "duration_seconds": stream.duration_seconds,
             "sample_rate_hz": stream.sample_rate_hz,
             "channels": stream.channels,
+            "title": stream.title,
+            "language": stream.language,
+            "is_default": stream.is_default,
         }
         for stream in plan.media.streams
         if stream.kind.value == "audio"

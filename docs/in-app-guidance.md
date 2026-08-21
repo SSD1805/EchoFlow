@@ -11,13 +11,14 @@ The sidebar always exposes two controls:
 - **How this screen works** explains the active Add evidence, Processing, Library, or Research workspace.
 - **How EchoFlow works** explains the overall recording → processing → canonical evidence → search → research model.
 
-More specific controls appear where EchoFlow has unusual semantics:
+More specific guidance appears where EchoFlow has unusual semantics:
 
 - **How to use this** in the Evidence reader explains verified context, timed words, the evidence cursor, note anchoring, and Return to match.
 - **Why verify?** beside Playback explains why playback is prepared before the recording opens and why a source-integrity failure is different from a codec failure.
 - **How these work** in Transcript tools explains exact-generation binding, anonymous speaker refs, overlap presentation, and derived publication.
+- the Processing preflight inserts an inline **Choose the audio track to transcribe** explanation when Python discovers several embedded audio streams, because choosing a track changes which evidence enters transcription.
 
-These are not hover-only tooltips. They open on an ordinary button click or keyboard activation, work on touch, close with **Escape**, return focus to the trigger, and have an explicit close control.
+Popover help is not hover-only. It opens on an ordinary button click or keyboard activation, works on touch, closes with **Escape**, returns focus to the trigger, and has an explicit close control. The multi-track explanation is inline beside its radio group so the required decision and its meaning remain visible while the user chooses.
 
 ## What the guidance is allowed to explain
 
@@ -27,7 +28,8 @@ For example, the Playback guide can explain that EchoFlow refuses a multi-audio 
 
 Likewise:
 
-- the Processing guide can explain preflight, resume, and fresh retry, but Python owns admission and checkpoint compatibility;
+- the Processing guide can explain preflight, resume, fresh retry, and why a multi-track source needs an explicit choice, but Python owns admission, checkpoint compatibility, stream discovery, and the `audio_stream_selection_required` decision;
+- the multi-track chooser may show bounded source-declared title/language/default metadata, but React does not score those values or infer a preferred stream;
 - the Library guide can explain that search rank is not evidence authority, but canonical verification owns that distinction;
 - the Research guide can explain exact-generation anchors, but SQLite/application services own durable research state; and
 - the Transcript tools guide can explain speaker refs and publication, but React does not parse canonical JSON or render authoritative subtitle timing.
@@ -54,15 +56,17 @@ The Evidence reader currently supports canonical timed-word buttons plus a bound
 
 The help does not tell users to drag arbitrary transcript text because EchoFlow does not yet have a durable arbitrary-text-selection anchor contract. A future selection model should be designed around canonical evidence coordinates first, then taught in the UI.
 
+Multi-track help follows the same rule. It says to choose an embedded track because that action exists and causes a fresh backend preflight. It does not promise audio preview, automatic microphone quality ranking, separate-file synchronization, or multi-track verified playback, because those capabilities do not exist yet.
+
 ## Privacy and security boundary
 
-Guidance content is static application copy. It contains no transcript text, source paths, canonical paths, research contents, analytics hooks, or remote documentation embeds.
+Guidance content is static application copy plus bounded source-declared display metadata already returned by preflight. It contains no canonical/source filesystem paths, research contents, analytics hooks, or remote documentation embeds.
 
 The help layer has no filesystem, database, process, model, or network capability. It renders through ordinary React text nodes under the same Content Security Policy as the rest of the desktop.
 
 ## Testing the guidance
 
-`frontend/tests/in-app-help.spec.ts` protects the interaction contract. It checks that:
+`frontend/tests/in-app-help.spec.ts` protects the popover interaction contract. It checks that:
 
 - screen help follows the active workspace;
 - help exposes `aria-expanded` state;
@@ -72,4 +76,6 @@ The help layer has no filesystem, database, process, model, or network capabilit
 - help does not introduce canonical/source path disclosure; and
 - axe sees no accessibility violations while guidance is open.
 
-The broader theme/accessibility suite still qualifies the semantic colors used by help triggers and panels. The guidance layer should never require a theme-specific CSS exception.
+`frontend/tests/processing.spec.ts` separately protects the required multi-track guidance/choice flow: both tracks are presented with their source metadata, neither is silently pre-confirmed, Start remains disabled, selecting one track causes backend re-preflight, and the confirmed plan becomes startable. Axe runs on that state too.
+
+The broader theme/accessibility suite still qualifies the semantic colors used by help triggers, panels, and the multi-track chooser. Guidance should never require a theme-specific CSS exception.

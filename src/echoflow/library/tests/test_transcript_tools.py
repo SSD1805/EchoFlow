@@ -1,6 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pytest
 from hypothesis import given
@@ -312,10 +313,9 @@ def test_tampered_canonical_is_rejected_even_when_index_generation_is_stale(
         )
     )
 )
-def test_generation_guard_rejects_noncanonical_digest_shapes(
-    tmp_path: Path, value: str
-) -> None:
-    service, _ = _service(tmp_path)
+def test_generation_guard_rejects_noncanonical_digest_shapes(value: str) -> None:
+    with TemporaryDirectory() as directory:
+        service, _ = _service(Path(directory))
 
-    with pytest.raises(ValueError, match="expected_canonical_sha256"):
-        service.inspect("job-1", expected_canonical_sha256=value)
+        with pytest.raises(ValueError, match="expected_canonical_sha256"):
+            service.inspect("job-1", expected_canonical_sha256=value)

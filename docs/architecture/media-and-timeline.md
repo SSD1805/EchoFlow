@@ -1,9 +1,10 @@
 # Media normalization and transcript timeline 🎙️🕰️
 
 Status: canonical media timeline, word timing, verified seek coordinates, durable evidence
-anchors, and desktop evidence-cursor presentation are implemented. Local audio/video
-playback is not yet implemented.  
-Last updated: August 19, 2026
+anchors, explicit embedded-audio-track selection, desktop evidence-cursor presentation, and
+verified native playback are implemented. Multi-track playback remains deliberately
+fail-closed until the native layer can prove the rendered track.  
+Last updated: August 21, 2026
 
 EchoFlow has to answer three deceptively simple questions before recorded evidence is
 useful:
@@ -22,7 +23,8 @@ source-declared provenance when FFprobe reports them.
 Nothing rewrites the meaning of the canonical elapsed coordinate.
 
 For the plain-language guide, see
-**[Transcript time without calculator gymnastics](../time-navigation.md)**.
+**[Transcript time without calculator gymnastics](../time-navigation.md)**. For embedded
+track behavior, see **[Audio tracks](../audio-tracks.md)**.
 
 ## The human version
 
@@ -37,8 +39,8 @@ The human presentation is:
 ```
 
 That timeline survives normalization, segmentation, checkpoints, enhancement, word
-alignment, assembly, search navigation, desktop evidence-cursor movement, and durable note
-anchoring.
+alignment, assembly, search navigation, desktop evidence-cursor movement, verified
+playback, and durable note anchoring.
 
 A file may also declare something like:
 
@@ -80,8 +82,7 @@ flowchart LR
 
 Text fallback: FFprobe/source identity produces canonical elapsed time plus preserved
 source-declared clocks; canonical word/segment evidence drives transcript JSON, human
-clock display, verified seek coordinates, durable anchors, and the current desktop
-evidence cursor.
+clock display, verified seek coordinates, durable anchors, and the desktop evidence cursor.
 
 ## One input boundary for audio and video
 
@@ -100,13 +101,21 @@ normalized WAV derivative.
 ## What media inspection owns
 
 `FfprobeMediaProbe` performs read-only inspection. It does not transcode, install models,
-choose enhancement, or choose a transcription strategy.
+choose enhancement, choose an audio stream on behalf of a person, or choose a
+transcription strategy.
 
 For one local source it snapshots filesystem identity, invokes FFprobe with a file-only
 protocol whitelist, reads bounded container/stream metadata, requests format/stream
 `timecode` and `creation_time`, validates that audio exists, fingerprints the complete
 source with SHA-256, snapshots identity again, and refuses the input if the source changed
 during inspection.
+
+The primary probe contract remains stable for ordinary recordings. If that first bounded
+query discovers more than one audio stream, EchoFlow makes one additional bounded,
+file-only metadata query for stream index, title, language, and default disposition so a
+person has better clues when choosing among embedded tracks. Title and language are length
+bounded. Those declarations are presentation metadata, not a recommendation and not a new
+source-identity claim.
 
 The result is immutable `MediaInfo` evidence. Routine logs omit local paths by default
 because recording names and directory layouts may themselves be sensitive.
@@ -129,14 +138,28 @@ declarations, not trusted wall-clock facts.
 
 `AudioStreamSelector` chooses exactly one discovered audio stream.
 
-Without an override, the first audio stream is selected. With:
+At the low-level planning boundary, no override means the first audio stream is the
+deterministic probe default. That default is useful for reproducible planning, but the
+desktop does **not** treat it as user intent when a source contains several audio streams.
+
+Processing Center preflight marks a multi-track source as requiring explicit confirmation,
+shows the available tracks with bounded source-declared metadata, and keeps Start disabled.
+When the user chooses a track, React sends only that integer index back to Python and Python
+re-runs preflight with the exact stream bound into the plan.
+
+The CLI has the same explicit primitive:
 
 ```bash
 uv run echoflow transcribe meeting.mp4 --audio-stream 2
 ```
 
 EchoFlow validates that stream index `2` is audio and records that choice in the job/source
-contract. Resume restores the same selected stream.
+contract. An unavailable index fails instead of silently falling back. Resume restores the
+same selected stream.
+
+This is support for several **embedded streams inside one source file**. Several separate
+recording files that need synchronization, drift correction, and a composite evidence model
+are not this feature.
 
 ## Canonical working audio
 
@@ -204,6 +227,10 @@ source fingerprint/media identity, selected audio stream, source-declared tempor
 decode strategy, managed model revision/execution target, optional enhancement provenance,
 language/speaker evidence, and source-relative segment/word timestamps.
 
+The exact audio-stream index is evidence because it answers which embedded stream entered
+ASR. Track title, language, and default disposition are source-declared display clues and
+are not promoted into cryptographic identity.
+
 Temporal tags deliberately do **not** replace source identity. Source identity remains the
 cryptographic/file/media contract.
 
@@ -216,10 +243,10 @@ Container/device metadata may also be missing, stale, copied, or contradictory.
 EchoFlow preserves source declarations but **does not invent a mapping from canonical
 seconds to SMPTE frames** without qualified frame semantics.
 
-That limitation does not block ordinary source-relative navigation. The desktop already
-moves an evidence cursor to verified canonical word coordinates. Future media playback can
-seek the original recording to the same `seek_seconds` once a Tauri-owned playback
-capability exists.
+That limitation does not block ordinary source-relative navigation or verified playback.
+The desktop moves an evidence cursor to verified canonical word coordinates, and the native
+playback capability consumes the same `seek_seconds` after Python verifies the exact
+canonical generation and current source bytes.
 
 ## Word timing, evidence cursor, playback, and durable notes share one axis
 
@@ -232,7 +259,7 @@ These features solve different jobs but share one coordinate system:
 **Evidence cursor** answers: which verified canonical coordinate is the desktop reader
 currently pointing at?
 
-**Playback seek** answers: where should a local player jump?
+**Playback seek** answers: where should a verified local player jump?
 
 **EvidenceAnchor** answers: which exact canonical evidence does this user note refer to?
 
@@ -243,7 +270,7 @@ flowchart TD
     A --> D[EvidenceAnchor]
     D --> E[SQLite durable note]
     C --> F[Desktop evidence cursor]
-    F --> G[Future Tauri media playback]
+    F --> G[Verified native playback]
 
     classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
     classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
@@ -259,8 +286,24 @@ flowchart TD
 ```
 
 Text fallback: one canonical elapsed coordinate drives display, verified seek, durable
-research anchors, and the current desktop evidence cursor; native playback remains the
-next capability rather than a new timeline.
+research anchors, the desktop evidence cursor, and generation/source-verified native
+playback.
+
+## Why multi-track transcription and playback have different support levels
+
+Transcription owns extraction. FFmpeg receives the exact selected stream index and emits a
+private canonical working-audio representation, so EchoFlow can prove which embedded track
+entered ASR.
+
+Native playback currently gives the original container to the operating-system WebView
+media engine. EchoFlow does not yet have a portable guarantee that every supported WebView
+will render the same audio stream recorded in canonical provenance. Playing a different
+track beside the transcript would be an evidence error.
+
+Therefore multi-track **transcription** is explicit and supported, while multi-track
+**verified playback** fails closed. The playback restriction can only be relaxed after the
+native media layer can make track choice explicit and verifiable. See
+**[Verified native playback](../native-playback.md)**.
 
 ## Why the stages remain separate
 
@@ -283,8 +326,11 @@ Evidence anchoring answers **where does durable user-authored knowledge attach?*
 Desktop evidence-cursor presentation answers **which verified coordinate is the reader
 showing now?**
 
+Verified playback answers **can this exact canonical generation safely open these exact
+source bytes at this coordinate?**
+
 Keeping these responsibilities separate makes metadata discovery side-effect free, keeps
-source authority explicit, and lets search, notes, exports, desktop navigation, and future
+source authority explicit, and lets search, notes, exports, desktop navigation, and
 playback reuse the same evidence instead of inventing parallel timelines.
 
 🧜‍♀️ Multiple clocks. One transcript. No temporal soup.

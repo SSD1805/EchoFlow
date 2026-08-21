@@ -269,7 +269,34 @@ jobs:
 
       - name: Install native media tools (Windows)
         if: runner.os == 'Windows'
-        run: choco install ffmpeg --yes --no-progress
+        shell: pwsh
+        run: |
+          if ((Get-Command ffmpeg -ErrorAction SilentlyContinue) -and
+              (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+            Write-Host "ffmpeg and ffprobe are already available"
+            exit 0
+          }
+
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            Write-Host "Chocolatey ffmpeg install attempt $attempt of 3"
+            choco install ffmpeg --yes --no-progress
+            if ($LASTEXITCODE -eq 0) {
+              exit 0
+            }
+            if ($attempt -lt 3) {
+              Start-Sleep -Seconds (10 * $attempt)
+            }
+          }
+
+          if (Get-Command winget -ErrorAction SilentlyContinue) {
+            Write-Host "Chocolatey unavailable; trying the winget manifest as fallback"
+            winget install --id Gyan.FFmpeg --exact --accept-package-agreements --accept-source-agreements --disable-interactivity
+            if ($LASTEXITCODE -eq 0) {
+              exit 0
+            }
+          }
+
+          throw "Could not install ffmpeg from the Windows package managers"
 
       - name: Verify native media tools
         run: >-

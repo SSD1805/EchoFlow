@@ -42,8 +42,16 @@ class SpeakerLabelService:
         self.store = store
         self.file_manager = file_manager
 
-    def roster(self, document_id: str) -> tuple[SpeakerRosterEntry, ...]:
-        document = self._document(document_id)
+    def roster(
+        self,
+        document_id: str,
+        *,
+        expected_canonical_sha256: str | None = None,
+    ) -> tuple[SpeakerRosterEntry, ...]:
+        document = self._document(
+            document_id,
+            expected_canonical_sha256=expected_canonical_sha256,
+        )
         refs = canonical_speaker_refs(document, self.file_manager)
         labels = {
             item.speaker_ref: item.label for item in self.store.current_labels(document)
@@ -62,8 +70,12 @@ class SpeakerLabelService:
         *,
         speaker_ref: str,
         label: str,
+        expected_canonical_sha256: str | None = None,
     ) -> SpeakerDisplayLabel:
-        document = self._document(document_id)
+        document = self._document(
+            document_id,
+            expected_canonical_sha256=expected_canonical_sha256,
+        )
         refs = canonical_speaker_refs(document, self.file_manager)
         if speaker_ref not in refs:
             raise SpeakerLabelStateError(
@@ -71,10 +83,18 @@ class SpeakerLabelService:
             )
         return self.store.set_label(document, speaker_ref=speaker_ref, label=label)
 
-    def remove_label(self, document_id: str, *, speaker_ref: str) -> bool:
-        return self.store.remove_label(
-            self._document(document_id), speaker_ref=speaker_ref
+    def remove_label(
+        self,
+        document_id: str,
+        *,
+        speaker_ref: str,
+        expected_canonical_sha256: str | None = None,
+    ) -> bool:
+        document = self._document(
+            document_id,
+            expected_canonical_sha256=expected_canonical_sha256,
         )
+        return self.store.remove_label(document, speaker_ref=speaker_ref)
 
     def display_labels(
         self,
@@ -96,7 +116,12 @@ class SpeakerLabelService:
             if item.speaker_ref in requested
         }
 
-    def _document(self, document_id: str) -> IndexedDocument:
+    def _document(
+        self,
+        document_id: str,
+        *,
+        expected_canonical_sha256: str | None = None,
+    ) -> IndexedDocument:
         document = next(
             (
                 item
@@ -108,5 +133,12 @@ class SpeakerLabelService:
         if document is None:
             raise SpeakerLabelStateError(
                 "Transcript is not present in the local library; rebuild the library first"
+            )
+        if (
+            expected_canonical_sha256 is not None
+            and document.canonical_sha256 != expected_canonical_sha256
+        ):
+            raise SpeakerLabelStateError(
+                "Transcript changed since this view was opened; reopen it before editing speaker names"
             )
         return document

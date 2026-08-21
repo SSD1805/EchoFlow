@@ -1,10 +1,10 @@
 # Desktop themes and accessibility
 
-EchoFlow themes are presentation, not application state. A theme may change color and visual tone; it may not change evidence, research, processing behavior, or what an interaction means.
+EchoFlow themes are presentation, not application state. A skin may change color and visual tone; it may not change evidence, research, processing behavior, or what an interaction means.
 
 ## One semantic token contract
 
-Every desktop skin supplies the same semantic CSS variables in `frontend/src/styles.css`:
+Every desktop skin supplies the same semantic CSS roles:
 
 | Token | Meaning |
 |---|---|
@@ -12,65 +12,69 @@ Every desktop skin supplies the same semantic CSS variables in `frontend/src/sty
 | `--surface`, `--surface-raised`, `--surface-soft` | content surfaces at increasing visual emphasis |
 | `--ink`, `--muted` | primary and secondary text |
 | `--border` | general structural boundary |
-| `--accent`, `--accent-strong`, `--accent-soft`, `--on-accent` | interactive emphasis and its readable foreground |
+| `--accent`, `--accent-strong`, `--accent-soft`, `--on-accent` | interactive emphasis and readable foreground |
 | `--control-bg`, `--control-ink`, `--control-border` | native and custom form controls |
 | `--focus` | keyboard focus indicator |
-| `--danger` | destructive/error text |
+| `--danger` | destructive/error text role |
 | `--selection-bg`, `--selection-ink` | selected text |
 
-Components consume those meanings. They do not own theme-specific grays, whites, blues, or dark-mode exceptions. If a component needs a new visual role, add a semantic token only when the role is genuinely distinct across the product.
+The six original palettes live in `frontend/src/styles.css`; additive product skins may live in a dedicated palette sheet such as `theme-extras.css`, but they still implement exactly this contract. Components consume semantic meanings. They do not own theme-specific whites, grays, blues, or dark-mode exceptions.
 
-The theme registry in `frontend/src/themes.ts` owns the supported IDs, display names, and light/dark browser scheme. CSS owns the palette values. That split prevents the theme menu, component code, and palette definitions from becoming three competing sources of truth.
+The registry in `frontend/src/themes.ts` is the only source for supported IDs, labels, and browser light/dark scheme. CSS owns values. That keeps the theme menu, component code, and palettes from becoming competing registries.
 
 ## Current skins
 
-EchoFlow ships six skins through one compact **Theme** picker:
+EchoFlow ships eight skins through one compact **Theme** picker:
 
 - **Archive**: warm paper neutrals with restrained teal;
 - **Midnight**: charcoal surfaces with cool teal;
 - **Paper**: cool neutral paper with ink blue;
 - **Moss**: soft mineral greens;
-- **Plum**: muted aubergine on warm pale surfaces; and
-- **Ember**: warm near-black surfaces with amber emphasis.
+- **Plum**: muted aubergine on warm pale surfaces;
+- **Ember**: warm near-black surfaces with amber emphasis;
+- **Pride**: a high-contrast plum/paper interface with a decorative rainbow edge; and
+- **Monochrome**: deliberately grayscale near-black surfaces with white interaction emphasis.
 
-The set is intentionally varied by temperature and character without changing component semantics. Four light skins and two dark skins also exercise both browser `color-scheme` paths instead of treating dark mode as a one-off exception.
+Pride's rainbow is decoration only. Status, selection, errors, readiness, speaker overlap, and destructive actions remain understandable without it. Monochrome is not merely another blue-black dark theme: all semantic color tokens are grayscale, which is separately asserted in browser tests.
 
-Theme choice is stored only in browser-local presentation preferences. Failure to read or write that preference falls back to Archive and must never block the evidence workspace.
+Theme choice is browser-local presentation preference. Failure to read or write it falls back to Archive and must never block the evidence workspace.
 
-## Contrast is a testable invariant
+## Contrast is a product invariant
 
-The Playwright theme matrix checks every skin against the same WCAG-oriented thresholds:
+`frontend/tests/theme-accessibility.spec.ts` iterates the registry, so a newly registered skin automatically enters the same qualification matrix. It checks:
 
-- ordinary text pairs: **4.5:1 or greater**;
-- control boundaries and focus indicators: **3:1 or greater**;
-- accent buttons use `--on-accent` rather than assuming white text; and
-- text selection has its own foreground/background pair.
+- ordinary text pairs at **4.5:1 or greater**;
+- control boundaries and focus indicators at **3:1 or greater**;
+- accent buttons through `--on-accent` rather than an assumed white foreground;
+- selection foreground/background;
+- declared browser `color-scheme`;
+- actual Research native controls; and
+- axe against the rendered page.
 
-The current token set is deliberately above the minimums. In the checked pairs, the lowest text contrast is about **5.69:1** and the lowest non-text boundary/focus contrast is about **4.19:1**. Those margins are useful because real components can introduce antialiasing, opacity, and surrounding-color effects that make barely passing palettes brittle.
+Do not tune a palette to a screenshot and then add exceptions until it passes. If the semantic pairs fail, fix the palette.
 
-`frontend/tests/theme-accessibility.spec.ts` also verifies the declared browser `color-scheme`, exercises the real Research controls in every skin, and runs axe. The normal interaction suite continues to cover semantic roles and keyboard behavior.
+## Native controls are part of the skin
 
-## Native controls are part of the theme
+Inputs, selects, textareas, checkboxes, radios, options, placeholders, disabled states, selection, and focus are normalized centrally. Every theme declares `color-scheme`, so browser/OS controls receive the correct native light/dark context.
 
-Inputs, selects, textareas, checkboxes, radio buttons, options, placeholders, disabled states, text selection, and focus indicators are normalized centrally. Every theme explicitly declares `color-scheme`, so the browser and operating system do not have to guess whether a native control belongs to a light or dark surface.
+Do not fix contrast with a component-local `#666`, `#fff`, or platform gray. Fix the semantic role. The same repair should work in Intake, Processing, Library, Research, and transcript tools.
 
-Do not fix a contrast problem by adding a component-local `#666`, `#fff`, or platform-specific gray. Fix the semantic role or token. The same repair should make the control correct in Research, Processing, import, Library, and future surfaces.
-
-Browser automation cannot fully prove how an opened native select menu is painted by every Windows/macOS/Linux desktop stack. Representative-device qualification therefore still includes visual and keyboard checks for opened native controls, high-contrast/forced-colors modes, display scaling, and platform focus treatment.
+Browser automation cannot fully prove how an opened native menu is painted by every Windows/macOS/Linux stack. Representative-device qualification still includes opened controls, forced/high-contrast modes, scaling, keyboard traversal, and platform focus treatment.
 
 ## Color cannot be the only signal
 
-Status, errors, selection, processing readiness, current/older evidence, disabled actions, and destructive scope must remain understandable without color. Use text, semantic structure, icons where useful, and ARIA/state attributes as appropriate. A new skin must not require a new interpretation of the interface.
+Status, errors, selection, processing readiness, current/older evidence, speaker overlap, disabled actions, and destructive scope all require text or semantic structure in addition to color. The transcript-tools overlap view, for example, says **Overlap** and lists both evidence refs; border treatment is secondary decoration.
 
 ## Adding a skin
 
-A new theme is acceptable only when it:
+A new skin is acceptable only when it:
 
 1. is registered once in `themes.ts`;
-2. supplies the complete semantic token set in `styles.css`;
+2. supplies the complete semantic token contract;
 3. declares an explicit light or dark `color-scheme`;
 4. passes the shared contrast matrix and axe checks;
-5. does not add component-specific palette overrides; and
-6. remains legible for focused, selected, disabled, error, and form-control states.
+5. does not add component-specific palette overrides;
+6. remains legible for focused, selected, disabled, error, and native-control states; and
+7. does not use color as the only carrier of product meaning.
 
-This is intentionally more restrictive than “the screenshot looks good.” The product should make unreadable UI difficult to commit.
+This is intentionally more restrictive than “the screenshot looks good.” Unreadable UI should be difficult to commit.

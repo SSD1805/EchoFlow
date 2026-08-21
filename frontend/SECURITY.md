@@ -4,48 +4,64 @@ The desktop client is a presentation and native-host boundary over EchoFlow's lo
 
 ## Trust boundary
 
-The React/WebView layer may display sensitive transcript text, research notes, tags, collection names, speaker labels, and user-selected local paths. Those values are data. They must never be treated as trusted markup or executable content.
+The React/WebView layer may display sensitive transcript text, research notes, tags, collection names, speaker labels, and paths the user has explicitly selected. Those values are data. They must never become trusted markup or executable content.
 
-The desktop frontend does not receive arbitrary SQL, shell, database, or filesystem capabilities. Tauri exposes only the permissions required by the current human workflow, and the Rust host forwards a versioned, size-bounded request to the fixed `python -m echoflow.desktop.bridge` entry point. Python validates the method and method-specific parameters with closed schemas before application services run.
+The frontend does not receive arbitrary SQL, shell, database, model-provider, or filesystem capabilities. Tauri exposes narrow commands for specific human workflows. Python validates versioned, size-bounded requests with closed schemas before application services run.
 
-Adding a new desktop capability therefore requires all three layers to agree deliberately:
+The ordinary desktop bridge is fixed to `python -m echoflow.desktop.bridge`. Transcript inspection and speaker management use the separate fixed `python -m echoflow.desktop.transcript_tools_bridge` entry point through Tauri's `transcript_tools_request` command. The webview cannot choose either Python module, substitute a shell command, or provide an arbitrary backend method. The transcript-tools bridge currently allowlists only inspect, speaker presentation, speaker-label set/remove, and deterministic publication operations.
+
+Adding a desktop capability requires all three layers to agree deliberately:
 
 1. a typed frontend request/response contract;
 2. an explicit Tauri/native capability when native privilege is required; and
-3. a validated Python bridge method that delegates to an existing application service.
+3. a validated Python bridge method that delegates to an application service.
 
-The frontend must not bypass those services by opening DuckDB, SQLite, arbitrary local files, or subprocesses directly.
+React must not recreate application policy by opening DuckDB, SQLite, canonical JSON, arbitrary local files, or subprocesses directly.
+
+## Generation-bound transcript mutations
+
+A long-lived desktop view can become stale while the library changes. Speaker numbering is meaningful only inside the canonical transcript generation that produced it. Every transcript-tools inspect, speaker presentation, label mutation, and publication request therefore carries `(document_id, canonical_sha256)`.
+
+Python verifies that generation at the service boundary. A stale desktop view is rejected rather than silently applying a human label or publication request to a newer generation that happens to reuse `speaker-02` or a segment identifier. React may present the rejection and ask the user to reopen the transcript; it may not reconcile generations itself.
 
 ## Rendering untrusted local content
 
-React's normal text rendering is the default boundary for transcript and research content. `dangerouslySetInnerHTML` is prohibited in the EchoFlow frontend unless a future security review introduces an explicit sanitizer and a narrowly documented use case. CI rejects its use today.
+React's normal text rendering is the default boundary for transcript and research content. `dangerouslySetInnerHTML` is prohibited unless a future security review adds an explicit sanitizer and a narrowly documented use case. CI rejects its use today.
 
-Search snippets, note bodies, participant-provided text, filenames, and metadata must be rendered as text. A malicious recording filename or transcript containing HTML or script syntax must remain inert text in the WebView.
+Search snippets, note bodies, participant-provided text, filenames, speaker labels, and metadata remain text. A malicious recording filename or transcript containing HTML/script syntax must remain inert in the WebView.
 
-The packaged frontend uses no remote fonts, scripts, stylesheets, or analytics. Network-bearing product behavior must be explicit and separately designed rather than smuggled through presentation code.
+The packaged frontend uses no remote fonts, scripts, stylesheets, analytics, or application telemetry. Network-bearing product behavior must be explicit and separately designed rather than smuggled through presentation code.
 
 ## Path and evidence disclosure
 
-Local paths are sensitive. Intake may intentionally show paths the user just selected because that is part of the command result they requested. Search/discovery responses are narrower: the desktop bridge returns evidence identity, verified segment/word coordinates, seek time, speaker display state, and research metadata without returning canonical or source filesystem paths.
+Local paths are sensitive. Intake may intentionally show paths the user has just selected because reviewing that selection is part of the requested action. Evidence navigation and transcript tooling are narrower.
 
-The frontend must not copy path-bearing values into telemetry or routine logs. EchoFlow currently has no application telemetry.
+Search/discovery responses return evidence identity, verified segment/word coordinates, seek time, speaker display state, and research metadata without canonical/source filesystem paths. Transcript-tools responses return generation identity, source availability/provenance, speaker state, and publication **filenames**, not canonical/source paths or the selected publication directory. The native folder dialog returns a destination only to the local client so it can submit that explicit intent to Python.
+
+The frontend must not copy path-bearing values into routine logs. EchoFlow currently has no application telemetry.
+
+## Derived publication
+
+TXT, SRT, and WebVTT are derived views, not transcript authority. React chooses requested formats and a user-selected destination. Python verifies the expected canonical generation, renders the formats, applies collision-safe filename allocation, writes the files, and returns safe filenames. Presentation code must not implement subtitle timing, speaker cue rules, or collision policy.
 
 ## Content Security Policy and Tauri capabilities
 
 Production and development Content Security Policies are separate. Production does not permit the Vite development WebSocket endpoint. Development may allow the local HMR WebSocket required by Vite. Script execution remains restricted to the application origin.
 
-The main window capability currently grants Tauri's core defaults plus the native open dialog. New permissions should be added one at a time with a concrete user workflow and security rationale. Broad shell, filesystem, process, or database permissions are not acceptable substitutes for a typed application method.
+The main window capability grants Tauri's core defaults plus the native open dialog and explicit EchoFlow commands. New permissions should be added one at a time with a concrete user workflow and security rationale. Broad shell, filesystem, process, or database permissions are not acceptable substitutes for a typed application method.
 
 ## Frontend dependency supply chain
 
-Build and test dependencies are security-relevant even when they are not shipped as runtime JavaScript. Vite, its compiler/bundler graph, Playwright, and other development packages execute code during development or CI and can influence generated application assets.
+Build and test dependencies are security-relevant even when they are not shipped as runtime JavaScript. Vite, Playwright, Tauri tooling, and compiler/bundler dependencies execute during development or CI and influence generated assets.
 
-`frontend/package-lock.json` is therefore part of the security boundary. CI installs with `npm ci` and fails on high-severity advisories across the complete locked dependency graph, not only production dependencies. Dependency updates that change native build bindings or browser automation versions must still pass TypeScript, the production build, Playwright, and accessibility tests.
+`frontend/package-lock.json` is therefore part of the security boundary. CI installs with `npm ci` and fails on high-severity advisories across the complete locked graph. Dependency updates that change native bindings or browser automation versions must pass TypeScript, production build, native Cargo, Playwright, accessibility, and platform-smoke checks.
 
-Do not hand-edit lockfile integrity hashes. Regenerate the lockfile with npm from the pinned manifest and review the resulting dependency graph.
+Do not hand-edit lockfile integrity hashes.
 
 ## What current tests prove
 
-Playwright plus axe verifies browser-level interaction and automated accessibility behavior for covered workflows. Python tests verify the bridge allowlist, schema validation, error masking, and application semantics. These checks do not prove that the host OS, system WebView, Tauri runtime, Node/npm registry, native dependencies, or a compromised same-user process are trustworthy.
+Python tests cover allowlists, schema validation, stale-generation rejection, error masking, speaker authority, deterministic publication, collision behavior, and other application semantics. Hypothesis exercises generation-bound input invariants. Targeted Poodle mutation workflows challenge decision-heavy backend code without making every pull request pay the full mutation cost.
 
-Packaging, code signing, update integrity, managed Python runtime custody, and representative-device WebView qualification remain separate release milestones.
+Frontend tests cover each primary workspace, transcript-tool interactions, hostile-text rendering, keyboard paths, path/capability boundaries, theme persistence/contrast, and axe. Pride and Monochrome use the same semantic-token qualification as every other skin.
+
+These checks do not prove that the host OS, system WebView, Tauri runtime, registry infrastructure, native dependencies, or a compromised same-user process are trustworthy. Packaging, signing, update integrity, managed Python runtime custody, and representative-device WebView qualification remain separate release milestones.

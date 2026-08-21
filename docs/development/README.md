@@ -1,166 +1,110 @@
 # EchoFlow development docs 🧪🔧
 
-This is where the project stops saying “EchoFlow tries very hard not to melt your laptop”
-and starts showing **how we prove that claim is not merely aspirational prose**.
-
-The development docs are for maintainers, contributors, and anyone who enjoys turning
-subtle bad decisions into failing tests.
+This area explains how EchoFlow turns architecture claims into failing tests instead of hoping the screenshots are persuasive.
 
 ## Start here
 
 | Page | What it is for |
 |---|---|
-| [Desktop development prerequisites](desktop-development.md) | choose browser mock, native Tauri, or real processing setup; understand Node/npm locality, Rust/Cargo, Python, and native prerequisites |
-| [Desktop source-build troubleshooting](troubleshooting.md) | symptom-first recovery for blank browser views, Cargo/Tauri/Python/WebKitGTK/Wayland failures, port collisions, and safe cleanup |
-| [Desktop themes and accessibility](desktop-accessibility.md) | semantic theme tokens, contrast invariants, native-control theming, keyboard/a11y qualification, and adding a skin safely |
-| [Testing and regression bisection](testing-and-bisect.md) | general test strategy, colocation rules, mutation anticipation, and deterministic bisect oracles |
-| [Semantic retrieval qualification](semantic-retrieval-testing.md) | property, negative, boundary, integration, and mutation coverage for lexical/semantic/hybrid search decisions |
+| [Desktop development prerequisites](desktop-development.md) | browser mock, native Tauri, real processing, Node/Rust/Python/native prerequisites |
+| [Desktop source-build troubleshooting](troubleshooting.md) | symptom-first recovery for Tauri/Python/WebKitGTK/Wayland/port failures and safe cleanup |
+| [Desktop themes and accessibility](desktop-accessibility.md) | semantic theme contract, eight skins, contrast/native-control rules, adding a skin safely |
+| [Frontend testing strategy](frontend-testing.md) | frontend/backend test ownership, Processing/Library/Research/transcript-tools coverage, and why Stryker is not currently a routine tool |
+| [Testing and regression bisection](testing-and-bisect.md) | repository-wide test strategy, colocation, mutation anticipation, deterministic bisect oracles |
+| [Semantic retrieval qualification](semantic-retrieval-testing.md) | property, negative, boundary, integration, and mutation coverage for lexical/semantic/hybrid retrieval |
 | [Empirical benchmarking and calibration](benchmarking.md) | measuring real execution without turning hosted CI timing into folklore |
-| [Documentation style](../documentation-style.md) | current-truth rules, Mermaid palette, accessibility, and editorial voice |
+| [Documentation style](../documentation-style.md) | current-truth rules, Mermaid portability/accessibility, editorial voice |
 
-## The current quality gate
+## Current PR quality gate
 
-Normal pull-request qualification is staged so cheap failures stop expensive native/media
-jobs. It includes:
+Cheap checks stop expensive jobs where possible. Normal pull-request qualification includes:
 
-- locked Python dependency verification and audit;
-- Mermaid visibility/syntax/palette verification before expensive runners;
-- Ruff lint/format/security rules;
+- locked Python dependency verification and runtime dependency audit;
+- Mermaid documentation portability verification;
+- Ruff lint/format/security;
 - strict mypy;
 - Vulture dead-code checks;
 - Radon complexity/maintainability reporting;
-- pytest with branch coverage and a **90% aggregate gate**;
-- locked frontend dependency installation and audit;
-- an explicit JavaScript/Rust Tauri version-family consistency check;
-- TypeScript checking plus a production Vite build;
-- rejection of raw-HTML rendering escape hatches in the frontend;
-- a native Tauri/Rust `cargo check --locked` so browser-only builds cannot hide missing native assets, dependency drift, or host errors;
-- Playwright interaction tests plus axe accessibility checks;
-- a six-skin contrast matrix covering text, controls, focus, selection, browser `color-scheme`, and representative Research controls;
-- package build verification and clean-wheel installation; and
-- Linux, macOS, and Windows CI/platform smoke.
+- pytest branch coverage with a 90% aggregate gate;
+- frontend locked dependency install and high-severity audit;
+- Tauri JavaScript/Rust version-family consistency;
+- strict TypeScript and production Vite build;
+- rejection of `dangerouslySetInnerHTML` in the frontend;
+- native `cargo check --locked`;
+- Playwright interaction/negative/boundary tests across Intake, Processing, Library, transcript tools, and Research;
+- axe accessibility coverage;
+- an eight-skin WCAG-oriented contrast/native-control matrix;
+- package build plus clean-wheel installation; and
+- Linux/macOS/Windows platform smoke.
 
-Do not memorialize the current total test count as a project-health metric. It becomes
-stale with the next useful test and says less than the behavioral gates above. Dated PR or
-audit records may preserve historical counts when they are evidence about that event.
+Do not turn a current test count into a health metric. Counts go stale; behavioral gates are the evidence.
 
-## The quality philosophy
+## Quality philosophy
 
-EchoFlow has decision-heavy code: resource admission, model custody, stale-state
-rejection, resume, cleanup ordering, search filtering, rank composition, evidence
-anchoring, transactional user state, projection recovery, desktop capability boundaries,
-and privacy rules.
+EchoFlow has decision-heavy application code: resource admission, model custody, canonical-generation verification, resume, cleanup ordering, search filtering/rank composition, evidence anchoring, transactional user state, projection recovery, speaker authority, derived publication, desktop allowlists, and privacy boundaries.
 
-Line/branch coverage alone cannot prove those decisions are correct.
+Branch coverage alone cannot prove those decisions are right. Use several independent oracles:
 
-```mermaid
-flowchart LR
-    A[Named behavioral tests] --> B[Negative and boundary cases]
-    B --> C[Property tests]
-    C --> D[Integration and package tests]
-    D --> E[Branch coverage and static gates]
-    E --> F[Targeted mutation qualification]
-    F --> G[Frontend interaction and a11y]
-    G --> H[Cross-platform package evidence]
-    H --> I[Representative real-device evidence]
+1. named behavioral examples;
+2. negative and boundary cases;
+3. Hypothesis/property tests for invariants;
+4. integration/package tests;
+5. static and coverage gates;
+6. targeted mutation qualification;
+7. browser interaction/accessibility; and
+8. cross-platform plus representative-device evidence.
 
-    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
-    classDef success fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
-    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
+## Test the authority, not a copy of it
 
-    class A,B,C inspect
-    class D,E,F process
-    class G success
-    class H,I evidence
-```
+Useful examples include:
 
-Text fallback: named behavior, negative/boundary/property coverage, integration/static
-gates, targeted mutation testing, frontend accessibility, cross-platform packages, and
-representative-device evidence protect different classes of failure.
+- a stale `(document_id, canonical_sha256)` cannot rename a speaker in a newer generation;
+- a tampered canonical transcript is rejected before transcript details or publication are trusted;
+- an unknown transcript-tools method cannot reach an application service;
+- rebuilding DuckDB does not erase human speaker names or notes;
+- an empty research evidence scope returns no transcript results rather than widening to the corpus;
+- a desktop evidence/transcript-tools DTO omits canonical/source filesystem paths;
+- every registered skin satisfies the same semantic-token contrast contract; and
+- hostile transcript HTML remains inert text in the WebView.
 
-## No tautologies
+Avoid tests that assign X and assert X equals X, or frontend mocks that independently reimplement the business rule supposedly being tested.
 
-A test should prove an observable contract, not restate the implementation.
+## Colocation and mutation
 
-Useful tests include:
+Tests live beside the capability whose contract they protect. Shared fixtures stay at the narrowest useful scope. Built distributions exclude test packages.
 
-- a failed SQLite mutation leaves neither the user row nor journal event committed;
-- replaying projection changes converges to the same DuckDB state;
-- an old canonical generation does not match a new segment that reuses the same friendly
-  segment ID;
-- an empty research evidence scope returns zero transcript results rather than widening
-  to the corpus;
-- a desktop evidence DTO never exposes canonical/source filesystem paths even though the
-  backend authority knows them;
-- every registered desktop skin satisfies the same semantic-token and contrast contract; and
-- an unexpected internal CLI/bridge error is masked while a known public error preserves
-  its intended message/code.
+Hypothesis is preferred for generated invariants and sequences. Explicit fixtures/builders are preferred when hashes, identities, ordering, and evidence relationships are load-bearing.
 
-Avoid tests that simply assign X and assert X equals X, mock-only call counting where no
-behavioral contract depends on the call, or assertions that duplicate a constant from the
-same function under test.
+Poodle mutation workflows are targeted/manual qualification. They are not routine PR gates because mutating the complete Python tree on every pull request would add substantial latency while weakening signal. Transcript retrieval/semantic behavior and transcript-tools generation/speaker/publication behavior have dedicated mutation workflows.
 
-## Colocation
+The frontend currently does not use Stryker. That is deliberate: decision-heavy product rules belong in Python, while React primarily owns presentation and interaction. See [Frontend testing strategy](frontend-testing.md) for the criteria that would justify adding a JavaScript mutation layer later.
 
-Tests live with the capability whose contract they protect. Shared fixtures stay at the
-narrowest useful scope. Built distributions exclude test packages.
+## Frontend contract
 
-Hypothesis is preferred for invariants and generated sequences. Explicit fixtures/builders
-are preferred where IDs, hashes, sequences, and evidence relationships are load-bearing.
+A new interactive desktop slice should normally include semantic-role/keyboard assertions, an axe pass, positive behavior, at least one meaningful negative/boundary case, and path/capability assertions when sensitive local state is involved.
 
-Frontend tests live beside the frontend harness. A new interactive desktop slice should
-normally include keyboard behavior, semantic-role assertions, path/capability boundary
-checks where relevant, and an axe pass in the same tranche. Theme-aware components inherit
-the shared contrast matrix rather than adding one-off palette tests.
+Theme-aware components inherit the shared registry-driven contrast matrix. Do not create a private palette test for every component.
 
-## Performance qualification from here
+## Performance qualification
 
-Current performance work should target product workloads:
+Product measurements should focus on:
 
-- incremental transcript-library refresh versus full rebuild;
+- incremental library refresh versus full rebuild;
 - warm/cold unified discovery;
-- tag/collection/note-text constrained lexical and semantic search;
-- one-edit and large-batch research projection catch-up;
-- full research projection rebuild;
-- realistic multi-recording corpus startup and disk cost;
-- desktop Library responsiveness;
-- desktop Research responsiveness;
-- Processing Center responsiveness while jobs are active; and
-- local media seek/playback responsiveness once the Tauri media capability lands.
+- constrained lexical/semantic/hybrid retrieval;
+- research projection catch-up/rebuild;
+- realistic multi-recording startup and disk cost;
+- Library and Research responsiveness;
+- Processing responsiveness while jobs are active;
+- transcript-tools inspection/presentation on large canonical files; and
+- local media seek/playback once native playback lands.
 
-Representative 8/16 GB consumer machines, Apple Silicon, discrete-GPU laptops, and larger
-workstations should calibrate policy. Hosted runner timing remains supporting evidence,
-not a substitute for hardware qualification.
+For transcript tools, canonical-byte verification is intentionally retained at the backend boundary. If profiling demonstrates material UI latency, optimize with a generation-keyed verified backend reader/cache and explicit invalidation, not a React cache that weakens custody.
 
-## Mermaid regression discipline
+Representative 8/16 GB consumer machines, Apple Silicon, dGPU laptops, and larger workstations should calibrate resource policy. Hosted runner timing is supporting evidence, not hardware qualification.
 
-GitHub's own documentation accepts Mermaid inside an exact `mermaid` fence and uses the
-classic `graph TD;` form. EchoFlow also uses `flowchart`. **Do not encode a false rule that
-one spelling is required.**
+## Documentation regressions
 
-The August 2026 regression had two concrete presentation failures:
+Mermaid source remains directly visible and a static SVG may exist only as a secondary fallback. Do not hide Mermaid behind a fallback or strip the established palette. `scripts/verify_mermaid_docs.py` protects the portable source/fallback contract.
 
-1. a one-shot normalizer stripped `classDef`/class assignments and removed EchoFlow's
-   established palette; and
-2. a later fallback experiment made hand-maintained SVGs the primary visible diagrams and
-   hid Mermaid inside collapsed `<details>`. Those SVGs used `currentColor`, which is a bad
-   dependency for an externally loaded image expected to remain legible across GitHub
-   themes.
-
-The verifier therefore protects direct visible Mermaid fences, simple GitHub-supported
-`graph`/`flowchart` syntax, approved colors when `classDef` is used, and the absence of the
-old primary-SVG/hide-Mermaid pattern.
-
-A separately maintained static SVG fallback is acceptable only as a **secondary fallback**
-for rich-rendering outages, with deliberate fixed light/dark-safe colors and accessible
-text. It must never replace or hide the Mermaid source.
-
-## Documentation voice
-
-Development docs use the medium-personality register from
-[documentation-style.md](../documentation-style.md): exact commands and contracts, but
-enough explanation that a new contributor can understand why a test exists before reading
-the mutant it is trying to kill.
-
-💃 Happy breaking.
+Development docs should explain enough of the rule that a new contributor understands why a test exists before reading the mutant it is meant to kill.

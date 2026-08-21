@@ -2,72 +2,21 @@
 
 This is the **use-the-thing** guide.
 
-EchoFlow is a private, local-first workspace for recorded evidence. You do not need to
-understand the architecture to use it: EchoFlow owns resource planning, model custody,
-recovery, transcript storage, search projections, and evidence verification so you can
-concentrate on the recording and the research.
+EchoFlow is a private, local-first workspace for recorded evidence. You do not need to understand CUDA, DuckDB, SQLite, model revisions, or desktop IPC to use it. Python owns those application/evidence decisions so the desktop can speak in recordings, transcripts, speakers, searches, notes, and evidence.
 
-If you want the tour first, visit **[Welcome to EchoFlow](README.md)**.
+EchoFlow is still pre-production. There is no polished signed installer yet, so the supported path is a source/developer checkout.
 
-## Before we begin
-
-EchoFlow is still pre-production. There is no polished signed desktop installer yet, so the
-current path is a source/developer checkout. That does **not** mean every source-build task
-requires the entire stack.
-
-Choose the smallest path that matches what you want to do:
+## Pick the smallest setup
 
 | Goal | First command after cloning | You do not need yet |
 |---|---|---|
-| inspect/click the frontend with fake data | `cd frontend && npm ci && npm run dev:mock` | Python, uv, Rust, Cargo, FFmpeg, model |
-| run the real native desktop window | follow the desktop prerequisites, then `npm run tauri dev` | transcription model until you process media |
-| use the Python CLI / process real recordings | `uv sync --locked --extra transcription` | frontend tooling unless you also want the GUI |
+| inspect/click the frontend with fake local data | `cd frontend && npm ci && npm run dev:mock` | Python, uv, Rust, FFmpeg, model |
+| run the native desktop window | follow desktop prerequisites, then `npm run tauri dev` | transcription model until processing media |
+| use the Python CLI / process recordings | `uv sync --locked --extra transcription` | frontend tooling unless you want the GUI |
 
-If a desktop source build behaves strangely, use **[Desktop source-build troubleshooting](development/troubleshooting.md)**. It starts from the error message and explains both the cause and the remedy.
+If a source build behaves strangely, use **[Desktop source-build troubleshooting](development/troubleshooting.md)**.
 
-The repository currently has two presentation paths over the same application services:
-
-- the Python CLI; and
-- a Tauri + React desktop for import, Processing, Library search, verified evidence, and
-  durable Research workflows.
-
-```mermaid
-flowchart LR
-    A[Your recording] --> B[Inspect source and computer]
-    B --> C[Choose safe local plan]
-    C --> D[Desktop Processing]
-    D --> E[Transcribe]
-    E --> F[Canonical transcript]
-    F --> G[Derived exports]
-    F --> H[Private local search]
-    H --> I[Verified evidence navigation]
-    I --> J[Durable notes tags collections]
-    J --> H
-    H --> K[Desktop Library]
-    I --> K
-    J --> L[Desktop Research]
-
-    classDef source fill:#F9D5E5,stroke:#7B2E52,stroke-width:2px,color:#22151B
-    classDef process fill:#E8D9FF,stroke:#68469B,stroke-width:2px,color:#1F1630
-    classDef evidence fill:#FFF0B8,stroke:#8A6B18,stroke-width:2px,color:#2C260F
-    classDef view fill:#DDF5E3,stroke:#347A46,stroke-width:2px,color:#142719
-    classDef inspect fill:#D8EEFF,stroke:#2E617B,stroke-width:2px,color:#12222A
-
-    class A source
-    class B,C,D,E,L process
-    class F,I,J evidence
-    class G,H view
-    class K inspect
-```
-
-Text fallback: source media is inspected and processed locally into canonical evidence;
-rebuildable search and verified navigation make that evidence useful; durable research
-state stays separate; the desktop exposes import, Processing, Library, evidence, and
-Research workflows.
-
-## Fast path: inspect the frontend only
-
-You need a supported Node/npm installation, then:
+## Frontend-only mock path
 
 ```bash
 git clone https://github.com/SSD1805/EchoFlow.git
@@ -77,18 +26,11 @@ npm run doctor:desktop -- --mode=mock
 npm run dev:mock
 ```
 
-`npm ci` installs into `frontend/node_modules/`; it is not a global install. `dev:mock`
-intentionally uses fake local data so the browser never pretends it has Tauri filesystem or
-Python authority.
-
-If you run plain `npm run dev` in a browser, EchoFlow shows a development-mode explanation
-rather than silently falling back to mock data. Plain `dev` is also the Vite server used by
-the real Tauri host.
+`dev:mock` intentionally uses fake local data. Plain `npm run dev` in a browser shows a development-mode explanation rather than pretending the browser has Tauri/Python filesystem authority.
 
 ## Native desktop path
 
-Read **[Desktop development prerequisites](development/desktop-development.md)** before the
-first native build. On a prepared machine:
+Read **[Desktop development prerequisites](development/desktop-development.md)** before the first native build. On a prepared machine:
 
 ```bash
 cd EchoFlow
@@ -99,117 +41,105 @@ npm run doctor:desktop
 npm run tauri dev
 ```
 
-The debug Tauri host automatically prefers EchoFlow's repository `.venv` for backend calls.
-A transcription model is optional until you actually process a recording.
+The debug Tauri host prefers the repository `.venv` for local backend calls.
 
-### Use the desktop Processing Center
+## 1. Add or remember recordings
 
-Choose **Processing** in the desktop navigation. The first-release workflow now provides:
+Use **Add evidence** to select recordings, existing transcript JSON, or folders you want EchoFlow to remember. Remembered locations are explicit permissions, not media custody.
 
-- machine and model readiness;
-- outcome-oriented processing profiles;
-- a preflight summary before execution;
-- explicit transcription start;
-- durable job status/progress;
-- native cancel;
-- resume for a compatible interrupted job versus fresh retry when you want a new plan;
-- explicit diarization/enhancement/publication intent; and
-- private execution-state discard that does not delete recordings, canonical transcripts,
-  or research.
+Recording discovery does not itself hash, probe, copy, or transcribe candidates. Manual processing remains the default unless you explicitly choose a different processing policy.
 
-Long-running transcription is not an hour-long browser request. Python owns planning,
-resource admission, model/checkpoint rules, and transcript correctness; Tauri supervises
-allowlisted child processes; React presents the workflow.
+## 2. Process a recording
 
-See **[Processing Center](architecture/processing-center.md)** for the exact contract.
+Choose **Processing**. The current control loop includes:
 
-## 1. Install the Python source build for CLI/processing work
+- machine/resource readiness;
+- managed model state;
+- outcome-oriented processing profile;
+- backend preflight before execution;
+- optional deterministic enhancement;
+- optional anonymous diarization;
+- derived publication intent;
+- supervised local start/cancel;
+- durable job progress/state;
+- checkpoint resume versus fresh retry; and
+- private execution-state discard that does not delete source media, canonical transcript evidence, or research.
 
-From the repository root:
+Long transcription is not an hour-long WebView request. Python plans/admisses/executes; Tauri supervises allowlisted child processes; React presents status and user intent.
+
+See **[Processing Center](architecture/processing-center.md)**.
+
+## 3. Process from the CLI when useful
 
 ```bash
 uv sync --locked --extra transcription
 uv run echoflow init
 uv run echoflow doctor
-uv run echoflow runner
-```
-
-## 2. Install a transcription model when you want to transcribe
-
-```bash
 uv run echoflow models recommend
 uv run echoflow models install small
-```
-
-Model acquisition is explicitly network-bearing. Once a verified managed model is local,
-transcription uses that immutable revision instead of silently reaching out to the network.
-
-You can skip this step when you are only inspecting the UI or browsing existing evidence.
-
-## 3. Inspect and transcribe a recording from the CLI
-
-```bash
 uv run echoflow transcribe interview.m4a --dry-run
 uv run echoflow transcribe interview.m4a
 ```
 
-The durable transcript is canonical JSON. Add publication views when useful:
+Publication views can be requested with:
 
 ```bash
 uv run echoflow transcribe interview.m4a --export txt --export srt --export vtt
 ```
 
-EchoFlow may canonicalize the selected audio stream into private working audio. The
-original recording is not overwritten.
-
-## 4. Resume an interrupted job
+Resume a validated interrupted job with:
 
 ```bash
 uv run echoflow transcribe interview.m4a --resume JOB_ID
 ```
 
-Resume rechecks source identity and current resources and restores the original execution
-contract rather than silently changing models, streams, preprocessing, or alignment.
+Resume rechecks source identity and current resource admission rather than silently changing the original execution contract.
 
-## 5. Optional: enhancement and anonymous speakers
-
-```bash
-uv run echoflow transcribe noisy-interview.wav --enhance
-uv run echoflow transcribe focus-group.wav --diarize
-```
-
-Enhancement remains private working material and may not shift the canonical timeline.
-Diarization uses anonymous recording-scoped refs rather than biometric identity.
-
-When speaker evidence exists, give a ref a durable human-facing display name from the CLI:
-
-```bash
-uv run echoflow library speakers list JOB_ID
-uv run echoflow library speakers name JOB_ID speaker-02 "Dr. Chen"
-```
-
-`Dr. Chen` is display state. `speaker-02` remains evidence. Desktop speaker-name management
-is still on the next transcript/speaker-tools tranche.
-
-## 6. Refresh and search the local transcript library 🔎
+## 4. Search the Library
 
 ```bash
 uv run echoflow library rebuild
 uv run echoflow library refresh
-uv run echoflow library refresh --verify
 uv run echoflow library search "housing insecurity"
-uv run echoflow library find "housing affordability"
+uv run echoflow library find "housing affordability" --context-segments 1
 ```
 
-Unified discovery returns grouped transcript evidence, notes, tags, and collections. It
-does not invent one score that makes unlike objects compete with each other.
+In the desktop **Library**, search transcripts, notes, tags, and collections. A transcript result can open either:
 
-In the desktop Library, the default language is deliberately ordinary: search transcripts,
-notes, tags, and collections, then open a transcript result to see the exact passage.
+- **Open transcript passage** for exact verified context and the source-relative cursor; or
+- **Transcript tools** for transcript/speaker management on that exact canonical generation.
 
-## 7. Keep durable research beside the evidence 📝
+## 5. Use transcript and speaker tools
 
-Notes, tags, collections, and saved searches are authoritative local user state.
+From a transcript result, choose **Transcript tools**. EchoFlow verifies `(document_id, canonical_sha256)` before returning details or accepting mutations.
+
+The panel can show:
+
+- verified generation identity;
+- duration/language/segment/speaker summary;
+- whether the source recording is currently available;
+- selected audio-stream and processing provenance under **Technical details**;
+- anonymous speaker refs with optional human display names;
+- a derived speaker transcript with explicit **Speaker**, **Overlap**, **Mixed speakers**, and **Unattributed** states; and
+- post-hoc TXT/SRT/WebVTT publication to a native-selected folder.
+
+Speaker names never replace anonymous evidence refs. If you save `Dr. Chen` for `speaker-02`, the desktop keeps `speaker-02` visible.
+
+If the transcript changed since the view was opened, Python refuses the stale operation rather than applying a name or publication request to a newer generation.
+
+See **[Transcript and speaker tools](transcript-tools.md)** and **[Give the anonymous speakers names](speaker-names.md)**.
+
+CLI speaker tools remain available:
+
+```bash
+uv run echoflow library speakers list JOB_ID
+uv run echoflow library speakers name JOB_ID speaker-02 "Dr. Chen"
+uv run echoflow library speakers transcript JOB_ID
+```
+
+## 6. Keep durable research
+
+Notes, tags, collections, anchors, and saved searches are authoritative local user state.
 
 ```bash
 uv run echoflow library notes add JOB_ID segment-000042 \
@@ -218,101 +148,57 @@ uv run echoflow library notes add JOB_ID segment-000042 \
   --collection "Chapter 3"
 ```
 
-Saved searches persist typed query intent rather than today's result snapshot:
+The desktop Research search uses one **Match** choice: Any of these words, All of these words, or Exact phrase. Retrieval, ordering, transcript/speaker/language constraints, research filters, result count, and context live under **Search options**. Technical retrieval provenance stays under **Technical details**.
 
-```bash
-uv run echoflow library saved save "Housing chapter" "rent burden" \
-  --tag housing --mode hybrid
-uv run echoflow library saved run "Housing chapter"
-```
+See **[Research search](research-search.md)** and **[Research notes](research-notes.md)**.
 
-Research metadata can constrain transcript search before ranking:
+## 7. Change the appearance
 
-```bash
-uv run echoflow library search \
-  "housing affordability" \
-  --tag methodology \
-  --with-notes
-```
+The header has one **Theme** dropdown with:
 
-The desktop Research search uses one **Match** choice: Any of these words, All of these
-words, or Exact phrase. Retrieval, ordering, transcript/speaker/language constraints,
-research filters, result count, and context are under **Search options**. Those choices are
-still compiled to the same typed Python contract; the GUI has not become the search engine.
+- Archive;
+- Midnight;
+- Paper;
+- Moss;
+- Plum;
+- Ember;
+- Pride; and
+- Monochrome.
 
-See **[Research search](research-search.md)** and
-**[Your notes should survive the machinery](research-notes.md)**.
+The choice is local presentation preference only. All eight skins use the same semantic tokens for text, surfaces, controls, focus, errors, selection, and accent foreground. Pride's rainbow is decorative; Monochrome is deliberately grayscale. Every registered skin runs through the same contrast/axe qualification.
 
-## 8. Remember library and recording folders when you want to
+See **[Desktop themes and accessibility](development/desktop-accessibility.md)**.
 
-Remembered locations are explicit durable preferences, not automatic media custody.
-A transcript-library root can participate in later refresh; a recording-source root can be
-scanned cheaply for candidates. Discovery does **not** itself open, hash, FFprobe, copy, or
-transcribe the file. Manual processing remains the default.
+## 8. Know the trust boundary
 
-See **[Durable library locations](architecture/library-locations.md)**.
+The desktop WebView does not receive arbitrary SQL, shell, subprocess, database, or raw canonical/source filesystem authority.
 
-## 9. Change the desktop theme
+Ordinary desktop calls go through a fixed Python bridge. Transcript tools use a separate fixed Tauri command/Python module with an explicit allowlist. React submits typed intent; Python remains application/evidence authority.
 
-The header has one **Theme** dropdown with Archive, Midnight, Paper, Moss, Plum, and Ember.
-The choice is saved locally as presentation preference only.
+See **[frontend/SECURITY.md](../frontend/SECURITY.md)**.
 
-All six skins use the same semantic tokens for text, surfaces, controls, focus, errors,
-selection, and accent foregrounds. They also declare explicit browser light/dark schemes
-and run through the same contrast/axe qualification matrix. See
-**[Desktop themes and accessibility](development/desktop-accessibility.md)**.
+## 9. Optional semantic/hybrid search
 
-## 10. Know what the desktop currently does
+Lexical search is the dependency-light default. Semantic search helps when you remember the idea but not the wording; hybrid retrieval combines lexical/semantic ranking using reciprocal rank fusion.
 
-The current desktop journey includes:
+The semantic foundation remains advanced source-build setup until packaged dependency/model custody is qualified.
 
-- native file/folder selection and remembered-location choices;
-- recording candidate discovery;
-- Processing readiness, model state, preflight, launch, cancel, resume/retry, and job-state discard;
-- grouped Library search across evidence and research state;
-- verified canonical context and word highlighting;
-- Research note create/edit/delete, saved-search lifecycle, and tag/collection filtering;
-- full Research search options and inspectable technical retrieval details;
-- exact-generation Research note reopening plus explicit anchor review/re-anchor; and
-- six persisted accessible themes.
+See **[Semantic search](semantic-search.md)**.
 
-The desktop webview does not receive arbitrary SQL, shell, or raw canonical/source path
-authority.
+## What EchoFlow stores
 
-## 11. Optional semantic and hybrid search ✨
-
-Lexical search is the dependency-light default. Semantic search helps when you remember
-the idea but not the wording; hybrid retrieval combines lexical and semantic ranks using
-reciprocal rank fusion.
-
-The semantic foundation remains advanced setup because the locked project dependency
-graph does not yet include Sentence Transformers as a normal packaged semantic extra.
-
-Read **[Semantic search, without the mystery box](semantic-search.md)**.
-
-## What EchoFlow stores 🦝
-
-Original media and canonical JSON are evidence; notes/tags/collections and saved searches
-are durable human knowledge; publication/search/research projections are rebuildable;
-remembered locations and theme selection are machine-local preferences with different
-custody semantics from evidence.
+Original media and canonical JSON are evidence. Notes/tags/collections, saved searches, and speaker names are durable human knowledge. Search/research projections and TXT/SRT/WebVTT are derived/rebuildable. Remembered locations and theme selection are machine-local preferences with different custody semantics from evidence.
 
 ## What comes next?
 
-Research/search, Processing Center, and the desktop comprehension/theme tranche are
-foundation. Next:
+Research/search, Processing, desktop comprehension/themes, and transcript/speaker tools are foundation. Next:
 
-1. transcript and speaker tools plus provenance/details polish;
-2. Tauri-owned local media playback;
-3. lifecycle and retention UI;
-4. architecture/redundancy audit before packaging;
-5. packaging/first run/update/uninstall;
-6. backup/restore and research portability;
-7. packaged semantic custody; and
-8. representative-device qualification.
-
-The deliberately separate **[post-MVP research roadmap](post-mvp-roadmap.md)** covers later
-research snapshots/diffs, interoperability, evidence packets, comparison, writing/script
-boards, portable research bundles, and live provisional capture.
+1. Tauri-owned local audio/video playback from verified source-relative coordinates;
+2. lifecycle and retention UI;
+3. architecture/redundancy audit before packaging;
+4. packaging/first run/update/uninstall;
+5. backup/restore and research portability;
+6. packaged semantic custody; and
+7. representative-device qualification.
 
 For the detailed first-release sequence, see **[ROADMAP.md](../ROADMAP.md)**.

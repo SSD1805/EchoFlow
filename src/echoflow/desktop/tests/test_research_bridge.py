@@ -3,15 +3,12 @@ from typing import Any, cast
 
 from echoflow.desktop.bridge import DesktopServices, handle_request
 from echoflow.library.evidence import EvidenceAnchor
-from echoflow.library.index import SearchQuery
 from echoflow.library.research_state import (
     ResearchCollection,
     ResearchNote,
     ResearchTag,
 )
 from echoflow.library.research_workspace import ResearchNoteView
-from echoflow.library.retrieval import RetrievalMode
-from echoflow.library.workspace_metadata import SavedSearch, SavedSearchIntent
 
 
 class _WorkspaceService:
@@ -62,23 +59,6 @@ class _WorkspaceService:
     def collections(self):
         return (
             ResearchCollection(collection_id="collection-2", name="Oral histories"),
-        )
-
-    def saved_searches(self, *, limit=1_000):
-        assert limit == 200
-        return (
-            SavedSearch(
-                saved_search_id="search-9",
-                name="Governance follow-up",
-                description="Questions to revisit",
-                intent=SavedSearchIntent(
-                    query=SearchQuery("governance"),
-                    mode=RetrievalMode.LEXICAL,
-                    context_segments=1,
-                ),
-                created_at="2026-08-19T19:30:00+00:00",
-                updated_at="2026-08-19T19:31:00+00:00",
-            ),
         )
 
     def add_note(
@@ -183,17 +163,7 @@ def test_research_overview_returns_authoritative_human_state_without_paths():
     assert result["collections"] == [
         {"collection_id": "collection-2", "name": "Oral histories"}
     ]
-    assert result["saved_searches"] == [
-        {
-            "saved_search_id": "search-9",
-            "name": "Governance follow-up",
-            "description": "Questions to revisit",
-            "query_text": "governance",
-            "retrieval_mode": "lexical",
-            "created_at": "2026-08-19T19:30:00+00:00",
-            "updated_at": "2026-08-19T19:31:00+00:00",
-        }
-    ]
+    assert "saved_searches" not in result
     assert "/sensitive" not in str(result)
     assert "canonical_path" not in str(result)
     assert "source_path" not in str(result)

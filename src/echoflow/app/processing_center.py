@@ -81,7 +81,11 @@ def _serialize_job(record: JobLifecycleRecord, *, resumable: bool) -> dict[str, 
     }
 
 
-def _serialize_preflight(plan: TranscriptionJobPlan) -> dict[str, object]:
+def _serialize_preflight(
+    plan: TranscriptionJobPlan,
+    *,
+    audio_stream_selection_required: bool = False,
+) -> dict[str, object]:
     audio_streams = tuple(
         {
             "index": stream.index,
@@ -104,6 +108,7 @@ def _serialize_preflight(plan: TranscriptionJobPlan) -> dict[str, object]:
         "duration_seconds": plan.media.duration_seconds,
         "audio_streams": list(audio_streams),
         "selected_audio_stream_index": plan.media.primary_audio_stream.index,
+        "audio_stream_selection_required": audio_stream_selection_required,
         "profile": plan.policy.profile.value,
         "provisional": plan.policy.provisional,
         "strategy_id": _strategy_id(plan),
@@ -131,6 +136,15 @@ def _strategy_id(plan: TranscriptionJobPlan) -> str:
             plan.engine.compute_type.replace("_", "-"),
         )
     )
+
+
+def _requires_audio_stream_confirmation(
+    plan: TranscriptionJobPlan,
+    requested_index: int | None,
+) -> bool:
+    if requested_index is not None:
+        return False
+    return sum(stream.kind.value == "audio" for stream in plan.media.streams) > 1
 
 
 class ProcessingCenterService:
@@ -250,7 +264,13 @@ class ProcessingCenterService:
             audio_stream_index=audio_stream_index,
             enhance=enhance,
         )
-        return _serialize_preflight(plan)
+        return _serialize_preflight(
+            plan,
+            audio_stream_selection_required=_requires_audio_stream_confirmation(
+                plan,
+                audio_stream_index,
+            ),
+        )
 
     def retry_preflight(
         self,

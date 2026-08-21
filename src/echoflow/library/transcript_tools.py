@@ -470,11 +470,17 @@ class TranscriptToolsService:
                 "expected_canonical_sha256 must be a lowercase 64-character digest"
             )
         document = next(
-            (item for item in self.index.documents() if item.document_id == document_id),
+            (
+                item
+                for item in self.index.documents()
+                if item.document_id == document_id
+            ),
             None,
         )
         if document is None:
-            raise TranscriptToolingError("Transcript is not present in the local library")
+            raise TranscriptToolingError(
+                "Transcript is not present in the local library"
+            )
         if document.canonical_sha256 is None:
             raise TranscriptToolingError(
                 "Transcript index predates canonical hashing; rebuild the library first"

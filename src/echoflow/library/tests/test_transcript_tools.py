@@ -2,8 +2,9 @@ import hashlib
 import json
 from pathlib import Path
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.library.errors import TranscriptToolingError

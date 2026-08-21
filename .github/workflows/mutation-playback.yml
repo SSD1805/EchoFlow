@@ -1,9 +1,17 @@
 name: Playback Mutation
 
-# Playback mutation testing is a targeted qualification tool rather than a routine PR tax.
-# Run this workflow when generation/source authorization or its trusted-host bridge changes.
+# Playback mutation testing is targeted at changes to generation/source authorization and
+# its trusted-host bridge. It remains manually dispatchable for explicit requalification.
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/echoflow/library/playback.py"
+      - "src/echoflow/library/tests/test_playback*.py"
+      - "src/echoflow/desktop/playback_bridge.py"
+      - "src/echoflow/desktop/tests/test_playback_bridge.py"
+      - ".github/workflows/mutation-playback.yml"
+      - "pyproject.toml"
 
 permissions:
   contents: read

@@ -1,12 +1,67 @@
 # Your notes should survive the machinery 📝🦝
 
-EchoFlow keeps **your research notes, tags, collections, and saved searches** beside
+EchoFlow keeps **your evidence notes, tags, collections, and saved searches** beside
 recorded evidence without pretending they are part of the transcript itself.
 
-The recording and canonical transcript describe evidence. A note such as “compare this
-with the 2024 survey” is something **you know, suspect, or want to remember**. EchoFlow
-keeps those kinds of truth separate while still letting them meet through exact evidence
-coordinates.
+The recording and canonical transcript describe evidence. An evidence note such as “compare
+this with the 2024 survey” is something **you know, suspect, or want to remember about a
+specific verified passage**. EchoFlow keeps those kinds of truth separate while still
+letting them meet through exact evidence coordinates.
+
+## What counts as a note today?
+
+EchoFlow currently has one first-class note object: **an evidence note**.
+
+A `ResearchNote` always has:
+
+- a durable note ID and human-authored body;
+- an exact `EvidenceAnchor` naming document identity, canonical SHA-256, canonical segment
+  IDs, and source-relative time coordinates;
+- tag and collection relationships; and
+- created/updated timestamps used for durable history and optimistic concurrency.
+
+That mandatory anchor is a useful semantic promise. A note in today's model means “this
+human observation is attached to this exact recorded evidence.” It does **not** mean any
+arbitrary piece of prose stored somewhere in the application.
+
+Other Research objects have different jobs:
+
+| Object | What it means | A note? |
+|---|---|---|
+| Evidence note | human interpretation/observation attached to exact canonical evidence | **Yes** |
+| Tag | reusable organizational label | No |
+| Collection | reusable grouping/navigation structure | No |
+| Saved search | durable research question plus typed retrieval intent | No |
+| Speaker display name | human label for an anonymous machine-produced speaker reference | No |
+
+Keeping those roles explicit matters for export, deletion, backup, search, and provenance.
+
+### Future freeform notebook pages
+
+A general scratchpad or notebook is a useful later Research capability, but it should be a
+**second knowledge primitive**, not an evidence note with a nullable anchor.
+
+Conceptually, a future `ResearchDocument` or `ResearchMemo` would be authoritative SQLite
+state with its own ID, title/body, tags/collections, created/updated timestamps, and optional
+explicit references to evidence notes or evidence anchors. Unanchored prose would remain
+honestly unanchored. When a user cites evidence inside a memo, that relationship could still
+carry the exact document/canonical/segment/time identity EchoFlow already knows how to
+verify.
+
+That model supports a natural workflow:
+
+```text
+verified passage -> evidence note -> synthesis memo/notebook page
+                              \-> another memo
+```
+
+A future export can then render a memo to Markdown, plain text, HTML, or a portable research
+bundle while preserving explicit evidence references as structured provenance. The export
+format should be a derived presentation, not the authority for the note itself.
+
+This is deliberately post-first-release work. Before backup/restore and research
+portability are frozen, their manifests should be extensible enough to carry a future
+research-document class without pretending it exists today.
 
 ## The short version
 
@@ -242,7 +297,7 @@ second notebook.
 
 The first-release Research tranche is complete across:
 
-- authoritative notes/tags/collections;
+- authoritative evidence notes/tags/collections;
 - unified discovery;
 - note create/edit/delete and label mutation;
 - exact-generation evidence return;
@@ -252,10 +307,11 @@ The first-release Research tranche is complete across:
   sort, result count, and context controls.
 
 Further Research work is polish or post-MVP rather than the next critical-path blocker.
-Selected evidence packets, REFI-QDA interoperability, saved-question snapshots/diffs,
-comparison workspaces, evidence-linked writing/script boards, portable research bundles,
-and live provisional capture remain deliberately later work. See
-**[Post-MVP research roadmap](post-mvp-roadmap.md)**.
+Selected evidence packets, freeform research memos/notebook pages, REFI-QDA
+interoperability, saved-question snapshots/diffs, comparison workspaces, evidence-linked
+writing/script boards, portable research bundles, and live provisional capture remain
+deliberately later work. See **[Post-MVP research roadmap](post-mvp-roadmap.md)**.
 
-The product does not currently provide rich-text/WYSIWYG editing, semantic embeddings over
-note prose, **automatic** cross-generation re-anchoring, or collaborative sync.
+The product does not currently provide freeform notebook pages, rich-text/WYSIWYG editing,
+semantic embeddings over note prose, **automatic** cross-generation re-anchoring, or
+collaborative sync.

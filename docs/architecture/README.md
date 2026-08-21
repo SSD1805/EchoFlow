@@ -77,8 +77,8 @@ navigation verifies evidence; SQLite owns human research; `ResearchWorkspaceServ
 composes research interactions; `ProcessingCenterService` composes machine/model/job,
 preflight, and explicit embedded-track confirmation authority; the versioned desktop bridge
 feeds current Library, Research, and Processing presentation; `LibraryCustodyService` keeps
-destructive policy separate. Verified playback adds a separate private Python-to-Rust
-authorization path without widening the general bridge.
+destructive policy separate. Verified playback and lifecycle Storage each use separate fixed
+Python-to-Rust paths rather than widening the general bridge.
 
 ## Where to look
 
@@ -88,6 +88,7 @@ authorization path without widening the general bridge.
 | [Processing Center](processing-center.md) | How does the desktop expose readiness, preflight, embedded-track choice, jobs, and long-running native work without becoming the scheduler? |
 | [Audio tracks](../audio-tracks.md) | How does EchoFlow choose among several embedded audio streams without guessing or confusing transcription with playback? |
 | [Verified native playback](../native-playback.md) | How does exact-generation evidence become a local media capability without exposing paths to React? |
+| [Storage and lifecycle controls](../storage-lifecycle.md) | How does the desktop expose plan-bound custody and retention without giving React filesystem authority? |
 | [Adaptive heterogeneous execution](adaptive-heterogeneous-execution.md) | How does EchoFlow decide what this machine can safely run? |
 | [Media and timeline](media-and-timeline.md) | Which source/stream did we use, and what do timestamps mean? |
 | [Word-level timestamp alignment](word-alignment.md) | How do engine timings become source-relative evidence? |
@@ -118,9 +119,9 @@ authorization path without widening the general bridge.
 | `workspace` | Private job paths and public artifact allocation |
 | `benchmarking` | Privacy-minimized local execution measurement |
 | `library` | Retrieval, evidence navigation, playback authorization, research authority/projections, saved searches, discovery, refresh, locations, typed custody policy |
-| `desktop` | Versioned allowlisted Python bridges for Library/Research/Processing/transcript tools plus a private fixed playback authorization bridge |
-| `frontend` | React/TypeScript presentation over typed desktop operations; no direct DB/filesystem/media-probe authority |
-| `src-tauri` | Thin native host/capability boundary for dialogs, allowlisted long-running child processes, opened playback sessions, and bounded local media transport |
+| `desktop` | Versioned allowlisted Python bridges plus fixed private playback and lifecycle custody bridges |
+| `frontend` | React/TypeScript presentation over typed desktop operations; no direct DB/filesystem/media-probe/custody authority |
+| `src-tauri` | Thin native host/capability boundary for dialogs, allowlisted long-running child processes, fixed Python bridge commands, opened playback sessions, and bounded local media transport |
 
 ## Capability boundaries
 
@@ -131,7 +132,7 @@ The search/research/custody/processing/desktop area deliberately separates respo
 1. `TranscriptLibraryService` discovers and ranks rebuildable transcript passages.
 2. `EvidenceLocator` verifies ranked passages against canonical evidence.
 3. `SpeakerLabelService` owns durable recording-scoped human display names without rewriting diarization evidence.
-4. `ResearchStateStore` owns durable notes, tags, collections, and exact evidence anchors.
+4. `ResearchStateStore` owns durable evidence notes, tags, collections, and exact evidence anchors.
 5. `ResearchStateProjector` converges authoritative SQLite state into a disposable DuckDB research projection.
 6. `ResearchProjectionIndex` owns fast derived research constraints and summaries.
 7. `WorkspaceMetadataStore` owns durable saved-search intent and computes disposable navigation views.
@@ -140,10 +141,11 @@ The search/research/custody/processing/desktop area deliberately separates respo
 10. `LibraryCustodyService` owns typed deletion planning/execution and age-based private execution-state retention.
 11. `ProcessingCenterService` composes health/resource/model/job/preflight authority, including whether multi-track preflight requires explicit user confirmation, without reimplementing lower-level media policy.
 12. `PlaybackAuthorizationService` verifies exact canonical generation, current source bytes, coordinate bounds, and stream identity before native media can open.
-13. `echoflow.desktop.bridge` exposes an allowlisted versioned IPC surface. Current Library/Research/Processing DTOs retain necessary identity without leaking general filesystem authority to React.
-14. The playback bridge is private to the fixed Rust host and is not a webview-callable Tauri command.
-15. Tauri supervises allowlisted long-running native child processes and owns opaque opened playback sessions. It owns process/file lifetime, not strategy selection, stream selection, model validity, or transcript correctness.
-16. React owns interaction and presentation only. It does not issue SQL, mutate DuckDB/SQLite directly, select canonical generations, inspect media, choose a preferred audio track by policy, or decide resource/custody policy.
+13. `echoflow.desktop.bridge` exposes the ordinary allowlisted versioned IPC surface for Library/Research/Processing.
+14. The playback bridge is private to a fixed Rust host path and cannot be redirected to an arbitrary Python module.
+15. `echoflow.desktop.custody_bridge` exposes only document listing, deletion plan/apply, and retention plan/apply through a dedicated fixed Tauri command; it strips action/workspace paths before serialization.
+16. Tauri supervises allowlisted long-running native child processes, owns opaque opened playback sessions, and invokes fixed Python modules. It owns process/file lifetime, not strategy selection, stream selection, model validity, transcript correctness, or custody policy.
+17. React owns interaction and presentation only. It does not issue SQL, mutate DuckDB/SQLite directly, select canonical generations, inspect media, choose a preferred audio track by policy, or decide effective deletion/retention policy.
 
 That split must survive future UI convenience work. Presentation convenience is not
 permission to merge custody boundaries.
@@ -171,6 +173,11 @@ Saved searches live in authoritative SQLite because they are authored intent. Th
 evidence scope does not. Replaying a saved search re-resolves the current corpus and current
 research relationships.
 
+A future freeform research memo/notebook should also be authoritative SQLite state, but as a
+separate research-document class rather than an evidence note with a nullable anchor. That
+keeps “this is my synthesis” distinct from “this prose is attached to these exact canonical
+coordinates.”
+
 ## Desktop presentation does not rename authority
 
 The desktop intentionally translates internal vocabulary into ordinary product language.
@@ -188,6 +195,11 @@ confirmation is required and validates the requested stream. React can display b
 source-declared title/language/default metadata and collect a radio-button choice, but it
 cannot turn those labels into a recommendation or skip backend re-preflight.
 
+Storage follows the same principle. React offers understandable custody scope labels and a
+second source acknowledgment, but `LibraryCustodyService` computes scope expansion, action
+sets, note preservation, saved-search effects, source provenance checks, retention
+eligibility, resume-loss flags, and the plan-bound confirmation token.
+
 ## The custody rules 🦝
 
 1. **Original media is source evidence and read-only during normal processing.** Explicit source deletion is separate and provenance-checked.
@@ -204,10 +216,11 @@ cannot turn those labels into a recommendation or skip backend re-preflight.
 12. **Age-based retention can delete only private job workspaces.**
 13. **Remembered locations are permissions/pointers, not copies of user media.**
 14. **The desktop webview receives typed presentation DTOs and opaque playback handles, not arbitrary filesystem paths or database handles.**
-15. **Long-running native process supervision does not create a second job or checkpoint authority.**
-16. **Verified playback authorization does not turn an opaque media session into source/evidence authority.**
-17. **Theme/presentation state is machine-local preference, not evidence or research state.**
-18. **EchoFlow does not claim secure erasure it cannot prove.**
+15. **Lifecycle plan DTOs omit deletion paths and private workspace paths.**
+16. **Long-running native process supervision does not create a second job or checkpoint authority.**
+17. **Verified playback authorization does not turn an opaque media session into source/evidence authority.**
+18. **Theme/presentation state is machine-local preference, not evidence or research state.**
+19. **EchoFlow does not claim secure erasure it cannot prove.**
 
 Search infrastructure may disappear. User-authored knowledge may not disappear by accident.
 
@@ -241,12 +254,15 @@ echoflow library delete TRANSCRIPT_ID --scope canonical-transcript
 echoflow library retention --execution-days 30
 ```
 
-Deletion and retention are dry-run by default. Applying a reviewed operation requires the
-plan-bound token returned by the dry run.
+The native Storage workspace exposes the same plan/apply contract through the dedicated
+custody bridge. Deletion and retention remain preview-first. Applying a reviewed operation
+requires the exact plan-bound token; execution recalculates the plan and refuses changed
+state. React never receives the destructive filesystem paths.
 
-The next product seam is lifecycle/retention UI over the existing custody service rather
-than creating a second deletion policy. After that, the architecture/redundancy audit should
-clean seams before packaging freezes them.
+The **next product seam is the architecture/redundancy audit**. It should remove duplicated
+policy/glue and clarify ownership before packaging freezes bundle IDs, app-data locations,
+sidecar contracts, and update/uninstall behavior. The product-name/identity decision belongs
+before that packaging freeze as well.
 
 ## New abstraction test
 

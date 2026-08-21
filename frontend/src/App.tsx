@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createDesktopClient } from "./api/desktop";
+import { createLifecycleClient } from "./api/lifecycle";
 import { createPlaybackClient } from "./api/playback";
 import { createProcessingClient } from "./api/processing";
 import { createTranscriptToolsClient } from "./api/transcriptTools";
@@ -8,27 +9,31 @@ import { InfoPopover } from "./components/InfoPopover";
 import { type Theme } from "./components/WorkspaceHeader";
 import type { HelpTopicId } from "./help";
 import { IntakeWorkspace } from "./IntakeWorkspace";
+import { LifecycleWorkspace } from "./LifecycleWorkspace";
 import { PlaybackProvider } from "./PlaybackContext";
 import { ProcessingCenter } from "./ProcessingCenter";
 import { ResearchWorkspaceWithAnchorReview } from "./ResearchWorkspaceWithAnchorReview";
 import { SearchWorkspace } from "./SearchWorkspace";
 import { DEFAULT_THEME, isTheme, THEME_STORAGE_KEY } from "./themes";
 import "./help.css";
+import "./lifecycle.css";
 import "./processing-center.css";
 import "./theme-extras.css";
 
 const client = createDesktopClient();
+const lifecycle = createLifecycleClient();
 const playback = createPlaybackClient();
 const processing = createProcessingClient();
 const transcriptTools = createTranscriptToolsClient();
 
-type View = "intake" | "processing" | "library" | "research";
+type View = "intake" | "processing" | "library" | "research" | "storage";
 
 const VIEW_HELP_TOPIC: Record<View, HelpTopicId> = {
   intake: "intake",
   processing: "processing",
   library: "library",
   research: "research",
+  storage: "storage",
 };
 
 function initialTheme(): Theme {
@@ -74,6 +79,15 @@ export function App() {
         <SearchWorkspace
           client={client}
           transcriptTools={transcriptTools}
+          theme={theme}
+          onThemeChange={setTheme}
+        />
+      );
+    }
+    if (view === "storage") {
+      return (
+        <LifecycleWorkspace
+          lifecycle={lifecycle}
           theme={theme}
           onThemeChange={setTheme}
         />
@@ -133,6 +147,14 @@ export function App() {
             onClick={() => setView("research")}
           >
             <span aria-hidden="true">✦</span> Research
+          </button>
+          <button
+            className={view === "storage" ? "nav-item nav-item-active" : "nav-item"}
+            type="button"
+            aria-current={view === "storage" ? "page" : undefined}
+            onClick={() => setView("storage")}
+          >
+            <span aria-hidden="true">▣</span> Storage
           </button>
         </nav>
 

@@ -9,6 +9,7 @@ import type {
   TranscriptToolsClient,
   TranscriptToolsSnapshot,
 } from "./api/transcriptTools";
+import { InfoPopover } from "./components/InfoPopover";
 import { formatEvidenceTime } from "./format";
 import "./transcript-tools.css";
 
@@ -190,9 +191,17 @@ export function TranscriptToolsPanel({
           <p className="mini-label">Transcript</p>
           <h2 id="transcript-tools-title">Transcript tools</h2>
         </div>
-        <button type="button" className="quiet-button" onClick={onClose}>
-          Close
-        </button>
+        <div className="context-help-actions">
+          <InfoPopover
+            topic="transcript-tools"
+            label="How these work"
+            align="end"
+            className="context-help"
+          />
+          <button type="button" className="quiet-button" onClick={onClose}>
+            Close
+          </button>
+        </div>
       </header>
 
       <p className="transcript-tools-status" role="status">{status}</p>

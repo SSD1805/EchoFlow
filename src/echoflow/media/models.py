@@ -5,6 +5,8 @@ from enum import StrEnum
 from pathlib import Path
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_STREAM_TITLE_MAX_LENGTH = 200
+_STREAM_LANGUAGE_MAX_LENGTH = 64
 
 
 class StreamKind(StrEnum):
@@ -95,6 +97,9 @@ class MediaStream:
     channels: int | None = None
     channel_layout: str | None = None
     bit_rate_bps: int | None = None
+    title: str | None = None
+    language: str | None = None
+    is_default: bool = False
 
     def __post_init__(self) -> None:
         if self.index < 0:
@@ -109,9 +114,25 @@ class MediaStream:
             value = getattr(self, name)
             if value is not None and value < 1:
                 raise ValueError(f"{name} must be positive")
+        for name, maximum in (
+            ("title", _STREAM_TITLE_MAX_LENGTH),
+            ("language", _STREAM_LANGUAGE_MAX_LENGTH),
+        ):
+            value = getattr(self, name)
+            if value is None:
+                continue
+            normalized = value.strip()
+            if not normalized:
+                object.__setattr__(self, name, None)
+                continue
+            if len(normalized) > maximum:
+                raise ValueError(f"{name} exceeds safe display length")
+            object.__setattr__(self, name, normalized)
+        if not isinstance(self.is_default, bool):
+            raise ValueError("is_default must be boolean")
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        document: dict[str, object] = {
             "index": self.index,
             "kind": self.kind.value,
             "codec": self.codec,
@@ -121,6 +142,13 @@ class MediaStream:
             "channel_layout": self.channel_layout,
             "bit_rate_bps": self.bit_rate_bps,
         }
+        if self.title is not None:
+            document["title"] = self.title
+        if self.language is not None:
+            document["language"] = self.language
+        if self.is_default:
+            document["is_default"] = True
+        return document
 
 
 @dataclass(frozen=True, slots=True)

@@ -114,9 +114,9 @@ export interface TranscriptToolsClient {
 }
 
 const TRANSCRIPT_TOOLS_PROTOCOL_MESSAGES = {
-  invalid: "EchoFlow transcript tools returned an invalid response",
-  incompatible: "EchoFlow transcript tools returned an incompatible response",
-  failure: "EchoFlow could not complete that transcript-tools request",
+  invalid: "Scholion transcript tools returned an invalid response",
+  incompatible: "Scholion transcript tools returned an incompatible response",
+  failure: "Scholion could not complete that transcript-tools request",
 } as const;
 
 class TauriTranscriptToolsClient implements TranscriptToolsClient {

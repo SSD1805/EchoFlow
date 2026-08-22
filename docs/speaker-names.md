@@ -1,6 +1,6 @@
 # Give the anonymous speakers names 👥✨
 
-Diarization gives EchoFlow useful but intentionally anonymous evidence:
+Diarization gives Scholion useful but intentionally anonymous evidence:
 
 ```text
 speaker-01
@@ -8,7 +8,7 @@ speaker-02
 speaker-03
 ```
 
-That is good provenance and inconvenient human memory. EchoFlow therefore keeps two different facts:
+That is good provenance and inconvenient human memory. Scholion therefore keeps two different facts:
 
 - `speaker-02` is machine-produced diarization evidence;
 - `Dr. Chen` is a name **you** assigned to that anonymous speaker in one exact transcript generation.
@@ -25,7 +25,7 @@ Dr. Chen · speaker-02
 
 Removing the display name removes only the human-authored label. The anonymous ref remains canonical/diarization identity.
 
-The desktop also exposes **Open speaker transcript**, which presents backend-derived spans as **Speaker**, **Overlap**, **Mixed speakers**, or **Unattributed**. When two speakers are simultaneously active, EchoFlow lists both rather than choosing a winner.
+The desktop also exposes **Open speaker transcript**, which presents backend-derived spans as **Speaker**, **Overlap**, **Mixed speakers**, or **Unattributed**. When two speakers are simultaneously active, Scholion lists both rather than choosing a winner.
 
 See **[Transcript and speaker tools](transcript-tools.md)** for the desktop authority, publication, security, and testing contract.
 
@@ -34,25 +34,25 @@ See **[Transcript and speaker tools](transcript-tools.md)** for the desktop auth
 Inspect anonymous refs:
 
 ```bash
-echoflow library speakers list TRANSCRIPT_ID
+scholion library speakers list TRANSCRIPT_ID
 ```
 
 Assign a display label:
 
 ```bash
-echoflow library speakers name TRANSCRIPT_ID speaker-02 "Dr. Chen"
+scholion library speakers name TRANSCRIPT_ID speaker-02 "Dr. Chen"
 ```
 
 Remove it:
 
 ```bash
-echoflow library speakers forget-name TRANSCRIPT_ID speaker-02
+scholion library speakers forget-name TRANSCRIPT_ID speaker-02
 ```
 
 Read the derived speaker presentation:
 
 ```bash
-echoflow library speakers transcript TRANSCRIPT_ID
+scholion library speakers transcript TRANSCRIPT_ID
 ```
 
 Every command also supports `--json` for machine-readable output.
@@ -83,7 +83,7 @@ transcript ID
 + anonymous speaker ref
 ```
 
-If the canonical transcript changes, EchoFlow keeps old user-authored label state but does not silently apply it to the new generation.
+If the canonical transcript changes, Scholion keeps old user-authored label state but does not silently apply it to the new generation.
 
 This rule is especially important in a long-lived desktop view. Every transcript-tools inspect, speaker transcript, set-label, remove-label, and publication request carries the exact canonical SHA-256 the user opened. Python checks that expected generation at the service/mutation boundary. If the library changed meanwhile, the request fails and the user reopens the current transcript rather than mutating reused speaker numbering.
 
@@ -100,7 +100,7 @@ The derived speaker transcript combines canonical word timing with the preserved
 00:00:05.900  Dr. Chen (speaker-02)          single-speaker  We moved the samples.
 ```
 
-If two diarized speakers are simultaneously active over the same aligned word interval, EchoFlow does not choose a winner:
+If two diarized speakers are simultaneously active over the same aligned word interval, Scholion does not choose a winner:
 
 ```text
 00:00:12.200  Interviewer (speaker-01)
@@ -121,13 +121,13 @@ See **[From search result to the exact evidence](evidence-navigation.md)** for h
 
 ## Storage and custody
 
-Speaker names are private user-authored state, not rebuildable search state. They live under EchoFlow's private application state using the atomic private-file boundary, separate from canonical evidence, lexical/semantic indexes, research projection state, and checkpoints.
+Speaker names are private user-authored state, not rebuildable search state. They live under Scholion's private application state using the atomic private-file boundary, separate from canonical evidence, lexical/semantic indexes, research projection state, and checkpoints.
 
 Rebuilding lexical, semantic, or research projections must not erase names. A later consolidation into the transactional research-state store is possible if it earns its value, but presentation code should continue to depend on the application service rather than a physical adapter.
 
 ## Not biometric identification
 
-Speaker display labels are not biometric identification. EchoFlow does not infer that `speaker-01` in two recordings is the same person and does not search for somebody's identity from their voice.
+Speaker display labels are not biometric identification. Scholion does not infer that `speaker-01` in two recordings is the same person and does not search for somebody's identity from their voice.
 
 Overlap-aware presentation also does not perform source separation. Separating mixed speech into estimated sources would be a materially heavier later capability with its own compute, model-custody, and provenance requirements.
 

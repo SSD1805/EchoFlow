@@ -110,7 +110,7 @@ export function App() {
             E
           </div>
           <div>
-            <p className="brand-name">EchoFlow</p>
+            <p className="brand-name">Scholion</p>
             <p className="brand-subtitle">Private evidence workspace</p>
           </div>
         </div>
@@ -167,7 +167,7 @@ export function App() {
           />
           <InfoPopover
             topic="overview"
-            label="How EchoFlow works"
+            label="How Scholion works"
             align="start"
             className="sidebar-help"
           />

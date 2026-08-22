@@ -16,10 +16,10 @@ _EXPECTED_LICENSE_EXPRESSION = "AGPL-3.0-only"
 
 
 def _wheel_from(dist_dir: Path) -> Path:
-    wheels = tuple(sorted(dist_dir.glob("echoflow-*.whl")))
+    wheels = tuple(sorted(dist_dir.glob("scholion-*.whl")))
     if len(wheels) != 1:
         raise RuntimeError(
-            f"expected exactly one EchoFlow wheel in {dist_dir}, found {len(wheels)}"
+            f"expected exactly one Scholion wheel in {dist_dir}, found {len(wheels)}"
         )
     return wheels[0].resolve()
 
@@ -49,7 +49,7 @@ def _inspect_wheel(wheel: Path) -> None:
         if len(metadata_names) != 1 or len(entry_point_names) != 1:
             raise RuntimeError("built wheel is missing canonical distribution metadata")
         if len(license_names) != 1:
-            raise RuntimeError("built wheel does not contain the EchoFlow license file")
+            raise RuntimeError("built wheel does not contain the Scholion license file")
 
         metadata = BytesParser(policy=policy.default).parsebytes(
             archive.read(metadata_names[0])
@@ -81,9 +81,9 @@ def _inspect_wheel(wheel: Path) -> None:
             )
 
         entry_points = archive.read(entry_point_names[0]).decode("utf-8")
-        if "echoflow = echoflow.cli:app" not in entry_points:
+        if "scholion = scholion.cli:app" not in entry_points:
             raise RuntimeError(
-                "built wheel does not expose the echoflow console command"
+                "built wheel does not expose the scholion console command"
             )
 
 
@@ -95,8 +95,8 @@ def _venv_python(venv_dir: Path) -> Path:
 
 def _console_script(venv_dir: Path) -> Path:
     if os.name == "nt":
-        return venv_dir / "Scripts" / "echoflow.exe"
-    return venv_dir / "bin" / "echoflow"
+        return venv_dir / "Scripts" / "scholion.exe"
+    return venv_dir / "bin" / "scholion"
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> None:
@@ -148,12 +148,12 @@ def _verify_managed_model_boundary(
         raise RuntimeError(
             "fresh clean-wheel transcription did not refuse an unmanaged model"
         )
-    if "echoflow models install tiny" not in completed.stderr:
+    if "scholion models install tiny" not in completed.stderr:
         raise RuntimeError("unmanaged-model refusal did not explain the install action")
 
 
 def _verify_clean_install(wheel: Path) -> None:
-    with tempfile.TemporaryDirectory(prefix="echoflow-dist-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="scholion-dist-") as temporary:
         root = Path(temporary).resolve()
         venv_dir = root / "venv"
         work_dir = root / "work"
@@ -162,7 +162,7 @@ def _verify_clean_install(wheel: Path) -> None:
 
         python = _venv_python(venv_dir)
         console = _console_script(venv_dir)
-        requirement = f"echoflow[transcription] @ {wheel.as_uri()}"
+        requirement = f"scholion[transcription] @ {wheel.as_uri()}"
         sample_audio = work_dir / "acceptance.wav"
         _write_acceptance_wave(sample_audio)
 
@@ -170,12 +170,12 @@ def _verify_clean_install(wheel: Path) -> None:
         env.pop("PYTHONPATH", None)
         env.pop("PYTHONHOME", None)
         env["PYTHONNOUSERSITE"] = "1"
-        env["ECHOFLOW_STATE_DIR"] = str(root / "state")
-        env["ECHOFLOW_CACHE_DIR"] = str(root / "cache")
-        env["ECHOFLOW_MODEL_DIR"] = str(root / "cache" / "models")
-        env["ECHOFLOW_OUTPUT_DIR"] = str(root / "output")
-        env["ECHOFLOW_MIN_FREE_DISK_BYTES"] = "0"
-        env["ECHOFLOW_WARN_FREE_DISK_BYTES"] = "0"
+        env["SCHOLION_STATE_DIR"] = str(root / "state")
+        env["SCHOLION_CACHE_DIR"] = str(root / "cache")
+        env["SCHOLION_MODEL_DIR"] = str(root / "cache" / "models")
+        env["SCHOLION_OUTPUT_DIR"] = str(root / "output")
+        env["SCHOLION_MIN_FREE_DISK_BYTES"] = "0"
+        env["SCHOLION_WARN_FREE_DISK_BYTES"] = "0"
 
         _run(
             [
@@ -194,9 +194,9 @@ def _verify_clean_install(wheel: Path) -> None:
                 str(python),
                 "-c",
                 (
-                    "import echoflow, faster_whisper; "
+                    "import scholion, faster_whisper; "
                     "from importlib.metadata import version; "
-                    "print(version('echoflow')); "
+                    "print(version('scholion')); "
                     "print(faster_whisper.__version__)"
                 ),
             ],
@@ -217,9 +217,9 @@ def _verify_clean_install(wheel: Path) -> None:
             env=env,
         )
         _run([str(console), "--help"], cwd=work_dir, env=env)
-        _run([str(python), "-m", "echoflow", "--help"], cwd=work_dir, env=env)
+        _run([str(python), "-m", "scholion", "--help"], cwd=work_dir, env=env)
         _run(
-            [str(python), "-m", "echoflow.benchmarking", "--help"],
+            [str(python), "-m", "scholion.benchmarking", "--help"],
             cwd=work_dir,
             env=env,
         )
@@ -239,7 +239,7 @@ def _verify_clean_install(wheel: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Verify that a built EchoFlow wheel works without the source checkout."
+        description="Verify that a built Scholion wheel works without the source checkout."
     )
     parser.add_argument("dist_dir", type=Path)
     arguments = parser.parse_args()

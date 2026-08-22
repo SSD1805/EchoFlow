@@ -4,11 +4,11 @@ Status: durable location permissions, cheap recording discovery, transcript-root
 and the first Tauri/React import presentation are implemented.  
 Last updated: August 19, 2026
 
-EchoFlow lets a user work in two modes without confusing them:
+Scholion lets a user work in two modes without confusing them:
 
 1. **one-time selection**: choose particular recordings or canonical transcripts and do
    not remember the containing directory; and
-2. **remembered locations**: explicitly grant EchoFlow permission to revisit a directory
+2. **remembered locations**: explicitly grant Scholion permission to revisit a directory
    at later application lifecycle points.
 
 Remembering a location is durable application preference state. It is not transcript
@@ -55,10 +55,10 @@ The file is schema-versioned, validated fail-closed, written atomically through 
 file-manager boundary, and protected as private application state.
 
 A location stores an absolute normalized path, stable location ID, purpose, enabled state,
-and recording-processing policy. EchoFlow does not copy the selected directory into
+and recording-processing policy. Scholion does not copy the selected directory into
 private state.
 
-The configured EchoFlow output directory is already an implicit transcript discovery root
+The configured Scholion output directory is already an implicit transcript discovery root
 and therefore cannot be redundantly registered. Private state/cache/model directories
 cannot be registered as library locations.
 
@@ -88,7 +88,7 @@ A `recording-source` location means:
 
 > Revisit this directory to discover local recording candidates.
 
-Discovery is intentionally cheap. EchoFlow enumerates ordinary audio/video filename
+Discovery is intentionally cheap. Scholion enumerates ordinary audio/video filename
 candidates, records path/size/location provenance, and does **not** open, hash, FFprobe,
 transcribe, copy, or modify them merely because they were discovered.
 
@@ -136,7 +136,7 @@ Remembered locations do not replace explicit paths.
 
 The current desktop intake screen already supports native file and folder selection. A
 user can keep the selection one-time or remember the folder explicitly. They can therefore
-process recordings from Downloads without granting EchoFlow ongoing discovery permission
+process recordings from Downloads without granting Scholion ongoing discovery permission
 for Downloads.
 
 Similarly, `library refresh PATH...` remains a valid one-time/external canonical discovery
@@ -175,7 +175,7 @@ must never delete the directory or contents.
 
 ## What the current intake UI still does not do
 
-The graphical intake foundation does not yet mean EchoFlow has a consumer-grade ingest
+The graphical intake foundation does not yet mean Scholion has a consumer-grade ingest
 queue. Remaining work includes:
 
 - a polished queue/job-status surface for actually submitted media processing;

@@ -1,6 +1,6 @@
 # Transcript and speaker tools
 
-EchoFlow's desktop transcript tools make a produced canonical transcript easier to inspect, name, read, and publish without turning React into a second transcript authority.
+Scholion's desktop transcript tools make a produced canonical transcript easier to inspect, name, read, and publish without turning React into a second transcript authority.
 
 ## Authority boundary
 
@@ -13,7 +13,7 @@ canonical_sha256
 
 Python re-resolves that identity against the current library and verifies canonical bytes before returning transcript details or accepting a mutation. React never parses canonical JSON and never decides whether a displayed generation is still current.
 
-This matters because speaker refs such as `speaker-02` are recording/generation-scoped evidence. A newer transcription may reuse the same friendly ref for a different voice cluster. Every inspect, speaker transcript, speaker-label mutation, and publication request therefore carries the canonical digest that the user actually opened. If the generation changed, EchoFlow refuses the operation and requires the view to be reopened.
+This matters because speaker refs such as `speaker-02` are recording/generation-scoped evidence. A newer transcription may reuse the same friendly ref for a different voice cluster. Every inspect, speaker transcript, speaker-label mutation, and publication request therefore carries the canonical digest that the user actually opened. If the generation changed, Scholion refuses the operation and requires the view to be reopened.
 
 ## What the desktop can do
 
@@ -66,7 +66,7 @@ Presentation code does not implement subtitle timing, speaker cue rules, or file
 
 ## Desktop security boundary
 
-Tauri exposes a dedicated `transcript_tools_request` command that invokes the fixed Python module `echoflow.desktop.transcript_tools_bridge`. The webview cannot supply a Python module or arbitrary command.
+Tauri exposes a dedicated `transcript_tools_request` command that invokes the fixed Python module `scholion.desktop.transcript_tools_bridge`. The webview cannot supply a Python module or arbitrary command.
 
 The bridge has a closed method allowlist for inspect, speaker presentation, speaker-label set/remove, and publication. Requests are versioned and size bounded. Method parameters are validated through closed Pydantic schemas before an application service is called.
 
@@ -82,6 +82,6 @@ Mutation testing remains concentrated in Python because canonical-generation, cu
 
 ## Performance
 
-Transcript inspection intentionally verifies canonical bytes before trusting them. That is linear I/O in one canonical JSON file and is bounded by EchoFlow's canonical-read limit. The speaker transcript is loaded lazily so opening transcript details does not pay for a second presentation pass unless requested.
+Transcript inspection intentionally verifies canonical bytes before trusting them. That is linear I/O in one canonical JSON file and is bounded by Scholion's canonical-read limit. The speaker transcript is loaded lazily so opening transcript details does not pay for a second presentation pass unless requested.
 
 Do not optimize this by caching unverified/stale canonical content in React. If profiling later shows canonical verification becoming a real interactive bottleneck at large corpus/file sizes, optimize behind a generation-keyed backend reader/cache with explicit invalidation.

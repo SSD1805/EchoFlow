@@ -1,6 +1,6 @@
 # Storage and lifecycle controls
 
-EchoFlow treats local storage changes as custody decisions, not generic file-manager actions.
+Scholion treats local storage changes as custody decisions, not generic file-manager actions.
 
 The desktop **Storage** workspace is the ordinary user surface for the existing safe-deletion and private-retention contracts. It does not own deletion policy. Python calculates a plan, React presents the consequences, and the user must explicitly apply that exact reviewed plan before anything changes.
 
@@ -10,11 +10,11 @@ For transcript custody:
 
 1. Choose an indexed transcript.
 2. Select one or more explicit custody scopes.
-3. Ask EchoFlow to **Preview deletion plan**.
+3. Ask Scholion to **Preview deletion plan**.
 4. Review the backend-calculated effective scopes and actions.
 5. Apply the reviewed plan.
 
-The confirmation token returned with the preview is bound to the exact generation, requested scopes, expanded scopes, affected objects, and preservation state. Execution recalculates the plan. If anything material changed, the old token no longer matches and EchoFlow refuses the stale request.
+The confirmation token returned with the preview is bound to the exact generation, requested scopes, expanded scopes, affected objects, and preservation state. Execution recalculates the plan. If anything material changed, the old token no longer matches and Scholion refuses the stale request.
 
 The token is a change-detection and confirmation primitive, not an authentication secret.
 
@@ -41,11 +41,11 @@ Source recording removal requires both:
 - the explicit `source-recording` scope; and
 - a second desktop acknowledgment that enables the backend source safety switch.
 
-Python then verifies that the current recording still matches the source SHA-256 recorded when the transcript was created. If the bytes changed, EchoFlow refuses the operation rather than using old provenance as permission to modify a different file now occupying the same path.
+Python then verifies that the current recording still matches the source SHA-256 recorded when the transcript was created. If the bytes changed, Scholion refuses the operation rather than using old provenance as permission to modify a different file now occupying the same path.
 
 The desktop never receives the source or canonical filesystem path. The lifecycle DTO exposes only a safe source basename for human identification, generation identity, counts, and backend-generated descriptions.
 
-Filesystem deletion is not a claim of forensic secure erasure. SSD wear levelling, snapshots, backups, sync history, and storage-controller behaviour remain outside EchoFlow's proof boundary.
+Filesystem deletion is not a claim of forensic secure erasure. SSD wear levelling, snapshots, backups, sync history, and storage-controller behaviour remain outside Scholion's proof boundary.
 
 ## Private processing cleanup
 
@@ -81,7 +81,7 @@ React Storage workspace
         v
 Tauri fixed command
         |
-        | python -m echoflow.desktop.custody_bridge
+        | python -m scholion.desktop.custody_bridge
         v
 LibraryCustodyService
 ```

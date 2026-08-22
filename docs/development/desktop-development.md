@@ -1,6 +1,6 @@
 # Desktop development prerequisites 🖥️
 
-EchoFlow's packaged desktop application is intended for **normal users who install and run
+Scholion's packaged desktop application is intended for **normal users who install and run
 an application**. Rust, Node.js, npm, Cargo, Vite, WebKitGTK, and the Tauri CLI are
 source-build tools. They are not intended to become end-user prerequisites.
 
@@ -12,7 +12,7 @@ matches what they are trying to do.
 | I want to… | Start with | Required layers |
 |---|---|---|
 | inspect or work on the React UI with fake data | `npm run dev:mock` | Node + npm |
-| run the real native EchoFlow window | `npm run tauri dev` | Node/npm + Rust/Cargo + OS-native Tauri libraries; Python for backend actions |
+| run the real native Scholion window | `npm run tauri dev` | Node/npm + Rust/Cargo + OS-native Tauri libraries; Python for backend actions |
 | transcribe real media from source | native app or CLI processing flow | Python/uv + FFmpeg + managed transcription model, in addition to the relevant UI/native layers |
 
 A transcription model is not required to start the browser mock or render the native
@@ -42,15 +42,15 @@ frontend/node_modules/
 ```
 
 That is not a global machine install. Global npm installation requires an explicit flag such
-as `npm install -g ...`; EchoFlow's development workflow does not require it.
+as `npm install -g ...`; Scholion's development workflow does not require it.
 
-`uv sync` creates/updates EchoFlow's repository-local Python environment:
+`uv sync` creates/updates Scholion's repository-local Python environment:
 
 ```text
 .venv/
 ```
 
-Cargo downloads Rust packages into Cargo's normal user cache. EchoFlow's disposable native
+Cargo downloads Rust packages into Cargo's normal user cache. Scholion's disposable native
 build output lives under:
 
 ```text
@@ -81,7 +81,7 @@ If you run plain:
 npm run dev
 ```
 
-in an ordinary browser, EchoFlow shows a development-mode notice instead of the real
+in an ordinary browser, Scholion shows a development-mode notice instead of the real
 workspace. Plain `dev` remains the Vite server used internally by `tauri dev`.
 
 ## Native Tauri source development
@@ -150,8 +150,8 @@ uv sync --locked --extra transcription
 ```
 
 You normally do **not** need to activate that virtual environment and you do not need to set
-`ECHOFLOW_PYTHON`; the debug Tauri host discovers it. Advanced users can explicitly override
-the interpreter with `ECHOFLOW_PYTHON=/path/to/python`.
+`SCHOLION_PYTHON`; the debug Tauri host discovers it. Advanced users can explicitly override
+the interpreter with `SCHOLION_PYTHON=/path/to/python`.
 
 Now launch:
 
@@ -165,7 +165,7 @@ transcribe, not merely to prove the window opens.
 
 ## Dependency locking and the Tauri version family
 
-EchoFlow has JavaScript Tauri packages and Rust Tauri crates. They must evolve as one tested
+Scholion has JavaScript Tauri packages and Rust Tauri crates. They must evolve as one tested
 family.
 
 The intended versions live in:
@@ -184,13 +184,13 @@ npm run check:tauri-versions
 graph. Native CI runs Cargo with `--locked`, so an accidental dependency-resolution change
 fails rather than quietly producing a different desktop runtime.
 
-Do not troubleshoot a mismatch by globally installing a different Tauri CLI. EchoFlow uses
+Do not troubleshoot a mismatch by globally installing a different Tauri CLI. Scholion uses
 the repository-local npm CLI.
 
 ## Port 5173 is deliberately strict
 
 Tauri's development URL is fixed to `http://localhost:5173`. Vite normally selects another
-port when 5173 is busy, but that would leave Tauri pointing at the wrong server. EchoFlow
+port when 5173 is busy, but that would leave Tauri pointing at the wrong server. Scholion
 therefore runs Vite with `--strictPort`.
 
 If 5173 is occupied, stop the old development process and rerun. See the troubleshooting
@@ -215,9 +215,9 @@ WebKitGTK combinations can produce a protocol-level display failure such as:
 Error 71: Protocol error, dispatching to Wayland display
 ```
 
-That is a display-stack compatibility issue, not a reason to modify EchoFlow's evidence or
+That is a display-stack compatibility issue, not a reason to modify Scholion's evidence or
 Python state. The troubleshooting guide explains command-scoped DMABUF and X11/XWayland
-fallbacks. EchoFlow does not force those workarounds globally because they are not correct for
+fallbacks. Scholion does not force those workarounds globally because they are not correct for
 every Linux machine.
 
 ## Clean-up
@@ -239,5 +239,5 @@ cargo clean --manifest-path frontend/src-tauri/Cargo.toml
 Do **not** delete `frontend/src-tauri/Cargo.lock` as routine cleanup. It is part of the
 reviewed build contract.
 
-Neither cleanup command deletes EchoFlow recordings, canonical transcripts, or durable
+Neither cleanup command deletes Scholion recordings, canonical transcripts, or durable
 research state. Product data and build artifacts live under different custody rules.

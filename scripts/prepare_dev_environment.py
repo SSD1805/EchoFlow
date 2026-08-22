@@ -11,12 +11,12 @@ def main() -> int:
     missing = [path.name for path in required if not path.is_file()]
     if missing:
         names = ", ".join(missing)
-        raise SystemExit(f"EchoFlow checkout is incomplete; missing: {names}")
+        raise SystemExit(f"Scholion checkout is incomplete; missing: {names}")
 
     uv = shutil.which("uv")
     if uv is None:
         raise SystemExit(
-            "uv is required to prepare the EchoFlow development environment"
+            "uv is required to prepare the Scholion development environment"
         )
 
     subprocess.run(  # noqa: S603 - executable is resolved locally; argv is fixed
@@ -37,7 +37,7 @@ def main() -> int:
         check=True,
         stdout=subprocess.DEVNULL,
     )
-    print("EchoFlow development environment ready; Poodle is available.")
+    print("Scholion development environment ready; Poodle is available.")
     return 0
 
 

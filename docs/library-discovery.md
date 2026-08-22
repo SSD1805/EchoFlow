@@ -3,11 +3,11 @@
 A research library stops feeling like a pile of subsystems when one question can look in
 all the places a person actually remembers.
 
-EchoFlow's unified discovery surface does that without pretending every kind of result is
+Scholion's unified discovery surface does that without pretending every kind of result is
 the same thing.
 
 ```bash
-uv run echoflow library find "housing affordability"
+uv run scholion library find "housing affordability"
 ```
 
 The desktop **Library** screen consumes the same grouped discovery contract.
@@ -22,7 +22,7 @@ One query can return four separate groups:
 - **Collections** whose names match the query.
 
 A note does not receive a fake BM25 score so it can compete with a transcript passage.
-EchoFlow keeps result types separate and useful.
+Scholion keeps result types separate and useful.
 
 ## The simple mental model
 
@@ -77,7 +77,7 @@ pretending to be transcript matches.
 Machine-readable output is available with:
 
 ```bash
-uv run echoflow library find "housing" --json
+uv run scholion library find "housing" --json
 ```
 
 The desktop bridge serializes a narrower presentation DTO and deliberately omits raw
@@ -87,9 +87,9 @@ source-relative time identity.
 ## Semantic and hybrid discovery
 
 ```bash
-uv run echoflow library find "housing" --mode lexical
-uv run echoflow library find "people struggling to make rent" --mode semantic
-uv run echoflow library find "people struggling to make rent" --mode hybrid
+uv run scholion library find "housing" --mode lexical
+uv run scholion library find "people struggling to make rent" --mode semantic
+uv run scholion library find "people struggling to make rent" --mode hybrid
 ```
 
 `--mode` affects **transcript evidence only**. Notes, tag names, and collection names stay
@@ -106,7 +106,7 @@ interaction tranche.
 Transcript evidence can include bounded canonical context:
 
 ```bash
-uv run echoflow library find "housing" --context-segments 1
+uv run scholion library find "housing" --context-segments 1
 ```
 
 Context expansion remains post-ranking. The desktop Library currently requests one

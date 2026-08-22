@@ -1,16 +1,16 @@
 # Your notes should survive the machinery 📝🦝
 
-EchoFlow keeps **your evidence notes, tags, collections, and saved searches** beside
+Scholion keeps **your evidence notes, tags, collections, and saved searches** beside
 recorded evidence without pretending they are part of the transcript itself.
 
 The recording and canonical transcript describe evidence. An evidence note such as “compare
 this with the 2024 survey” is something **you know, suspect, or want to remember about a
-specific verified passage**. EchoFlow keeps those kinds of truth separate while still
+specific verified passage**. Scholion keeps those kinds of truth separate while still
 letting them meet through exact evidence coordinates.
 
 ## What counts as a note today?
 
-EchoFlow currently has one first-class note object: **an evidence note**.
+Scholion currently has one first-class note object: **an evidence note**.
 
 A `ResearchNote` always has:
 
@@ -45,7 +45,7 @@ Conceptually, a future `ResearchDocument` or `ResearchMemo` would be authoritati
 state with its own ID, title/body, tags/collections, created/updated timestamps, and optional
 explicit references to evidence notes or evidence anchors. Unanchored prose would remain
 honestly unanchored. When a user cites evidence inside a memo, that relationship could still
-carry the exact document/canonical/segment/time identity EchoFlow already knows how to
+carry the exact document/canonical/segment/time identity Scholion already knows how to
 verify.
 
 That model supports a natural workflow:
@@ -65,7 +65,7 @@ research-document class without pretending it exists today.
 
 ## The short version
 
-When you attach a note to transcript evidence, EchoFlow stores the note durably and keeps
+When you attach a note to transcript evidence, Scholion stores the note durably and keeps
 its exact evidence address:
 
 - document/transcript identity;
@@ -112,14 +112,14 @@ The CLI anchors to real canonical segment IDs rather than a disposable search ro
 formatted timestamp:
 
 ```bash
-echoflow library notes add TRANSCRIPT_ID segment-000042 \
+scholion library notes add TRANSCRIPT_ID segment-000042 \
   --body "Check this against the 2024 survey." \
   --tag methodology \
   --tag housing \
   --collection "Chapter 3"
 ```
 
-A note may span several **contiguous canonical segments**. EchoFlow verifies the current
+A note may span several **contiguous canonical segments**. Scholion verifies the current
 canonical transcript bytes and refuses missing, reordered, or non-contiguous selections.
 Optional `--start-seconds` and `--end-seconds` may narrow an anchor inside that verified
 span.
@@ -134,7 +134,7 @@ tag assignments, and collection assignments **atomically in authoritative SQLite
 emits one projection-journal event. The note's evidence anchor is not rewritten.
 
 Desktop edit/delete carries the note's authoritative `updated_at` version. If a CLI or
-another local surface changed that note after it was displayed, EchoFlow refuses the stale
+another local surface changed that note after it was displayed, Scholion refuses the stale
 write and asks the user to refresh.
 
 A note can reopen the exact canonical generation it cites. The backend reuses the same
@@ -145,9 +145,9 @@ choose a replacement generation.
 
 That means an older note has three honest outcomes:
 
-1. the older canonical generation is still present and verifies, so EchoFlow opens it and
+1. the older canonical generation is still present and verifies, so Scholion opens it and
    labels it as older evidence;
-2. the stored canonical bytes, identity, segments, or timing no longer verify, so EchoFlow
+2. the stored canonical bytes, identity, segments, or timing no longer verify, so Scholion
    refuses to present them as evidence; or
 3. the old evidence is unavailable, so the durable note remains but its cited evidence
    cannot currently be reopened.
@@ -173,7 +173,7 @@ preserves the note → verified-evidence path from filtered results.
 Research metadata can constrain transcript retrieval before scoring:
 
 ```bash
-echoflow library search "housing affordability" \
+scholion library search "housing affordability" \
   --tag methodology \
   --with-notes
 ```
@@ -181,12 +181,12 @@ echoflow library search "housing affordability" \
 Or require terms in attached notes while searching transcript evidence:
 
 ```bash
-echoflow library search "housing affordability" \
+scholion library search "housing affordability" \
   --note-text "2024 survey" \
   --collection "Chapter 3"
 ```
 
-EchoFlow resolves human names to durable IDs, obtains a canonical evidence scope from the
+Scholion resolves human names to durable IDs, obtains a canonical evidence scope from the
 research projection, and ranks lexical/semantic candidates **inside that scope**. It does
 not retrieve the whole corpus and throw away results afterward.
 
@@ -212,7 +212,7 @@ See **[Research search](research-search.md)** for the full boundary.
 
 A note belongs to the **exact canonical transcript generation** it was written against.
 If a regenerated transcript reuses the same friendly `segment-000042` under a different
-canonical SHA-256, EchoFlow does **not** silently move the old note.
+canonical SHA-256, Scholion does **not** silently move the old note.
 
 The old note remains durable historical user state. The projected evidence key includes
 canonical generation identity so stale annotations cannot accidentally attach to new
@@ -222,7 +222,7 @@ unchanged.
 ### Review and deliberately re-anchor an older note
 
 The desktop has an **Evidence maintenance** surface for notes whose anchor is not the
-current canonical generation. Review is read-only. EchoFlow classifies the stored anchor as:
+current canonical generation. Review is read-only. Scholion classifies the stored anchor as:
 
 - **current verified**: it already points to the current verified generation;
 - **older verified**: the exact stored generation still verifies and remains legitimate
@@ -232,15 +232,15 @@ current canonical generation. Review is read-only. EchoFlow classifies the store
 Older does not mean broken. An older verified anchor can remain exactly where it is for as
 long as the user wants.
 
-For a non-current anchor, EchoFlow may prepare a **current-generation candidate** only when
+For a non-current anchor, Scholion may prepare a **current-generation candidate** only when
 the current library document has the same durable document identity and recorded-source
 SHA-256. Candidate coordinates are derived from the note's source-relative time span and
-verified through the normal evidence locator. EchoFlow does not search another recording
+verified through the normal evidence locator. Scholion does not search another recording
 for something that looks similar, and React never chooses a canonical path or generation.
 
 Re-anchoring requires a second explicit confirmation carrying both the note's `updated_at`
 version and the candidate canonical SHA-256 the user reviewed. If the note or transcript
-changes before confirmation, EchoFlow refuses the mutation and requires another review.
+changes before confirmation, Scholion refuses the mutation and requires another review.
 
 A successful re-anchor is one authoritative SQLite transaction:
 
@@ -263,7 +263,7 @@ else.
 | DuckDB semantic index | chunks/vectors for semantic retrieval | Yes |
 
 SQLite fits frequently mutated transactional user state. DuckDB fits local analytical
-query workloads. EchoFlow deliberately does **not** make both authoritative.
+query workloads. Scholion deliberately does **not** make both authoritative.
 
 If the stores disagree, SQLite wins. If DuckDB disappears, rebuild it.
 

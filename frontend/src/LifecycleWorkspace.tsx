@@ -62,7 +62,7 @@ const SCOPE_COPY: readonly ScopeCopy[] = [
   {
     id: "source-recording",
     label: "Delete the original recording",
-    description: "Deletes the source media only after EchoFlow verifies it still matches the bytes used for transcription.",
+    description: "Deletes the source media only after Scholion verifies it still matches the bytes used for transcription.",
     destructive: true,
   },
 ];
@@ -254,7 +254,7 @@ export function LifecycleWorkspace({
             <p className="section-kicker">Review before mutation</p>
             <h2>Nothing here is a one-click mystery delete.</h2>
             <p>
-              EchoFlow asks Python to calculate the exact consequences first. Applying a plan repeats the same request with a token bound to that reviewed state.
+              Scholion asks Python to calculate the exact consequences first. Applying a plan repeats the same request with a token bound to that reviewed state.
             </p>
           </div>
           <InfoPopover topic="storage" label="How storage controls work" />
@@ -338,7 +338,7 @@ export function LifecycleWorkspace({
                   <span>
                     <strong>I understand this deletes the original recording.</strong>
                     <small>
-                      EchoFlow will verify that the current source bytes still match transcript provenance before allowing deletion. Filesystem deletion is not a claim of forensic secure erasure.
+                      Scholion will verify that the current source bytes still match transcript provenance before allowing deletion. Filesystem deletion is not a claim of forensic secure erasure.
                     </small>
                   </span>
                 </label>
@@ -383,7 +383,7 @@ export function LifecycleWorkspace({
               </div>
 
               <details>
-                <summary>Why did EchoFlow expand my selection?</summary>
+                <summary>Why did Scholion expand my selection?</summary>
                 <p>
                   Requested: {deletionPlan.requested_scopes.map(scopeLabel).join(", ")}. Effective: {deletionPlan.effective_scopes.map(scopeLabel).join(", ")}.
                 </p>
@@ -420,7 +420,7 @@ export function LifecycleWorkspace({
           </div>
 
           <p className="lifecycle-copy">
-            This cleanup applies only to private checkpoints and intermediates under EchoFlow state. It never age-deletes canonical JSON, original recordings, published transcripts, notes, tags, collections, saved searches, or lifecycle manifests.
+            This cleanup applies only to private checkpoints and intermediates under Scholion state. It never age-deletes canonical JSON, original recordings, published transcripts, notes, tags, collections, saved searches, or lifecycle manifests.
           </p>
 
           <div className="lifecycle-retention-controls">

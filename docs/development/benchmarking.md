@@ -1,6 +1,6 @@
 # Empirical benchmarking and calibration 📏
 
-EchoFlow's resource estimates and relative strategy ranks are intentionally conservative
+Scholion's resource estimates and relative strategy ranks are intentionally conservative
 heuristics until real machines prove them right or wrong.
 
 The benchmarking subsystem collects transcription evidence **without creating a second
@@ -16,13 +16,13 @@ ASR models must already be installed through normal model management. Benchmarki
 authorizes a hidden faster-whisper download.
 
 ```bash
-uv run python -m echoflow.benchmarking /path/to/recording.wav
-uv run python -m echoflow.benchmarking /path/to/recording.wav --json
-uv run python -m echoflow.benchmarking /path/to/recording.wav --resume JOB_ID
+uv run python -m scholion.benchmarking /path/to/recording.wav
+uv run python -m scholion.benchmarking /path/to/recording.wav --json
+uv run python -m scholion.benchmarking /path/to/recording.wav --resume JOB_ID
 ```
 
 The harness is experimental. Once its schema and behavior survive representative-device
-use, it may graduate into the primary `echoflow` command surface.
+use, it may graduate into the primary `scholion` command surface.
 
 ## What are we measuring now?
 
@@ -65,7 +65,7 @@ results are compared with prediction; only reviewed evidence changes policy.
 
 A current report describes one execution attempt and includes:
 
-- EchoFlow and Python versions;
+- Scholion and Python versions;
 - path-minimized source provenance;
 - process-visible resources and selected execution policy;
 - path-free managed engine/model/revision and execution target;
@@ -83,7 +83,7 @@ add stages without redesigning the report schema.
 
 ## Privacy boundary 🔐
 
-Benchmarking does not transmit reports. EchoFlow has no benchmark telemetry.
+Benchmarking does not transmit reports. Scholion has no benchmark telemetry.
 
 Reports are user-owned JSON files in the selected output directory. They intentionally
 omit source paths/filenames, model-cache paths, transcript text, research-note text, and
@@ -116,7 +116,7 @@ Playwright/axe, packaging, clean-wheel behavior, file handling, native media too
 contracts.
 
 Hosted-runner timing is **not calibration truth**. Runner generations, virtualization,
-caches, and neighboring workloads can change independently of EchoFlow.
+caches, and neighboring workloads can change independently of Scholion.
 
 ### Representative real devices
 

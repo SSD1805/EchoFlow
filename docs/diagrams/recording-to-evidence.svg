@@ -1,6 +1,6 @@
 <!-- mermaid-sha256: 0a002f1f482269e8c2365879f7ad3f7beaead8547a7df2015c0777d27ed92ae2 -->
 <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 1600 430">
-  <title id="title">EchoFlow recording to evidence flow</title>
+  <title id="title">Scholion recording to evidence flow</title>
   <desc id="desc">A local recording is inspected, transcribed into canonical evidence, projected into searchable views, verified for navigation, connected to durable human research, and governed by explicit custody planning.</desc>
   <defs>
     <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#315E63"/></marker>

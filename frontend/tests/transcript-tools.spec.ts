@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 async function openTranscriptTools(page: import("@playwright/test").Page) {
   await page.goto("/?e2e=1");
   await page.getByRole("button", { name: "Library" }).click();
-  await page.getByRole("searchbox", { name: "Search EchoFlow" }).fill("ABC");
+  await page.getByRole("searchbox", { name: "Search Scholion" }).fill("ABC");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.getByRole("button", { name: "Open transcript tools for interview-42" }).click();
   const panel = page.getByRole("complementary", { name: "Transcript tools" });

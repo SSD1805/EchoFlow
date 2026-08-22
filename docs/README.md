@@ -1,6 +1,6 @@
-# Welcome to EchoFlow 🦝✨
+# Welcome to Scholion 🦝✨
 
-EchoFlow is a **private, local-first workspace for recorded evidence**.
+Scholion is a **private, local-first workspace for recorded evidence**.
 
 It can inspect a recording, choose a safe way to run on the computer you actually have, transcribe locally, survive interruptions, preserve provenance, search a private corpus, navigate results back to verified canonical evidence, keep research notes attached to that evidence, save reusable research questions, manage generation-bound speaker labels, inspect transcript provenance, publish derived transcript views, play verified local source evidence, and manage storage through reviewed custody plans in a native desktop shell.
 
@@ -8,9 +8,9 @@ You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, o
 
 > **The short version:** your recording stays yours, canonical JSON remains inspectable evidence, your notes/speaker names/saved searches remain your knowledge, and most machinery built around those things can be thrown away and rebuilt.
 
-## What can EchoFlow do today?
+## What can Scholion do today?
 
-| You want to… | EchoFlow currently… |
+| You want to… | Scholion currently… |
 |---|---|
 | Transcribe privately | runs faster-whisper locally from a verified managed model |
 | Avoid melting a smaller laptop | inspects effective CPU/RAM and compatible acceleration before choosing a strategy |
@@ -62,7 +62,7 @@ You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, o
 - **[SECURITY.md](../SECURITY.md)** for the repository security boundary.
 - **[Architecture](architecture/README.md)** and **[Development docs](development/)** for maintainers.
 
-## The EchoFlow family portrait
+## The Scholion family portrait
 
 ```mermaid
 flowchart LR
@@ -102,7 +102,7 @@ flowchart LR
 <details>
 <summary>Static diagram fallback if rich rendering is unavailable</summary>
 
-![EchoFlow family portrait static diagram](diagrams/docs-family-portrait.svg)
+![Scholion family portrait static diagram](diagrams/docs-family-portrait.svg)
 
 </details>
 
@@ -134,7 +134,7 @@ Research uses ordinary product language by default. Processing presents backend 
 
 Storage follows the same rule. React sends only typed lifecycle intent and renders a plan calculated by `LibraryCustodyService`. A dedicated Tauri command invokes only the fixed custody bridge. Action paths and private workspace paths are removed before responses reach the webview. Applying a plan sends the exact reviewed token back to Python, which recalculates and refuses stale state.
 
-The sidebar keeps **How this screen works** and **How EchoFlow works** available after first use. Evidence, playback, transcript tools, multi-track preflight, and Storage add local explanation at the point where their semantics become unusual. The help registry and inline copy are presentation only; they never substitute for Python application policy.
+The sidebar keeps **How this screen works** and **How Scholion works** available after first use. Evidence, playback, transcript tools, multi-track preflight, and Storage add local explanation at the point where their semantics become unusual. The help registry and inline copy are presentation only; they never substitute for Python application policy.
 
 Appearance remains one compact picker. All eight skins share the same semantic text/control/focus contract and the same registry-driven contrast/a11y matrix.
 

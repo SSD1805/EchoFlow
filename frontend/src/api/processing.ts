@@ -165,9 +165,9 @@ export interface ProcessingClient {
 }
 
 const PROCESSING_PROTOCOL_MESSAGES = {
-  invalid: "EchoFlow Processing Center returned an invalid response",
-  incompatible: "EchoFlow Processing Center returned an incompatible response",
-  failure: "EchoFlow could not complete that request",
+  invalid: "Scholion Processing Center returned an invalid response",
+  incompatible: "Scholion Processing Center returned an incompatible response",
+  failure: "Scholion could not complete that request",
 } as const;
 
 function taskId(): string {

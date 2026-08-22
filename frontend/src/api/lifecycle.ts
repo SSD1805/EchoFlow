@@ -82,9 +82,9 @@ export interface LifecycleClient {
 }
 
 const LIFECYCLE_PROTOCOL_MESSAGES = {
-  invalid: "EchoFlow lifecycle service returned an invalid response",
-  incompatible: "EchoFlow lifecycle service returned an incompatible response",
-  failure: "EchoFlow could not complete that lifecycle request",
+  invalid: "Scholion lifecycle service returned an invalid response",
+  incompatible: "Scholion lifecycle service returned an incompatible response",
+  failure: "Scholion could not complete that lifecycle request",
 } as const;
 
 class TauriLifecycleClient implements LifecycleClient {

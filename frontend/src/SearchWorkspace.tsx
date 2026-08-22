@@ -68,7 +68,7 @@ export function SearchWorkspace({
     } catch (caught) {
       setReport(null);
       setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not search your library.",
+        caught instanceof Error ? caught.message : "Scholion could not search your library.",
       );
     } finally {
       setBusy(false);
@@ -117,7 +117,7 @@ export function SearchWorkspace({
 
       <form className="global-search" role="search" onSubmit={(event) => void search(event)}>
         <label htmlFor="workspace-search" className="search-label">
-          Search EchoFlow
+          Search Scholion
         </label>
         <div className="search-control">
           <span aria-hidden="true" className="search-glyph">⌕</span>

@@ -6,7 +6,7 @@ verified native playback are implemented. Multi-track playback remains deliberat
 fail-closed until the native layer can prove the rendered track.  
 Last updated: August 21, 2026
 
-EchoFlow has to answer three deceptively simple questions before recorded evidence is
+Scholion has to answer three deceptively simple questions before recorded evidence is
 useful:
 
 1. **What exactly did we transcribe?**
@@ -28,7 +28,7 @@ track behavior, see **[Audio tracks](../audio-tracks.md)**.
 
 ## The human version
 
-If EchoFlow says a passage begins at `4788.37` seconds, it means:
+If Scholion says a passage begins at `4788.37` seconds, it means:
 
 > **4788.37 seconds after the beginning of the selected recording audio.**
 
@@ -49,7 +49,7 @@ timecode:      10:00:00:00
 creation_time: 2026-04-05T12:34:56Z
 ```
 
-EchoFlow preserves those declarations with their format/stream origin. It does not treat
+Scholion preserves those declarations with their format/stream origin. It does not treat
 them as interchangeable with `4788.37` seconds, and it does not claim that a device clock
 was historically correct merely because a tag exists.
 
@@ -86,9 +86,9 @@ clock display, verified seek coordinates, durable anchors, and the desktop evide
 
 ## One input boundary for audio and video
 
-EchoFlow treats every supported input as **audio-bearing local media**.
+Scholion treats every supported input as **audio-bearing local media**.
 
-Video is not a second downstream pipeline. FFprobe discovers streams, EchoFlow selects
+Video is not a second downstream pipeline. FFprobe discovers streams, Scholion selects
 one audio stream, and transcription discards unrelated video/subtitle/attachment/data
 streams from the working audio path.
 
@@ -111,7 +111,7 @@ source with SHA-256, snapshots identity again, and refuses the input if the sour
 during inspection.
 
 The primary probe contract remains stable for ordinary recordings. If that first bounded
-query discovers more than one audio stream, EchoFlow makes one additional bounded,
+query discovers more than one audio stream, Scholion makes one additional bounded,
 file-only metadata query for stream index, title, language, and default disposition so a
 person has better clues when choosing among embedded tracks. Title and language are length
 bounded. Those declarations are presentation metadata, not a recommendation and not a new
@@ -150,10 +150,10 @@ re-runs preflight with the exact stream bound into the plan.
 The CLI has the same explicit primitive:
 
 ```bash
-uv run echoflow transcribe meeting.mp4 --audio-stream 2
+uv run scholion transcribe meeting.mp4 --audio-stream 2
 ```
 
-EchoFlow validates that stream index `2` is audio and records that choice in the job/source
+Scholion validates that stream index `2` is audio and records that choice in the job/source
 contract. An unavailable index fails instead of silently falling back. Resume restores the
 same selected stream.
 
@@ -181,11 +181,11 @@ working material, not a second source of truth.
 
 ## Optional enhanced derivative
 
-With `--enhance`, EchoFlow creates a private `enhanced.wav` after canonical decode and
+With `--enhance`, Scholion creates a private `enhanced.wav` after canonical decode and
 before ASR segmentation.
 
 The enhanced file may change sample values. It may not silently change timeline shape.
-EchoFlow checks channel count, sample width, sample rate, and frame count. A mismatch fails
+Scholion checks channel count, sample width, sample rate, and frame count. A mismatch fails
 closed and the derivative is removed where possible.
 
 Anonymous diarization intentionally consumes the unmodified canonical decode in the first
@@ -222,7 +222,7 @@ clock. Formatted strings are not durable anchors.
 
 ## Canonical source provenance
 
-EchoFlow records enough context to explain how canonical text was produced, including
+Scholion records enough context to explain how canonical text was produced, including
 source fingerprint/media identity, selected audio stream, source-declared temporal tags,
 decode strategy, managed model revision/execution target, optional enhancement provenance,
 language/speaker evidence, and source-relative segment/word timestamps.
@@ -234,13 +234,13 @@ are not promoted into cryptographic identity.
 Temporal tags deliberately do **not** replace source identity. Source identity remains the
 cryptographic/file/media contract.
 
-## Why EchoFlow does not add elapsed time to SMPTE yet
+## Why Scholion does not add elapsed time to SMPTE yet
 
 A source string such as `10:00:00:00` is not enough information for safe arithmetic.
 SMPTE-style timecode can depend on frame rate and drop-frame/non-drop-frame semantics.
 Container/device metadata may also be missing, stale, copied, or contradictory.
 
-EchoFlow preserves source declarations but **does not invent a mapping from canonical
+Scholion preserves source declarations but **does not invent a mapping from canonical
 seconds to SMPTE frames** without qualified frame semantics.
 
 That limitation does not block ordinary source-relative navigation or verified playback.
@@ -292,11 +292,11 @@ playback.
 ## Why multi-track transcription and playback have different support levels
 
 Transcription owns extraction. FFmpeg receives the exact selected stream index and emits a
-private canonical working-audio representation, so EchoFlow can prove which embedded track
+private canonical working-audio representation, so Scholion can prove which embedded track
 entered ASR.
 
 Native playback currently gives the original container to the operating-system WebView
-media engine. EchoFlow does not yet have a portable guarantee that every supported WebView
+media engine. Scholion does not yet have a portable guarantee that every supported WebView
 will render the same audio stream recorded in canonical provenance. Playing a different
 track beside the transcript would be an evidence error.
 

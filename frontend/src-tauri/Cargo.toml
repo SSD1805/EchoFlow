@@ -1,7 +1,7 @@
 [package]
-name = "echoflow-desktop"
+name = "scholion-desktop"
 version = "0.1.0"
-description = "EchoFlow local desktop host"
+description = "Scholion local desktop host"
 edition = "2021"
 license = "AGPL-3.0-only"
 

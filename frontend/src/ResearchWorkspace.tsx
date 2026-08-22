@@ -96,7 +96,7 @@ export function ResearchWorkspace({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not open your research.",
+          : "Scholion could not open your research.",
       );
     } finally {
       setBusy(false);
@@ -139,7 +139,7 @@ export function ResearchWorkspace({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not apply those filters.",
+          : "Scholion could not apply those filters.",
       );
     } finally {
       setFilterBusy(false);
@@ -191,7 +191,7 @@ export function ResearchWorkspace({
       setMutationMessage("Note saved. Its transcript passage is unchanged.");
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not update that note.",
+        caught instanceof Error ? caught.message : "Scholion could not update that note.",
       );
     } finally {
       setMutatingNoteId(null);
@@ -211,7 +211,7 @@ export function ResearchWorkspace({
       setMutationMessage("Note deleted. The transcript was not deleted.");
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not delete that note.",
+        caught instanceof Error ? caught.message : "Scholion could not delete that note.",
       );
     } finally {
       setMutatingNoteId(null);
@@ -239,7 +239,7 @@ export function ResearchWorkspace({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not verify the transcript passage cited by that note.",
+          : "Scholion could not verify the transcript passage cited by that note.",
       );
     } finally {
       setOpeningNoteId(null);

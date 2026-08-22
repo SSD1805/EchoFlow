@@ -6,7 +6,7 @@ navigation, exact-generation note → evidence return, saved-search lifecycle, a
 stale/unavailable-anchor review plus provenance-preserving re-anchoring are implemented.  
 Last updated: August 20, 2026
 
-EchoFlow keeps **user-authored research knowledge durable** while still making that
+Scholion keeps **user-authored research knowledge durable** while still making that
 knowledge fast enough to use as part of corpus search.
 
 The design deliberately uses two stores with different authority:
@@ -17,7 +17,7 @@ The design deliberately uses two stores with different authority:
 - **DuckDB is a rebuildable research projection.** It carries only relationships and
   lexical terms needed to query that user state efficiently alongside transcript search.
 
-The databases do not share a transaction and do not attach to one another. EchoFlow
+The databases do not share a transaction and do not attach to one another. Scholion
 coordinates them through stable evidence identities and a deterministic projector.
 
 ```mermaid
@@ -72,7 +72,7 @@ SQLite fits the authoritative research workspace because the workload is transac
 mutation-heavy. DuckDB fits analytical work such as scanning many segments, joining
 relationships, restricting semantic candidates, and ranking results.
 
-Making both authoritative would create a dual-master problem. EchoFlow avoids that class of
+Making both authoritative would create a dual-master problem. Scholion avoids that class of
 conflict:
 
 ```text
@@ -302,4 +302,4 @@ Research state currently does not provide:
 20. **Operational logging must not copy human research prose or query content into a second archive.**
 21. **Deleting any DuckDB file must never delete unique user-authored knowledge.**
 
-If a refactor makes one of those statements false, it changes EchoFlow's custody model.
+If a refactor makes one of those statements false, it changes Scholion's custody model.

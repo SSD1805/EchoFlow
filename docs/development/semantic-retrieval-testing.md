@@ -42,7 +42,7 @@ Do not add a factory framework merely because test data exists.
 
 ## Hypothesis: protect segment custody, not only examples
 
-`src/echoflow/library/tests/test_semantic.py` generates varied segment word counts and
+`src/scholion/library/tests/test_semantic.py` generates varied segment word counts and
 chunking thresholds and protects invariants such as:
 
 - same input/profile → same chunks and IDs;
@@ -147,10 +147,10 @@ The dedicated manual workflow is:
 It establishes a focused baseline and asks Poodle to mutate:
 
 ```text
-src/echoflow/library/semantic.py
-src/echoflow/library/duckdb_semantic.py
-src/echoflow/library/retrieval.py
-src/echoflow/library/service.py
+src/scholion/library/semantic.py
+src/scholion/library/duckdb_semantic.py
+src/scholion/library/retrieval.py
+src/scholion/library/service.py
 ```
 
 The mutation hypotheses we care about include:
@@ -180,16 +180,16 @@ Start narrow, then widen:
 
 ```bash
 # Focused semantic/domain tests
-uv run pytest src/echoflow/library/tests/test_semantic.py
+uv run pytest src/scholion/library/tests/test_semantic.py
 
 # Full library package
-uv run pytest src/echoflow/library/tests
+uv run pytest src/scholion/library/tests
 
 # CLI boundary
-uv run pytest src/echoflow/tests/test_cli_library.py
+uv run pytest src/scholion/tests/test_cli_library.py
 
 # Full branch coverage
-uv run pytest --cov=echoflow --cov-branch --cov-report=term-missing
+uv run pytest --cov=scholion --cov-branch --cov-report=term-missing
 
 # Static gates
 uv run ruff check .

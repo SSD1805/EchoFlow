@@ -45,7 +45,7 @@ test("transcript libraries never offer automatic processing", async ({ page }) =
 
   await expect(page.getByText("Advanced processing policy")).toHaveCount(0);
   await page.getByRole("button", { name: "Remember this folder" }).click();
-  await expect(page.getByRole("status")).toContainText("reconciled with EchoFlow's local index");
+  await expect(page.getByRole("status")).toContainText("reconciled with Scholion's local index");
 });
 
 test("theme switching uses the compact picker and preserves semantics", async ({ page }) => {

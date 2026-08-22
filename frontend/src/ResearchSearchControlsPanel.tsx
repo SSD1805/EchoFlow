@@ -171,7 +171,7 @@ export function ResearchSearchControlsPanel({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not read your saved searches.",
+          : "Scholion could not read your saved searches.",
       );
     });
   }, [loadSavedSearches, revision]);
@@ -197,7 +197,7 @@ export function ResearchSearchControlsPanel({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not run that research search.",
+          : "Scholion could not run that research search.",
       );
     } finally {
       setBusy(false);
@@ -223,7 +223,7 @@ export function ResearchSearchControlsPanel({
       setStatus(`Saved “${saved.name}”.`);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not save that search.",
+        caught instanceof Error ? caught.message : "Scholion could not save that search.",
       );
     } finally {
       setSavedBusy(false);
@@ -243,7 +243,7 @@ export function ResearchSearchControlsPanel({
       setStatus(`Loaded “${inspected.name}”.`);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not open that saved search.",
+        caught instanceof Error ? caught.message : "Scholion could not open that saved search.",
       );
     } finally {
       setSavedBusy(false);
@@ -271,7 +271,7 @@ export function ResearchSearchControlsPanel({
       setStatus(`Updated “${updated.name}”.`);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not update that saved search.",
+        caught instanceof Error ? caught.message : "Scholion could not update that saved search.",
       );
     } finally {
       setSavedBusy(false);
@@ -295,7 +295,7 @@ export function ResearchSearchControlsPanel({
       );
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not run that saved search.",
+        caught instanceof Error ? caught.message : "Scholion could not run that saved search.",
       );
     } finally {
       setSavedBusy(false);
@@ -318,7 +318,7 @@ export function ResearchSearchControlsPanel({
       setStatus(`Deleted “${saved.name}”.`);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not delete that saved search.",
+        caught instanceof Error ? caught.message : "Scholion could not delete that saved search.",
       );
     } finally {
       setSavedBusy(false);
@@ -496,7 +496,7 @@ export function ResearchSearchControlsPanel({
 
             <p className="typed-search-option-note">
               Meaning and Wording + meaning require a qualified local semantic index. If it
-              is not ready, EchoFlow will explain what needs attention rather than silently
+              is not ready, Scholion will explain what needs attention rather than silently
               changing the search.
             </p>
           </div>

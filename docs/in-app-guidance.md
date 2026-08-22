@@ -1,6 +1,6 @@
 # In-app guidance without a mystery tour
 
-EchoFlow has enough moving parts that the desktop cannot assume somebody read the repository documentation first. The product therefore carries a small, persistent guidance layer inside the same local UI.
+Scholion has enough moving parts that the desktop cannot assume somebody read the repository documentation first. The product therefore carries a small, persistent guidance layer inside the same local UI.
 
 The goal is **progressive disclosure**: explain a concept where it matters, keep the explanation available later, and avoid turning every screen into an onboarding slideshow.
 
@@ -9,9 +9,9 @@ The goal is **progressive disclosure**: explain a concept where it matters, keep
 The sidebar always exposes two controls:
 
 - **How this screen works** explains the active Add evidence, Processing, Library, or Research workspace.
-- **How EchoFlow works** explains the overall recording → processing → canonical evidence → search → research model.
+- **How Scholion works** explains the overall recording → processing → canonical evidence → search → research model.
 
-More specific guidance appears where EchoFlow has unusual semantics:
+More specific guidance appears where Scholion has unusual semantics:
 
 - **How to use this** in the Evidence reader explains verified context, timed words, the evidence cursor, note anchoring, and Return to match.
 - **Why verify?** beside Playback explains why playback is prepared before the recording opens and why a source-integrity failure is different from a codec failure.
@@ -24,7 +24,7 @@ Popover help is not hover-only. It opens on an ordinary button click or keyboard
 
 In-app guidance is presentation copy. It describes existing product contracts but does not become a second implementation of them.
 
-For example, the Playback guide can explain that EchoFlow refuses a multi-audio recording rather than guessing which track matches the transcript. The guide does **not** decide whether a recording has multiple audio streams. Python playback authorization still owns that rule.
+For example, the Playback guide can explain that Scholion refuses a multi-audio recording rather than guessing which track matches the transcript. The guide does **not** decide whether a recording has multiple audio streams. Python playback authorization still owns that rule.
 
 Likewise:
 
@@ -40,7 +40,7 @@ If help copy and backend behavior ever disagree, fix the copy or the application
 
 A forced tour is useful when a sequence itself is hard to discover. It is less useful when the difficult part is understanding concepts that recur months later.
 
-EchoFlow currently favors persistent contextual help because:
+Scholion currently favors persistent contextual help because:
 
 1. it remains available after first use;
 2. it does not block somebody who already knows what they are doing;
@@ -54,7 +54,7 @@ A first-run walkthrough can be added later if usability testing shows that peopl
 
 The Evidence reader currently supports canonical timed-word buttons plus a bounded range control. Selecting a timed word moves the source-relative evidence cursor. **Return to match** restores the coordinate chosen by evidence navigation. Verified playback consumes that same cursor.
 
-The help does not tell users to drag arbitrary transcript text because EchoFlow does not yet have a durable arbitrary-text-selection anchor contract. A future selection model should be designed around canonical evidence coordinates first, then taught in the UI.
+The help does not tell users to drag arbitrary transcript text because Scholion does not yet have a durable arbitrary-text-selection anchor contract. A future selection model should be designed around canonical evidence coordinates first, then taught in the UI.
 
 Multi-track help follows the same rule. It says to choose an embedded track because that action exists and causes a fresh backend preflight. It does not promise audio preview, automatic microphone quality ranking, separate-file synchronization, or multi-track verified playback, because those capabilities do not exist yet.
 
@@ -71,7 +71,7 @@ The help layer has no filesystem, database, process, model, or network capabilit
 - screen help follows the active workspace;
 - help exposes `aria-expanded` state;
 - Escape closes the panel and returns focus to its trigger;
-- the overall EchoFlow explanation is always reachable;
+- the overall Scholion explanation is always reachable;
 - Evidence reader, Playback, and Transcript tools expose their local explanations;
 - help does not introduce canonical/source path disclosure; and
 - axe sees no accessibility violations while guidance is open.

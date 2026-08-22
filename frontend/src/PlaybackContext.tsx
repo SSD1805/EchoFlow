@@ -17,7 +17,7 @@ export function PlaybackProvider({
 export function usePlaybackClient(): PlaybackClient {
   const client = useContext(PlaybackContext);
   if (!client) {
-    throw new Error("EchoFlow playback client is not configured");
+    throw new Error("Scholion playback client is not configured");
   }
   return client;
 }

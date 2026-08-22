@@ -435,7 +435,7 @@ wheels = [
 ]
 
 [[package]]
-name = "echoflow"
+name = "scholion"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

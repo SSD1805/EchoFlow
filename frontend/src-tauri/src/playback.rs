@@ -278,7 +278,7 @@ fn bridge_error(response: &BridgeResponse) -> String {
         .error
         .as_ref()
         .map(|error| error.message.clone())
-        .unwrap_or_else(|| "EchoFlow could not authorize local playback".to_string())
+        .unwrap_or_else(|| "Scholion could not authorize local playback".to_string())
 }
 
 #[tauri::command]
@@ -298,20 +298,20 @@ pub async fn playback_prepare(
     });
     let raw = backend::playback_authorization_request(payload).await?;
     let response: BridgeResponse = serde_json::from_value(raw)
-        .map_err(|_| "EchoFlow's playback authorization response was invalid".to_string())?;
+        .map_err(|_| "Scholion's playback authorization response was invalid".to_string())?;
     if !response.ok {
         return Err(bridge_error(&response));
     }
     let grant = response
         .result
-        .ok_or_else(|| "EchoFlow's playback authorization response was incomplete".to_string())?;
+        .ok_or_else(|| "Scholion's playback authorization response was incomplete".to_string())?;
     if !grant.duration_seconds.is_finite()
         || !grant.seek_seconds.is_finite()
         || grant.seek_seconds < 0.0
         || grant.seek_seconds > grant.duration_seconds
         || !matches!(grant.media_kind.as_str(), "audio" | "video")
     {
-        return Err("EchoFlow's playback authorization response was invalid".to_string());
+        return Err("Scholion's playback authorization response was invalid".to_string());
     }
 
     let source_path = PathBuf::from(&grant.source_path);
@@ -389,7 +389,7 @@ mod tests {
     #[test]
     fn protocol_caps_large_reads_and_rejects_unknown_tokens() {
         let temp = std::env::temp_dir().join(format!(
-            "echoflow-playback-test-{}-{}",
+            "scholion-playback-test-{}-{}",
             std::process::id(),
             1
         ));
@@ -409,7 +409,7 @@ mod tests {
 
         let request = http::Request::builder()
             .method(http::Method::GET)
-            .uri(format!("http://echoflow-media.localhost/{token}"))
+            .uri(format!("http://scholion-media.localhost/{token}"))
             .body(Vec::new())
             .expect("build request");
         let response = sessions.protocol_response(request);
@@ -418,7 +418,7 @@ mod tests {
 
         let missing = http::Request::builder()
             .method(http::Method::GET)
-            .uri("http://echoflow-media.localhost/p00000000000000ff")
+            .uri("http://scholion-media.localhost/p00000000000000ff")
             .body(Vec::new())
             .expect("build missing request");
         assert_eq!(

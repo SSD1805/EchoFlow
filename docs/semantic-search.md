@@ -1,6 +1,6 @@
 # Semantic search, without the mystery box ✨
 
-EchoFlow can search transcripts in three different ways.
+Scholion can search transcripts in three different ways.
 
 **Lexical search** looks for the words you typed. Search for `rent increase`, and it is
 very good at finding passages containing those words.
@@ -40,7 +40,7 @@ model runtime.
 
 An embedding is a numeric representation of text used for comparison.
 
-EchoFlow turns a search phrase and deterministic transcript passages into vectors, then
+Scholion turns a search phrase and deterministic transcript passages into vectors, then
 compares those vectors to find passages that sit near the query in the model's learned
 semantic space.
 
@@ -62,16 +62,16 @@ flowchart TD
     E --> F[Original canonical passage coordinates]
 ```
 
-EchoFlow's current profile produces 384-number vectors. Those numbers are for the
+Scholion's current profile produces 384-number vectors. Those numbers are for the
 computer. You are not expected to inspect them manually.
 
 ## What happens when semantic search is enabled?
 
-EchoFlow builds a private, rebuildable semantic projection from canonical transcripts.
+Scholion builds a private, rebuildable semantic projection from canonical transcripts.
 
 1. Adjacent canonical ASR segments are combined into deterministic search windows.
 2. A local embedding model converts each window into a vector.
-3. EchoFlow stores vectors in a private DuckDB semantic index.
+3. Scholion stores vectors in a private DuckDB semantic index.
 4. Search queries are embedded locally with the same profile.
 5. Hard constraints are applied before similarity ranking where possible.
 6. Results point back to the canonical transcript segments that produced them.
@@ -84,7 +84,7 @@ transcript evidence.
 
 Not during semantic indexing or search in the current implementation.
 
-EchoFlow's semantic provider loads from a **local model snapshot**. Model loading uses
+Scholion's semantic provider loads from a **local model snapshot**. Model loading uses
 local-only resolution with remote model code disabled.
 
 Separate three questions:
@@ -99,7 +99,7 @@ Potentially network-bearing. Downloading model weights from a provider uses the 
 
 ### Using a model already present locally
 
-Offline. EchoFlow accepts the local immutable snapshot and does not resolve a remote
+Offline. Scholion accepts the local immutable snapshot and does not resolve a remote
 repository while indexing/searching.
 
 ## Why Multilingual E5 Small?
@@ -119,7 +119,7 @@ index generation must use one explicit reproducible profile.
 
 > **The model is not sacred. The profile is.**
 
-EchoFlow records model identity, immutable revision, dimensions, normalization, pooling,
+Scholion records model identity, immutable revision, dimensions, normalization, pooling,
 distance metric, query/passage transforms, embedding schema, and chunking profile.
 
 If the profile changes, the semantic projection is rebuilt rather than mixing incompatible
@@ -150,17 +150,17 @@ ASR segments are evidence coordinates, but some are tiny:
 Yeah.
 ```
 
-Embedding each tiny segment independently can discard useful context. EchoFlow therefore
+Embedding each tiny segment independently can discard useful context. Scholion therefore
 combines adjacent canonical segments into deterministic retrieval windows.
 
 Those chunks carry the IDs/timestamps of their source segments and can be recreated later.
-EchoFlow does not split one canonical ASR segment into invented evidence coordinates merely
+Scholion does not split one canonical ASR segment into invented evidence coordinates merely
 to hit a preferred chunk size.
 
 ## What does hybrid search combine?
 
 BM25 lexical scores and semantic similarity scores are different mathematical things.
-EchoFlow does not pretend they share one universal “relevance percentage.”
+Scholion does not pretend they share one universal “relevance percentage.”
 
 Hybrid mode combines **rank positions** with reciprocal rank fusion (RRF). The deeper
 contract lives in **[architecture/corpus-search.md](architecture/corpus-search.md)**.
@@ -172,7 +172,7 @@ Durable research state can constrain semantic retrieval before vector scoring.
 For example:
 
 ```bash
-uv run echoflow library search \
+uv run scholion library search \
   "people struggling to make rent" \
   --mode semantic \
   --tag methodology \
@@ -195,8 +195,8 @@ are durable user-authored constraints over evidence.
 Lexical search works without semantic support:
 
 ```bash
-uv run echoflow library rebuild
-uv run echoflow library search "housing insecurity"
+uv run scholion library rebuild
+uv run scholion library search "housing insecurity"
 ```
 
 The current semantic foundation expects a compatible Sentence Transformers runtime and a
@@ -205,7 +205,7 @@ local immutable Multilingual E5 Small snapshot.
 Build semantic state:
 
 ```bash
-uv run echoflow library embeddings build \
+uv run scholion library embeddings build \
   /path/to/models--intfloat--multilingual-e5-small/snapshots/<revision> \
   --revision <revision>
 ```
@@ -213,14 +213,14 @@ uv run echoflow library embeddings build \
 Inspect the indexed profile:
 
 ```bash
-uv run echoflow library embeddings
-uv run echoflow library embeddings --json
+uv run scholion library embeddings
+uv run scholion library embeddings --json
 ```
 
 Search by conceptual similarity:
 
 ```bash
-uv run echoflow library search \
+uv run scholion library search \
   "people struggling to make rent" \
   --mode semantic
 ```
@@ -228,7 +228,7 @@ uv run echoflow library search \
 Or combine lexical and semantic retrieval:
 
 ```bash
-uv run echoflow library search \
+uv run scholion library search \
   "people struggling to make rent" \
   --mode hybrid
 ```
@@ -259,7 +259,7 @@ Another local provider can be implemented without changing canonical transcripts
 custody, semantic storage, hybrid ranking, research evidence scope, or public search
 results.
 
-EchoFlow does **not** expose “paste any model repository ID and pray” as ordinary CLI
+Scholion does **not** expose “paste any model repository ID and pray” as ordinary CLI
 configuration. Different models can disagree about dimensions, normalization, pooling,
 query/passage instructions, and distance semantics.
 
@@ -283,7 +283,7 @@ Vectors are derived state. Rebuild them. Keep the evidence.
 
 ## What if I never turn semantic search on?
 
-Then EchoFlow continues to use lexical search. Your transcripts remain canonical, your
+Then Scholion continues to use lexical search. Your transcripts remain canonical, your
 research state remains durable, and BM25 remains local.
 
 Semantic retrieval is an enhancement, not a tax every user must pay.

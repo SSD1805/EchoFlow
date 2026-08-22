@@ -58,7 +58,7 @@ export function EvidencePlayback({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not prepare verified local playback.",
+          : "Scholion could not prepare verified local playback.",
       );
     } finally {
       setPreparing(false);
@@ -123,7 +123,7 @@ export function EvidencePlayback({
       </div>
 
       <p className="evidence-playback-copy">
-        EchoFlow verifies the exact transcript generation and original recording before opening a native media session. The recording path is never sent to this view.
+        Scholion verifies the exact transcript generation and original recording before opening a native media session. The recording path is never sent to this view.
       </p>
 
       {status && <p className="evidence-playback-status" role="status">{status}</p>}

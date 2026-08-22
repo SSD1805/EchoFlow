@@ -7,7 +7,7 @@ Some recordings are just noisy.
 Air conditioners hum. Rooms echo. Microphones sit too far away. Someone decides to move
 a coffee mug directly on top of the only useful sentence in the interview.
 
-EchoFlow can optionally apply deterministic local noise suppression **before speech
+Scholion can optionally apply deterministic local noise suppression **before speech
 recognition** while preserving the original recording as the authoritative evidence.
 
 The first implementation is intentionally modest. It is not an audio-restoration oracle.
@@ -44,12 +44,12 @@ Enhancement is off by default.
 Enable it explicitly:
 
 ```bash
-uv run echoflow transcribe recording.m4a --enhance
+uv run scholion transcribe recording.m4a --enhance
 ```
 
 There is no automatic “this sounds noisy, so I turned something on” behavior yet.
 
-That is deliberate. EchoFlow should first collect representative evidence showing when
+That is deliberate. Scholion should first collect representative evidence showing when
 enhancement improves end-to-end ASR enough to justify extra compute and disk use.
 
 ## Source custody
@@ -83,7 +83,7 @@ Canonical provenance is:
 
 This provider has no model weights.
 
-EchoFlow does not create a pretend model manifest merely to make the architecture look
+Scholion does not create a pretend model manifest merely to make the architecture look
 uniform.
 
 If a future neural enhancement provider introduces weights, those weights must enter
@@ -97,7 +97,7 @@ Enhancement may change **sample values**.
 It may not silently change the **shape of the timeline** that transcript timestamps rely
 on.
 
-Before accepting the derived WAV, EchoFlow compares input/output:
+Before accepting the derived WAV, Scholion compares input/output:
 
 - channel count;
 - sample width;
@@ -117,7 +117,7 @@ In enhancement v1:
 - **ASR** consumes the enhanced derivative when enhancement succeeds;
 - **anonymous diarization** continues to consume the unmodified canonical decoded audio.
 
-EchoFlow has not established that denoising improves speaker-boundary evidence.
+Scholion has not established that denoising improves speaker-boundary evidence.
 
 Preprocessing the diarization input merely because preprocessing helps ASR would be an
 unearned assumption.
@@ -152,7 +152,7 @@ duration_seconds * 16,000 * 1 channel * 2 bytes
 That cost participates in the same storage admission policy as normalization, segment
 materialization, checkpoints, and published artifacts.
 
-EchoFlow should refuse a job before creating a large derivative when available disk
+Scholion should refuse a job before creating a large derivative when available disk
 space is below the safe budget.
 
 ## Canonical provenance
@@ -181,7 +181,7 @@ When enhancement is off, no enhancement provenance is recorded.
 
 Enhancement fails closed when the user explicitly requested it.
 
-EchoFlow does not silently fall back to raw audio after an enhancement failure and then
+Scholion does not silently fall back to raw audio after an enhancement failure and then
 pretend the requested plan executed.
 
 Failure cases include:
@@ -232,7 +232,7 @@ recordings using measures such as:
   noise.
 
 Only after evidence shows a reliable relationship between input conditions and benefit
-should EchoFlow consider an `auto` mode.
+should Scholion consider an `auto` mode.
 
 ## Where source separation belongs later 🧜‍♀️
 

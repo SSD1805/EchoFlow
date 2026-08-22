@@ -223,9 +223,9 @@ export interface DesktopClient {
 }
 
 const DESKTOP_PROTOCOL_MESSAGES = {
-  invalid: "EchoFlow desktop bridge returned an invalid response",
-  incompatible: "EchoFlow desktop bridge returned an incompatible response",
-  failure: "EchoFlow could not complete that request",
+  invalid: "Scholion desktop bridge returned an invalid response",
+  incompatible: "Scholion desktop bridge returned an incompatible response",
+  failure: "Scholion could not complete that request",
 } as const;
 
 function normalizeLabels(values: string[]): string[] {
@@ -292,7 +292,7 @@ class TauriDesktopClient implements DesktopClient {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const filters =
       kind === "transcript-library"
-        ? [{ name: "EchoFlow transcript", extensions: ["json"] }]
+        ? [{ name: "Scholion transcript", extensions: ["json"] }]
         : [
             {
               name: "Audio and video",
@@ -520,7 +520,7 @@ class MockDesktopClient implements DesktopClient {
 
   async chooseFiles(kind: LocationKind): Promise<string[]> {
     return kind === "transcript-library"
-      ? ["/Users/susan/Research/interview-01.echoflow.json"]
+      ? ["/Users/susan/Research/interview-01.scholion.json"]
       : [
           "/Users/susan/Research/interview-01.m4a",
           "/Users/susan/Research/interview-02.mp4",

@@ -106,7 +106,7 @@ export function EvidenceReader({
       setNoteError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not save the note to this evidence.",
+          : "Scholion could not save the note to this evidence.",
       );
     } finally {
       setSavingNote(false);
@@ -139,7 +139,7 @@ export function EvidenceReader({
       >
         {generationState === "current"
           ? "Current verified canonical generation"
-          : "Older verified canonical generation · EchoFlow opened the exact evidence this research object cites and did not rebind it to the current transcript."}
+          : "Older verified canonical generation · Scholion opened the exact evidence this research object cites and did not rebind it to the current transcript."}
       </p>
 
       <dl className="evidence-proof">
@@ -200,7 +200,7 @@ export function EvidenceReader({
             <h3 id="evidence-note-title">Attach a note to this evidence</h3>
             <p>
               The note is anchored to this verified canonical generation and exact evidence span.
-              If the transcript changes before save, EchoFlow refuses the mutation instead of
+              If the transcript changes before save, Scholion refuses the mutation instead of
               silently moving the note.
             </p>
           </div>

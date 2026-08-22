@@ -1,5 +1,5 @@
 [project]
-name = "echoflow"
+name = "scholion"
 version = "0.1.0"
 description = "A local-first audio processing, transcription, and analysis application."
 readme = "README.md"
@@ -44,14 +44,14 @@ dev = [
 ]
 
 [project.scripts]
-echoflow = "echoflow.cli:app"
+scholion = "scholion.cli:app"
 
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/echoflow"]
+packages = ["src/scholion"]
 
 [tool.hatch.build]
 exclude = [
@@ -61,13 +61,13 @@ exclude = [
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers --strict-config"
-testpaths = ["src/echoflow"]
+testpaths = ["src/scholion"]
 python_files = ["test_*.py"]
 
 [tool.coverage.run]
 branch = true
-source = ["echoflow"]
-omit = ["src/echoflow/**/tests/*"]
+source = ["scholion"]
+omit = ["src/scholion/**/tests/*"]
 
 [tool.coverage.report]
 fail_under = 90
@@ -92,11 +92,11 @@ max-complexity = 10
 # Custody tests use synthetic non-secret confirmation values and synthetic /tmp lifecycle
 # paths to exercise path/plan behavior. Scope the false-positive exceptions to these two
 # test modules rather than weakening the production or repository-wide security rules.
-"src/echoflow/library/tests/test_custody.py" = ["S106", "S108"]
-"src/echoflow/tests/test_cli_custody.py" = ["S106"]
+"src/scholion/library/tests/test_custody.py" = ["S106", "S108"]
+"src/scholion/tests/test_cli_custody.py" = ["S106"]
 # The navigation adapter interpolates only closed internal table/order fragments selected
 # by code; every runtime/user value remains a bound SQLite parameter.
-"src/echoflow/library/workspace_metadata.py" = ["S608"]
+"src/scholion/library/workspace_metadata.py" = ["S608"]
 
 [tool.radon]
 # Report B-or-worse complexity; Ruff enforces the hard score-above-10 gate.
@@ -108,7 +108,7 @@ average = true
 exclude = "**/tests/*"
 
 [tool.vulture]
-paths = ["src/echoflow"]
+paths = ["src/scholion"]
 exclude = ["**/tests/**"]
 ignore_names = ["cls"]
 min_confidence = 100
@@ -117,58 +117,58 @@ sort_by_size = true
 [tool.poodle]
 source_folders = ["."]
 only_files = [
-    "src/echoflow/cli.py",
-    "src/echoflow/core/config.py",
-    "src/echoflow/core/file_manager_facade.py",
-    "src/echoflow/core/health_check.py",
-    "src/echoflow/core/health_probes.py",
-    "src/echoflow/core/logger.py",
-    "src/echoflow/core/performance_tracker.py",
-    "src/echoflow/core/privacy.py",
-    "src/echoflow/interfaces/local_file_manager.py",
-    "src/echoflow/interfaces/private_storage.py",
-    "src/echoflow/library/index.py",
-    "src/echoflow/library/duckdb_index.py",
-    "src/echoflow/library/duckdb_semantic.py",
-    "src/echoflow/library/projection.py",
-    "src/echoflow/library/retrieval.py",
-    "src/echoflow/library/semantic.py",
-    "src/echoflow/library/service.py",
-    "src/echoflow/library/speaker_label_service.py",
-    "src/echoflow/library/transcript_tools.py",
-    "src/echoflow/library/playback.py",
-    "src/echoflow/media/models.py",
-    "src/echoflow/media/probe.py",
-    "src/echoflow/model_management/catalog.py",
-    "src/echoflow/model_management/models.py",
-    "src/echoflow/model_management/provider.py",
-    "src/echoflow/model_management/service.py",
-    "src/echoflow/runner/inspector.py",
-    "src/echoflow/runner/models.py",
-    "src/echoflow/runner/policy.py",
-    "src/echoflow/runner/topology.py",
-    "src/echoflow/transcription/models.py",
-    "src/echoflow/transcription/adaptive_executor.py",
-    "src/echoflow/transcription/assembly.py",
-    "src/echoflow/transcription/audio.py",
-    "src/echoflow/transcription/backend.py",
-    "src/echoflow/transcription/capabilities.py",
-    "src/echoflow/transcription/checkpoint.py",
-    "src/echoflow/transcription/diarization.py",
-    "src/echoflow/transcription/enhancement.py",
-    "src/echoflow/transcription/enhancement_models.py",
-    "src/echoflow/transcription/executor.py",
-    "src/echoflow/transcription/export.py",
-    "src/echoflow/transcription/language.py",
-    "src/echoflow/transcription/pipeline.py",
-    "src/echoflow/transcription/planner.py",
-    "src/echoflow/transcription/segmentation.py",
-    "src/echoflow/transcription/speaker_models.py",
-    "src/echoflow/transcription/strategy.py",
-    "src/echoflow/desktop/transcript_tools_bridge.py",
-    "src/echoflow/desktop/playback_bridge.py",
-    "src/echoflow/workspace/models.py",
-    "src/echoflow/workspace/service.py",
+    "src/scholion/cli.py",
+    "src/scholion/core/config.py",
+    "src/scholion/core/file_manager_facade.py",
+    "src/scholion/core/health_check.py",
+    "src/scholion/core/health_probes.py",
+    "src/scholion/core/logger.py",
+    "src/scholion/core/performance_tracker.py",
+    "src/scholion/core/privacy.py",
+    "src/scholion/interfaces/local_file_manager.py",
+    "src/scholion/interfaces/private_storage.py",
+    "src/scholion/library/index.py",
+    "src/scholion/library/duckdb_index.py",
+    "src/scholion/library/duckdb_semantic.py",
+    "src/scholion/library/projection.py",
+    "src/scholion/library/retrieval.py",
+    "src/scholion/library/semantic.py",
+    "src/scholion/library/service.py",
+    "src/scholion/library/speaker_label_service.py",
+    "src/scholion/library/transcript_tools.py",
+    "src/scholion/library/playback.py",
+    "src/scholion/media/models.py",
+    "src/scholion/media/probe.py",
+    "src/scholion/model_management/catalog.py",
+    "src/scholion/model_management/models.py",
+    "src/scholion/model_management/provider.py",
+    "src/scholion/model_management/service.py",
+    "src/scholion/runner/inspector.py",
+    "src/scholion/runner/models.py",
+    "src/scholion/runner/policy.py",
+    "src/scholion/runner/topology.py",
+    "src/scholion/transcription/models.py",
+    "src/scholion/transcription/adaptive_executor.py",
+    "src/scholion/transcription/assembly.py",
+    "src/scholion/transcription/audio.py",
+    "src/scholion/transcription/backend.py",
+    "src/scholion/transcription/capabilities.py",
+    "src/scholion/transcription/checkpoint.py",
+    "src/scholion/transcription/diarization.py",
+    "src/scholion/transcription/enhancement.py",
+    "src/scholion/transcription/enhancement_models.py",
+    "src/scholion/transcription/executor.py",
+    "src/scholion/transcription/export.py",
+    "src/scholion/transcription/language.py",
+    "src/scholion/transcription/pipeline.py",
+    "src/scholion/transcription/planner.py",
+    "src/scholion/transcription/segmentation.py",
+    "src/scholion/transcription/speaker_models.py",
+    "src/scholion/transcription/strategy.py",
+    "src/scholion/desktop/transcript_tools_bridge.py",
+    "src/scholion/desktop/playback_bridge.py",
+    "src/scholion/workspace/models.py",
+    "src/scholion/workspace/service.py",
 ]
 file_filters = [
     ".git/**",
@@ -197,8 +197,8 @@ RUN_MODE = "MUTATION"
 
 [tool.mypy]
 python_version = "3.12"
-files = ["src/echoflow"]
-exclude = ["src/echoflow/.*/tests/", "src/echoflow/tests/"]
+files = ["src/scholion"]
+exclude = ["src/scholion/.*/tests/", "src/scholion/tests/"]
 strict = true
 warn_unreachable = true
 pretty = true

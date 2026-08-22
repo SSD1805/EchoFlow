@@ -12,7 +12,7 @@ export const THEMES = [
 export type Theme = (typeof THEMES)[number]["id"];
 
 export const DEFAULT_THEME: Theme = "archive";
-export const THEME_STORAGE_KEY = "echoflow.theme.v1";
+export const THEME_STORAGE_KEY = "scholion.theme.v1";
 
 export function isTheme(value: string | null): value is Theme {
   return value !== null && THEMES.some((theme) => theme.id === value);

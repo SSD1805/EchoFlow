@@ -49,7 +49,7 @@ export function ResearchAnchorReviewPanel({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not inspect research anchors.",
+          : "Scholion could not inspect research anchors.",
       );
     });
   }, [loadReviewable]);
@@ -66,7 +66,7 @@ export function ResearchAnchorReviewPanel({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not review that evidence anchor.",
+          : "Scholion could not review that evidence anchor.",
       );
     } finally {
       setBusyNoteId(null);
@@ -96,7 +96,7 @@ export function ResearchAnchorReviewPanel({
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not re-anchor that note.",
+          : "Scholion could not re-anchor that note.",
       );
     } finally {
       setBusyNoteId(null);
@@ -110,7 +110,7 @@ export function ResearchAnchorReviewPanel({
           <p className="mini-label">Evidence maintenance</p>
           <h2 id="anchor-review-title">Review older or unavailable note anchors</h2>
           <p>
-            EchoFlow never silently moves research to a newer transcript. Review the stored
+            Scholion never silently moves research to a newer transcript. Review the stored
             evidence and any current-generation candidate first, then explicitly confirm a
             re-anchor if the candidate is correct.
           </p>
@@ -188,7 +188,7 @@ export function ResearchAnchorReviewPanel({
                           </>
                         ) : (
                           <p className="research-anchor-unavailable">
-                            EchoFlow could not derive a safe same-source current candidate. No re-anchor action is available.
+                            Scholion could not derive a safe same-source current candidate. No re-anchor action is available.
                           </p>
                         )}
                       </section>

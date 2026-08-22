@@ -1,12 +1,12 @@
 # Post-MVP research roadmap 🔭
 
-EchoFlow's first product milestone is intentionally narrower than its long-term possibility.
+Scholion's first product milestone is intentionally narrower than its long-term possibility.
 The MVP / pre-1.0 critical path is still: make a normal desktop application that can safely
 process local recordings, preserve canonical evidence, search and annotate it, recover from
 common failures, play verified source media, manage lifecycle, package cleanly, and move or
 back up durable work.
 
-Once that loop is coherent, EchoFlow can grow from a recorded-evidence workspace into a
+Once that loop is coherent, Scholion can grow from a recorded-evidence workspace into a
 broader **research provenance environment**. The capabilities below are second-horizon
 features, not reasons to delay the first desktop release.
 
@@ -28,7 +28,7 @@ interviews, podcasts, documentaries, livestreams, archival clips, voice memos, r
 recordings, and rough cuts, then need to find an exact quote, attach a production note,
 organize recurring themes, compare sources, and jump back to the precise audio/video moment.
 
-EchoFlow should not become a video editor or a creator-only application. The useful shared
+Scholion should not become a video editor or a creator-only application. The useful shared
 abstraction is **time-linked research**:
 
 `recording → canonical transcript → exact words → exact media time → research note → later writing/export`
@@ -38,7 +38,7 @@ the product into separate authorities.
 
 ## 1. Portable research bundle
 
-Provide one explicit, verifiable package for moving an EchoFlow project between computers.
+Provide one explicit, verifiable package for moving an Scholion project between computers.
 The bundle should contain durable authority and omit rebuildable machinery:
 
 - canonical transcript evidence;
@@ -62,7 +62,7 @@ Packets should be able to carry:
 - timestamps and numeric source-relative coordinates;
 - document and canonical-generation identity;
 - processing/source provenance appropriate to the export; and
-- EchoFlow deep-links or durable locators back to verified evidence when the receiving
+- Scholion deep-links or durable locators back to verified evidence when the receiving
   environment supports them.
 
 An evidence packet is a publication view, never a replacement for canonical transcript or
@@ -70,16 +70,16 @@ research authority.
 
 ## 3. REFI-QDA interoperability
 
-Support the REFI-QDA exchange format so EchoFlow can participate in the wider qualitative
+Support the REFI-QDA exchange format so Scholion can participate in the wider qualitative
 research ecosystem instead of recreating every mature QDA feature from NVivo, MAXQDA,
 ATLAS.ti, QualCoder, and related tools.
 
 Prefer export before import. Export establishes a safe interoperability boundary first;
 import later needs explicit mapping rules for foreign source identities, coding structures,
 annotations, speakers, timestamps, and any concepts that do not map losslessly onto
-EchoFlow's evidence model.
+Scholion's evidence model.
 
-External exchange formats must not become canonical transcript authority inside EchoFlow.
+External exchange formats must not become canonical transcript authority inside Scholion.
 
 ## 4. Saved-question snapshots and diffs
 
@@ -113,7 +113,7 @@ from durable notes while retaining the evidence relationships that motivated the
 
 A section or paragraph may cite one or more verified excerpts. Word/Markdown export should
 preserve useful citations, footnotes/endnotes, deep-links, or an evidence appendix so the
-trail from synthesis back to source remains inspectable after writing leaves EchoFlow.
+trail from synthesis back to source remains inspectable after writing leaves Scholion.
 
 For documentary, podcast, and video-essay workflows, the same authority can support a
 **script/evidence board** rather than a full editor. A board might contain ordered evidence
@@ -135,12 +135,12 @@ Note: useful exterior visual / B-roll beat
 ```
 
 Export can target Markdown, DOCX, plain text, or a later structured outline interchange
-while preserving source timestamps and EchoFlow evidence locators. Premiere, Resolve, Final
-Cut, and dedicated writing tools remain the editing environment; EchoFlow remains the
+while preserving source timestamps and Scholion evidence locators. Premiere, Resolve, Final
+Cut, and dedicated writing tools remain the editing environment; Scholion remains the
 research/provenance companion.
 
 The feature does not require generative writing. The researcher or creator can author every
-word while EchoFlow protects provenance.
+word while Scholion protects provenance.
 
 ## 7. Live research capture
 
@@ -154,7 +154,7 @@ Eventually support live recording sessions with a clearly provisional layer:
 
 Live ASR must never silently become canonical transcript authority. Reconciliation needs
 explicit outcomes such as exact, adjusted, ambiguous, or unresolved. Human notes survive
-regardless, while evidence anchors become canonical only when EchoFlow can establish the
+regardless, while evidence anchors become canonical only when Scholion can establish the
 relationship safely.
 
 This is especially useful for interviews and field recording, including documentary and
@@ -163,7 +163,7 @@ return to the verified final evidence later.
 
 ## Product guardrails for the second horizon
 
-These features extend EchoFlow's research surface without weakening its custody model:
+These features extend Scholion's research surface without weakening its custody model:
 
 - provisional state never masquerades as canonical evidence;
 - exports retain provenance and identify themselves as publications;

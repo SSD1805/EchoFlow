@@ -1,7 +1,7 @@
-"""Verify EchoFlow Mermaid docs stay GitHub-friendly and visually intentional.
+"""Verify Scholion Mermaid docs stay GitHub-friendly and visually intentional.
 
 GitHub documents Mermaid fenced blocks directly and accepts the classic ``graph TD;``
-form. EchoFlow also uses Mermaid's ``flowchart`` spelling. The verifier protects direct
+form. Scholion also uses Mermaid's ``flowchart`` spelling. The verifier protects direct
 visibility, simple portable structure, the established palette, and optional secondary
 static fallbacks without rewriting one valid spelling into another.
 """
@@ -80,7 +80,7 @@ def _classdef_errors(body: str, diagram_index: int) -> list[str]:
         style = tuple(value.upper() for value in match.groups())
         if style not in APPROVED_STYLES:
             errors.append(
-                f"diagram {diagram_index} uses colors outside the EchoFlow Mermaid palette"
+                f"diagram {diagram_index} uses colors outside the Scholion Mermaid palette"
             )
     return errors
 
@@ -89,7 +89,7 @@ def _inside_details(text: str, offset: int) -> bool:
     """Return whether offset is inside an actual line-level HTML disclosure.
 
     Literal documentation prose such as ``<details>`` must not be mistaken for a real
-    opening tag. EchoFlow's Markdown disclosures use standalone line-level tags.
+    opening tag. Scholion's Markdown disclosures use standalone line-level tags.
     """
 
     before = text[:offset]
@@ -147,7 +147,7 @@ def _fallback_errors(path: Path, text: str, blocks: list[re.Match[str]]) -> list
     if "<title" not in svg or "<desc" not in svg:
         errors.append("static SVG fallback needs accessible <title> and <desc>")
     if not any(color in svg.upper() for color in APPROVED_SVG_COLORS):
-        errors.append("static SVG fallback must use the approved EchoFlow palette")
+        errors.append("static SVG fallback must use the approved Scholion palette")
 
     sha_match = FALLBACK_SHA.search(svg)
     expected = hashlib.sha256(blocks[0].group("body").encode("utf-8")).hexdigest()
@@ -192,7 +192,7 @@ def main() -> int:
 
     print(
         "Mermaid documentation is directly visible, uses portable graph/flowchart syntax, "
-        "preserves the EchoFlow palette, and keeps secondary SVG fallbacks synchronized."
+        "preserves the Scholion palette, and keeps secondary SVG fallbacks synchronized."
     )
     return 0
 

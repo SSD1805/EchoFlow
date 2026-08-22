@@ -3,8 +3,8 @@
 Search is useful when it finds something. Research gets easier when the result can also
 answer **“where, exactly, did this come from?”**
 
-EchoFlow has a navigation layer between retrieval and presentation. BM25, semantic search,
-and hybrid retrieval decide *which passage ranks*. Then EchoFlow goes back to the
+Scholion has a navigation layer between retrieval and presentation. BM25, semantic search,
+and hybrid retrieval decide *which passage ranks*. Then Scholion goes back to the
 authoritative canonical transcript, verifies that it is still the exact transcript that
 was indexed, and resolves the result onto canonical segments and word timing.
 
@@ -42,7 +42,7 @@ address.
 The command-line contract remains ordinary library search:
 
 ```bash
-echoflow library search "housing affordability"
+scholion library search "housing affordability"
 ```
 
 The desktop Library screen consumes the same application seam through grouped workspace
@@ -64,15 +64,15 @@ presentation DTOs.
 ## Exact highlighting is allowed to say “I don't know”
 
 Lexical search knows which canonical segment matched the query. When aligned word timing
-exists, EchoFlow can resolve the same lexical token semantics onto canonical words.
+exists, Scholion can resolve the same lexical token semantics onto canonical words.
 
 For an exact phrase:
 
 ```bash
-echoflow library search "housing affordability" --phrase
+scholion library search "housing affordability" --phrase
 ```
 
-EchoFlow requires phrase tokens to be contiguous before marking canonical words as the
+Scholion requires phrase tokens to be contiguous before marking canonical words as the
 exact match.
 
 Semantic retrieval is different. An embedding may decide that a passage is conceptually
@@ -85,12 +85,12 @@ exact lexical highlights can be shown alongside fused ranking provenance.
 ## Give me a little more context
 
 ```bash
-echoflow library search \
+scholion library search \
   "housing affordability" \
   --context-segments 1
 ```
 
-Context expansion happens **after ranking**. EchoFlow does not feed neighboring text back
+Context expansion happens **after ranking**. Scholion does not feed neighboring text back
 into BM25 or semantic scoring and then pretend the original ranks still mean the same
 thing.
 
@@ -134,7 +134,7 @@ numeric start/end seconds
 A command-line note therefore attaches to canonical evidence, not a search row:
 
 ```bash
-echoflow library notes add JOB_ID segment-000042 \
+scholion library notes add JOB_ID segment-000042 \
   --body "Compare this with the 2024 survey." \
   --tag methodology
 ```
@@ -172,11 +172,11 @@ verified native playback without exposing raw source paths to React.
 
 ## Research metadata can constrain later retrieval
 
-Notes/tags/collections are not merely decorations on already-ranked results. EchoFlow can
+Notes/tags/collections are not merely decorations on already-ranked results. Scholion can
 resolve them into a canonical evidence scope before ranking:
 
 ```bash
-echoflow library search \
+scholion library search \
   "housing affordability" \
   --tag methodology \
   --collection "Chapter 3" \

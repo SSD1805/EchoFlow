@@ -4,7 +4,7 @@ A transcript that says *what* somebody said is useful. A transcript that can als
 to **when each word occurred** is much more useful for speaker handoffs, search
 highlighting, source seeking, precise annotations, and later editing interfaces.
 
-EchoFlow preserves word timing evidence already produced by faster-whisper. It does not
+Scholion preserves word timing evidence already produced by faster-whisper. It does not
 invent timestamps from character positions, and it does not currently run a separate
 forced-alignment model.
 
@@ -38,7 +38,7 @@ Presentation may trim/style later; canonical evidence does not rewrite it for ae
 
 ## The timeline stays the same
 
-EchoFlow owns deterministic work windows over canonical decoded audio. Faster-whisper
+Scholion owns deterministic work windows over canonical decoded audio. Faster-whisper
 returns timestamps relative to one work window. Assembly rebases both segment and word
 intervals onto one source-relative timeline.
 
@@ -83,7 +83,7 @@ boundary tolerance, ordered non-overlapping word intervals beyond that tolerance
 probability within zero-to-one when present, and non-blank word evidence.
 
 The tolerance handles small floating-point/engine boundary differences. It changes
-**validation**, not stored timestamps. EchoFlow does not nudge timestamps onto a prettier
+**validation**, not stored timestamps. Scholion does not nudge timestamps onto a prettier
 grid.
 
 ## Is this forced alignment?
@@ -91,17 +91,17 @@ grid.
 No.
 
 A forced aligner usually takes known text plus audio and performs a separate acoustic
-alignment pass. EchoFlow asks faster-whisper for its native word timing and preserves it.
+alignment pass. Scholion asks faster-whisper for its native word timing and preserves it.
 
 That avoids another model/download and another heavy inference pass, while keeping timing
 attributable to the same managed ASR execution that produced the text.
 
-It also means EchoFlow should not advertise native word timing as independently corrected
+It also means Scholion should not advertise native word timing as independently corrected
 forced-alignment truth.
 
 ## Speaker handoffs get much better 💃
 
-ASR segments and diarization turns have different boundaries. Word intervals let EchoFlow
+ASR segments and diarization turns have different boundaries. Word intervals let Scholion
 project anonymous turns onto smaller evidence coordinates.
 
 A word receives a speaker only when exactly one diarized speaker overlaps that word
@@ -133,7 +133,7 @@ flowchart TD
     class F,I ambiguous
 ```
 
-EchoFlow now also has a derived speaker transcript that presents clean handoffs, true
+Scholion now also has a derived speaker transcript that presents clean handoffs, true
 simultaneous overlap, sequential mixed/unresolved text, and unattributed text separately.
 User-assigned names such as `Dr. Chen (speaker-02)` remain durable presentation state over
 anonymous evidence, not replacements for it.

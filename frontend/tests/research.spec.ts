@@ -139,7 +139,12 @@ test("Susan can reopen a note against the exact earlier transcript version", asy
 
   const reader = page.getByRole("complementary", { name: "Evidence reader" });
   await expect(reader).toBeVisible();
-  await expect(reader.getByText("Transcript passage", { exact: true })).toBeVisible();
+  await expect(
+    reader.getByText(
+      "Earlier transcript version · This is the exact version this research note points to.",
+      { exact: true },
+    ),
+  ).toBeVisible();
   await expect(reader.getByText("cccccccccccc…")).toBeVisible();
   await expect(reader.getByRole("heading", { name: "Attach a note to this evidence" })).toHaveCount(0);
   await expect(

@@ -5,9 +5,6 @@ targets = [
   "aarch64-apple-darwin",
 ]
 
-[advisories]
-yanked = "deny"
-
 [licenses]
 confidence-threshold = 0.8
 allow = [

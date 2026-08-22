@@ -42,12 +42,12 @@ jobs:
       - name: Establish retrieval qualification baseline
         run: >-
           uv run pytest
-          src/echoflow/library/tests/test_semantic.py
-          src/echoflow/library/tests/test_duckdb_semantic.py
-          src/echoflow/library/tests/test_retrieval.py
-          src/echoflow/library/tests/test_service_semantic.py
-          src/echoflow/tests/test_cli_library.py
-          --cov=echoflow
+          src/scholion/library/tests/test_semantic.py
+          src/scholion/library/tests/test_duckdb_semantic.py
+          src/scholion/library/tests/test_retrieval.py
+          src/scholion/library/tests/test_service_semantic.py
+          src/scholion/tests/test_cli_library.py
+          --cov=scholion
           --cov-context=test
           --cov-report=
           --cov-fail-under=0
@@ -60,7 +60,7 @@ jobs:
         run: >-
           uv run poodle
           -w 4
-          --only src/echoflow/library/semantic.py
-          --only src/echoflow/library/duckdb_semantic.py
-          --only src/echoflow/library/retrieval.py
-          --only src/echoflow/library/service.py
+          --only src/scholion/library/semantic.py
+          --only src/scholion/library/duckdb_semantic.py
+          --only src/scholion/library/retrieval.py
+          --only src/scholion/library/service.py

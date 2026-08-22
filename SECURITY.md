@@ -149,6 +149,23 @@ Include the affected commit/version, operating system, minimal reproduction, imp
 and whether exploitation requires a malicious local file, another local process, or
 network access.
 
+## CI supply-chain boundary
+
+GitHub Actions are pinned to immutable commit SHAs rather than floating tags. Routine CI,
+acceptance, audit, and mutation jobs check out source with
+`persist-credentials: false`, so `actions/checkout` does not leave the job's GitHub token
+in local Git credential configuration after checkout. These jobs only read repository
+contents and do not need later authenticated Git operations.
+
+Workflow-level permissions remain read-only by default. A job that genuinely requires an
+additional GitHub permission must declare that permission explicitly for that job instead
+of making repository-wide CI credentials broader. A lint or security scanner failure is
+not, by itself, a reason to grant write authority or suppress the finding.
+
+This boundary reduces what later build/test steps can reuse if one is compromised. It does
+not make arbitrary third-party actions trustworthy or replace action SHA pinning, minimal
+permissions, dependency auditing, and review of workflow changes.
+
 ## Media inspection boundary
 
 Dry-run and Processing Center inspection resolve a regular local file, restrict FFprobe

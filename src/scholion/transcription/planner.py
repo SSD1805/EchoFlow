@@ -247,13 +247,16 @@ class TranscriptionJobPlanner:
         )
 
     def assess_strategies(
-        self, *, profile: ProcessingProfile = ProcessingProfile.BALANCED
+        self,
+        *,
+        profile: ProcessingProfile = ProcessingProfile.BALANCED,
+        topology: HardwareTopology | None = None,
     ) -> tuple[dict[str, object], ...]:
-        """Describe all strategies against fresh CPU, RAM, and accelerator evidence."""
+        """Describe strategies against one supplied or freshly inspected topology."""
 
-        topology = self._topology()
-        policy = self.policy_planner.plan(topology.resources, profile)
-        assessments = self._assess(topology, policy)
+        current_topology = topology or self._topology()
+        policy = self.policy_planner.plan(current_topology.resources, profile)
+        assessments = self._assess(current_topology, policy)
         feasible = tuple(
             assessment for assessment in assessments if assessment.feasible
         )

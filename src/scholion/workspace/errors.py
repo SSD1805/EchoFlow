@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from scholion.core.errors import ScholionError, ErrorCode
+from scholion.core.errors import ErrorCode, ScholionError
 
 
 class InvalidInputError(ScholionError):

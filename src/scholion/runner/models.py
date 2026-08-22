@@ -24,6 +24,7 @@ class RunnerResources:
     memory_limit_bytes: int | None
     effective_memory_available_bytes: int
     constraints: tuple[str, ...] = ()
+    processor_name: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)

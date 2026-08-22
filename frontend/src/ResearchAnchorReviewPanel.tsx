@@ -16,12 +16,12 @@ interface ResearchAnchorReviewPanelProps {
 
 function statusCopy(review: ResearchAnchorReviewResult): string {
   if (review.status === "current_verified") {
-    return "This note now cites the current verified canonical generation.";
+    return "This note points to the current transcript version.";
   }
   if (review.status === "older_verified") {
-    return "The stored evidence still verifies, but it belongs to an older canonical generation.";
+    return "This note still points to a valid earlier transcript version.";
   }
-  return "The stored canonical evidence cannot currently be verified on this machine.";
+  return "The transcript version this note points to is not currently available on this computer.";
 }
 
 function shortSha(value: string): string {
@@ -49,7 +49,7 @@ export function ResearchAnchorReviewPanel({
       setError(
         caught instanceof Error
           ? caught.message
-          : "Scholion could not inspect research anchors.",
+          : "Scholion could not check older note links.",
       );
     });
   }, [loadReviewable]);
@@ -66,7 +66,7 @@ export function ResearchAnchorReviewPanel({
       setError(
         caught instanceof Error
           ? caught.message
-          : "Scholion could not review that evidence anchor.",
+          : "Scholion could not check that note's transcript link.",
       );
     } finally {
       setBusyNoteId(null);
@@ -90,13 +90,13 @@ export function ResearchAnchorReviewPanel({
       });
       onReanchored();
       setMessage(
-        "Note re-anchored to the reviewed current generation. The prior anchor was preserved in durable history.",
+        "Note moved to the reviewed passage in the current transcript. Its earlier transcript link was kept in the note's history.",
       );
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
-          : "Scholion could not re-anchor that note.",
+          : "Scholion could not move that note to the current transcript.",
       );
     } finally {
       setBusyNoteId(null);
@@ -107,12 +107,12 @@ export function ResearchAnchorReviewPanel({
     <section className="research-anchor-review" aria-labelledby="anchor-review-title">
       <div className="research-anchor-review-heading">
         <div>
-          <p className="mini-label">Evidence maintenance</p>
-          <h2 id="anchor-review-title">Review older or unavailable note anchors</h2>
+          <p className="mini-label">Older transcript links</p>
+          <h2 id="anchor-review-title">Review notes tied to earlier transcript versions</h2>
           <p>
-            Scholion never silently moves research to a newer transcript. Review the stored
-            evidence and any current-generation candidate first, then explicitly confirm a
-            re-anchor if the candidate is correct.
+            Scholion never silently moves a note when a transcript changes. Compare the passage the
+            note currently points to with the current transcript, then choose whether to move the
+            note.
           </p>
         </div>
         <span className="research-count" aria-label={`${notes.length} notes need review`}>
@@ -132,7 +132,7 @@ export function ResearchAnchorReviewPanel({
       )}
 
       {notes.length === 0 ? (
-        <p className="research-empty">No older or unavailable anchors need review.</p>
+        <p className="research-empty">No notes tied to earlier or unavailable transcript versions need review.</p>
       ) : (
         <div className="research-anchor-review-list">
           {notes.map((note) => {
@@ -145,12 +145,12 @@ export function ResearchAnchorReviewPanel({
                   <div>
                     <strong>{note.body}</strong>
                     <p>
-                      {note.document_id} · {formatEvidenceTime(note.start_seconds)} · stored
-                      generation <code>{shortSha(note.canonical_sha256)}</code>
+                      {note.document_id} · {formatEvidenceTime(note.start_seconds)} · transcript
+                      version <code>{shortSha(note.canonical_sha256)}</code>
                     </p>
                   </div>
                   <button type="button" disabled={busy} onClick={() => void review(note)}>
-                    {busy ? "Reviewing…" : reviewed ? "Review again" : "Review evidence status"}
+                    {busy ? "Checking…" : reviewed ? "Check again" : "Compare transcript versions"}
                   </button>
                 </div>
 
@@ -161,34 +161,34 @@ export function ResearchAnchorReviewPanel({
                     </p>
 
                     <div className="research-anchor-columns">
-                      <section aria-label="Stored anchor">
-                        <p className="mini-label">Stored anchor</p>
+                      <section aria-label="Passage this note points to">
+                        <p className="mini-label">Passage this note points to</p>
                         {reviewed.anchored ? (
                           <>
                             <p>{reviewed.anchored.text}</p>
                             <small>
-                              {formatEvidenceTime(reviewed.anchored.start_seconds)} · {shortSha(reviewed.anchored.canonical_sha256)}
+                              {formatEvidenceTime(reviewed.anchored.start_seconds)} · version {shortSha(reviewed.anchored.canonical_sha256)}
                             </small>
                           </>
                         ) : (
                           <p className="research-anchor-unavailable">
-                            Stored evidence cannot be verified locally. The durable anchor has not been changed.
+                            This earlier transcript passage cannot be checked locally right now. The note has not been changed.
                           </p>
                         )}
                       </section>
 
-                      <section aria-label="Current candidate">
-                        <p className="mini-label">Current-generation candidate</p>
+                      <section aria-label="Current transcript passage">
+                        <p className="mini-label">Current transcript passage</p>
                         {reviewed.candidate ? (
                           <>
                             <p>{reviewed.candidate.text}</p>
                             <small>
-                              {formatEvidenceTime(reviewed.candidate.start_seconds)} · {shortSha(reviewed.candidate.canonical_sha256)}
+                              {formatEvidenceTime(reviewed.candidate.start_seconds)} · version {shortSha(reviewed.candidate.canonical_sha256)}
                             </small>
                           </>
                         ) : (
                           <p className="research-anchor-unavailable">
-                            Scholion could not derive a safe same-source current candidate. No re-anchor action is available.
+                            Scholion could not find a safe matching passage in the current transcript. The note cannot be moved automatically.
                           </p>
                         )}
                       </section>
@@ -196,7 +196,7 @@ export function ResearchAnchorReviewPanel({
 
                     {reviewed.history.length > 0 && (
                       <details className="research-anchor-history">
-                        <summary>Previous anchors ({reviewed.history.length})</summary>
+                        <summary>Earlier note links ({reviewed.history.length})</summary>
                         <ol>
                           {reviewed.history.map((entry) => (
                             <li key={entry.revision}>
@@ -215,16 +215,16 @@ export function ResearchAnchorReviewPanel({
                             className="research-anchor-prepare"
                             onClick={() => setConfirmingNoteId(note.note_id)}
                           >
-                            Prepare re-anchor
+                            Move note to this passage
                           </button>
                         ) : (
                           <div
                             className="research-anchor-confirm"
                             role="group"
-                            aria-label="Confirm re-anchor"
+                            aria-label="Confirm note move"
                           >
                             <p>
-                              This changes the note’s current evidence pointer to the candidate above. The existing anchor will be retained as immutable history.
+                              This note will point to the current transcript passage shown above. Its earlier transcript link will remain in the note's history.
                             </p>
                             <button
                               type="button"
@@ -232,8 +232,8 @@ export function ResearchAnchorReviewPanel({
                               onClick={() => void confirmReanchor(note)}
                             >
                               {busy
-                                ? "Re-anchoring…"
-                                : "Confirm re-anchor to reviewed candidate"}
+                                ? "Moving note…"
+                                : "Confirm move to current transcript"}
                             </button>
                             <button
                               type="button"

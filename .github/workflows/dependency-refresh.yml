@@ -45,12 +45,18 @@ jobs:
           cargo update --manifest-path frontend/src-tauri/Cargo.toml -p tauri-runtime-wry --precise 2.8.0
           cargo update --manifest-path frontend/src-tauri/Cargo.toml -p tauri-runtime --precise 2.8.0
 
-      - name: Commit refreshed locks
+      - name: Raise the frontend audit floor to moderate
+        run: >-
+          sed -i
+          's/npm audit --audit-level=high/npm audit --audit-level=moderate/'
+          .github/workflows/quality.yml
+
+      - name: Commit refreshed dependency state
         shell: bash
         run: |
-          git add uv.lock frontend/package-lock.json frontend/src-tauri/Cargo.lock
+          git add uv.lock frontend/package-lock.json frontend/src-tauri/Cargo.lock .github/workflows/quality.yml
           if git diff --cached --quiet; then
-            echo "Lock files are already current within declared constraints."
+            echo "Dependency state is already current within declared constraints."
             exit 0
           fi
           git config user.name "github-actions[bot]"

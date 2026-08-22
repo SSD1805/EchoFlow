@@ -1,4 +1,4 @@
-from scholion.core.errors import ScholionError, ErrorCode
+from scholion.core.errors import ErrorCode, ScholionError
 
 
 class ResourceAdmissionError(ScholionError):

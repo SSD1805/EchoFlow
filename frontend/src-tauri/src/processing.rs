@@ -61,7 +61,11 @@ impl ProcessEntry {
 
     fn finish(&mut self, status: ExitStatus) {
         self.exit_code = status.code();
-        self.state = if status.success() { "completed" } else { "failed" };
+        self.state = if status.success() {
+            "completed"
+        } else {
+            "failed"
+        };
         self.child = None;
     }
 
@@ -208,9 +212,9 @@ pub async fn processing_cancel_task(
         child
             .kill()
             .map_err(|_| "EchoFlow could not stop the local processing task".to_string())?;
-        let status = child
-            .wait()
-            .map_err(|_| "EchoFlow could not finish stopping the local processing task".to_string())?;
+        let status = child.wait().map_err(|_| {
+            "EchoFlow could not finish stopping the local processing task".to_string()
+        })?;
         entry.exit_code = status.code();
         entry.state = "cancelled";
         entry.child = None;

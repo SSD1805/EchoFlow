@@ -110,10 +110,7 @@ impl PlaybackSessions {
         ))
     }
 
-    pub fn protocol_response(
-        &self,
-        request: http::Request<Vec<u8>>,
-    ) -> http::Response<Vec<u8>> {
+    pub fn protocol_response(&self, request: http::Request<Vec<u8>>) -> http::Response<Vec<u8>> {
         let method = request.method().clone();
         if method != http::Method::GET && method != http::Method::HEAD {
             return response_with_status(http::StatusCode::METHOD_NOT_ALLOWED);
@@ -173,9 +170,10 @@ impl PlaybackSessions {
 
         let partial = requested.is_some() || start != 0 || end + 1 != length;
         if partial {
-            builder = builder
-                .status(http::StatusCode::PARTIAL_CONTENT)
-                .header(header::CONTENT_RANGE, format!("bytes {start}-{end}/{length}"));
+            builder = builder.status(http::StatusCode::PARTIAL_CONTENT).header(
+                header::CONTENT_RANGE,
+                format!("bytes {start}-{end}/{length}"),
+            );
         } else {
             builder = builder.status(http::StatusCode::OK);
         }
@@ -319,9 +317,9 @@ pub async fn playback_prepare(
     let source_path = PathBuf::from(&grant.source_path);
     let file = File::open(&source_path)
         .map_err(|_| "The verified recording could not be opened for local playback".to_string())?;
-    let metadata = file
-        .metadata()
-        .map_err(|_| "The verified recording could not be inspected for local playback".to_string())?;
+    let metadata = file.metadata().map_err(|_| {
+        "The verified recording could not be inspected for local playback".to_string()
+    })?;
     if metadata.len() != grant.source_size_bytes
         || modified_ns(&metadata) != Some(u128::from(grant.source_modified_ns))
     {
@@ -366,7 +364,10 @@ mod tests {
         assert_eq!(parse_single_range("bytes=0-99", 1_000), Some((0, 99)));
         assert_eq!(parse_single_range("bytes=900-", 1_000), Some((900, 999)));
         assert_eq!(parse_single_range("bytes=-100", 1_000), Some((900, 999)));
-        assert_eq!(parse_single_range("bytes=100-9999", 1_000), Some((100, 999)));
+        assert_eq!(
+            parse_single_range("bytes=100-9999", 1_000),
+            Some((100, 999))
+        );
     }
 
     #[test]

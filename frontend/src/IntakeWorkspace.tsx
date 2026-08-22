@@ -34,7 +34,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
   const [automatic, setAutomatic] = useState(false);
   const [locations, setLocations] = useState<LibraryLocation[]>([]);
   const [discovered, setDiscovered] = useState<Array<{ path: string; size: number }>>([]);
-  const [status, setStatus] = useState("Choose recordings or an existing transcript library to begin.");
+  const [status, setStatus] = useState("Choose recordings or an existing transcript folder to begin.");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -42,7 +42,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
     void client
       .listLocations()
       .then(setLocations)
-      .catch(() => setStatus("Scholion is ready for a new local import."));
+      .catch(() => setStatus("Choose files or a folder to begin."));
   }, [client]);
 
   const canRemember = selectionType === "folder" && selectedPaths.length === 1;
@@ -62,7 +62,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
     setSelectedPaths(paths);
     setRemember(false);
     setAutomatic(false);
-    setStatus("This one-time selection stays local and is not remembered as a watched location.");
+    setStatus("These files will be used once. Scholion will not remember their folder.");
   }
 
   async function chooseFolder() {
@@ -73,7 +73,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
     setSelectedPaths([path]);
     setRemember(false);
     setAutomatic(false);
-    setStatus("Choose whether Scholion should use this folder once or remember it for future discovery.");
+    setStatus("Use this folder once, or remember it so Scholion can check it again later.");
   }
 
   async function applySelection() {
@@ -84,8 +84,8 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
       if (!remember) {
         setStatus(
           purpose === "recording-source"
-            ? "Ready for transcription planning. Scholion has not saved a folder permission."
-            : "Ready for one-time transcript import. Scholion has not saved a folder permission.",
+            ? "Recording selection ready. Its folder was not saved."
+            : "Transcript selection ready. Its folder was not saved.",
         );
         return;
       }
@@ -98,14 +98,35 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
         const report = await client.discoverRecordings();
         setDiscovered(report.recordings.map((item) => ({ path: item.path, size: item.size_bytes })));
         setStatus(
-          `Folder remembered. ${report.recordings.length} recording${report.recordings.length === 1 ? "" : "s"} discovered; nothing was transcribed automatically by this action.`,
+          `Folder remembered. Scholion found ${report.recordings.length} recording${report.recordings.length === 1 ? "" : "s"}. Remembering the folder did not start transcription.`,
         );
       } else {
         await client.refreshTranscriptLocations();
-        setStatus("Transcript library remembered and reconciled with Scholion's local index.");
+        setStatus("Folder remembered. Scholion checked it for transcript files and updated Library search.");
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Scholion could not add this location safely.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not use this folder.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function refreshRemembered() {
+    setBusy(true);
+    setError(null);
+    try {
+      if (purpose === "recording-source") {
+        const report = await client.discoverRecordings();
+        setDiscovered(report.recordings.map((item) => ({ path: item.path, size: item.size_bytes })));
+        setStatus(
+          `Checked remembered recording folders. Found ${report.recordings.length} recording${report.recordings.length === 1 ? "" : "s"}. No transcription was started.`,
+        );
+      } else {
+        await client.refreshTranscriptLocations();
+        setStatus("Checked remembered transcript folders and updated Library search.");
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Scholion could not check the remembered folders.");
     } finally {
       setBusy(false);
     }
@@ -124,24 +145,24 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
   return (
     <>
       <WorkspaceHeader
-        eyebrow="Evidence intake"
-        title="Bring your recordings home."
+        eyebrow="Add files"
+        title="Add local recordings and transcripts."
         theme={theme}
         onThemeChange={onThemeChange}
       />
 
       <section className="intro-copy" aria-labelledby="intake-title">
         <div>
-          <p className="section-kicker">01 · Choose what Scholion should know about</p>
-          <h2 id="intake-title">Add local evidence without giving up custody.</h2>
+          <p className="section-kicker">01 · Add files</p>
+          <h2 id="intake-title">Choose files once, or remember a folder.</h2>
         </div>
         <p>
-          Select individual files for a one-time job, or remember a research folder so Scholion can discover new material when you ask it to refresh.
+          Remembered folders are checked again only when Scholion refreshes them. Your files stay in their current location.
         </p>
       </section>
 
       <section className="intake-card" aria-label="Import controls">
-        <div className="purpose-tabs" role="tablist" aria-label="Evidence type">
+        <div className="purpose-tabs" role="tablist" aria-label="File type">
           <button
             type="button"
             role="tab"
@@ -167,7 +188,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
             <span className="picker-icon" aria-hidden="true">↥</span>
             <span className="picker-title">Choose files</span>
             <span className="picker-detail">
-              {purpose === "recording-source" ? "Audio or video, one or many" : "Canonical Scholion JSON"}
+              {purpose === "recording-source" ? "Audio or video, one or many" : "Scholion transcript files"}
             </span>
           </button>
           <button className="picker-card" type="button" onClick={() => void chooseFolder()}>
@@ -197,7 +218,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
 
         {canRemember && (
           <fieldset className="retention-choice">
-            <legend>How should Scholion use this location?</legend>
+            <legend>Should Scholion remember this folder?</legend>
             <label className={!remember ? "choice-card choice-active" : "choice-card"}>
               <input
                 type="radio"
@@ -210,7 +231,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
               />
               <span>
                 <strong>Just this time</strong>
-                <small>Use the selection now. Do not save the folder as a library permission.</small>
+                <small>Use it now without saving the folder for later.</small>
               </span>
             </label>
             <label className={remember ? "choice-card choice-active" : "choice-card"}>
@@ -222,7 +243,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
               />
               <span>
                 <strong>Remember this folder</strong>
-                <small>Revisit this location on explicit refresh and normal application lifecycle points.</small>
+                <small>Let Refresh check this folder for new files later. Remembering it does not move, copy, or transcribe anything.</small>
               </span>
             </label>
           </fieldset>
@@ -230,7 +251,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
 
         {remember && purpose === "recording-source" && (
           <details className="advanced-card">
-            <summary>Advanced processing policy</summary>
+            <summary>Automatic transcription</summary>
             <label className="checkbox-row">
               <input
                 type="checkbox"
@@ -238,9 +259,9 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
                 onChange={(event) => setAutomatic(event.target.checked)}
               />
               <span>
-                <strong>Automatically process newly discovered recordings</strong>
+                <strong>Automatically transcribe new recordings found here</strong>
                 <small>
-                  Explicit opt-in. Discovery itself still does not transcribe, copy, hash, or modify recordings.
+                  Off by default. Simply checking the folder does not start transcription unless you explicitly turn this on.
                 </small>
               </span>
             </label>
@@ -261,25 +282,33 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
         {error && <p className="error-banner" role="alert">{error}</p>}
       </section>
 
-      <section className="lower-grid" aria-label="Import overview">
+      <section className="lower-grid" aria-label="Local file overview">
         <article className="info-card">
-          <p className="mini-label">Remembered locations</p>
+          <p className="mini-label">Remembered folders</p>
           <strong className="metric">{locations.length}</strong>
-          <p>Private app preferences only. Forgetting one never deletes the files inside it.</p>
+          <p>Refresh checks folders you chose to remember. Forgetting a folder never deletes the files inside it.</p>
+          <button
+            type="button"
+            className="secondary-action"
+            disabled={busy || locations.length === 0}
+            onClick={() => void refreshRemembered()}
+          >
+            Check remembered folders
+          </button>
         </article>
         <article className="info-card">
-          <p className="mini-label">Discovered recordings</p>
+          <p className="mini-label">Recordings found</p>
           <strong className="metric">{discovered.length}</strong>
           <p>
             {discovered.length === 0
-              ? "Discovery is separate from processing."
+              ? "Finding a recording does not start transcription."
               : `${basename(discovered[0]?.path ?? "")} · ${formatBytes(discovered[0]?.size ?? 0)} and ${Math.max(0, discovered.length - 1)} more`}
           </p>
         </article>
         <article className="info-card provenance-card">
-          <p className="mini-label">Custody rule</p>
-          <strong>Originals stay original.</strong>
-          <p>Selecting media does not move it into a hidden Scholion vault.</p>
+          <p className="mini-label">Your files</p>
+          <strong>Files stay where they are.</strong>
+          <p>Scholion reads files from their current location. Selecting them does not move or copy them into a hidden app folder.</p>
         </article>
       </section>
     </>

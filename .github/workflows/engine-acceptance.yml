@@ -13,11 +13,11 @@ on:
     paths:
       - ".github/workflows/engine-acceptance.yml"
       - "scripts/verify_engine_acceptance.py"
-      - "src/echoflow/app/**"
-      - "src/echoflow/interfaces/**"
-      - "src/echoflow/media/**"
-      - "src/echoflow/transcription/**"
-      - "src/echoflow/workspace/**"
+      - "src/scholion/app/**"
+      - "src/scholion/interfaces/**"
+      - "src/scholion/media/**"
+      - "src/scholion/transcription/**"
+      - "src/scholion/workspace/**"
       - "pyproject.toml"
       - "uv.lock"
 

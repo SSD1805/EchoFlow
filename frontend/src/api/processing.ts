@@ -11,6 +11,16 @@ export interface ProcessingHealthCheck {
   error_code: string | null;
 }
 
+export interface ProcessingAccelerator {
+  accelerator_id: string;
+  backend: string;
+  device_index: number;
+  name: string;
+  memory_topology: string;
+  memory_total_bytes: number | null;
+  memory_available_bytes: number | null;
+}
+
 export interface ProcessingStrategy {
   strategy_id: string;
   model: string;
@@ -43,9 +53,13 @@ export interface ProcessingReadiness {
   resources: {
     platform: string;
     machine: string;
+    processor_name: string | null;
     effective_cpus: number;
+    memory_total_bytes: number;
+    memory_available_bytes: number;
     effective_memory_available_bytes: number;
     constraints: string[];
+    accelerators: ProcessingAccelerator[];
   };
   policy: {
     profile: ProcessingProfile;
@@ -409,15 +423,29 @@ class MockProcessingClient implements ProcessingClient {
       resources: {
         platform: "Linux",
         machine: "x86_64",
-        effective_cpus: 8,
-        effective_memory_available_bytes: 12_884_901_888,
+        processor_name: "AMD Ryzen 7 7700X 8-Core Processor",
+        effective_cpus: 16,
+        memory_total_bytes: 68_719_476_736,
+        memory_available_bytes: 55_834_574_848,
+        effective_memory_available_bytes: 55_834_574_848,
         constraints: [],
+        accelerators: [
+          {
+            accelerator_id: "cuda:0",
+            backend: "cuda",
+            device_index: 0,
+            name: "NVIDIA GeForce RTX 4080",
+            memory_topology: "dedicated",
+            memory_total_bytes: 17_179_869_184,
+            memory_available_bytes: 15_032_385_536,
+          },
+        ],
       },
       policy: {
         profile,
         provisional: profile === "screening",
-        cpu_threads: 8,
-        memory_budget_bytes: 9_663_676_416,
+        cpu_threads: 16,
+        memory_budget_bytes: 41_875_931_136,
         constraints: [],
       },
       strategies: [

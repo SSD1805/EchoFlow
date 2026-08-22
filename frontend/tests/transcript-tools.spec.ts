@@ -6,13 +6,13 @@ async function openTranscriptTools(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Library" }).click();
   await page.getByRole("searchbox", { name: "Search Scholion" }).fill("ABC");
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await page.getByRole("button", { name: "Open transcript tools for interview-42" }).click();
+  await page.getByRole("button", { name: "Open speaker and export tools for interview-42" }).click();
   const panel = page.getByRole("complementary", { name: "Transcript tools" });
   await expect(panel.getByRole("heading", { name: "interview-42" })).toBeVisible();
   return panel;
 }
 
-test("transcript tools expose verified details without filesystem paths", async ({ page }) => {
+test("transcript tools expose version details without filesystem paths", async ({ page }) => {
   const panel = await openTranscriptTools(page);
 
   await expect(panel.getByText("24:20")).toBeVisible();
@@ -27,7 +27,7 @@ test("transcript tools expose verified details without filesystem paths", async 
   expect(accessibility.violations).toEqual([]);
 });
 
-test("speaker labels change presentation without replacing anonymous evidence refs", async ({ page }) => {
+test("speaker labels change presentation without replacing original speaker refs", async ({ page }) => {
   const panel = await openTranscriptTools(page);
   const form = panel.getByRole("form", { name: "Speaker speaker-2" });
   const input = form.getByRole("textbox", { name: "Display name for speaker-2" });
@@ -39,7 +39,7 @@ test("speaker labels change presentation without replacing anonymous evidence re
   await expect(form.getByText("speaker-2", { exact: true })).toBeVisible();
 
   await form.getByRole("button", { name: "Remove name" }).click();
-  await expect(panel.getByRole("status")).toContainText("anonymous evidence ref remains");
+  await expect(panel.getByRole("status")).toContainText("original speaker reference remains");
   await expect(form.getByRole("code")).toHaveText("speaker-2");
 });
 
@@ -53,23 +53,23 @@ test("speaker transcript represents overlap explicitly instead of flattening it"
   await expect(transcript.getByText("Yes, exactly.")).toBeVisible();
 });
 
-test("post-hoc publication chooses formats but never renders the destination path", async ({ page }) => {
+test("export chooses formats but never renders the destination path", async ({ page }) => {
   const panel = await openTranscriptTools(page);
 
   await panel.getByRole("checkbox", { name: "SubRip subtitles" }).check();
   await panel.getByRole("checkbox", { name: "WebVTT subtitles" }).check();
-  await panel.getByRole("button", { name: "Choose folder and publish" }).click();
+  await panel.getByRole("button", { name: "Choose folder and export" }).click();
 
-  await expect(panel.getByRole("status")).toContainText("Published 3 files");
+  await expect(panel.getByRole("status")).toContainText("Exported 3 files");
   await expect(panel.getByRole("status")).toContainText("interview-42.txt");
   await expect(panel.getByRole("status")).toContainText("interview-42.srt");
   await expect(panel.getByRole("status")).toContainText("interview-42.vtt");
   await expect(panel.getByText(/\/Users\//)).toHaveCount(0);
 });
 
-test("publication requires at least one selected derived format", async ({ page }) => {
+test("export requires at least one selected format", async ({ page }) => {
   const panel = await openTranscriptTools(page);
 
   await panel.getByRole("checkbox", { name: "Plain text" }).uncheck();
-  await expect(panel.getByRole("button", { name: "Choose folder and publish" })).toBeDisabled();
+  await expect(panel.getByRole("button", { name: "Choose folder and export" })).toBeDisabled();
 });

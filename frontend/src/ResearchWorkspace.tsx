@@ -155,6 +155,7 @@ export function ResearchWorkspace({
   async function refreshResearch() {
     await loadOverview();
     await refreshActiveFilters();
+    setMutationMessage("Notes, tags, and collections reloaded.");
   }
 
   function beginEdit(note: ResearchNoteResult) {
@@ -227,19 +228,19 @@ export function ResearchWorkspace({
       setReader({
         evidence: opened.evidence,
         generationState: opened.current ? "current" : "older",
-        resultLabel: "Anchored evidence",
+        resultLabel: "Transcript passage",
       });
       setMutationMessage(
         opened.current
           ? "Opened the transcript passage cited by this note."
-          : "Opened the exact older transcript version cited by this note. Nothing was moved.",
+          : "Opened the exact earlier transcript version cited by this note.",
       );
     } catch (caught) {
       setReader(null);
       setError(
         caught instanceof Error
           ? caught.message
-          : "Scholion could not verify the transcript passage cited by that note.",
+          : "Scholion could not open the transcript passage cited by that note.",
       );
     } finally {
       setOpeningNoteId(null);
@@ -248,7 +249,7 @@ export function ResearchWorkspace({
 
   async function createNoteFromReader(body: string) {
     if (!reader || reader.generationState !== "current") {
-      throw new Error("New notes require current verified evidence.");
+      throw new Error("New notes require the current transcript version.");
     }
     await client.createResearchNote(reader.evidence, body);
     await loadOverview();
@@ -271,9 +272,9 @@ export function ResearchWorkspace({
         </div>
         <div className="research-intro-copy">
           <p>
-            Browse and edit notes, narrow them with tags or collections, and reopen the
-            exact transcript passage they cite. Saved research questions live with the
-            search controls below.
+            Browse and edit notes, filter them by tag or collection, and reopen the exact
+            transcript passage each note points to. Reloading here updates research data;
+            it does not scan your recording folders.
           </p>
           <button
             className="research-refresh"
@@ -281,7 +282,7 @@ export function ResearchWorkspace({
             disabled={busy || filterBusy || mutatingNoteId !== null}
             onClick={() => void refreshResearch()}
           >
-            {busy || filterBusy ? "Refreshing…" : "Refresh"}
+            {busy || filterBusy ? "Reloading…" : "Reload notes"}
           </button>
         </div>
       </section>
@@ -412,7 +413,7 @@ export function ResearchWorkspace({
                               : "evidence-state evidence-state-older"
                           }
                         >
-                          {note.current ? "Current evidence" : "Older evidence generation"}
+                          {note.current ? "Current transcript" : "Earlier transcript version"}
                         </span>
                       </div>
 
@@ -522,7 +523,7 @@ export function ResearchWorkspace({
                               disabled={mutatingNoteId !== null || openingNoteId !== null}
                               onClick={() => void openNoteEvidence(note)}
                             >
-                              {opening ? "Verifying…" : "Open verified evidence"}
+                              {opening ? "Opening…" : "Open transcript passage"}
                             </button>
                             <button
                               type="button"

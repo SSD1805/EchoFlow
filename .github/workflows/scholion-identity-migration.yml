@@ -1,4 +1,4 @@
-name: Temporary Scholion identity migration
+name: Temporary Scholion dependency rollup
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  migrate-identity:
+  refresh-locks:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.head_ref == 'agent/rename-scholion-doc-audit'
@@ -22,90 +22,40 @@ jobs:
           ref: agent/rename-scholion-doc-audit
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.11.33"
 
-      - name: Rename tracked product identity
-        shell: bash
-        run: |
-          git mv src/echoflow src/scholion
-          python - <<'PY'
-          from pathlib import Path
-          import subprocess
-
-          replacements = (
-              (b"ECHOFLOW", b"SCHOLION"),
-              (b"EchoFlow", b"Scholion"),
-              (b"echoflow", b"scholion"),
-          )
-          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
-          for raw_path in tracked:
-              if not raw_path:
-                  continue
-              path = Path(raw_path.decode())
-              if path.parts[:2] == (".github", "workflows"):
-                  continue
-              if not path.is_file():
-                  continue
-              data = path.read_bytes()
-              try:
-                  data.decode("utf-8")
-              except UnicodeDecodeError:
-                  continue
-              updated = data
-              for old, new in replacements:
-                  updated = updated.replace(old, new)
-              if updated != data:
-                  path.write_bytes(updated)
-          PY
-
-      - name: Refresh Python lock metadata
+      - name: Refresh Python lock
         run: uv lock
 
-      - name: Refresh frontend lock metadata
+      - name: Refresh frontend lock
         working-directory: frontend
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      - name: Verify Rust lock coherence
-        run: cargo metadata --locked --format-version 1 --manifest-path frontend/src-tauri/Cargo.toml --no-deps >/dev/null
+      - name: Refresh Rust dialog dependency graph
+        run: >-
+          cargo update
+          --manifest-path frontend/src-tauri/Cargo.toml
+          -p tauri-plugin-dialog
+          --precise 2.7.2
 
-      - name: Verify old identity outside permanent workflows is absent
+      - name: Verify lock coherence
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          import subprocess
-          import sys
+          uv lock --check
+          npm --prefix frontend ci --ignore-scripts --no-audit --no-fund
+          cargo metadata --locked --format-version 1 --manifest-path frontend/src-tauri/Cargo.toml --no-deps >/dev/null
 
-          old = (b"EchoFlow", b"ECHOFLOW", b"echoflow")
-          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
-          failures = []
-          for raw_path in tracked:
-              if not raw_path:
-                  continue
-              path = Path(raw_path.decode())
-              if path.parts[:2] == (".github", "workflows") or path.name == "LICENSE":
-                  continue
-              if not path.is_file():
-                  continue
-              data = path.read_bytes()
-              try:
-                  data.decode("utf-8")
-              except UnicodeDecodeError:
-                  continue
-              if any(token in data for token in old):
-                  failures.append(str(path))
-          if failures:
-              print("Old identity remains outside workflows:", *failures, sep="\n", file=sys.stderr)
-              sys.exit(1)
-          PY
-
-      - name: Commit identity migration
+      - name: Commit refreshed locks
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "refactor(identity): rename EchoFlow to Scholion"
+          git add uv.lock frontend/package-lock.json frontend/src-tauri/Cargo.lock
+          if git diff --cached --quiet; then
+            echo "Lock graphs already current"
+            exit 0
+          fi
+          git commit -m "chore(deps): refresh combined dependency locks"
           git push origin HEAD:agent/rename-scholion-doc-audit

@@ -36,7 +36,9 @@ def test_desktop_services_are_composed_by_application_container() -> None:
 
     assert research_search.workspace is container.research_workspace()
 
-    assert processing.topology_inspector.runner_inspector is container.runner_inspector()
+    assert (
+        processing.topology_inspector.runner_inspector is container.runner_inspector()
+    )
     assert processing.policy_planner is container.runner_policy_planner()
     assert processing.planner is container.transcription_planner()
     assert processing.model_manager is container.model_manager()

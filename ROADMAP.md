@@ -48,7 +48,7 @@ flowchart LR
 
 </details>
 
-Text fallback: Scholion already spans local media, reliable transcription, explicit embedded-track selection, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts and desktop controls, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, and an accessible multi-theme shell. The pre-identity architecture/redundancy audit is complete. The next first-release work is product identity migration, packaging, portability, packaged semantic custody, and real-device qualification.
+Text fallback: Scholion already spans local media, reliable transcription, explicit embedded-track selection, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts and desktop controls, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, an accessible multi-theme shell, architecture/redundancy consolidation, and the Scholion identity migration. The next first-release work is packaging, portability, packaged semantic custody, and real-device qualification.
 
 # First-release foundation now
 
@@ -139,7 +139,7 @@ The shell has eight skins: **Archive, Midnight, Paper, Moss, Plum, Ember, Pride,
 | Safe deletion/retention | typed plan-bound Python custody | implemented desktop Storage plan/apply | representative-device/path qualification |
 | Native source playback | generation/source authorization + Rust session | implemented | decoder/device qualification; future proven multi-track selection |
 | Themes/accessibility | semantic palette + browser/native controls | 8 skins qualified | representative OS/forced-colors checks |
-| Architecture/redundancy | capability-blind transport + centralized composition + one Research contract | complete | identity/API migration only where compatibility is intentionally broken |
+| Architecture/redundancy | capability-blind transport + centralized composition + one Research contract | complete | release/API migration only where compatibility is intentionally broken |
 | Frontend tests | strict TS/build + Playwright/axe | primary surfaces + playback + multitrack + lifecycle covered | grow with features, avoid duplicated backend policy |
 | Packaging | Python wheel + source Tauri | development only | managed runtime/installers/update/uninstall |
 | Backup/restore | authority boundaries known | none | manifest/reconcile/restore UI |
@@ -173,7 +173,7 @@ The Storage workspace productizes existing custody contracts without creating a 
 
 ## 7. Architecture/redundancy audit complete
 
-The pre-identity audit is closed. It consolidated capability-blind Python stdin/stdout mechanics, moved application-service construction into `AppContainer`, migrated bounded frontend desktop/Processing calls onto one fixed-command protocol helper, collapsed duplicate Research saved-question ingress, centralized Research evidence serialization/label invariants, and retained separate playback/custody/long-task boundaries where authority actually differs.
+The architecture/redundancy audit is closed. It consolidated capability-blind Python stdin/stdout mechanics, moved application-service construction into `AppContainer`, migrated bounded frontend desktop/Processing calls onto one fixed-command protocol helper, collapsed duplicate Research saved-question ingress, centralized Research evidence serialization/label invariants, and retained separate playback/custody/long-task boundaries where authority actually differs.
 
 The audit deliberately does **not** create a generic bridge, arbitrary Python-module selector, dynamic Tauri command dispatcher, frontend policy framework, or universal Pydantic hierarchy. Similar-looking code remains only where security visibility, lifecycle semantics, readability, or compatibility justify it.
 
@@ -181,9 +181,9 @@ A pre-package follow-up retired the deprecated runner `ModelTier` and `recommend
 
 See **[Architecture and redundancy audit](docs/architecture/redundancy-audit.md)**.
 
-## 8. Product identity checkpoint ← next
+## 8. Product identity checkpoint complete
 
-Make the final first-release naming decision **before** packaging/signing turns identity into a migration contract.
+The first-release product identity is **Scholion**. The Python package/CLI, environment prefix, desktop package, Tauri product/window identity, bundle identifier, playback protocol, frontend copy, tests, tooling, and documentation now use the Scholion identity before installer/update compatibility is frozen.
 
 A rename affects more than the GitHub repository label. Audit and intentionally migrate:
 
@@ -195,9 +195,9 @@ A rename affects more than the GitHub repository label. Audit and intentionally 
 - environment variables and integration points; and
 - migration/compatibility behavior for existing local Scholion workspaces.
 
-Choose the replacement name first, verify pronunciation/searchability/legal/package-namespace collisions, then perform one deliberate identity migration before installers exist. If Scholion remains the name, record that decision and freeze the identity surface.
+The identity surface is documented in **[Product identity](docs/product-identity.md)**. Future changes must be explicit migrations and must never silently move, delete, or invalidate authoritative user evidence.
 
-## 9. Packaging + first run + update/uninstall
+## 9. Packaging + first run + update/uninstall ← next
 
 Ship a managed Python runtime/sidecar, FFmpeg/native dependencies, Windows/macOS/Linux delivery, storage onboarding/repair, signed updates, and evidence-safe uninstall semantics.
 
@@ -225,4 +225,4 @@ Freeform research memos/notebook pages, snapshots/diffs, REFI-QDA interoperabili
 
 A future notebook page should live in authoritative SQLite as its own research-document type with optional explicit references to evidence notes/anchors. It should not weaken the current `ResearchNote` invariant by making its evidence anchor optional. DuckDB can later project memo text/relationships for search, and Markdown/plain-text/HTML/research-bundle exports can remain derived views.
 
-The sequencing rule remains simple: do not build a larger research superstructure while the ordinary desktop still needs identity migration, packaging, portability, and real-device qualification.
+The sequencing rule remains simple: do not build a larger research superstructure while the ordinary desktop still needs packaging, portability, and real-device qualification.

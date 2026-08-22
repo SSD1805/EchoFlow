@@ -10,6 +10,10 @@ Canonical transcript JSON is authoritative transcript evidence. Human-authored r
 
 > **Scholion's product rule:** do complicated work locally, keep the evidence understandable, portable, and owned by the user.
 
+## Why Scholion?
+
+A *scholion* is an explanatory, critical, or interpretive note attached to a text; the plural is *scholia*. The name matches the product's evidence model: the recording and canonical transcript remain the source evidence, while human notes, labels, collections, and saved research questions accumulate around verified passages without replacing the source. See **[Product identity](docs/product-identity.md)** for the canonical naming contract.
+
 Start with **[docs/README.md](docs/README.md)** for human-facing documentation or **[Getting started](docs/getting-started.md)** for the shortest clone-to-transcript path. The desktop also keeps contextual help available inside the app so ordinary use does not depend on having repository docs open.
 
 ## What can it do right now?
@@ -40,7 +44,7 @@ Scholion is pre-production, but the backend and desktop cover a coherent path fr
 | Desktop guidance | persistent screen/overview help plus contextual Evidence, Playback, Transcript, multi-track preflight, and Storage explanations without duplicating backend policy |
 | Desktop presentation | Tauri + React Intake, Processing, Library, verified evidence reader/playback, Research, Storage, transcript tools, and eight semantic-token themes |
 | Accessibility | keyboard/semantic-role tests, axe, non-hover contextual help, explicit light/dark browser schemes, and an eight-skin contrast matrix |
-| Architecture hygiene | pre-identity redundancy audit complete: shared capability-blind transport, centralized application composition, one typed saved-question surface, one Research evidence presentation contract |
+| Architecture hygiene | architecture/redundancy audit complete: shared capability-blind transport, centralized application composition, one typed saved-question surface, one Research evidence presentation contract |
 | Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, Playwright/axe, native Rust tests, package verification, targeted mutation qualification |
 
 ## From recording to useful evidence
@@ -236,13 +240,12 @@ Normal qualification includes Ruff, strict mypy, Vulture, Radon, branch coverage
 
 ## Where the project goes next
 
-Research/search, Processing, explicit embedded-track transcription, desktop comprehension/themes, transcript/speaker tools, verified native playback, contextual guidance, desktop lifecycle/retention controls, and the pre-identity architecture/redundancy audit are complete first-release foundation. The next first-release sequence is:
+Research/search, Processing, explicit embedded-track transcription, desktop comprehension/themes, transcript/speaker tools, verified native playback, contextual guidance, desktop lifecycle/retention controls, architecture/redundancy consolidation, and the Scholion identity migration are complete first-release foundation. The next first-release sequence is:
 
-1. product identity decision and deliberate identity migration before installers freeze names, bundle IDs, app-data paths, environment variables, and compatibility behavior;
-2. packaging, first-run storage setup, signed updates, and evidence-safe uninstall;
-3. backup/restore plus selected research portability;
-4. packaged semantic-model/dependency custody; and
-5. representative-device qualification across ordinary consumer hardware and hostile path, disk, interruption, upgrade, and accessibility cases.
+1. packaging, first-run storage setup, signed updates, and evidence-safe uninstall;
+2. backup/restore plus selected research portability;
+3. packaged semantic-model/dependency custody; and
+4. representative-device qualification across ordinary consumer hardware and hostile path, disk, interruption, upgrade, and accessibility cases.
 
 Freeform research notebook pages are a useful later research-native feature, but they are intentionally separate from evidence-anchored notes and are not on the first-release critical path.
 

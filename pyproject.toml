@@ -1,7 +1,7 @@
 [project]
 name = "scholion"
 version = "0.1.0"
-description = "A local-first audio processing, transcription, and analysis application."
+description = "A private, local-first workspace for recorded evidence."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = "AGPL-3.0-only"
@@ -14,9 +14,9 @@ dependencies = [
     "pydantic>=2.10,<3",
     "pydantic-settings>=2.6,<3",
     "platformdirs>=4.10.1,<5",
-    "structlog>=25,<26",
+    "structlog>=26.1.0,<27",
     "typer>=0.16,<1",
-    "rich>=14,<15",
+    "rich>=15.0.0,<16",
 ]
 
 [project.optional-dependencies]
@@ -31,7 +31,7 @@ diarization = [
 [dependency-groups]
 dev = [
     "hypothesis>=6.135,<7",
-    "mypy>=1.17,<2",
+    "mypy>=2.3.1,<3",
     "poodle>=1.2,<2",
     "pre-commit>=4,<5",
     "pytest>=9.0.3,<10",
@@ -47,7 +47,7 @@ dev = [
 scholion = "scholion.cli:app"
 
 [build-system]
-requires = ["hatchling>=1.27"]
+requires = ["hatchling>=1.32.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

@@ -60,6 +60,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      checks: write
+      issues: write
 
     steps:
       - name: Check out repository
@@ -103,8 +105,8 @@ jobs:
         working-directory: frontend
         run: npm audit --audit-level=moderate
 
-      - name: Install RustSec cargo-audit for branch diagnosis
-        run: cargo install cargo-audit --locked
-
       - name: Audit locked Rust dependencies
-        run: cargo audit --file frontend/src-tauri/Cargo.lock
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: frontend/src-tauri

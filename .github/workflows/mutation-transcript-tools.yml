@@ -42,12 +42,12 @@ jobs:
       - name: Establish transcript-tools qualification baseline
         run: >-
           uv run pytest
-          src/echoflow/library/tests/test_transcript_tools.py
-          src/echoflow/library/tests/test_speaker_labels.py
-          src/echoflow/library/tests/test_speaker_presentation.py
-          src/echoflow/transcription/tests/test_export.py
-          src/echoflow/desktop/tests/test_transcript_tools_bridge.py
-          --cov=echoflow
+          src/scholion/library/tests/test_transcript_tools.py
+          src/scholion/library/tests/test_speaker_labels.py
+          src/scholion/library/tests/test_speaker_presentation.py
+          src/scholion/transcription/tests/test_export.py
+          src/scholion/desktop/tests/test_transcript_tools_bridge.py
+          --cov=scholion
           --cov-context=test
           --cov-report=
           --cov-fail-under=0
@@ -56,7 +56,7 @@ jobs:
         run: >-
           uv run poodle
           -w 4
-          --only src/echoflow/library/transcript_tools.py
-          --only src/echoflow/library/speaker_label_service.py
-          --only src/echoflow/transcription/export.py
-          --only src/echoflow/desktop/transcript_tools_bridge.py
+          --only src/scholion/library/transcript_tools.py
+          --only src/scholion/library/speaker_label_service.py
+          --only src/scholion/transcription/export.py
+          --only src/scholion/desktop/transcript_tools_bridge.py

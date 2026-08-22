@@ -86,6 +86,7 @@ Python-to-Rust paths rather than widening the general bridge.
 |---|---|
 | [Processing capabilities](processing-capabilities.md) | How does the local transcription/research system fit together? |
 | [Processing Center](processing-center.md) | How does the desktop expose readiness, preflight, embedded-track choice, jobs, and long-running native work without becoming the scheduler? |
+| [Architecture and redundancy audit](redundancy-audit.md) | Which duplicated seams were consolidated before identity/packaging, and which similarities are intentionally retained? |
 | [Audio tracks](../audio-tracks.md) | How does EchoFlow choose among several embedded audio streams without guessing or confusing transcription with playback? |
 | [Verified native playback](../native-playback.md) | How does exact-generation evidence become a local media capability without exposing paths to React? |
 | [Storage and lifecycle controls](../storage-lifecycle.md) | How does the desktop expose plan-bound custody and retention without giving React filesystem authority? |
@@ -109,7 +110,7 @@ Python-to-Rust paths rather than widening the general bridge.
 
 | Package / surface | Responsibility |
 |---|---|
-| `app` | Dependency-injection composition root and application-facing processing composition |
+| `app` | Dependency-injection composition root and application-facing processing/research-search composition |
 | `core` | Configuration, errors, observability, health, measurements |
 | `interfaces` | Local filesystem/storage adapters and private-storage policy |
 | `media` | Read-only source inspection, bounded embedded-track display metadata, and deterministic audio-stream selection |
@@ -119,8 +120,8 @@ Python-to-Rust paths rather than widening the general bridge.
 | `workspace` | Private job paths and public artifact allocation |
 | `benchmarking` | Privacy-minimized local execution measurement |
 | `library` | Retrieval, evidence navigation, playback authorization, research authority/projections, saved searches, discovery, refresh, locations, typed custody policy |
-| `desktop` | Versioned allowlisted Python bridges plus fixed private playback and lifecycle custody bridges |
-| `frontend` | React/TypeScript presentation over typed desktop operations; no direct DB/filesystem/media-probe/custody authority |
+| `desktop` | Versioned allowlisted Python bridges over shared capability-blind host transport plus fixed private playback and lifecycle custody bridges |
+| `frontend` | React/TypeScript presentation over typed desktop operations and fixed-command protocol transport; no direct DB/filesystem/media-probe/custody authority |
 | `src-tauri` | Thin native host/capability boundary for dialogs, allowlisted long-running child processes, fixed Python bridge commands, opened playback sessions, and bounded local media transport |
 
 ## Capability boundaries
@@ -137,15 +138,17 @@ The search/research/custody/processing/desktop area deliberately separates respo
 6. `ResearchProjectionIndex` owns fast derived research constraints and summaries.
 7. `WorkspaceMetadataStore` owns durable saved-search intent and computes disposable navigation views.
 8. `ResearchWorkspaceService` composes those capabilities for CLI and presentation adapters.
-9. `LibraryLocationService` owns remembered directory permissions and cheap recording discovery without becoming a media processor.
-10. `LibraryCustodyService` owns typed deletion planning/execution and age-based private execution-state retention.
-11. `ProcessingCenterService` composes health/resource/model/job/preflight authority, including whether multi-track preflight requires explicit user confirmation, without reimplementing lower-level media policy.
-12. `PlaybackAuthorizationService` verifies exact canonical generation, current source bytes, coordinate bounds, and stream identity before native media can open.
-13. `echoflow.desktop.bridge` exposes the ordinary allowlisted versioned IPC surface for Library/Research/Processing.
-14. The playback bridge is private to a fixed Rust host path and cannot be redirected to an arbitrary Python module.
-15. `echoflow.desktop.custody_bridge` exposes only document listing, deletion plan/apply, and retention plan/apply through a dedicated fixed Tauri command; it strips action/workspace paths before serialization.
-16. Tauri supervises allowlisted long-running native child processes, owns opaque opened playback sessions, and invokes fixed Python modules. It owns process/file lifetime, not strategy selection, stream selection, model validity, transcript correctness, or custody policy.
-17. React owns interaction and presentation only. It does not issue SQL, mutate DuckDB/SQLite directly, select canonical generations, inspect media, choose a preferred audio track by policy, or decide effective deletion/retention policy.
+9. `ResearchSearchControlService` owns typed Research search/saved-question application semantics and is composed by `AppContainer` rather than rebuilt by the desktop adapter.
+10. `LibraryLocationService` owns remembered directory permissions and cheap recording discovery without becoming a media processor.
+11. `LibraryCustodyService` owns typed deletion planning/execution and age-based private execution-state retention.
+12. `ProcessingCenterService` composes health/resource/model/job/preflight authority, including whether multi-track preflight requires explicit user confirmation, and is composed by `AppContainer`.
+13. `PlaybackAuthorizationService` verifies exact canonical generation, current source bytes, coordinate bounds, and stream identity before native media can open.
+14. `echoflow.desktop.host_protocol` owns only bounded JSON stdin/stdout mechanics and the versioned envelope; individual bridges retain method/service/error authority.
+15. `echoflow.desktop.bridge` exposes the ordinary allowlisted versioned IPC surface for Library/Research/Processing.
+16. The playback bridge is private to a fixed Rust host path and cannot be redirected to an arbitrary Python module.
+17. `echoflow.desktop.custody_bridge` exposes only document listing, deletion plan/apply, and retention plan/apply through a dedicated fixed Tauri command; it strips action/workspace paths before serialization.
+18. Tauri supervises allowlisted long-running native child processes, owns opaque opened playback sessions, and invokes fixed Python modules. It owns process/file lifetime, not strategy selection, stream selection, model validity, transcript correctness, or custody policy.
+19. React owns interaction and presentation only. It does not issue SQL, mutate DuckDB/SQLite directly, select canonical generations, inspect media, choose a preferred audio track by policy, or decide effective deletion/retention policy.
 
 That split must survive future UI convenience work. Presentation convenience is not
 permission to merge custody boundaries.
@@ -227,14 +230,20 @@ Search infrastructure may disappear. User-authored knowledge may not disappear b
 ## Current application seams
 
 Unified discovery, saved searches, frequent/recent navigation, and research interactions
-compose through `ResearchWorkspaceService`. The desktop exposes grouped Library discovery,
-verified context/word coordinates, durable Research mutation, saved search/anchor flows, and
-full Research search controls through narrow bridge methods.
+compose through `ResearchWorkspaceService`. Typed Research search/saved-question application
+semantics compose through `ResearchSearchControlService`. Both are supplied through
+`AppContainer`; the desktop adapter does not construct a second application graph.
 
-Processing composes through `ProcessingCenterService`; Tauri owns only the native lifetime
-of allowlisted long-running tasks. Multi-track confirmation is returned by Python preflight,
-and a user choice is rebound through Python before execution. Resume/retry semantics remain
-Python application policy.
+Processing composes through the container-owned `ProcessingCenterService`; Tauri owns only
+the native lifetime of allowlisted long-running tasks. Multi-track confirmation is returned
+by Python preflight, and a user choice is rebound through Python before execution.
+Resume/retry semantics remain Python application policy.
+
+Bounded trusted-host bridges share `echoflow.desktop.host_protocol`. On the frontend,
+ordinary desktop/Processing bounded requests, transcript tools, Research anchor maintenance,
+and lifecycle calls share `nativeProtocol.ts` with a closed Tauri-command union. Playback
+and supervised Processing task commands remain separate because they return different
+contracts and carry different lifetime authority.
 
 Verified playback composes through `PlaybackAuthorizationService` plus the private fixed
 playback bridge. Rust opens the approved file, retains it behind an opaque active session,
@@ -259,10 +268,9 @@ custody bridge. Deletion and retention remain preview-first. Applying a reviewed
 requires the exact plan-bound token; execution recalculates the plan and refuses changed
 state. React never receives the destructive filesystem paths.
 
-The **next product seam is the architecture/redundancy audit**. It should remove duplicated
-policy/glue and clarify ownership before packaging freezes bundle IDs, app-data locations,
-sidecar contracts, and update/uninstall behavior. The product-name/identity decision belongs
-before that packaging freeze as well.
+The **pre-identity architecture/redundancy audit is complete**. The next product seam is the
+identity migration before packaging freezes bundle IDs, executable/module/package names,
+app-data locations, sidecar contracts, environment variables, and update/uninstall behavior.
 
 ## New abstraction test
 

@@ -18,7 +18,6 @@ from echoflow.library.research_search_controls import (
 )
 from echoflow.library.research_workspace import (
     ResearchQueryFilters,
-    ResearchWorkspaceService,
     WorkspaceSearchResponse,
 )
 from echoflow.library.retrieval import RetrievalMode
@@ -235,10 +234,9 @@ def _serialize_search(
 def dispatch_research_search(
     method: str,
     params: dict[str, object],
-    workspace: ResearchWorkspaceService,
+    service: ResearchSearchControlService,
 ) -> object:
     """Dispatch typed search operations after the outer bridge allowlist accepts them."""
-    service = ResearchSearchControlService(workspace)
     if method == "workspace.research.search.execute":
         execute_params = _ExecuteParams.model_validate(params)
         intent = execute_params.intent.to_intent()

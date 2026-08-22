@@ -48,7 +48,7 @@ flowchart LR
 
 </details>
 
-Text fallback: EchoFlow already spans local media, reliable transcription, explicit embedded-track selection, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts and desktop controls, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, and an accessible multi-theme shell. The next first-release work is architecture/redundancy cleanup, a product-identity checkpoint before packaging, packaging, portability, packaged semantic custody, and real-device qualification.
+Text fallback: EchoFlow already spans local media, reliable transcription, explicit embedded-track selection, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts and desktop controls, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, and an accessible multi-theme shell. The pre-identity architecture/redundancy audit is complete. The next first-release work is product identity migration, packaging, portability, packaged semantic custody, and real-device qualification.
 
 # First-release foundation now
 
@@ -70,25 +70,19 @@ See **[Audio tracks](docs/audio-tracks.md)** and **[Processing Center](docs/arch
 
 Canonical JSON is authoritative transcript evidence. It retains source/execution provenance, source-relative segment and word timing, language evidence, optional anonymous speaker evidence, and enhancement provenance. TXT, SRT, and WebVTT are deterministic publications, not transcript authority.
 
-The desktop transcript-tools tranche is now implemented. Library results can open generation-bound tools for:
+The desktop transcript-tools tranche is implemented. Library results can open generation-bound tools for transcript/source availability and provenance, selected stream inspection, human display-name editing, explicit overlap/mixed/unattributed speaker presentation, and post-hoc TXT/SRT/WebVTT publication.
 
-- transcript/source availability and provenance details;
-- selected audio-stream inspection;
-- human display-name editing while anonymous speaker refs remain visible;
-- speaker-aware reading with explicit overlap/mixed/unattributed states; and
-- post-hoc TXT/SRT/WebVTT publication to a native-selected destination.
-
-Every transcript-tool operation carries `(document_id, canonical_sha256)`. Python refuses stale generations rather than letting a long-lived UI silently mutate newer speaker numbering. Tauri exposes a fixed transcript-tools command and Python bridge allowlist; React never parses canonical JSON or receives canonical/source paths.
+Every transcript-tool operation carries `(document_id, canonical_sha256)`. Python refuses stale generations rather than letting a long-lived UI silently mutate newer speaker numbering. React never parses canonical JSON or receives canonical/source paths.
 
 See **[Transcript and speaker tools](docs/transcript-tools.md)** and **[Speaker display names](docs/speaker-names.md)**.
 
 ## Verified native playback
 
-The desktop can now play the original local audio/video from the same verified source-relative cursor used by evidence navigation.
+The desktop can play original local audio/video from the same verified source-relative cursor used by evidence navigation.
 
-Playback is generation-bound rather than path-driven. React submits `(document_id, canonical_sha256, seek_seconds)`. Python verifies canonical bytes, source identity, current source SHA-256/size, duration bounds, and audio-stream identity. Rust opens only the approved source, narrows the verification/open race with metadata checks, stores the opened file behind an opaque active-session ID, and serves bounded `GET`/`HEAD` byte ranges through a dedicated `echoflow-media` protocol.
+Playback is generation-bound rather than path-driven. Python verifies canonical bytes, source identity, current source SHA-256/size, duration bounds, and audio-stream identity. Rust opens only the approved source, narrows the verification/open race with metadata checks, stores the opened file behind an opaque session ID, and serves bounded byte ranges through the dedicated `echoflow-media` protocol.
 
-The webview never receives the source/canonical path and cannot call the private Python playback bridge. Multi-track **transcription** is explicitly supported, but multi-track **playback** fails closed until native track selection can prove that the rendered stream matches canonical provenance. Decoder availability remains an OS/WebView qualification issue, not evidence authority.
+Multi-track transcription is explicitly supported. Multi-track playback fails closed until the native layer can prove the rendered stream matches canonical provenance.
 
 See **[Verified native playback](docs/native-playback.md)**.
 
@@ -98,17 +92,15 @@ The library has a database-neutral retrieval contract, DuckDB lexical projection
 
 Search ranking and evidence navigation remain separate. A ranked passage becomes precise evidence only after EchoFlow verifies canonical generation and resolves exact segment/word coordinates.
 
-Authoritative SQLite owns evidence notes, tags, collections, anchor history, and saved-search intent. DuckDB research/search state is rebuildable. The desktop supports note create/edit/delete, tag/collection navigation, saved-search lifecycle, typed Research search, exact-generation return, and explicit stale-anchor review/re-anchor.
+Authoritative SQLite owns evidence notes, tags, collections, anchor history, and saved-search intent. DuckDB research/search state is rebuildable. The desktop supports note create/edit/delete, tag/collection navigation, one typed saved-question lifecycle, typed Research search, exact-generation return, and explicit stale-anchor review/re-anchor.
 
-Today's `ResearchNote` always has an exact evidence anchor. A future freeform notebook/memo should be a separate authoritative research-document class with optional explicit evidence references rather than weakening that invariant with nullable provenance. See **[Research notes](docs/research-notes.md)**.
+Today's `ResearchNote` always has an exact evidence anchor. A future freeform notebook/memo should be a separate authoritative research-document class with optional explicit evidence references rather than weakening that invariant with nullable provenance.
 
 ## Safe lifecycle and locations
 
-Deletion is preview-first and plan-bound. The native Storage workspace presents backend-computed requested/effective scopes, concrete action descriptions, preserved-note counts, affected saved-search counts, and the exact reviewed confirmation flow. Source-recording deletion requires its own scope, a second UI guard, and provenance verification.
+Deletion is preview-first and plan-bound. The native Storage workspace presents backend-computed requested/effective scopes, concrete action descriptions, preserved-note counts, affected saved-search counts, and exact reviewed confirmation. Source-recording deletion requires its own scope, a second UI guard, and provenance verification.
 
 Retention is intentionally narrower. Storage can preview old private processing workspaces, identify interrupted/failed candidates whose resume capability would be lost, and apply the exact plan. It does not age-delete canonical transcripts, source media, published transcripts, human research, or lightweight lifecycle manifests.
-
-The destructive path remains Python-owned: `LibraryCustodyService` computes policy, a dedicated fixed custody bridge strips action/workspace paths, Tauri exposes only `lifecycle_request`, and React presents typed intent/consequences. See **[Storage and lifecycle controls](docs/storage-lifecycle.md)**.
 
 Remembered recording/transcript locations are durable permissions. Recording discovery itself does not hash, probe, copy, or transcribe candidate media. Automatic processing remains a separate explicit policy.
 
@@ -123,9 +115,7 @@ EchoFlow Desktop
 └── Python EchoFlow               application and evidence rules
 ```
 
-The shell now has eight skins: **Archive, Midnight, Paper, Moss, Plum, Ember, Pride, and Monochrome**. All use one semantic token contract for surfaces, text, controls, focus, errors, selection, and accent foregrounds. Pride's rainbow is decorative-only; Monochrome is deliberately grayscale. Theme preference is local presentation state and never evidence/research state.
-
-Playwright iterates every registered skin through WCAG-oriented contrast pairs, real native-style controls, browser `color-scheme`, and axe. The embedded-track chooser uses native radios, visible explanatory text, semantic tokens, and the same accessibility qualification rather than a custom visual-only selector. Storage uses native controls and semantic danger presentation, and axe covers an open destructive plan. See **[Desktop themes and accessibility](docs/development/desktop-accessibility.md)**.
+The shell has eight skins: **Archive, Midnight, Paper, Moss, Plum, Ember, Pride, and Monochrome**. All use one semantic token contract for surfaces, text, controls, focus, errors, selection, and accent foregrounds. Theme preference is local presentation state and never evidence/research state.
 
 # Capability → desktop audit
 
@@ -135,20 +125,21 @@ Playwright iterates every registered skin through WCAG-oriented contrast pairs, 
 | Model custody | verified pinned managed revisions | implemented | progress/offline/package polish |
 | Import/locations | durable permissions/discovery | implemented | settings/forget polish |
 | Processing | plan, execute, checkpoint, resume/retry | implemented | packaging/device qualification |
-| Embedded audio tracks | Python probe/selector/planner + FFmpeg exact map | **implemented explicit desktop confirmation** | future proven multi-track playback; separate-file sync remains out of scope |
+| Embedded audio tracks | Python probe/selector/planner + FFmpeg exact map | implemented explicit desktop confirmation | future proven multi-track playback; separate-file sync remains out of scope |
 | Enhancement/diarization intent | Python plan/execution | implemented | result polish continues through transcript view |
 | Canonical JSON | authoritative evidence | implemented consumer views | packaging/backup |
-| Speaker labels | generation-bound human state | **implemented desktop management** | optional dedicated organization polish |
-| Speaker transcript | backend derived presentation | **implemented** | playback-linked reading available through evidence view |
-| Provenance/details | canonical verified inspection | **implemented** | richer troubleshooting optional |
-| TXT/SRT/WebVTT | deterministic derived publication | **implemented post-hoc desktop flow** | optional export organization |
+| Speaker labels | generation-bound human state | implemented desktop management | optional organization polish |
+| Speaker transcript | backend derived presentation | implemented | playback-linked reading available through evidence view |
+| Provenance/details | canonical verified inspection | implemented | richer troubleshooting optional |
+| TXT/SRT/WebVTT | deterministic derived publication | implemented post-hoc desktop flow | optional export organization |
 | Lexical/semantic/hybrid search | private retrieval | implemented | packaged semantic custody |
 | Verified evidence navigation | exact generation + timing/seek | implemented | representative-device playback qualification |
 | Notes/tags/collections | SQLite authority | implemented | optional management polish; freeform memos later as separate object type |
 | Saved searches | durable typed intent | implemented | optional organization polish |
-| Safe deletion/retention | typed plan-bound Python custody | **implemented desktop Storage plan/apply** | representative-device/path qualification |
-| Native source playback | generation/source authorization + Rust session | **implemented** | decoder/device qualification; future proven multi-track selection |
-| Themes/accessibility | semantic palette + browser/native controls | **8 skins qualified** | representative OS/forced-colors checks |
+| Safe deletion/retention | typed plan-bound Python custody | implemented desktop Storage plan/apply | representative-device/path qualification |
+| Native source playback | generation/source authorization + Rust session | implemented | decoder/device qualification; future proven multi-track selection |
+| Themes/accessibility | semantic palette + browser/native controls | 8 skins qualified | representative OS/forced-colors checks |
+| Architecture/redundancy | capability-blind transport + centralized composition + one Research contract | complete | identity/API migration only where compatibility is intentionally broken |
 | Frontend tests | strict TS/build + Playwright/axe | primary surfaces + playback + multitrack + lifecycle covered | grow with features, avoid duplicated backend policy |
 | Packaging | Python wheel + source Tauri | development only | managed runtime/installers/update/uninstall |
 | Backup/restore | authority boundaries known | none | manifest/reconcile/restore UI |
@@ -170,31 +161,27 @@ Ordinary users see human search language rather than Python/database vocabulary.
 
 ## 4. Transcript and speaker tools complete
 
-The first desktop transcript-inspection loop now exists. Generation-bound backend services own speaker names, overlap-aware presentation, provenance/details, and deterministic post-hoc publication. The React layer submits intent and never becomes canonical authority.
-
-Frontend coverage explicitly spans Intake, Processing including multi-track confirmation, Library/evidence, transcript tools, Research/search/anchor maintenance, themes, development mode, hostile text rendering, path non-disclosure, and accessibility. Backend decision-heavy transcript tools also have property tests and a dedicated targeted Poodle workflow. See **[Frontend testing strategy](docs/development/frontend-testing.md)**.
+Generation-bound backend services own speaker names, overlap-aware presentation, provenance/details, and deterministic post-hoc publication. React submits intent and never becomes canonical authority.
 
 ## 5. Native playback complete
 
-Verified source-relative evidence coordinates now drive local audio/video without giving React arbitrary path authority. Python owns generation/source/stream authorization. Rust owns the opened file handle, opaque session lifetime, and bounded local-media transport. React receives only safe playback state and coordinates.
-
-Qualification covers stale/missing/changed sources, exact word coordinates, preserved older generations, keyboard preparation, path non-disclosure, audio/video presentation, multi-audio playback refusal, native range parsing, session-token allowlisting, and bounded streaming. A targeted playback Poodle workflow challenges the Python authorization decisions.
+Verified source-relative evidence coordinates drive local audio/video without giving React arbitrary path authority. Python owns generation/source/stream authorization. Rust owns the opened file handle, opaque session lifetime, and bounded local-media transport.
 
 ## 6. Lifecycle + retention UI complete
 
-The Storage workspace now productizes the existing custody contracts without creating a second deletion policy. Users can choose explicit transcript custody scopes, preview backend-calculated scope expansion/actions/preservation effects, and apply only the exact reviewed plan. Source recording removal has a second guard and backend provenance verification.
+The Storage workspace productizes existing custody contracts without creating a second deletion policy. Source recording removal has a second guard and backend provenance verification. Retention exposes age policy, completed-only defaults, optional failed/interrupted inclusion, explicit resume-loss warnings, preview, and plan-bound application.
 
-Private retention exposes age policy, completed-only defaults, optional failed/interrupted inclusion, explicit resume-loss warnings, preview, and plan-bound application. Running jobs remain backend-ineligible. React never receives destructive action paths or private workspace paths.
+## 7. Architecture/redundancy audit complete
 
-The dedicated `custody_bridge` and fixed Tauri `lifecycle_request` keep destructive authority separate from the ordinary desktop bridge. Ordinary quality, boundary tests, existing custody-service tests, Playwright, and axe qualify this tranche. Poodle is not added merely because there is a new screen; mutation testing remains targeted to files containing decision-heavy policy.
+The pre-identity audit is closed. It consolidated capability-blind Python stdin/stdout mechanics, moved application-service construction into `AppContainer`, migrated bounded frontend desktop/Processing calls onto one fixed-command protocol helper, collapsed duplicate Research saved-question ingress, centralized Research evidence serialization/label invariants, and retained separate playback/custody/long-task boundaries where authority actually differs.
 
-## 7. Architecture/redundancy audit ← next
+The audit deliberately does **not** create a generic bridge, arbitrary Python-module selector, dynamic Tauri command dispatcher, frontend policy framework, or universal Pydantic hierarchy. Similar-looking code remains only where security visibility, lifecycle semantics, readability, or compatibility justify it.
 
-Do this before packaging freezes seams. Audit bridge DTOs, Pydantic models, React client glue, serializers, service composition, fixtures, Tauri supervisor/media/custody patterns, stale compatibility paths, and duplicated documentation. Refactor policy duplication or unclear ownership, not merely similar-looking files.
+`ModelTier` remains a deprecated compatibility marker because the current CLI policy JSON still exposes `recommended_model_tier`. It is not a model-selection authority. Its retirement belongs with the identity/API migration, where compatibility changes are explicit rather than hidden inside a behavior-preserving refactor.
 
-Specific questions to answer include whether fixed desktop bridges share enough trusted-host transport mechanics to justify one narrow helper without merging their authority, whether mock/E2E DTO fixtures can be generated or centralized without hiding product contracts, and whether any compatibility layer still exists only because the product evolved quickly.
+See **[Architecture and redundancy audit](docs/architecture/redundancy-audit.md)**.
 
-## 8. Product identity checkpoint
+## 8. Product identity checkpoint ← next
 
 Make the final first-release naming decision **before** packaging/signing turns identity into a migration contract.
 
@@ -208,7 +195,9 @@ A rename affects more than the GitHub repository label. Audit and intentionally 
 - environment variables and integration points; and
 - migration/compatibility behavior for existing local EchoFlow workspaces.
 
-Do not rename speculatively. Choose the actual replacement name first, verify pronunciation/searchability/legal/package-namespace collisions, then perform one deliberate identity migration before installers exist. If EchoFlow remains the name, record that decision and freeze the identity surface.
+This is also the correct point to retire compatibility wire names that are no longer product truth, including the deprecated runner `ModelTier` marker if the identity/API migration intentionally changes that CLI shape.
+
+Choose the replacement name first, verify pronunciation/searchability/legal/package-namespace collisions, then perform one deliberate identity migration before installers exist. If EchoFlow remains the name, record that decision and freeze the identity surface.
 
 ## 9. Packaging + first run + update/uninstall
 
@@ -238,4 +227,4 @@ Freeform research memos/notebook pages, snapshots/diffs, REFI-QDA interoperabili
 
 A future notebook page should live in authoritative SQLite as its own research-document type with optional explicit references to evidence notes/anchors. It should not weaken the current `ResearchNote` invariant by making its evidence anchor optional. DuckDB can later project memo text/relationships for search, and Markdown/plain-text/HTML/research-bundle exports can remain derived views.
 
-The sequencing rule remains simple: do not build a larger research superstructure while the ordinary desktop still needs architecture cleanup, identity freeze, packaging, portability, and real-device qualification.
+The sequencing rule remains simple: do not build a larger research superstructure while the ordinary desktop still needs identity migration, packaging, portability, and real-device qualification.

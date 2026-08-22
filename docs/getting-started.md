@@ -188,7 +188,15 @@ Research can reopen the exact older canonical generation cited by a durable note
 
 See **[Research search](research-search.md)** and **[Research notes](research-notes.md)**.
 
-## 8. Change the appearance
+## 8. Review storage and retention deliberately
+
+Choose **Storage** to inspect backend-planned custody changes before anything destructive occurs. The desktop can preview exact requested/effective scopes, concrete actions, preserved-note and affected-saved-search counts, and plan-bound confirmation. Source recording deletion requires its own scope and a second acknowledgment before the backend provenance guard can be submitted.
+
+Retention is narrower. It previews old private processing workspaces, excludes running jobs, and visibly marks failed/interrupted candidates whose resume capability would be lost. It does not age-delete canonical transcripts, source recordings, published transcripts, human research, or lightweight lifecycle manifests.
+
+See **[Storage and lifecycle controls](storage-lifecycle.md)**.
+
+## 9. Change the appearance
 
 The header has one **Theme** dropdown with:
 
@@ -205,19 +213,21 @@ The choice is local presentation preference only. All eight skins use the same s
 
 See **[Desktop themes and accessibility](development/desktop-accessibility.md)**.
 
-## 9. Know the trust boundary
+## 10. Know the trust boundary
 
 The desktop WebView does not receive arbitrary SQL, shell, subprocess, database, or raw canonical/source filesystem authority.
 
-Ordinary desktop calls go through a fixed Python bridge. Transcript tools use a separate fixed Tauri command/Python module with an explicit allowlist. Playback is narrower still: its path-bearing Python grant is private to Rust, which opens the file and returns only an opaque session to React. Python remains application/evidence authority.
+Ordinary bounded desktop calls share one fixed-command protocol helper and one capability-blind Python host transport. Transcript tools and lifecycle still use separate fixed Tauri commands/Python modules, and playback is narrower still: its path-bearing Python grant is private to Rust, which opens the file and returns only an opaque session to React. Python remains application/evidence authority.
+
+Long-running Processing tasks are intentionally separate from bounded request/response IPC. Tauri owns their supervised child-process lifetime, task identity, status, and cancellation; Python remains job/checkpoint/transcription authority.
 
 Multi-track preflight follows the same rule. Python discovers streams and decides whether explicit confirmation is required. React only presents bounded track metadata and submits the user's chosen index; it does not infer the best track or inspect media itself.
 
 The in-app help layer is static local presentation copy. It has no extra filesystem, process, database, model, media, or network capability.
 
-See **[frontend/SECURITY.md](../frontend/SECURITY.md)**.
+See **[frontend/SECURITY.md](../frontend/SECURITY.md)** and the completed **[architecture/redundancy audit](architecture/redundancy-audit.md)**.
 
-## 10. Optional semantic/hybrid search
+## 11. Optional semantic/hybrid search
 
 Lexical search is the dependency-light default. Semantic search helps when you remember the idea but not the wording; hybrid retrieval combines lexical/semantic ranking using reciprocal rank fusion.
 
@@ -231,13 +241,12 @@ Original media and canonical JSON are evidence. Notes/tags/collections, saved se
 
 ## What comes next?
 
-Research/search, Processing, desktop comprehension/themes, transcript/speaker tools, explicit embedded-track transcription, verified native playback, and contextual guidance are foundation. Next:
+Research/search, Processing, desktop comprehension/themes, transcript/speaker tools, explicit embedded-track transcription, verified native playback, contextual guidance, lifecycle/retention Storage, and the pre-identity architecture/redundancy audit are foundation. Next:
 
-1. lifecycle and retention UI;
-2. architecture/redundancy audit before packaging;
-3. packaging/first run/update/uninstall;
-4. backup/restore and research portability;
-5. packaged semantic custody; and
-6. representative-device qualification.
+1. product identity decision and deliberate migration;
+2. packaging/first run/update/uninstall;
+3. backup/restore and research portability;
+4. packaged semantic custody; and
+5. representative-device qualification.
 
 For the detailed first-release sequence, see **[ROADMAP.md](../ROADMAP.md)**.

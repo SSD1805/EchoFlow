@@ -2,6 +2,7 @@ from pathlib import Path
 
 from dependency_injector import containers, providers
 
+from echoflow.app.processing_center import ProcessingCenterService
 from echoflow.benchmarking.runner import BenchmarkRunner
 from echoflow.core.config import AppConfig
 from echoflow.core.file_manager_facade import FileManagerFacade
@@ -25,6 +26,7 @@ from echoflow.library.locations import JsonLibraryLocationStore, LibraryLocation
 from echoflow.library.playback import PlaybackAuthorizationService
 from echoflow.library.research import ResearchNavigationService
 from echoflow.library.research_projector import ResearchStateProjector
+from echoflow.library.research_search_controls import ResearchSearchControlService
 from echoflow.library.research_workspace import ResearchWorkspaceService
 from echoflow.library.semantic import EmbeddingProfile, SentenceTransformersE5Provider
 from echoflow.library.service import TranscriptLibraryService
@@ -386,6 +388,10 @@ class AppContainer(containers.DeclarativeContainer):
         metadata=workspace_metadata_store,
         logger=logger,
     )
+    research_search_control = providers.Singleton(
+        ResearchSearchControlService,
+        workspace=research_workspace,
+    )
     checkpoint_store = providers.Factory(
         LocalCheckpointStore, file_manager=file_manager
     )
@@ -444,4 +450,13 @@ class AppContainer(containers.DeclarativeContainer):
     )
     health_check = providers.Factory(
         _create_health_check, config=config, runner_inspector=runner_inspector
+    )
+    processing_center = providers.Singleton(
+        ProcessingCenterService,
+        health_check=health_check,
+        runner_inspector=runner_inspector,
+        policy_planner=runner_policy_planner,
+        planner=transcription_planner,
+        model_manager=model_manager,
+        lifecycle_store=job_lifecycle_store,
     )

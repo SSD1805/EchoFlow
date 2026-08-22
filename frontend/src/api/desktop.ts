@@ -1,3 +1,5 @@
+import { invokeNativeProtocol } from "./nativeProtocol";
+
 export type LocationKind = "recording-source" | "transcript-library";
 export type ProcessingPolicy = "manual" | "automatic";
 
@@ -178,19 +180,6 @@ export interface ResearchTypedSavedSearchResult {
   updated_at: string;
 }
 
-interface DesktopError {
-  code: string;
-  message: string;
-}
-
-interface DesktopResponse<T> {
-  protocol_version: 1;
-  request_id: string;
-  ok: boolean;
-  result: T | null;
-  error: DesktopError | null;
-}
-
 export interface DesktopClient {
   chooseFiles(kind: LocationKind): Promise<string[]>;
   chooseFolder(): Promise<string | null>;
@@ -233,20 +222,11 @@ export interface DesktopClient {
   deleteTypedSavedSearch(saved: ResearchTypedSavedSearchResult): Promise<void>;
 }
 
-function assertResponse<T>(value: unknown): DesktopResponse<T> {
-  if (!value || typeof value !== "object") {
-    throw new Error("EchoFlow desktop bridge returned an invalid response");
-  }
-  const candidate = value as Partial<DesktopResponse<T>>;
-  if (
-    candidate.protocol_version !== 1 ||
-    typeof candidate.request_id !== "string" ||
-    typeof candidate.ok !== "boolean"
-  ) {
-    throw new Error("EchoFlow desktop bridge returned an incompatible response");
-  }
-  return candidate as DesktopResponse<T>;
-}
+const DESKTOP_PROTOCOL_MESSAGES = {
+  invalid: "EchoFlow desktop bridge returned an invalid response",
+  incompatible: "EchoFlow desktop bridge returned an incompatible response",
+  failure: "EchoFlow could not complete that request",
+} as const;
 
 function normalizeLabels(values: string[]): string[] {
   const labels = new Map<string, string>();
@@ -299,21 +279,13 @@ function copyTypedSavedSearch(
 }
 
 class TauriDesktopClient implements DesktopClient {
-  private async request<T>(method: string, params: Record<string, unknown>): Promise<T> {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const request = {
-      protocol_version: 1,
-      request_id: crypto.randomUUID(),
+  private request<T>(method: string, params: Record<string, unknown>): Promise<T> {
+    return invokeNativeProtocol<T>(
+      "desktop_request",
       method,
       params,
-    };
-    const response = assertResponse<T>(
-      await invoke<unknown>("desktop_request", { request }),
+      DESKTOP_PROTOCOL_MESSAGES,
     );
-    if (!response.ok || response.result === null) {
-      throw new Error(response.error?.message ?? "EchoFlow could not complete that request");
-    }
-    return response.result;
   }
 
   async chooseFiles(kind: LocationKind): Promise<string[]> {

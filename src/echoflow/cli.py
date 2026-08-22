@@ -109,7 +109,6 @@ def _render_runner(
         "Provisional": str(policy.provisional).lower(),
         "CPU threads": str(policy.cpu_threads),
         "Memory budget": str(policy.memory_budget_bytes),
-        "Model tier": policy.recommended_model_tier.value,
         "Constraints": ", ".join(policy.constraints) or "none",
     }
     for setting, value in rows.items():

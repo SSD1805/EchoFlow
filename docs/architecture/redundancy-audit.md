@@ -96,11 +96,13 @@ Browser mocks deliberately repeat some DTO shape. They are executable examples o
 
 Loading, error, confirmation, and editing state often look alike but belong to different user lifecycles. There is no evidence of policy drift that justifies a generic interaction-state framework.
 
-### Runner `ModelTier` compatibility marker
+## Pre-release compatibility cleanup
 
-`ModelTier` is deprecated as a model-selection authority. Concrete transcription strategy ranking owns engine/model selection. It remains temporarily because `ExecutionPolicy.to_dict()` exposes `recommended_model_tier` through the existing CLI wire shape and cross-layer fixtures still consume that compatibility field.
+The audit initially retained the deprecated runner `ModelTier` marker conservatively because `ExecutionPolicy.to_dict()` exposed `recommended_model_tier` through the development CLI wire shape. A follow-up review before packaging established that the marker was not part of canonical evidence, authoritative research, checkpoint identity, or a released integration contract.
 
-That is explicit compatibility, not active architecture. Its removal should be considered during the identity/API migration, where command/module/environment/package compatibility can be changed deliberately in one migration contract rather than slipped into an otherwise behavior-preserving refactor.
+It was therefore removed before distribution could turn historical residue into compatibility debt. `ExecutionPolicy` now owns only processing intent and resource/admission limits. Concrete transcription strategy ranking remains the sole engine/model-selection authority, including when a resumed job is re-admitted on the current machine.
+
+This is the intended pre-release rule: preserve real user-owned and released contracts aggressively; do not manufacture permanence for an obsolete internal shape merely because tests once serialized it.
 
 ## Test policy
 

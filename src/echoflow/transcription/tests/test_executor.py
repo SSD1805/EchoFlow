@@ -8,12 +8,7 @@ from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.errors import InputChangedError
 from echoflow.media.models import InputIdentity, MediaInfo, MediaStream, StreamKind
-from echoflow.runner.models import (
-    ExecutionPolicy,
-    ModelTier,
-    ProcessingProfile,
-    RunnerResources,
-)
+from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.assembly import TranscriptAssembler
 from echoflow.transcription.audio import DecodedAudio
@@ -97,11 +92,10 @@ def plan(
     )
     runner = resources()
     policy = ExecutionPolicy(
-        ProcessingProfile.BALANCED,
-        False,
-        4,
-        8 * GIB,
-        ModelTier.STANDARD,
+        profile=ProcessingProfile.BALANCED,
+        provisional=False,
+        cpu_threads=4,
+        memory_budget_bytes=8 * GIB,
     )
     engine = CpuEngineConfiguration(
         "faster-whisper",

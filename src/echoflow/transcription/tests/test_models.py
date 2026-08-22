@@ -4,12 +4,7 @@ from pathlib import Path
 import pytest
 
 from echoflow.media.models import InputIdentity, MediaInfo, MediaStream, StreamKind
-from echoflow.runner.models import (
-    ExecutionPolicy,
-    ModelTier,
-    ProcessingProfile,
-    RunnerResources,
-)
+from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
 from echoflow.transcription.models import (
     CanonicalTranscript,
     CpuEngineConfiguration,
@@ -69,11 +64,10 @@ def values(tmp_path):
         effective_memory_available_bytes=6 * 1024**3,
     )
     policy = ExecutionPolicy(
-        ProcessingProfile.BALANCED,
-        False,
-        4,
-        6 * 1024**3,
-        ModelTier.STANDARD,
+        profile=ProcessingProfile.BALANCED,
+        provisional=False,
+        cpu_threads=4,
+        memory_budget_bytes=6 * 1024**3,
     )
     engine = CpuEngineConfiguration(
         "faster-whisper",

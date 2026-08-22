@@ -2,12 +2,7 @@ from dataclasses import FrozenInstanceError, fields
 
 import pytest
 
-from echoflow.runner.models import (
-    ExecutionPolicy,
-    ModelTier,
-    ProcessingProfile,
-    RunnerResources,
-)
+from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
 
 
 def test_runner_resources_have_a_stable_machine_readable_shape():
@@ -44,7 +39,7 @@ def test_runner_resources_have_a_stable_machine_readable_shape():
     assert not hasattr(resources, "__dict__")
 
 
-def test_execution_policy_serializes_profile_without_production_model_decision():
+def test_execution_policy_serializes_resource_policy_without_model_selection():
     policy = ExecutionPolicy(
         profile=ProcessingProfile.SCREENING,
         provisional=True,
@@ -57,7 +52,6 @@ def test_execution_policy_serializes_profile_without_production_model_decision()
         "provisional": True,
         "cpu_threads": 2,
         "memory_budget_bytes": 1024,
-        "recommended_model_tier": "strategy-specific",
         "constraints": ("configured_cpu_limit",),
     }
     assert [profile.value for profile in ProcessingProfile] == [
@@ -68,14 +62,3 @@ def test_execution_policy_serializes_profile_without_production_model_decision()
     assert not hasattr(policy, "__dict__")
     with pytest.raises(FrozenInstanceError):
         setattr(policy, fields(policy)[0].name, ProcessingProfile.BALANCED)
-
-
-def test_legacy_model_tier_still_serializes_for_existing_plan_fixtures():
-    policy = ExecutionPolicy(
-        ProcessingProfile.BALANCED,
-        False,
-        4,
-        2048,
-        ModelTier.STANDARD,
-    )
-    assert policy.to_dict()["recommended_model_tier"] == "standard"

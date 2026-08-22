@@ -3,13 +3,14 @@ name: Dependency refresh
 on:
   push:
     branches: [agent/security-dependency-refresh]
+  pull_request:
 
 permissions:
   contents: write
 
 jobs:
   refresh:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -40,10 +41,6 @@ jobs:
       - name: Refresh Rust lock
         run: cargo update --manifest-path frontend/src-tauri/Cargo.toml
 
-      - name: Show frontend moderate advisories
-        working-directory: frontend
-        run: npm audit --audit-level=moderate || true
-
       - name: Commit refreshed locks
         shell: bash
         run: |
@@ -56,3 +53,58 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "chore(deps): refresh dependency locks"
           git push origin HEAD:agent/security-dependency-refresh
+
+  audit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: true
+
+      - name: Audit complete Python lock including development dependencies
+        shell: bash
+        run: |
+          uv export \
+            --locked \
+            --all-groups \
+            --extra transcription \
+            --extra diarization \
+            --no-emit-project \
+            --no-hashes \
+            --format requirements-txt \
+            --output-file "${{ runner.temp }}/echoflow-all-requirements.txt"
+          uvx --from pip-audit==2.10.1 pip-audit \
+            --requirement "${{ runner.temp }}/echoflow-all-requirements.txt" \
+            --no-deps \
+            --disable-pip \
+            --ignore-vuln PYSEC-2026-3624 \
+            --progress-spinner off
+
+      - name: Install locked frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-fund --no-audit
+
+      - name: Audit frontend at moderate severity
+        working-directory: frontend
+        run: npm audit --audit-level=moderate
+
+      - name: Install RustSec cargo-audit for branch diagnosis
+        run: cargo install cargo-audit --locked
+
+      - name: Audit locked Rust dependencies
+        run: cargo audit --file frontend/src-tauri/Cargo.lock

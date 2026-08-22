@@ -91,7 +91,7 @@ jobs:
         run: >-
           espeak-ng
           -w "${{ runner.temp }}/diarization-acceptance.wav"
-          "EchoFlow is running a local speaker diarization acceptance test. The recording stays on this runner."
+          "Scholion is running a local speaker diarization acceptance test. The recording stays on this runner."
 
       - name: Run real Community-1 inference twice
         run: >-

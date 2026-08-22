@@ -55,7 +55,7 @@ test("Susan can open a verified transcript window from a search result", async (
   await expect(reader.locator("mark")).toHaveText("ABC");
   await expect(reader.locator("[data-seek-seconds='862.43']")).toContainText("14:22");
 
-  await reader.getByRole("button", { name: /Move evidence cursor to 14:22 at started/ }).click();
+  await reader.getByRole("button", { name: /Move recording position to 14:22 at started/ }).click();
   await expect(reader.locator("[data-playhead-seconds='862.35']")).toContainText("14:22");
   await reader.getByRole("button", { name: "Return to match" }).click();
   await expect(reader.locator("[data-playhead-seconds='862.43']")).toContainText("14:22");
@@ -78,7 +78,7 @@ test("Susan can save a durable note from a verified evidence window", async ({ p
   await reader.getByRole("textbox", { name: "Research note" }).fill(body);
   await reader.getByRole("button", { name: "Save note" }).click();
   await expect(
-    reader.getByText("Note saved to this verified evidence.", { exact: true }),
+    reader.getByText("Note saved to this transcript passage.", { exact: true }),
   ).toBeVisible();
   await expect(reader.getByText("/Users/")).toHaveCount(0);
   await expect(reader.getByText("canonical_path")).toHaveCount(0);

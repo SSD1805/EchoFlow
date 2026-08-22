@@ -1,0 +1,75 @@
+name: Product Identity
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-identity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scholion-identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check out repository without persisting credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Reject legacy product identity and stale release status
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path.cwd()
+          ignored_parts = {
+              ".git",
+              ".hypothesis",
+              ".poodle-temp",
+              ".venv",
+              "node_modules",
+              "target",
+          }
+          forbidden = {
+              "legacy display name": "Echo" + "Flow",
+              "legacy module/package name": "echo" + "flow",
+              "legacy environment prefix": "ECHO" + "FLOW",
+              "stale identity checkpoint": "Product identity checkpoint " + "← next",
+              "stale release sequence": "product identity decision and deliberate " + "identity migration",
+              "stale docs release sequence": "product-identity decision and deliberate " + "migration",
+          }
+
+          findings: list[str] = []
+          for path in sorted(root.rglob("*")):
+              if not path.is_file() or any(part in ignored_parts for part in path.parts):
+                  continue
+              try:
+                  raw = path.read_bytes()
+              except OSError:
+                  continue
+              if b"\x00" in raw[:4096]:
+                  continue
+              try:
+                  text = raw.decode("utf-8")
+              except UnicodeDecodeError:
+                  continue
+              relative = path.relative_to(root)
+              for line_number, line in enumerate(text.splitlines(), start=1):
+                  for label, needle in forbidden.items():
+                      if needle in line:
+                          findings.append(f"{relative}:{line_number}: {label}: {line.strip()}")
+
+          if findings:
+              print("Scholion identity regression check failed:")
+              print("\n".join(findings))
+              raise SystemExit(1)
+
+          print("Scholion identity is consistent and the release sequence no longer points back to the completed naming checkpoint.")
+          PY

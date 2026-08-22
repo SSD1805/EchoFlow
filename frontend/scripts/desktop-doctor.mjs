@@ -51,6 +51,16 @@ function commandCheck(command, args, label, remedy) {
   return false;
 }
 
+function optionalCommandCheck(command, args, label, remedy) {
+  const result = run(command, args);
+  if (result.status === 0) {
+    pass(label, firstLine(result.stdout || result.stderr));
+    return true;
+  }
+  warn(label, `${command} is unavailable or failed to run`, remedy);
+  return false;
+}
+
 function supportedNodeVersion() {
   const [major = 0, minor = 0] = process.versions.node.split(".").map(Number);
   return (major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22;
@@ -93,8 +103,19 @@ function checkPythonBackend(command, source) {
   );
 }
 
+function mediaToolRemedy() {
+  if (process.platform === "darwin") {
+    return "Needed to process real media. One macOS option is: brew install ffmpeg";
+  }
+  if (process.platform === "win32") {
+    return "Needed to process real media. Install FFmpeg and make both ffmpeg.exe and ffprobe.exe available on PATH.";
+  }
+  return "Needed to process real media. Install your distribution's FFmpeg package.";
+}
+
 console.log("Scholion desktop doctor");
-console.log(`Mode: ${mode === "mock" ? "browser mock" : "native Tauri source build"}\n`);
+console.log(`Mode: ${mode === "mock" ? "browser mock" : "native Tauri source build"}`);
+console.log(`Platform: ${process.platform} ${process.arch}\n`);
 
 if (supportedNodeVersion()) {
   pass("Node.js", `v${process.versions.node} matches frontend/package.json`);
@@ -142,7 +163,7 @@ if (versionCheck.status === 0) {
 
 if (mode === "mock") {
   console.log(
-    "\nBrowser mock needs no Python, Rust, Cargo, FFmpeg, WebKitGTK, or transcription model.",
+    "\nBrowser mock needs no Python, Rust, Cargo, FFmpeg, native webview SDK, or transcription model.",
   );
   console.log("Start it with: npm run dev:mock");
 } else {
@@ -198,7 +219,47 @@ if (mode === "mock") {
     );
   }
 
+  console.log("\nMedia processing checks");
+  optionalCommandCheck("ffmpeg", ["-version"], "FFmpeg", mediaToolRemedy());
+  optionalCommandCheck("ffprobe", ["-version"], "FFprobe", mediaToolRemedy());
+
+  if (process.platform === "darwin") {
+    console.log("\nmacOS native build checks");
+    commandCheck(
+      "xcode-select",
+      ["-p"],
+      "Xcode Command Line Tools",
+      "Install Apple's Command Line Tools with: xcode-select --install",
+    );
+    commandCheck(
+      "xcrun",
+      ["--find", "clang"],
+      "Apple Clang",
+      "Install or repair Apple's Command Line Tools, then run xcrun --find clang again.",
+    );
+    pass("macOS architecture", `${process.arch}; keep Node, Python, and Rust on the same architecture when possible`);
+  }
+
+  if (process.platform === "win32") {
+    console.log("\nWindows native build checks");
+    const linker = run("where.exe", ["link.exe"]);
+    if (linker.status === 0) {
+      pass("MSVC linker", firstLine(linker.stdout));
+    } else {
+      warn(
+        "MSVC linker",
+        "link.exe is not visible in this shell",
+        "Cargo can sometimes locate Visual Studio tooling outside PATH. If the native build reports 'linker link.exe not found', install Visual Studio 2022 Build Tools with the Desktop development with C++ workload and a Windows SDK.",
+      );
+    }
+    pass(
+      "Windows WebView",
+      "Tauri uses Microsoft Edge WebView2; if the native window reports a WebView2 runtime error, repair or install the Evergreen WebView2 Runtime",
+    );
+  }
+
   if (process.platform === "linux") {
+    console.log("\nLinux native build checks");
     if (
       commandCheck(
         "pkg-config",

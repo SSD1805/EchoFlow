@@ -41,7 +41,7 @@ function renderWords(
         type="button"
         data-word-index={word.word_index}
         data-word-start={word.start_seconds}
-        aria-label={`Move evidence cursor to ${formatEvidenceTime(word.start_seconds)} at ${word.text}`}
+        aria-label={`Move recording position to ${formatEvidenceTime(word.start_seconds)} at ${word.text}`}
         onClick={() => onSeek(word.start_seconds)}
       >
         {word.highlighted ? <mark>{word.text}</mark> : word.text}
@@ -91,7 +91,7 @@ export function EvidenceReader({
       return;
     }
     if (!onCreateNote) {
-      setNoteError("This evidence generation is preserved for review, not new annotation.");
+      setNoteError("This earlier transcript version is available for review, not new notes.");
       return;
     }
 
@@ -101,12 +101,12 @@ export function EvidenceReader({
     try {
       await onCreateNote(body);
       setNoteBody("");
-      setNoteStatus("Note saved to this verified evidence.");
+      setNoteStatus("Note saved to this transcript passage.");
     } catch (caught) {
       setNoteError(
         caught instanceof Error
           ? caught.message
-          : "Scholion could not save the note to this evidence.",
+          : "Scholion could not save the note to this transcript passage.",
       );
     } finally {
       setSavingNote(false);
@@ -117,7 +117,7 @@ export function EvidenceReader({
     <aside className="evidence-reader" aria-labelledby="evidence-reader-title">
       <header className="evidence-reader-header">
         <div>
-          <p className="mini-label">Verified canonical window</p>
+          <p className="mini-label">Transcript passage</p>
           <h2 id="evidence-reader-title">Evidence reader</h2>
         </div>
         <div className="context-help-actions">
@@ -138,8 +138,8 @@ export function EvidenceReader({
         role="status"
       >
         {generationState === "current"
-          ? "Current verified canonical generation"
-          : "Older verified canonical generation · Scholion opened the exact evidence this research object cites and did not rebind it to the current transcript."}
+          ? "Current transcript version"
+          : "Earlier transcript version · This is the exact version this research note points to."}
       </p>
 
       <dl className="evidence-proof">
@@ -148,20 +148,20 @@ export function EvidenceReader({
           <dd>{evidence.document_id}</dd>
         </div>
         <div>
-          <dt>Canonical generation</dt>
+          <dt>Transcript version ID</dt>
           <dd>
             <code>{evidence.canonical_sha256.slice(0, 12)}…</code>
           </dd>
         </div>
         <div>
-          <dt>Verified span</dt>
+          <dt>Passage time</dt>
           <dd>
             {formatEvidenceTime(evidence.start_seconds)}–{formatEvidenceTime(evidence.end_seconds)}
           </dd>
         </div>
       </dl>
 
-      <div className="evidence-context" aria-label="Verified transcript context">
+      <div className="evidence-context" aria-label="Transcript context">
         {evidence.context_segments.length === 0 ? (
           <section className="context-segment result-segment">
             <div className="context-meta">
@@ -196,12 +196,10 @@ export function EvidenceReader({
       {onCreateNote ? (
         <section className="evidence-note-compose" aria-labelledby="evidence-note-title">
           <div>
-            <p className="mini-label">Durable research</p>
-            <h3 id="evidence-note-title">Attach a note to this evidence</h3>
+            <p className="mini-label">Research note</p>
+            <h3 id="evidence-note-title">Attach a note to this passage</h3>
             <p>
-              The note is anchored to this verified canonical generation and exact evidence span.
-              If the transcript changes before save, Scholion refuses the mutation instead of
-              silently moving the note.
+              The note will remember this exact transcript version and time range. If the transcript changes before the note is saved, Scholion will ask you to reopen it rather than silently moving the note.
             </p>
           </div>
           <form onSubmit={(event) => void saveNote(event)}>
@@ -228,11 +226,10 @@ export function EvidenceReader({
           </form>
         </section>
       ) : (
-        <section className="evidence-note-compose evidence-note-readonly" aria-label="Older evidence annotation policy">
-          <p className="mini-label">Preserved research evidence</p>
+        <section className="evidence-note-compose evidence-note-readonly" aria-label="Earlier transcript note policy">
+          <p className="mini-label">Earlier transcript version</p>
           <p>
-            This older generation remains available for verification. New notes are not silently
-            attached to a different current generation from this view.
+            This version stays available because existing research points to it. New notes are added from the current transcript version instead.
           </p>
         </section>
       )}
@@ -249,7 +246,7 @@ export function EvidenceReader({
 
       <footer className="evidence-seek" data-seek-seconds={evidence.seek_seconds}>
         <div>
-          <span className="mini-label">Source-relative evidence cursor</span>
+          <span className="mini-label">Recording position</span>
           <output data-playhead-seconds={cursorSeconds}>
             {formatEvidenceTime(cursorSeconds)}
           </output>
@@ -263,7 +260,7 @@ export function EvidenceReader({
         </div>
         <div className="evidence-cursor-control">
           <input
-            aria-label="Evidence position"
+            aria-label="Recording position"
             type="range"
             min={cursorBounds.start}
             max={cursorBounds.end}
@@ -272,8 +269,7 @@ export function EvidenceReader({
             onChange={(event) => setCursorSeconds(Number(event.target.value))}
           />
           <p>
-            This source-relative coordinate is verified against canonical evidence. Native playback
-            consumes it without exposing source or canonical filesystem paths to the webview.
+            Scholion keeps this position tied to the transcript passage and checks the original recording again before playback.
           </p>
         </div>
       </footer>

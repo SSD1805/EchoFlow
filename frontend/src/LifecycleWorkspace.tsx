@@ -29,40 +29,40 @@ const SCOPE_COPY: readonly ScopeCopy[] = [
   {
     id: "library-view",
     label: "Remove from Library search",
-    description: "Removes rebuildable search state. Canonical transcript evidence and the recording stay in place.",
+    description: "Removes this transcript from search results. The transcript file and original recording stay in place.",
   },
   {
     id: "derived-artifacts",
-    label: "Delete derived transcript files",
-    description: "Deletes regenerable TXT, SRT, and WebVTT publications next to the canonical transcript.",
+    label: "Delete exported transcript copies",
+    description: "Deletes TXT, SRT, and WebVTT copies. The main Scholion transcript stays in place.",
   },
   {
     id: "execution-state",
-    label: "Delete private processing state",
-    description: "Deletes checkpoints and intermediates for this job. Lightweight lifecycle history remains.",
+    label: "Delete temporary processing files",
+    description: "Deletes saved progress and temporary files from transcription. Finished transcripts stay in place.",
   },
   {
     id: "canonical-transcript",
-    label: "Delete canonical transcript evidence",
-    description: "Also removes Library search state, derived transcript files, and private execution state. Notes and the original recording are not implied.",
+    label: "Delete the Scholion transcript",
+    description: "Also removes its Library search entries, exported copies, and temporary processing files. Notes and the original recording stay unless you select them separately.",
     destructive: true,
   },
   {
     id: "research-notes",
-    label: "Delete anchored research notes",
-    description: "Deletes human-authored notes anchored to this exact canonical generation. Tags and collections are not globally deleted.",
+    label: "Delete notes attached to this transcript",
+    description: "Deletes your notes attached to this version of the transcript. Tags and collections elsewhere are not deleted.",
     destructive: true,
   },
   {
     id: "saved-searches",
-    label: "Delete transcript-scoped saved searches",
-    description: "Deletes only saved searches that explicitly constrain themselves to this transcript.",
+    label: "Delete saved searches limited to this transcript",
+    description: "Deletes only saved searches that were specifically limited to this transcript.",
     destructive: true,
   },
   {
     id: "source-recording",
     label: "Delete the original recording",
-    description: "Deletes the source media only after Scholion verifies it still matches the bytes used for transcription.",
+    description: "Before deleting it, Scholion checks that the file is the same recording that was used for transcription.",
     destructive: true,
   },
 ];
@@ -120,7 +120,7 @@ export function LifecycleWorkspace({
         setSelectedDocumentId(loaded[0]?.document_id ?? "");
       })
       .catch((caught: unknown) => {
-        if (!cancelled) setError(caught instanceof Error ? caught.message : "Could not load lifecycle state");
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "Could not load storage and deletion data");
       })
       .finally(() => {
         if (!cancelled) setBusy(false);
@@ -193,7 +193,7 @@ export function LifecycleWorkspace({
       setSourceAcknowledged(false);
       await loadDocuments();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not apply deletion plan");
+      setError(caught instanceof Error ? caught.message : "Could not delete the selected items");
     } finally {
       setBusy(false);
     }
@@ -227,7 +227,7 @@ export function LifecycleWorkspace({
       setRetentionReceipt(await lifecycle.executeRetention(retentionPlan));
       setRetentionPlan(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not apply cleanup plan");
+      setError(caught instanceof Error ? caught.message : "Could not remove temporary processing files");
     } finally {
       setBusy(false);
     }
@@ -242,7 +242,7 @@ export function LifecycleWorkspace({
   return (
     <>
       <WorkspaceHeader
-        eyebrow="Local custody"
+        eyebrow="Storage"
         title="Storage & deletion"
         theme={theme}
         onThemeChange={onThemeChange}
@@ -251,10 +251,10 @@ export function LifecycleWorkspace({
       <div className="lifecycle-page">
         <div className="lifecycle-intro">
           <div>
-            <p className="section-kicker">Review before mutation</p>
-            <h2>Nothing here is a one-click mystery delete.</h2>
+            <p className="section-kicker">Choose what to remove</p>
+            <h2>See exactly what will be deleted before anything changes.</h2>
             <p>
-              Scholion asks Python to calculate the exact consequences first. Applying a plan repeats the same request with a token bound to that reviewed state.
+              Select the items you want to remove. Scholion shows the full deletion list for you to review before you confirm it.
             </p>
           </div>
           <InfoPopover topic="storage" label="How storage controls work" />
@@ -269,14 +269,14 @@ export function LifecycleWorkspace({
         <section className="lifecycle-card" aria-labelledby="transcript-custody-heading">
           <div className="lifecycle-card-heading">
             <div>
-              <p className="section-kicker">Transcript custody</p>
-              <h2 id="transcript-custody-heading">Choose exactly what should leave</h2>
+              <p className="section-kicker">Transcript files and research</p>
+              <h2 id="transcript-custody-heading">Choose what you want to delete</h2>
             </div>
-            <span className="lifecycle-badge">Plan first</span>
+            <span className="lifecycle-badge">Preview required</span>
           </div>
 
           {documents.length === 0 ? (
-            <p className="lifecycle-empty">No indexed transcripts are currently available for lifecycle management.</p>
+            <p className="lifecycle-empty">No transcripts are currently available here. Transcripts appear after they have been added to Library search.</p>
           ) : (
             <>
               <label className="lifecycle-field">
@@ -299,7 +299,7 @@ export function LifecycleWorkspace({
                 <div className="lifecycle-document-facts" aria-label="Selected transcript facts">
                   <span>{selectedDocument.segment_count.toLocaleString()} segments</span>
                   <span>{selectedDocument.detected_language ?? "Language unavailable"}</span>
-                  <span>{selectedDocument.deletion_ready ? "Canonical generation verified in index" : "Library rebuild required before deletion"}</span>
+                  <span>{selectedDocument.deletion_ready ? "Ready for deletion review" : "Refresh Library search before deleting"}</span>
                 </div>
               ) : null}
 
@@ -338,7 +338,7 @@ export function LifecycleWorkspace({
                   <span>
                     <strong>I understand this deletes the original recording.</strong>
                     <small>
-                      Scholion will verify that the current source bytes still match transcript provenance before allowing deletion. Filesystem deletion is not a claim of forensic secure erasure.
+                      Scholion first checks that the current file is the same recording used for transcription. Normal file deletion is not secure forensic erasure.
                     </small>
                   </span>
                 </label>
@@ -351,20 +351,19 @@ export function LifecycleWorkspace({
                   disabled={deletionPreviewDisabled}
                   onClick={() => void previewDeletion()}
                 >
-                  Preview deletion plan
+                  Review what will be deleted
                 </button>
               </div>
             </>
           )}
 
           {deletionPlan ? (
-            <div className="lifecycle-plan" aria-label="Deletion plan">
+            <div className="lifecycle-plan" aria-label="Deletion preview">
               <div className="lifecycle-plan-heading">
                 <div>
-                  <p className="section-kicker">Backend-calculated plan</p>
-                  <h3>Review {deletionPlan.actions.length} planned action{deletionPlan.actions.length === 1 ? "" : "s"}</h3>
+                  <p className="section-kicker">Deletion preview</p>
+                  <h3>Review {deletionPlan.actions.length} item{deletionPlan.actions.length === 1 ? "" : "s"} to be removed</h3>
                 </div>
-                <span>{deletionPlan.effective_scopes.length} effective scopes</span>
               </div>
 
               <ul className="lifecycle-action-list">
@@ -375,20 +374,20 @@ export function LifecycleWorkspace({
 
               <div className="lifecycle-plan-facts">
                 <p>
-                  <strong>{deletionPlan.preserved_note_count}</strong> anchored note{deletionPlan.preserved_note_count === 1 ? "" : "s"} preserved by this plan.
+                  <strong>{deletionPlan.preserved_note_count}</strong> note{deletionPlan.preserved_note_count === 1 ? "" : "s"} will stay.
                 </p>
                 <p>
-                  <strong>{deletionPlan.affected_saved_search_count}</strong> saved search{deletionPlan.affected_saved_search_count === 1 ? "" : "es"} may be affected by the transcript change.
+                  <strong>{deletionPlan.affected_saved_search_count}</strong> saved search{deletionPlan.affected_saved_search_count === 1 ? "" : "es"} may refer to this transcript.
                 </p>
               </div>
 
               <details>
-                <summary>Why did Scholion expand my selection?</summary>
+                <summary>Why are extra items included?</summary>
                 <p>
-                  Requested: {deletionPlan.requested_scopes.map(scopeLabel).join(", ")}. Effective: {deletionPlan.effective_scopes.map(scopeLabel).join(", ")}.
+                  You selected: {deletionPlan.requested_scopes.map(scopeLabel).join(", ")}. Scholion will remove: {deletionPlan.effective_scopes.map(scopeLabel).join(", ")}.
                 </p>
                 <p>
-                  Canonical transcript deletion automatically includes only disposable descendants. Human research and source media still require their own explicit scopes.
+                  Deleting a Scholion transcript also removes its rebuildable search entries, exported copies, and temporary processing files. Your notes and original recording still require their own separate selection.
                 </p>
               </details>
 
@@ -398,14 +397,14 @@ export function LifecycleWorkspace({
                 disabled={busy}
                 onClick={() => void applyDeletion()}
               >
-                Apply reviewed plan
+                Delete these items
               </button>
             </div>
           ) : null}
 
           {deletionReceipt ? (
             <div className="lifecycle-alert lifecycle-alert-success" role="status">
-              Applied custody plan for {deletionReceipt.document_id}. {deletionReceipt.executed_targets.length} target{deletionReceipt.executed_targets.length === 1 ? "" : "s"} changed; {deletionReceipt.preserved_note_count} note{deletionReceipt.preserved_note_count === 1 ? "" : "s"} preserved.
+              Deleted {deletionReceipt.executed_targets.length} item{deletionReceipt.executed_targets.length === 1 ? "" : "s"} for {deletionReceipt.document_id}. {deletionReceipt.preserved_note_count} note{deletionReceipt.preserved_note_count === 1 ? "" : "s"} kept.
             </div>
           ) : null}
         </section>
@@ -413,22 +412,22 @@ export function LifecycleWorkspace({
         <section className="lifecycle-card" aria-labelledby="retention-heading">
           <div className="lifecycle-card-heading">
             <div>
-              <p className="section-kicker">Private processing cleanup</p>
-              <h2 id="retention-heading">Clean up old resumable workspaces</h2>
+              <p className="section-kicker">Temporary processing files</p>
+              <h2 id="retention-heading">Clean up old transcription work files</h2>
             </div>
-            <span className="lifecycle-badge">Evidence-safe</span>
+            <span className="lifecycle-badge">Finished transcripts stay</span>
           </div>
 
           <p className="lifecycle-copy">
-            This cleanup applies only to private checkpoints and intermediates under Scholion state. It never age-deletes canonical JSON, original recordings, published transcripts, notes, tags, collections, saved searches, or lifecycle manifests.
+            This cleanup removes only saved progress and temporary processing files. It does not age-delete finished Scholion transcripts, exported copies, original recordings, notes, tags, collections, or saved searches.
           </p>
 
           <div className="lifecycle-retention-controls">
             <label className="lifecycle-field">
-              <span>Remove eligible processing state older than</span>
+              <span>Remove completed-job temporary files last updated more than</span>
               <span className="lifecycle-number-field">
                 <input
-                  aria-label="Execution retention days"
+                  aria-label="Temporary processing file age in days"
                   type="number"
                   min="0"
                   max="36500"
@@ -439,7 +438,7 @@ export function LifecycleWorkspace({
                     resetRetentionReview();
                   }}
                 />
-                <span>days</span>
+                <span>days ago</span>
               </span>
             </label>
 
@@ -455,7 +454,7 @@ export function LifecycleWorkspace({
               />
               <span>
                 <strong>Also include failed and interrupted jobs</strong>
-                <small>These may still be resumable. The preview will mark every candidate whose resume capability would be lost. Running jobs are never eligible.</small>
+                <small>Some of these jobs may still be resumable. The preview identifies any job that would lose saved progress. Running jobs are never included.</small>
               </span>
             </label>
           </div>
@@ -470,17 +469,17 @@ export function LifecycleWorkspace({
           </button>
 
           {retentionPlan ? (
-            <div className="lifecycle-plan" aria-label="Retention plan">
+            <div className="lifecycle-plan" aria-label="Cleanup preview">
               <div className="lifecycle-plan-heading">
                 <div>
-                  <p className="section-kicker">Backend-calculated cleanup</p>
-                  <h3>{retentionPlan.candidates.length} eligible workspace{retentionPlan.candidates.length === 1 ? "" : "s"}</h3>
+                  <p className="section-kicker">Cleanup preview</p>
+                  <h3>{retentionPlan.candidates.length} job{retentionPlan.candidates.length === 1 ? "" : "s"} eligible</h3>
                 </div>
-                <span>{retentionPlan.policy.execution_days} day cutoff</span>
+                <span>Last updated more than {retentionPlan.policy.execution_days} days ago</span>
               </div>
 
               {retentionPlan.candidates.length === 0 ? (
-                <p className="lifecycle-empty">Nothing currently matches this cleanup policy.</p>
+                <p className="lifecycle-empty">Nothing currently matches these cleanup settings.</p>
               ) : (
                 <ul className="lifecycle-candidate-list">
                   {retentionPlan.candidates.map((candidate) => (
@@ -490,9 +489,9 @@ export function LifecycleWorkspace({
                         <span>{candidate.status} · last updated {candidate.updated_at}</span>
                       </div>
                       {candidate.resume_capability_lost ? (
-                        <span className="lifecycle-resume-warning">Resume will be lost</span>
+                        <span className="lifecycle-resume-warning">Saved progress will be lost</span>
                       ) : (
-                        <span>Completed state</span>
+                        <span>Completed</span>
                       )}
                     </li>
                   ))}
@@ -505,14 +504,14 @@ export function LifecycleWorkspace({
                 disabled={busy || retentionPlan.candidates.length === 0}
                 onClick={() => void applyRetention()}
               >
-                Apply cleanup plan
+                Remove these temporary files
               </button>
             </div>
           ) : null}
 
           {retentionReceipt ? (
             <div className="lifecycle-alert lifecycle-alert-success" role="status">
-              Removed private processing state for {retentionReceipt.discarded_job_ids.length} job{retentionReceipt.discarded_job_ids.length === 1 ? "" : "s"}. Canonical evidence and human research were outside this operation.
+              Removed temporary processing files for {retentionReceipt.discarded_job_ids.length} job{retentionReceipt.discarded_job_ids.length === 1 ? "" : "s"}. Finished transcripts and research were unchanged.
             </div>
           ) : null}
         </section>

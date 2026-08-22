@@ -17,6 +17,12 @@ from scholion.model_management.models import (
     ModelSpec,
 )
 from scholion.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
+from scholion.runner.topology import (
+    AcceleratorBackend,
+    AcceleratorDevice,
+    HardwareTopology,
+    MemoryTopology,
+)
 from scholion.workspace.lifecycle import JobLifecycleRecord, JobStatus
 from scholion.workspace.models import JobId
 
@@ -52,7 +58,31 @@ class _Inspector:
             memory_limit_bytes=None,
             effective_memory_available_bytes=12_000,
             constraints=("cpu_affinity",),
+            processor_name="AMD Ryzen Test Processor",
         )
+
+
+class _TopologyInspector:
+    def __init__(self) -> None:
+        self.topology = HardwareTopology(
+            resources=_Inspector().inspect(),
+            accelerators=(
+                AcceleratorDevice(
+                    accelerator_id="cuda:0",
+                    backend=AcceleratorBackend.CUDA,
+                    device_index=0,
+                    name="NVIDIA GeForce RTX 4080",
+                    memory_topology=MemoryTopology.DEDICATED,
+                    memory_total_bytes=16_000,
+                    memory_available_bytes=14_000,
+                ),
+            ),
+        )
+        self.calls = 0
+
+    def inspect(self) -> HardwareTopology:
+        self.calls += 1
+        return self.topology
 
 
 class _PolicyPlanner:
@@ -74,11 +104,18 @@ class _Planner:
         self.plan_result = plan
         self.plan_calls: list[tuple[object, ...]] = []
         self.assessment_calls: list[ProcessingProfile] = []
+        self.assessment_topologies: list[HardwareTopology] = []
 
     def assess_strategies(
-        self, *, profile: ProcessingProfile
+        self,
+        *,
+        profile: ProcessingProfile,
+        topology: HardwareTopology | None = None,
     ) -> tuple[dict[str, object], ...]:
+        assert topology is not None
+        assert topology.accelerators[0].name == "NVIDIA GeForce RTX 4080"
         self.assessment_calls.append(profile)
+        self.assessment_topologies.append(topology)
         return (
             {
                 "strategy": {
@@ -260,25 +297,24 @@ def _service(
     *,
     lifecycle: _Lifecycle | None = None,
     models: _Models | None = None,
-) -> tuple[ProcessingCenterService, _Planner, _Lifecycle]:
+) -> tuple[ProcessingCenterService, _Planner, _Lifecycle, _TopologyInspector]:
     plan = _plan()
     planner = _Planner(plan)
     state = lifecycle or _Lifecycle()
+    topology = _TopologyInspector()
     service = ProcessingCenterService(
         health_check=cast(Any, _Health()),
-        runner_inspector=cast(Any, _Inspector()),
+        topology_inspector=cast(Any, topology),
         policy_planner=cast(Any, _PolicyPlanner()),
         planner=cast(Any, planner),
         model_manager=cast(Any, models or _Models()),
         lifecycle_store=cast(Any, state),
     )
-    return service, planner, state
+    return service, planner, state, topology
 
 
-def test_readiness_composes_health_resources_strategy_and_verified_model_state() -> (
-    None
-):
-    service, planner, _ = _service()
+def test_readiness_composes_health_hardware_strategy_and_verified_model_state() -> None:
+    service, planner, _, topology = _service()
 
     result = service.readiness(ProcessingProfile.BALANCED)
 
@@ -297,9 +333,23 @@ def test_readiness_composes_health_resources_strategy_and_verified_model_state()
     assert result["resources"] == {
         "platform": "TestOS",
         "machine": "test-machine",
+        "processor_name": "AMD Ryzen Test Processor",
         "effective_cpus": 6,
+        "memory_total_bytes": 16_000,
+        "memory_available_bytes": 12_000,
         "effective_memory_available_bytes": 12_000,
         "constraints": ["cpu_affinity"],
+        "accelerators": [
+            {
+                "accelerator_id": "cuda:0",
+                "backend": "cuda",
+                "device_index": 0,
+                "name": "NVIDIA GeForce RTX 4080",
+                "memory_topology": "dedicated",
+                "memory_total_bytes": 16_000,
+                "memory_available_bytes": 14_000,
+            }
+        ],
     }
     assert result["policy"] == {
         "profile": "balanced",
@@ -327,10 +377,12 @@ def test_readiness_composes_health_resources_strategy_and_verified_model_state()
     assert strategies[0]["recommended"] is True
     assert strategies[1]["rejection_reasons"] == ["insufficient_memory"]
     assert planner.assessment_calls == [ProcessingProfile.BALANCED]
+    assert planner.assessment_topologies == [topology.topology]
+    assert topology.calls == 1
 
 
 def test_readiness_reports_recommended_model_as_not_installed() -> None:
-    service, _, _ = _service(models=_Models(revision=None))
+    service, _, _, _ = _service(models=_Models(revision=None))
 
     result = service.readiness(ProcessingProfile.ACCURACY)
 
@@ -351,7 +403,7 @@ def test_jobs_minimize_paths_and_render_safe_failure_state() -> None:
     )
     lifecycle = _Lifecycle((failed, unknown))
     lifecycle.resumable.add(failed.job_id)
-    service, _, _ = _service(lifecycle=lifecycle)
+    service, _, _, _ = _service(lifecycle=lifecycle)
 
     jobs = service.jobs()
 
@@ -370,7 +422,7 @@ def test_jobs_minimize_paths_and_render_safe_failure_state() -> None:
 
 
 def test_preflight_returns_backend_plan_without_private_paths() -> None:
-    service, planner, _ = _service()
+    service, planner, _, _ = _service()
 
     result = service.preflight(
         "/private/recording.mp4",
@@ -411,7 +463,7 @@ def test_retry_preflight_replans_nonrunning_job_and_rejects_running_job() -> Non
     failed = _record()
     running = _record(job_id="job-running", status=JobStatus.RUNNING, error_code=None)
     lifecycle = _Lifecycle((failed, running))
-    service, planner, _ = _service(lifecycle=lifecycle)
+    service, planner, _, _ = _service(lifecycle=lifecycle)
 
     result = service.retry_preflight(
         failed.job_id,
@@ -433,7 +485,7 @@ def test_discard_is_version_bound_and_never_accepts_running_state() -> None:
     failed = _record()
     running = _record(job_id="job-running", status=JobStatus.RUNNING, error_code=None)
     lifecycle = _Lifecycle((failed, running))
-    service, _, state = _service(lifecycle=lifecycle)
+    service, _, state, _ = _service(lifecycle=lifecycle)
 
     with pytest.raises(ValueError, match="running job cannot be discarded"):
         service.discard_job(running.job_id, expected_updated_at=running.updated_at)
@@ -446,8 +498,8 @@ def test_discard_is_version_bound_and_never_accepts_running_state() -> None:
 
 
 def test_model_verification_is_read_only_and_explicit() -> None:
-    installed, _, _ = _service(models=_Models(revision="revision-small"))
-    missing, _, _ = _service(models=_Models(revision=None))
+    installed, _, _, _ = _service(models=_Models(revision="revision-small"))
+    missing, _, _, _ = _service(models=_Models(revision=None))
 
     assert installed.verify_model("small") == {
         "model_id": "small",

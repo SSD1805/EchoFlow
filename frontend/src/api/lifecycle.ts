@@ -82,10 +82,35 @@ export interface LifecycleClient {
 }
 
 const LIFECYCLE_PROTOCOL_MESSAGES = {
-  invalid: "Scholion lifecycle service returned an invalid response",
-  incompatible: "Scholion lifecycle service returned an incompatible response",
-  failure: "Scholion could not complete that lifecycle request",
+  invalid: "Scholion storage service returned an invalid response",
+  incompatible: "Scholion storage service returned an incompatible response",
+  failure: "Scholion could not complete that storage request",
 } as const;
+
+const DELETION_ACTION_COPY: Readonly<Record<string, string>> = {
+  "library-view": "Remove this transcript from Library search",
+  "lexical-index": "Remove this transcript from Library search",
+  "semantic-index": "Update Library semantic search after removing this transcript",
+  "derived-artifacts": "Delete exported transcript copies",
+  "derived-artifact": "Delete an exported transcript copy",
+  "execution-state": "Delete temporary processing files and saved progress",
+  "canonical-transcript": "Delete the Scholion transcript",
+  "research-notes": "Delete notes attached to this transcript version",
+  "research-note": "Delete a note attached to this transcript version",
+  "saved-searches": "Delete saved searches limited to this transcript",
+  "saved-search": "Delete a saved search limited to this transcript",
+  "source-recording": "Delete the original recording",
+};
+
+function presentDeletionPlan(plan: DeletionPlan): DeletionPlan {
+  return {
+    ...plan,
+    actions: plan.actions.map((action) => ({
+      ...action,
+      description: DELETION_ACTION_COPY[action.target] ?? action.description,
+    })),
+  };
+}
 
 class TauriLifecycleClient implements LifecycleClient {
   private request<T>(method: string, params: Record<string, unknown>): Promise<T> {
@@ -101,16 +126,17 @@ class TauriLifecycleClient implements LifecycleClient {
     return this.request("lifecycle.documents.list", {});
   }
 
-  planDeletion(
+  async planDeletion(
     documentId: string,
     scopes: DeletionScope[],
     allowSource: boolean,
   ): Promise<DeletionPlan> {
-    return this.request("lifecycle.deletion.plan", {
+    const plan = await this.request<DeletionPlan>("lifecycle.deletion.plan", {
       document_id: documentId,
       scopes,
       allow_source: allowSource,
     });
+    return presentDeletionPlan(plan);
   }
 
   executeDeletion(plan: DeletionPlan, allowSource: boolean): Promise<DeletionReceipt> {
@@ -168,10 +194,10 @@ class MockLifecycleClient implements LifecycleClient {
     allowSource: boolean,
   ): Promise<DeletionPlan> {
     const document = this.documentsState.find((item) => item.document_id === documentId);
-    if (!document?.canonical_sha256) throw new Error("Transcript is not ready for custody changes");
-    if (scopes.length === 0) throw new Error("Choose at least one deletion scope");
+    if (!document?.canonical_sha256) throw new Error("Transcript is not ready for deletion review");
+    if (scopes.length === 0) throw new Error("Choose at least one item to remove");
     if (scopes.includes("source-recording") && !allowSource) {
-      throw new Error("Source recording deletion requires the explicit source safety switch");
+      throw new Error("Confirm original recording deletion before continuing");
     }
     const effective = [...scopes];
     if (scopes.includes("canonical-transcript")) {
@@ -188,7 +214,7 @@ class MockLifecycleClient implements LifecycleClient {
       "saved-searches": "delete saved searches explicitly scoped to this transcript",
       "source-recording": "delete the original source recording",
     };
-    return {
+    return presentDeletionPlan({
       document_id: documentId,
       canonical_sha256: document.canonical_sha256,
       requested_scopes: [...scopes],
@@ -197,13 +223,13 @@ class MockLifecycleClient implements LifecycleClient {
       preserved_note_count: scopes.includes("research-notes") ? 0 : 2,
       affected_saved_search_count: 1,
       confirmation_token: `mock-delete:${documentId}:${scopes.join(",")}:${allowSource}`,
-    };
+    });
   }
 
   async executeDeletion(plan: DeletionPlan, allowSource: boolean): Promise<DeletionReceipt> {
     const expected = await this.planDeletion(plan.document_id, plan.requested_scopes, allowSource);
     if (expected.confirmation_token !== plan.confirmation_token) {
-      throw new Error("Deletion plan changed; preview it again");
+      throw new Error("Deletion choices changed; review them again");
     }
     if (plan.effective_scopes.includes("library-view")) {
       this.documentsState = this.documentsState.filter((item) => item.document_id !== plan.document_id);
@@ -249,7 +275,7 @@ class MockLifecycleClient implements LifecycleClient {
       includeIncomplete: plan.policy.include_incomplete,
     });
     if (expected.confirmation_token !== plan.confirmation_token) {
-      throw new Error("Retention plan changed; preview it again");
+      throw new Error("Cleanup choices changed; preview them again");
     }
     return { discarded_job_ids: plan.candidates.map((candidate) => candidate.job_id) };
   }

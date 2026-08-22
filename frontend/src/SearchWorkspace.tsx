@@ -87,7 +87,7 @@ export function SearchWorkspace({
       document_id: item.document_id,
       canonical_sha256: item.canonical_sha256,
     });
-    setStatus(`Opening transcript tools for ${item.document_id}.`);
+    setStatus(`Opening speaker and export tools for ${item.document_id}.`);
   }
 
   async function createNote(body: string) {
@@ -112,7 +112,7 @@ export function SearchWorkspace({
           <p className="section-kicker">Search</p>
           <h2 id="search-title">Search transcripts, notes, tags, and collections.</h2>
         </div>
-        <p>Open a transcript result to see the exact passage, manage speakers, or publish a derived copy.</p>
+        <p>Open a result to read the matching passage in context, edit speaker names, or export a copy.</p>
       </section>
 
       <form className="global-search" role="search" onSubmit={(event) => void search(event)}>
@@ -131,7 +131,7 @@ export function SearchWorkspace({
             placeholder="Search transcripts, notes, tags, collections…"
             onChange={(event) => setQuery(event.target.value)}
           />
-          <kbd>Ctrl K</kbd>
+          <kbd title="Keyboard shortcut: focus search" aria-label="Control K focuses search">Ctrl K</kbd>
           <button type="submit" disabled={busy}>
             {busy ? "Searching…" : "Search"}
           </button>
@@ -209,10 +209,10 @@ export function SearchWorkspace({
                       <button
                         type="button"
                         className="secondary-action"
-                        aria-label={`Open transcript tools for ${item.document_id}`}
+                        aria-label={`Open speaker and export tools for ${item.document_id}`}
                         onClick={() => openTools(item)}
                       >
-                        Transcript tools
+                        Speaker & export tools
                       </button>
                     </div>
                   </article>

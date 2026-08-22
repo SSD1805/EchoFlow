@@ -53,12 +53,12 @@ export function EvidencePlayback({
       }
       const prepared = await client.prepare(generation, cursorSeconds);
       setSession(prepared);
-      setStatus(`Verified local playback prepared at ${formatEvidenceTime(prepared.seek_seconds)}.`);
+      setStatus(`Playback ready at ${formatEvidenceTime(prepared.seek_seconds)}.`);
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
-          : "Scholion could not prepare verified local playback.",
+          : "Scholion could not prepare the original recording for playback.",
       );
     } finally {
       setPreparing(false);
@@ -72,13 +72,13 @@ export function EvidencePlayback({
     try {
       await media.play();
     } catch {
-      setError("The system media engine could not start this recording.");
+      setError("This computer could not start playback for the recording.");
     }
   }
 
   function mediaError() {
     setError(
-      "The verified recording is available, but this system media engine cannot decode its container or codec.",
+      "The recording is intact, but this computer cannot play its file format or codec.",
     );
   }
 
@@ -101,13 +101,13 @@ export function EvidencePlayback({
     <section className="evidence-playback" aria-labelledby="evidence-playback-title">
       <div className="evidence-playback-heading">
         <div>
-          <p className="mini-label">Verified local source</p>
+          <p className="mini-label">Original recording</p>
           <h3 id="evidence-playback-title">Playback</h3>
         </div>
         <div className="context-help-actions">
           <InfoPopover
             topic="playback"
-            label="Why verify?"
+            label="Why check?"
             align="end"
             className="context-help"
           />
@@ -117,13 +117,13 @@ export function EvidencePlayback({
             disabled={preparing}
             onClick={() => void prepare()}
           >
-            {preparing ? "Verifying…" : session ? "Re-verify source" : "Prepare playback"}
+            {preparing ? "Checking…" : session ? "Check again" : "Prepare playback"}
           </button>
         </div>
       </div>
 
       <p className="evidence-playback-copy">
-        Scholion verifies the exact transcript generation and original recording before opening a native media session. The recording path is never sent to this view.
+        Before playback, Scholion checks that the original recording is still the same file used for this transcript. Playback stays on this computer.
       </p>
 
       {status && <p className="evidence-playback-status" role="status">{status}</p>}
@@ -141,7 +141,7 @@ export function EvidencePlayback({
               ref={(node) => {
                 mediaRef.current = node;
               }}
-              aria-label="Verified evidence video"
+              aria-label="Original recording video"
             />
           ) : (
             <audio
@@ -149,15 +149,15 @@ export function EvidencePlayback({
               ref={(node) => {
                 mediaRef.current = node;
               }}
-              aria-label="Verified evidence audio"
+              aria-label="Original recording audio"
             />
           )}
           <div className="evidence-playback-actions">
             <button type="button" className="secondary-action" onClick={() => void playFromCursor()}>
-              Play from evidence cursor
+              Play from transcript position
             </button>
             <span>
-              Verified source · {formatEvidenceTime(session.duration_seconds)}
+              Original recording · {formatEvidenceTime(session.duration_seconds)}
             </span>
           </div>
         </div>

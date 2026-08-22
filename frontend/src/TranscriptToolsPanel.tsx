@@ -48,7 +48,7 @@ export function TranscriptToolsPanel({
   const [names, setNames] = useState<Record<string, string>>({});
   const [formats, setFormats] = useState<TranscriptExportFormat[]>(["txt"]);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("Opening this verified transcript generation…");
+  const [status, setStatus] = useState("Opening this transcript version…");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export function TranscriptToolsPanel({
             next.speakers.map((speaker) => [speaker.speaker_ref, speaker.display_label ?? ""]),
           ),
         );
-        setStatus("Transcript tools are ready for this verified generation.");
+        setStatus("Transcript tools are ready.");
       })
       .catch((caught) => {
         if (!active) return;
@@ -130,7 +130,7 @@ export function TranscriptToolsPanel({
         display_label: null,
         display_name: speakerRef,
       });
-      setStatus(`Removed the display name for ${speakerRef}. The anonymous evidence ref remains.`);
+      setStatus(`Removed the display name for ${speakerRef}. Its original speaker reference remains.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Scholion could not remove that name.");
     } finally {
@@ -144,7 +144,7 @@ export function TranscriptToolsPanel({
     try {
       const next = await client.speakerSpans(generation);
       setSpans(next);
-      setStatus(`Opened ${next.length} speaker-aware transcript span${next.length === 1 ? "" : "s"}.`);
+      setStatus(`Opened ${next.length} speaker transcript section${next.length === 1 ? "" : "s"}.`);
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Scholion could not open the speaker transcript.",
@@ -169,15 +169,15 @@ export function TranscriptToolsPanel({
     try {
       const destination = await client.chooseDestinationFolder();
       if (destination === null) {
-        setStatus("Publication cancelled. No transcript export was created.");
+        setStatus("Export cancelled. No files were created.");
         return;
       }
       const result = await client.publish(generation, destination, formats);
       const filenames = result.publications.map((item) => item.filename).join(", ");
-      setStatus(`Published ${result.publications.length} file${result.publications.length === 1 ? "" : "s"}: ${filenames}.`);
+      setStatus(`Exported ${result.publications.length} file${result.publications.length === 1 ? "" : "s"}: ${filenames}.`);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Scholion could not publish those transcript views.",
+        caught instanceof Error ? caught.message : "Scholion could not export those transcript copies.",
       );
     } finally {
       setBusy(false);
@@ -211,7 +211,7 @@ export function TranscriptToolsPanel({
         <>
           <section className="transcript-summary" aria-labelledby="transcript-summary-title">
             <div>
-              <p className="mini-label">Current verified generation</p>
+              <p className="mini-label">Transcript version</p>
               <h3 id="transcript-summary-title">{snapshot.details.document_id}</h3>
             </div>
             <dl className="transcript-summary-grid">
@@ -220,7 +220,7 @@ export function TranscriptToolsPanel({
               <div><dt>Segments</dt><dd>{snapshot.details.segment_count}</dd></div>
               <div><dt>Speakers</dt><dd>{snapshot.details.speaker_count}</dd></div>
               <div><dt>Source recording</dt><dd>{snapshot.details.source_available ? "Available locally" : "Not currently available"}</dd></div>
-              <div><dt>Canonical generation</dt><dd><code>{snapshot.details.canonical_sha256.slice(0, 12)}…</code></dd></div>
+              <div><dt>Transcript version ID</dt><dd><code>{snapshot.details.canonical_sha256.slice(0, 12)}…</code></dd></div>
             </dl>
           </section>
 
@@ -228,18 +228,18 @@ export function TranscriptToolsPanel({
             <div className="transcript-section-heading">
               <div>
                 <p className="mini-label">People</p>
-                <h3 id="speaker-tools-title">Name anonymous speakers</h3>
+                <h3 id="speaker-tools-title">Name speakers</h3>
               </div>
               <button type="button" className="secondary-action" disabled={busy} onClick={() => void loadSpans()}>
                 Open speaker transcript
               </button>
             </div>
             <p className="transcript-tools-explainer">
-              Names are your private labels. Scholion keeps the anonymous speaker reference beside them as evidence.
+              These names are your own labels. Scholion keeps each original speaker reference underneath so existing research stays connected.
             </p>
             <div className="speaker-roster">
               {snapshot.speakers.length === 0 ? (
-                <p>No anonymous speaker evidence is present in this transcript.</p>
+                <p>No speaker labels are present in this transcript.</p>
               ) : (
                 snapshot.speakers.map((speaker) => (
                   <form
@@ -286,7 +286,7 @@ export function TranscriptToolsPanel({
             <section className="speaker-transcript" aria-labelledby="speaker-transcript-title">
               <div className="transcript-section-heading">
                 <div>
-                  <p className="mini-label">Derived reading view</p>
+                  <p className="mini-label">Reading view</p>
                   <h3 id="speaker-transcript-title">Speaker transcript</h3>
                 </div>
                 <button type="button" className="quiet-button" onClick={() => setSpans(null)}>Hide</button>
@@ -307,10 +307,10 @@ export function TranscriptToolsPanel({
           )}
 
           <section className="publication-tools" aria-labelledby="publication-tools-title">
-            <p className="mini-label">Derived files</p>
-            <h3 id="publication-tools-title">Publish a transcript copy</h3>
+            <p className="mini-label">Export</p>
+            <h3 id="publication-tools-title">Export a transcript copy</h3>
             <p className="transcript-tools-explainer">
-              These are disposable views of the verified canonical transcript. Publishing does not change the evidence underneath them.
+              Create a plain-text or subtitle copy in a folder you choose. Exporting does not change the Scholion transcript.
             </p>
             <fieldset>
               <legend>Formats</legend>
@@ -326,7 +326,7 @@ export function TranscriptToolsPanel({
               ))}
             </fieldset>
             <button type="button" className="primary-action" disabled={busy || formats.length === 0} onClick={() => void publish()}>
-              Choose folder and publish
+              Choose folder and export
             </button>
           </section>
 

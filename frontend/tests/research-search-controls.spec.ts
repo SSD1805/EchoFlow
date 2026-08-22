@@ -48,7 +48,7 @@ test("Research search exposes human choices while preserving advanced intent", a
   await expect(results).toContainText("interview-42");
   await results.getByRole("button", { name: "Open evidence" }).click();
   const reader = page.getByRole("complementary", { name: "Evidence reader" });
-  await expect(reader.getByText("Current verified canonical generation")).toBeVisible();
+  await expect(reader.getByText("Current transcript version")).toBeVisible();
   await reader.getByRole("button", { name: "Close" }).click();
 
   await expect(panel.getByText("Python authority")).toHaveCount(0);

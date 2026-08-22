@@ -8,16 +8,23 @@ async function openProcessing(
   await page.goto(`/?e2e=1${querySuffix}`);
   await page.getByRole("button", { name: "Processing" }).click();
   await expect(
-    page.getByRole("heading", { name: "Turn recordings into durable evidence." }),
+    page.getByRole("heading", { name: "Transcribe recordings." }),
   ).toBeVisible();
-  await expect(page.getByText("Private workspace is ready")).toBeVisible();
+  await expect(page.getByText("NVIDIA GeForce RTX 4080")).toBeVisible();
 }
 
-test("Processing Center presents backend readiness and stays accessible", async ({ page }) => {
+test("Processing Center presents the hardware used for local planning and stays accessible", async ({ page }) => {
   await openProcessing(page);
 
-  await expect(page.getByText("healthy", { exact: true })).toBeVisible();
-  await expect(page.getByText("8 threads visible")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ready", exact: true })).toBeVisible();
+  await expect(page.getByText("AMD Ryzen 7 7700X 8-Core Processor")).toBeVisible();
+  await expect(page.getByText("16 threads available")).toBeVisible();
+  await expect(page.getByText("52 GB available")).toBeVisible();
+  await expect(page.getByText("64 GB installed")).toBeVisible();
+  await expect(page.getByText("14 GB graphics memory available")).toBeVisible();
+  await expect(page.getByText(/does not send hardware information or telemetry anywhere/)).toBeVisible();
+
+  await page.getByText("How Scholion chose these limits").click();
   await expect(page.getByText("FFmpeg and FFprobe are available")).toBeVisible();
   await expect(page.getByText("DuckDB")).toHaveCount(0);
   await expect(page.getByText("SQLite")).toHaveCount(0);
@@ -26,17 +33,17 @@ test("Processing Center presents backend readiness and stays accessible", async 
   expect(accessibility.violations).toEqual([]);
 });
 
-test("Susan can choose a recording and obtain a backend preflight before start", async ({ page }) => {
+test("Susan can choose a recording and review its transcription setup before start", async ({ page }) => {
   await openProcessing(page);
 
   await page.getByRole("button", { name: "Choose recording" }).click();
   await expect(page.getByRole("status")).toContainText("interview-01.m4a selected");
-  await page.getByRole("button", { name: "Run preflight" }).click();
+  await page.getByRole("button", { name: "Check recording" }).click();
 
-  const preflight = page.getByLabel("Backend transcription preflight");
+  const preflight = page.getByLabel("Transcription setup");
   await expect(preflight).toBeVisible();
-  await expect(page.getByRole("status")).toContainText("Preflight complete");
-  await expect(page.getByRole("button", { name: "Start local transcription" })).toBeEnabled();
+  await expect(page.getByRole("status")).toContainText("Ready to transcribe interview-01.m4a");
+  await expect(page.getByRole("button", { name: "Start transcription" })).toBeEnabled();
   await expect(page.getByRole("group", { name: "Choose the audio track to transcribe" })).toHaveCount(0);
 });
 
@@ -44,7 +51,7 @@ test("multiple embedded audio tracks require an explicit backend-bound choice", 
   await openProcessing(page, "&multitrack=1");
 
   await page.getByRole("button", { name: "Choose recording" }).click();
-  await page.getByRole("button", { name: "Run preflight" }).click();
+  await page.getByRole("button", { name: "Check recording" }).click();
 
   const chooser = page.getByRole("group", { name: "Choose the audio track to transcribe" });
   await expect(chooser).toBeVisible();
@@ -56,11 +63,11 @@ test("multiple embedded audio tracks require an explicit backend-bound choice", 
   await expect(chooser.getByRole("radio").first()).not.toBeChecked();
   await expect(chooser.getByRole("radio").last()).not.toBeChecked();
 
-  const start = page.getByRole("button", { name: "Start local transcription" });
+  const start = page.getByRole("button", { name: "Start transcription" });
   await expect(start).toBeDisabled();
 
   await chooser.getByRole("radio", { name: /Lav microphone/ }).check();
-  await expect(page.getByRole("status")).toContainText("Audio track #3 confirmed");
+  await expect(page.getByRole("status")).toContainText("Audio track #3 selected");
   await expect(chooser.getByRole("radio", { name: /Lav microphone/ })).toBeChecked();
   await expect(start).toBeEnabled();
 
@@ -68,16 +75,13 @@ test("multiple embedded audio tracks require an explicit backend-bound choice", 
   expect(accessibility.violations).toEqual([]);
 });
 
-test("starting work uses the supervised local-task path", async ({ page }) => {
+test("starting work uses the local-task path", async ({ page }) => {
   await openProcessing(page);
   await page.getByRole("button", { name: "Choose recording" }).click();
-  await page.getByRole("button", { name: "Run preflight" }).click();
-  await page.getByRole("button", { name: "Start local transcription" }).click();
+  await page.getByRole("button", { name: "Check recording" }).click();
+  await page.getByRole("button", { name: "Start transcription" }).click();
 
-  const launchStatus = page
-    .getByRole("status")
-    .filter({ hasText: "Transcription launched as a supervised local process" });
-  await expect(launchStatus).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Transcription started on this computer" })).toBeVisible();
   await expect(page.getByText(/Transcribing interview-01\.m4a/)).toBeVisible();
 });
 
@@ -85,10 +89,10 @@ test("interrupted work offers resume and a fresh retry as distinct actions", asy
   await openProcessing(page);
 
   await expect(page.getByText("oral-history-07.m4a", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Resume checkpoint" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Plan fresh retry" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry from beginning" }).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Plan fresh retry" }).first().click();
-  await expect(page.getByRole("status")).toContainText("Fresh retry preflight complete");
-  await expect(page.getByRole("status")).toContainText("interrupted job was not changed");
+  await page.getByRole("button", { name: "Retry from beginning" }).first().click();
+  await expect(page.getByRole("status")).toContainText("A fresh retry is ready for oral-history-07.m4a");
+  await expect(page.getByRole("status")).toContainText("earlier job has not been changed");
 });

@@ -11,6 +11,10 @@ from scholion.model_management.service import ModelManager
 from scholion.runner.inspector import RunnerInspector
 from scholion.runner.models import ProcessingProfile
 from scholion.runner.policy import RunnerPolicyPlanner
+from scholion.runner.topology import (
+    HardwareTopologyInspector,
+    NvidiaSmiAcceleratorProbe,
+)
 from scholion.transcription.models import TranscriptionJobPlan
 from scholion.transcription.planner import TranscriptionJobPlanner
 from scholion.workspace.lifecycle import (
@@ -166,25 +170,39 @@ class ProcessingCenterService:
         self,
         *,
         health_check: HealthCheck,
-        runner_inspector: RunnerInspector,
         policy_planner: RunnerPolicyPlanner,
         planner: TranscriptionJobPlanner,
         model_manager: ModelManager,
         lifecycle_store: JobLifecycleStore,
+        topology_inspector: HardwareTopologyInspector | None = None,
+        runner_inspector: RunnerInspector | None = None,
     ) -> None:
+        if topology_inspector is None:
+            if runner_inspector is None:
+                raise ValueError(
+                    "processing center requires a hardware topology or runner inspector"
+                )
+            topology_inspector = HardwareTopologyInspector(
+                runner_inspector=runner_inspector,
+                accelerator_probe=NvidiaSmiAcceleratorProbe(),
+            )
         self.health_check = health_check
-        self.runner_inspector = runner_inspector
+        self.topology_inspector = topology_inspector
         self.policy_planner = policy_planner
         self.planner = planner
         self.model_manager = model_manager
         self.lifecycle_store = lifecycle_store
 
     def readiness(self, profile: ProcessingProfile) -> dict[str, object]:
-        """Return fresh machine/model readiness without leaking private filesystem paths."""
+        """Return fresh local readiness without leaking private filesystem paths."""
         health = self.health_check.run()
-        resources = self.runner_inspector.inspect()
+        topology = self.topology_inspector.inspect()
+        resources = topology.resources
         policy = self.policy_planner.plan(resources, profile)
-        assessments = self.planner.assess_strategies(profile=profile)
+        assessments = self.planner.assess_strategies(
+            profile=profile,
+            topology=topology,
+        )
         recommended = next(
             (item for item in assessments if bool(item["recommended"])),
             None,
@@ -216,9 +234,15 @@ class ProcessingCenterService:
             "resources": {
                 "platform": resources.platform,
                 "machine": resources.machine,
+                "processor_name": resources.processor_name,
                 "effective_cpus": resources.effective_cpus,
+                "memory_total_bytes": resources.memory_total_bytes,
+                "memory_available_bytes": resources.memory_available_bytes,
                 "effective_memory_available_bytes": resources.effective_memory_available_bytes,
                 "constraints": list(resources.constraints),
+                "accelerators": [
+                    accelerator.to_dict() for accelerator in topology.accelerators
+                ],
             },
             "policy": {
                 "profile": policy.profile.value,

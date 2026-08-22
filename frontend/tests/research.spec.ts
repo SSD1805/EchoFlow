@@ -7,7 +7,7 @@ async function openResearch(page: import("@playwright/test").Page) {
   await expect(page.getByRole("heading", { name: "Research", exact: true })).toBeVisible();
 }
 
-test("Susan can browse authoritative research state without database knowledge", async ({
+test("Susan can browse research state without database knowledge", async ({
   page,
 }) => {
   await openResearch(page);
@@ -17,8 +17,8 @@ test("Susan can browse authoritative research state without database knowledge",
   await expect(
     notes.getByText("Follow up on ABC governance during the next interview."),
   ).toBeVisible();
-  await expect(notes.getByText("Current evidence", { exact: true })).toBeVisible();
-  await expect(notes.getByText("Older evidence generation", { exact: true })).toBeVisible();
+  await expect(notes.getByText("Current transcript", { exact: true })).toBeVisible();
+  await expect(notes.getByText("Earlier transcript version", { exact: true })).toBeVisible();
   await expect(notes.getByRole("button", { name: "#governance" })).toBeVisible();
 
   const navigation = page.getByLabel("Research navigation");
@@ -39,17 +39,19 @@ test("Susan can browse authoritative research state without database knowledge",
   expect(results.violations).toEqual([]);
 });
 
-test("research workspace refresh remains keyboard reachable", async ({ page }) => {
+test("research reload is keyboard reachable and clearly separate from folder scanning", async ({ page }) => {
   await openResearch(page);
 
-  const refresh = page.getByRole("button", { name: "Refresh", exact: true });
-  await refresh.focus();
-  await expect(refresh).toBeFocused();
+  await expect(page.getByText(/it does not scan your recording folders/)).toBeVisible();
+  const reload = page.getByRole("button", { name: "Reload notes", exact: true });
+  await reload.focus();
+  await expect(reload).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("2 notes");
+  await expect(page.getByText("Notes, tags, and collections reloaded.")).toBeVisible();
 });
 
-test("Susan can filter by durable labels and return to verified evidence", async ({ page }) => {
+test("Susan can filter by labels and return to the cited transcript passage", async ({ page }) => {
   await openResearch(page);
 
   const notes = page.getByLabel("Notes", { exact: true });
@@ -79,9 +81,9 @@ test("Susan can filter by durable labels and return to verified evidence", async
   ).toBeVisible();
 
   const filteredNote = page.locator(".research-note-card").filter({ hasText: "interview-42" });
-  await filteredNote.getByRole("button", { name: "Open verified evidence" }).click();
+  await filteredNote.getByRole("button", { name: "Open transcript passage" }).click();
   const reader = page.getByRole("complementary", { name: "Evidence reader" });
-  await expect(reader.getByText("Current verified canonical generation")).toBeVisible();
+  await expect(reader).toBeVisible();
   await reader.getByRole("button", { name: "Close" }).click();
 
   await active.getByRole("button", { name: "Clear filters" }).click();
@@ -93,7 +95,7 @@ test("Susan can filter by durable labels and return to verified evidence", async
   expect(results.violations).toEqual([]);
 });
 
-test("Susan can edit labels and explicitly delete a durable research note", async ({ page }) => {
+test("Susan can edit labels and explicitly delete a research note", async ({ page }) => {
   await openResearch(page);
 
   const noteCard = page.locator(".research-note-card").filter({ hasText: "interview-42" });
@@ -129,21 +131,24 @@ test("Susan can edit labels and explicitly delete a durable research note", asyn
   expect(results.violations).toEqual([]);
 });
 
-test("Susan can reopen a note against its exact older canonical generation", async ({ page }) => {
+test("Susan can reopen a note against the exact earlier transcript version", async ({ page }) => {
   await openResearch(page);
 
   const oldNote = page.locator(".research-note-card").filter({ hasText: "interview-11" });
-  await oldNote.getByRole("button", { name: "Open verified evidence" }).click();
+  await oldNote.getByRole("button", { name: "Open transcript passage" }).click();
 
   const reader = page.getByRole("complementary", { name: "Evidence reader" });
   await expect(reader).toBeVisible();
-  await expect(reader.getByText(/Older verified canonical generation/)).toBeVisible();
-  await expect(reader.getByText("Anchored evidence", { exact: true })).toBeVisible();
+  await expect(
+    reader.getByText(
+      "Earlier transcript version · This is the exact version this research note points to.",
+      { exact: true },
+    ),
+  ).toBeVisible();
   await expect(reader.getByText("cccccccccccc…")).toBeVisible();
-  await expect(reader.getByText("Preserved research evidence")).toBeVisible();
   await expect(reader.getByRole("heading", { name: "Attach a note to this evidence" })).toHaveCount(0);
   await expect(
-    page.getByText("Opened the exact older transcript version cited by this note. Nothing was moved."),
+    page.getByText("Opened the exact earlier transcript version cited by this note."),
   ).toBeVisible();
   await expect(page.getByText("/Users/")).toHaveCount(0);
   await expect(page.getByText("canonical_path")).toHaveCount(0);

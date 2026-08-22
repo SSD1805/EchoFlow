@@ -8,9 +8,13 @@ from scholion.core.health_check import HealthCheck
 from scholion.media.models import MediaStream
 from scholion.model_management.models import ModelInventoryItem
 from scholion.model_management.service import ModelManager
+from scholion.runner.inspector import RunnerInspector
 from scholion.runner.models import ProcessingProfile
 from scholion.runner.policy import RunnerPolicyPlanner
-from scholion.runner.topology import HardwareTopologyInspector
+from scholion.runner.topology import (
+    HardwareTopologyInspector,
+    NvidiaSmiAcceleratorProbe,
+)
 from scholion.transcription.models import TranscriptionJobPlan
 from scholion.transcription.planner import TranscriptionJobPlanner
 from scholion.workspace.lifecycle import (
@@ -166,12 +170,22 @@ class ProcessingCenterService:
         self,
         *,
         health_check: HealthCheck,
-        topology_inspector: HardwareTopologyInspector,
         policy_planner: RunnerPolicyPlanner,
         planner: TranscriptionJobPlanner,
         model_manager: ModelManager,
         lifecycle_store: JobLifecycleStore,
+        topology_inspector: HardwareTopologyInspector | None = None,
+        runner_inspector: RunnerInspector | None = None,
     ) -> None:
+        if topology_inspector is None:
+            if runner_inspector is None:
+                raise ValueError(
+                    "processing center requires a hardware topology or runner inspector"
+                )
+            topology_inspector = HardwareTopologyInspector(
+                runner_inspector=runner_inspector,
+                accelerator_probe=NvidiaSmiAcceleratorProbe(),
+            )
         self.health_check = health_check
         self.topology_inspector = topology_inspector
         self.policy_planner = policy_planner

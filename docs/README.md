@@ -56,6 +56,7 @@ You do **not** need to understand CUDA, DuckDB, SQLite, BM25, model revisions, o
 - **[Semantic search, without the mystery box](semantic-search.md)** for local semantic/hybrid retrieval.
 - **[Desktop themes and accessibility](development/desktop-accessibility.md)** for the eight-skin semantic token system and contrast qualification.
 - **[Frontend testing strategy](development/frontend-testing.md)** for frontend/backend test ownership and mutation policy.
+- **[Architecture and redundancy audit](architecture/redundancy-audit.md)** for the completed pre-identity consolidation and intentional remaining boundaries.
 - **[Safe deletion and retention](architecture/safe-deletion-retention.md)** for the underlying custody contract.
 - **[Post-MVP research roadmap](post-mvp-roadmap.md)** for later research-native workflows.
 - **[SECURITY.md](../SECURITY.md)** for the repository security boundary.
@@ -137,16 +138,17 @@ The sidebar keeps **How this screen works** and **How EchoFlow works** available
 
 Appearance remains one compact picker. All eight skins share the same semantic text/control/focus contract and the same registry-driven contrast/a11y matrix.
 
+The pre-identity architecture/redundancy audit is also closed. Capability-blind Python/frontend transport is shared, application composition belongs to `AppContainer`, the duplicate Research saved-question ingress is gone, and remaining similar-looking Rust/adapter code has an explicit authority, lifecycle, readability, security, or compatibility reason to remain separate.
+
 ## What comes next
 
 The next critical path is:
 
-1. architecture/redundancy audit before packaging freezes seams;
-2. product-identity decision before package IDs/app-data/update channels become migration contracts;
-3. packaging, first run, signed updates, and evidence-safe uninstall;
-4. backup/restore and selected research portability;
-5. packaged semantic custody; and
-6. representative-device qualification.
+1. product-identity decision and deliberate migration before package IDs/app-data/update channels become migration contracts;
+2. packaging, first run, signed updates, and evidence-safe uninstall;
+3. backup/restore and selected research portability;
+4. packaged semantic custody; and
+5. representative-device qualification.
 
 A future freeform notebook/memo capability belongs in later Research work as a second durable research-object class, not as evidence notes with optional/missing provenance.
 

@@ -1,0 +1,131 @@
+name: Temporary Scholion documentation truth sync
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/scholion-doc-truth-sync.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  sync-docs:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'agent/rename-scholion-doc-audit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out identity branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: agent/rename-scholion-doc-audit
+
+      - name: Apply documentation truth sync
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"Expected text not found in {path}: {old!r}")
+              p.write_text(text.replace(old, new))
+
+          replace(
+              "README.md",
+              "> **Scholion's product rule:** do complicated work locally, keep the evidence understandable, portable, and owned by the user.\n\nStart with",
+              "> **Scholion's product rule:** do complicated work locally, keep the evidence understandable, portable, and owned by the user.\n\n## Why Scholion?\n\nA *scholion* is an explanatory, critical, or interpretive note attached to a text; the plural is *scholia*. The name matches the product's evidence model: the recording and canonical transcript remain the source evidence, while human notes, labels, collections, and saved research questions accumulate around verified passages without replacing the source. See **[Product identity](docs/product-identity.md)** for the canonical naming contract.\n\nStart with",
+          )
+          replace(
+              "README.md",
+              "| Architecture hygiene | pre-identity redundancy audit complete: shared capability-blind transport, centralized application composition, one typed saved-question surface, one Research evidence presentation contract |",
+              "| Architecture hygiene | architecture/redundancy audit complete: shared capability-blind transport, centralized application composition, one typed saved-question surface, one Research evidence presentation contract |",
+          )
+          replace(
+              "README.md",
+              "Research/search, Processing, explicit embedded-track transcription, desktop comprehension/themes, transcript/speaker tools, verified native playback, contextual guidance, desktop lifecycle/retention controls, and the pre-identity architecture/redundancy audit are complete first-release foundation. The next first-release sequence is:\n\n1. product identity decision and deliberate identity migration before installers freeze names, bundle IDs, app-data paths, environment variables, and compatibility behavior;\n2. packaging, first-run storage setup, signed updates, and evidence-safe uninstall;\n3. backup/restore plus selected research portability;\n4. packaged semantic-model/dependency custody; and\n5. representative-device qualification across ordinary consumer hardware and hostile path, disk, interruption, upgrade, and accessibility cases.",
+              "Research/search, Processing, explicit embedded-track transcription, desktop comprehension/themes, transcript/speaker tools, verified native playback, contextual guidance, desktop lifecycle/retention controls, architecture/redundancy consolidation, and the Scholion identity migration are complete first-release foundation. The next first-release sequence is:\n\n1. packaging, first-run storage setup, signed updates, and evidence-safe uninstall;\n2. backup/restore plus selected research portability;\n3. packaged semantic-model/dependency custody; and\n4. representative-device qualification across ordinary consumer hardware and hostile path, disk, interruption, upgrade, and accessibility cases.",
+          )
+
+          replace(
+              "docs/README.md",
+              "[Architecture and redundancy audit](architecture/redundancy-audit.md)** for the completed pre-identity consolidation",
+              "[Architecture and redundancy audit](architecture/redundancy-audit.md)** for the completed architecture/redundancy consolidation",
+          )
+          replace(
+              "docs/README.md",
+              "The pre-identity architecture/redundancy audit is also closed.",
+              "The architecture/redundancy audit is closed.",
+          )
+          replace(
+              "docs/README.md",
+              "The next critical path is:\n\n1. product-identity decision and deliberate migration before package IDs/app-data/update channels become migration contracts;\n2. packaging, first run, signed updates, and evidence-safe uninstall;\n3. backup/restore and selected research portability;\n4. packaged semantic custody; and\n5. representative-device qualification.",
+              "The Scholion identity migration is complete. The next critical path is:\n\n1. packaging, first run, signed updates, and evidence-safe uninstall;\n2. backup/restore and selected research portability;\n3. packaged semantic custody; and\n4. representative-device qualification.",
+          )
+
+          replace(
+              "ROADMAP.md",
+              "Text fallback: Scholion already spans local media, reliable transcription, explicit embedded-track selection, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts and desktop controls, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, and an accessible multi-theme shell. The pre-identity architecture/redundancy audit is complete. The next first-release work is product identity migration, packaging, portability, packaged semantic custody, and real-device qualification.",
+              "Text fallback: Scholion already spans local media, reliable transcription, explicit embedded-track selection, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts and desktop controls, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, an accessible multi-theme shell, architecture/redundancy consolidation, and the Scholion identity migration. The next first-release work is packaging, portability, packaged semantic custody, and real-device qualification.",
+          )
+          replace(
+              "ROADMAP.md",
+              "| Architecture/redundancy | capability-blind transport + centralized composition + one Research contract | complete | identity/API migration only where compatibility is intentionally broken |",
+              "| Architecture/redundancy | capability-blind transport + centralized composition + one Research contract | complete | release/API migration only where compatibility is intentionally broken |",
+          )
+          replace(
+              "ROADMAP.md",
+              "The pre-identity audit is closed.",
+              "The architecture/redundancy audit is closed.",
+          )
+          replace(
+              "ROADMAP.md",
+              "## 8. Product identity checkpoint ← next\n\nMake the final first-release naming decision **before** packaging/signing turns identity into a migration contract.",
+              "## 8. Product identity checkpoint complete\n\nThe first-release product identity is **Scholion**. The Python package/CLI, environment prefix, desktop package, Tauri product/window identity, bundle identifier, playback protocol, frontend copy, tests, tooling, and documentation now use the Scholion identity before installer/update compatibility is frozen.",
+          )
+          replace(
+              "ROADMAP.md",
+              "Choose the replacement name first, verify pronunciation/searchability/legal/package-namespace collisions, then perform one deliberate identity migration before installers exist. If Scholion remains the name, record that decision and freeze the identity surface.\n\n## 9. Packaging + first run + update/uninstall",
+              "The identity surface is documented in **[Product identity](docs/product-identity.md)**. Future changes must be explicit migrations and must never silently move, delete, or invalidate authoritative user evidence.\n\n## 9. Packaging + first run + update/uninstall ← next",
+          )
+          replace(
+              "ROADMAP.md",
+              "The sequencing rule remains simple: do not build a larger research superstructure while the ordinary desktop still needs identity migration, packaging, portability, and real-device qualification.",
+              "The sequencing rule remains simple: do not build a larger research superstructure while the ordinary desktop still needs packaging, portability, and real-device qualification.",
+          )
+
+          security = Path("docs/security/audit-2026-08-02.md")
+          text = security.read_text()
+          marker = "# Security and privacy audit — 2026-08-02\n\n"
+          banner = (
+              "> **Historical snapshot.** This document records the August 2, 2026 audit scope and findings as they existed at that point in development. "
+              "It is intentionally not rewritten to describe the current application. For current security boundaries and CI controls, see **[SECURITY.md](../../SECURITY.md)**.\n\n"
+          )
+          if banner not in text:
+              if marker not in text:
+                  raise SystemExit("Security audit heading not found")
+              security.write_text(text.replace(marker, marker + banner, 1))
+
+          for path in ("README.md", "docs/README.md", "ROADMAP.md"):
+              text = Path(path).read_text()
+              forbidden = [
+                  "product identity decision and deliberate identity migration",
+                  "product-identity decision and deliberate migration",
+                  "Product identity checkpoint ← next",
+              ]
+              leftovers = [item for item in forbidden if item in text]
+              if leftovers:
+                  raise SystemExit(f"Stale identity status remains in {path}: {leftovers}")
+          PY
+
+      - name: Commit documentation truth sync
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md ROADMAP.md docs/README.md docs/security/audit-2026-08-02.md
+          git commit -m "docs: truth-sync Scholion identity and release sequence"
+          git push origin HEAD:agent/rename-scholion-doc-audit

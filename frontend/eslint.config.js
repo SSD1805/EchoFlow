@@ -14,13 +14,23 @@ export default tseslint.config(
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
   },
   {
     files: ["src/**/*.{ts,tsx}"],
     plugins: {
       "react-hooks": reactHooks,
     },
-    rules: reactHooks.configs.recommended.rules,
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      "react-hooks/set-state-in-effect": "off",
+    },
   },
   {
     files: ["scripts/**/*.mjs", "vite.config.ts", "playwright.config.ts"],

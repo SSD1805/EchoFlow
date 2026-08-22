@@ -120,10 +120,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Cross-check locked dependency graphs against OSV
+      # RustSec owns Cargo advisory semantics above, including RustSec's
+      # informational `unsound` and `unmaintained` categories. OSV remains an
+      # independent advisory backstop for the Python and npm lockfiles rather
+      # than converting those RustSec informational findings into hard failures.
+      - name: Cross-check Python and frontend locked graphs against OSV
         uses: google/osv-scanner-action/osv-scanner-action@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
         with:
           scan-args: |-
             --config=./osv-scanner.toml
-            --recursive
-            ./
+            --lockfile=./uv.lock
+            --lockfile=./frontend/package-lock.json

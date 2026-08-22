@@ -4,6 +4,6 @@
   "rustRuntime": "2.11.3",
   "rustRuntimeWry": "2.11.4",
   "cli": "2.11.4",
-  "dialog": "2.4.0",
+  "dialog": "2.7.2",
   "build": "2.6.3"
 }

@@ -12,6 +12,7 @@ from scholion.runner.models import RunnerResources
 _CPU_MAX = Path("/sys/fs/cgroup/cpu.max")
 _MEMORY_MAX = Path("/sys/fs/cgroup/memory.max")
 _MEMORY_CURRENT = Path("/sys/fs/cgroup/memory.current")
+_CPUINFO = Path("/proc/cpuinfo")
 
 
 class VirtualMemory(Protocol):
@@ -59,6 +60,28 @@ def _finite_bytes(value: str | None) -> int | None:
     return parsed if parsed > 0 else None
 
 
+def _processor_name() -> str | None:
+    """Return a best-effort local processor label for display, never admission."""
+    direct = platform.processor().strip()
+    if direct and direct.casefold() not in {platform.machine().casefold(), "unknown"}:
+        return direct
+
+    windows_identifier = os.environ.get("PROCESSOR_IDENTIFIER", "").strip()
+    if windows_identifier:
+        return windows_identifier
+
+    cpuinfo = _read_text(_CPUINFO)
+    if cpuinfo is None:
+        return direct or None
+    for line in cpuinfo.splitlines():
+        key, separator, value = line.partition(":")
+        if separator and key.strip().casefold() in {"model name", "hardware"}:
+            candidate = value.strip()
+            if candidate:
+                return candidate
+    return direct or None
+
+
 class RunnerInspector:
     """Inspect resources visible to this process, including common cgroup limits."""
 
@@ -71,6 +94,7 @@ class RunnerInspector:
         text_reader: Callable[[Path], str | None] = _read_text,
         platform_name: Callable[[], str] = platform.system,
         machine_name: Callable[[], str] = platform.machine,
+        processor_name: Callable[[], str | None] = _processor_name,
     ):
         self.cpu_count = cpu_count
         self.virtual_memory = virtual_memory or cast(
@@ -80,6 +104,7 @@ class RunnerInspector:
         self.text_reader = text_reader
         self.platform_name = platform_name
         self.machine_name = machine_name
+        self.processor_name = processor_name
 
     def inspect(self) -> RunnerResources:
         logical = max(1, self.cpu_count(True) or 1)
@@ -123,4 +148,5 @@ class RunnerInspector:
             memory_limit_bytes=memory_limit,
             effective_memory_available_bytes=effective_memory,
             constraints=tuple(constraints),
+            processor_name=self.processor_name(),
         )

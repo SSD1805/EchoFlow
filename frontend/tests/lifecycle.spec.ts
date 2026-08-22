@@ -7,33 +7,33 @@ async function openStorage(page: import("@playwright/test").Page) {
   await expect(page.getByRole("heading", { name: "Storage & deletion" })).toBeVisible();
 }
 
-test("canonical deletion is previewed before backend-bound application", async ({ page }) => {
+test("Scholion transcript deletion is previewed before application", async ({ page }) => {
   await openStorage(page);
 
   const transcript = page.getByRole("combobox", { name: "Transcript to manage" });
   await expect(transcript).toContainText("oral-history-42.m4a");
 
   await page
-    .getByRole("checkbox", { name: /Delete canonical transcript evidence/ })
+    .getByRole("checkbox", { name: /Delete the Scholion transcript/ })
     .check();
-  await page.getByRole("button", { name: "Preview deletion plan" }).click();
+  await page.getByRole("button", { name: "Review what will be deleted" }).click();
 
-  const plan = page.getByLabel("Deletion plan");
+  const plan = page.getByLabel("Deletion preview");
   await expect(
-    plan.getByRole("heading", { name: "Review 4 planned actions" }),
+    plan.getByRole("heading", { name: "Review 4 items to be removed" }),
   ).toBeVisible();
   await expect(
-    plan.getByText("delete canonical transcript evidence", { exact: true }),
+    plan.getByText("Delete the Scholion transcript", { exact: true }),
   ).toBeVisible();
-  await expect(plan.getByText(/2 anchored notes preserved/)).toBeVisible();
-  await plan.getByText("Why did Scholion expand my selection?").click();
+  await expect(plan.getByText(/2 notes will stay/)).toBeVisible();
+  await plan.getByText("Why are extra items included?").click();
   await expect(
-    plan.getByText(/Canonical transcript deletion automatically includes/),
+    plan.getByText(/Deleting a Scholion transcript also removes/),
   ).toBeVisible();
 
-  await plan.getByRole("button", { name: "Apply reviewed plan" }).click();
+  await plan.getByRole("button", { name: "Delete these items" }).click();
   await expect(page.getByRole("status")).toContainText(
-    "Applied custody plan for interview-42",
+    "Deleted 4 items for interview-42",
   );
   await expect(transcript).not.toContainText("oral-history-42.m4a");
 });
@@ -45,16 +45,16 @@ test("source deletion requires a second explicit guard and never exposes source 
 
   await page.getByRole("checkbox", { name: /Delete the original recording/ }).check();
   await expect(
-    page.getByRole("button", { name: "Preview deletion plan" }),
+    page.getByRole("button", { name: "Review what will be deleted" }),
   ).toBeDisabled();
 
   await page
     .getByRole("checkbox", { name: /I understand this deletes the original recording/ })
     .check();
-  await page.getByRole("button", { name: "Preview deletion plan" }).click();
+  await page.getByRole("button", { name: "Review what will be deleted" }).click();
 
-  await expect(page.getByLabel("Deletion plan")).toContainText(
-    "delete the original source recording",
+  await expect(page.getByLabel("Deletion preview")).toContainText(
+    "Delete the original recording",
   );
   await expect(page.getByText(/forensic secure erasure/)).toBeVisible();
   await expect(page.getByText("source_path")).toHaveCount(0);
@@ -62,15 +62,16 @@ test("source deletion requires a second explicit guard and never exposes source 
   await expect(page.getByText("/secret/")).toHaveCount(0);
 });
 
-test("retention preview separates completed cleanup from resumable interrupted work", async ({
+test("cleanup preview separates completed work from resumable interrupted work", async ({
   page,
 }) => {
   await openStorage(page);
 
   await page.getByRole("button", { name: "Preview cleanup" }).click();
-  const firstPlan = page.getByLabel("Retention plan");
+  const firstPlan = page.getByLabel("Cleanup preview");
   await expect(firstPlan).toContainText("job-completed-2");
   await expect(firstPlan).not.toContainText("job-interrupted-7");
+  await expect(firstPlan).toContainText("Last updated more than 30 days ago");
 
   await page
     .getByRole("checkbox", { name: /Also include failed and interrupted jobs/ })
@@ -78,29 +79,29 @@ test("retention preview separates completed cleanup from resumable interrupted w
   await expect(firstPlan).toHaveCount(0);
   await page.getByRole("button", { name: "Preview cleanup" }).click();
 
-  const secondPlan = page.getByLabel("Retention plan");
+  const secondPlan = page.getByLabel("Cleanup preview");
   await expect(secondPlan).toContainText("job-interrupted-7");
-  await expect(secondPlan).toContainText("Resume will be lost");
+  await expect(secondPlan).toContainText("Saved progress will be lost");
 
-  await secondPlan.getByRole("button", { name: "Apply cleanup plan" }).click();
+  await secondPlan.getByRole("button", { name: "Remove these temporary files" }).click();
   await expect(page.getByRole("status")).toContainText(
-    "Removed private processing state for 2 jobs",
+    "Removed temporary processing files for 2 jobs",
   );
   await expect(
-    page.getByText(/Canonical evidence and human research were outside this operation/),
+    page.getByText(/Finished transcripts and research were unchanged/),
   ).toBeVisible();
 });
 
-test("storage guidance and open plan pass accessibility checks", async ({ page }) => {
+test("storage guidance and open deletion preview pass accessibility checks", async ({ page }) => {
   await openStorage(page);
   await page.getByRole("button", { name: "How storage controls work" }).click();
   await expect(
-    page.getByRole("heading", { name: "Storage and lifecycle controls" }),
+    page.getByRole("heading", { name: "Storage and deletion" }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
 
   await page.getByRole("checkbox", { name: /Remove from Library search/ }).check();
-  await page.getByRole("button", { name: "Preview deletion plan" }).click();
+  await page.getByRole("button", { name: "Review what will be deleted" }).click();
 
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations).toEqual([]);

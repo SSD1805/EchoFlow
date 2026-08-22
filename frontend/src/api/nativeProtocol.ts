@@ -22,6 +22,28 @@ export interface NativeProtocolMessages {
   failure: string;
 }
 
+export function nativeInvokeErrorMessage(
+  caught: unknown,
+  fallback: string,
+): string {
+  if (caught instanceof Error && caught.message.trim()) {
+    return caught.message;
+  }
+  if (typeof caught === "string" && caught.trim()) {
+    return caught;
+  }
+  if (
+    caught &&
+    typeof caught === "object" &&
+    "message" in caught &&
+    typeof caught.message === "string" &&
+    caught.message.trim()
+  ) {
+    return caught.message;
+  }
+  return fallback;
+}
+
 export function parseNativeProtocolResponse<T>(
   value: unknown,
   messages: NativeProtocolMessages,
@@ -47,17 +69,21 @@ export async function invokeNativeProtocol<T>(
   messages: NativeProtocolMessages,
 ): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
-  const response = parseNativeProtocolResponse<T>(
-    await invoke<unknown>(command, {
+  let rawResponse: unknown;
+  try {
+    rawResponse = await invoke<unknown>(command, {
       request: {
         protocol_version: 1,
         request_id: crypto.randomUUID(),
         method,
         params,
       },
-    }),
-    messages,
-  );
+    });
+  } catch (caught) {
+    throw new Error(nativeInvokeErrorMessage(caught, messages.failure));
+  }
+
+  const response = parseNativeProtocolResponse<T>(rawResponse, messages);
   if (!response.ok || response.result === null) {
     throw new Error(response.error?.message ?? messages.failure);
   }

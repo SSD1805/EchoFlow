@@ -1,20 +1,21 @@
 # Desktop source-build troubleshooting 🧰
 
-This page is for the moment when a terminal prints something that sounds catastrophic even
-though the underlying problem is usually one missing tool, one stale dependency tree, or one
-Linux display quirk.
+This page is for source-build failures on **macOS, Windows, and Linux**. The underlying
+problem is usually one missing native tool, one stale dependency tree, one PATH mismatch, or
+an operating-system-specific webview/build requirement.
 
-The first rule is to identify **which development mode you are trying to run**. Scholion has
-three different layers, and they do not need the same prerequisites.
+Start by identifying **which development mode you are trying to run**. Scholion has three
+layers and they intentionally do not share every prerequisite.
 
 | Goal | Command | What you need |
 |---|---|---|
 | Inspect/click the React UI with fake data | `npm run dev:mock` | Node + npm only |
-| Run the real native Tauri window | `npm run tauri dev` | Node/npm + Rust/Cargo + native OS libraries; Python for backend actions |
-| Actually transcribe from source | native app or CLI processing flow | all of the native/Python prerequisites plus FFmpeg and an installed Scholion model |
+| Run the real native Tauri window | `npm run tauri dev` | Node/npm + Rust/Cargo + native OS compiler/webview requirements; Python for backend actions |
+| Actually transcribe from source | native app or CLI processing flow | Python 3.12/uv + FFmpeg/FFprobe + an installed Scholion model, in addition to the relevant native layers |
 
-A transcription model is **not** required merely to launch the UI. Rust is **not** required
-for the browser mock. Python is **not** required for the browser mock.
+A transcription model is **not** required merely to launch the UI. FFmpeg is **not** required
+merely to render the native window. Rust and Python are **not** required for the browser
+mock.
 
 Before chasing an error manually, from `frontend/` run:
 
@@ -28,13 +29,40 @@ For the browser-only mock:
 npm run doctor:desktop -- --mode=mock
 ```
 
+On Windows, if PowerShell blocks `npm.ps1`, use the Node executable shim without changing
+machine-wide script policy:
+
+```powershell
+npm.cmd run doctor:desktop
+```
+
 The doctor reports all relevant checks instead of stopping at the first missing prerequisite.
+It also prints the platform and architecture it sees.
+
+For complete first-time setup, see **[Desktop development prerequisites](desktop-development.md)**.
+
+## Platform jump table
+
+| Platform | Native build stack | Most useful first checks |
+|---|---|---|
+| macOS | Apple Command Line Tools + native WKWebView | `xcode-select -p`, `xcrun --find clang`, `uname -m` |
+| Windows | Visual Studio 2022 C++ Build Tools + Windows SDK + WebView2 | `cargo --version`, `cargo check --locked ...`, `Get-Command ffmpeg` |
+| Linux | compiler/build tools + WebKitGTK/GTK | `pkg-config`, WebKitGTK check, display session |
+
+The Linux-specific WebKitGTK and Wayland sections later in this document do **not** apply to
+macOS or Windows.
 
 ## Start with a known-good checkout
 
 From the repository root:
 
 ```bash
+git status
+```
+
+On PowerShell the command is the same:
+
+```powershell
 git status
 ```
 
@@ -50,7 +78,7 @@ npm ci
 React, Tauri, Vite, or the rest of Scholion's JavaScript dependencies. A global npm install
 requires an explicit command such as `npm install -g ...`; Scholion does not require that.
 
-The Python equivalent is `uv sync`, which creates/updates the repository-local `.venv`.
+The Python equivalent is `uv sync`, which creates or updates the repository-local `.venv`.
 Cargo has a user-level package cache, while this app's disposable Rust build output lives
 under `frontend/src-tauri/target/`.
 
@@ -63,10 +91,17 @@ under `frontend/src-tauri/target/`.
 Your checkout does not contain the explicit browser-mock script yet, or you are running npm
 from a directory whose `package.json` is not Scholion's `frontend/package.json`.
 
-## Check
+## Check on macOS/Linux
 
 ```bash
 pwd
+npm run
+```
+
+## Check on Windows PowerShell
+
+```powershell
+Get-Location
 npm run
 ```
 
@@ -75,16 +110,19 @@ contain `dev:mock`.
 
 ## Fix
 
-Update to a revision that contains the script, then reinstall the locked graph if needed:
+Update to a revision that contains the script, inspect local work first, then reinstall the
+locked graph if needed:
 
 ```bash
 cd /path/to/Scholion
-# inspect git status before pulling if you have local work
+git status
 git pull
 cd frontend
 npm ci
 npm run dev:mock
 ```
+
+PowerShell uses the same Git/npm commands after `Set-Location` to the checkout.
 
 Do not fix a missing script with `npm install -g`. The script belongs to the repository, not
 to your machine-wide npm installation.
@@ -108,8 +146,6 @@ Plain Vite shows a development-mode notice explaining the two valid choices.
 npm run dev:mock
 ```
 
-That opens the explicit `?e2e=1` mock workspace.
-
 ## If you want the real native application
 
 ```bash
@@ -117,187 +153,379 @@ npm run doctor:desktop
 npm run tauri dev
 ```
 
+On Windows with a restrictive PowerShell script policy:
+
+```powershell
+npm.cmd run doctor:desktop
+npm.cmd run tauri dev
+```
+
 ---
 
-# Symptom: the browser is blank or black
+# Symptom: the browser mock is blank or black
 
-## Why this can happen
-
-Historically, Scholion let a normal browser instantiate its Tauri client even though the
-Tauri runtime was absent. The first native call could then fail before useful UI appeared.
-The current source tree prevents that by presenting the development-mode notice instead.
-
-A truly blank page now usually means a JavaScript build/runtime error, a stale dev server,
-or that you are viewing an older checkout.
-
-## Check step by step
+A truly blank browser mock usually means a JavaScript build/runtime error, a stale dev server,
+or an older checkout.
 
 1. Confirm you are in `frontend/`.
 2. Stop old Vite/Tauri processes with `Ctrl+C` in the terminals that launched them.
-3. Reinstall only the project-local JavaScript graph:
+3. Reinstall only the project-local JavaScript graph.
 
-   ```bash
-   rm -rf node_modules
-   npm ci
-   ```
+macOS/Linux:
 
-4. Start the explicit mock:
+```bash
+rm -rf node_modules
+npm ci
+npm run dev:mock
+```
 
-   ```bash
-   npm run dev:mock
-   ```
+Windows PowerShell:
 
-5. If the terminal prints a TypeScript/Vite error, fix that error first. Do not install random
-   global packages to make it disappear.
+```powershell
+Remove-Item -Recurse -Force node_modules
+npm ci
+npm run dev:mock
+```
+
+If PowerShell blocks `npm.ps1`, substitute `npm.cmd` in those commands.
 
 The `node_modules` directory is rebuildable developer state. Removing it does not touch
 recordings, canonical transcripts, or research state.
 
 ---
 
-# Symptom: `failed to run 'cargo metadata' ... No such file or directory (os error 2)`
+# Symptom: `failed to run 'cargo metadata'` or Cargo is not found
+
+Tauri tried to launch Cargo, but `cargo` was not installed or was not visible on PATH. A
+“No such file or directory” message often refers to the **Cargo executable**, not to
+Scholion's `Cargo.toml`.
+
+macOS/Linux:
+
+```bash
+cargo --version
+rustc --version
+which cargo
+```
+
+Windows PowerShell:
+
+```powershell
+cargo --version
+rustc --version
+Get-Command cargo
+```
+
+Install a stable Rust toolchain, open a new shell if PATH changed, then rerun the checks.
+Scholion's Tauri manifest is `frontend/src-tauri/Cargo.toml`. You do not need a global Tauri
+CLI because the repository carries its Tauri CLI through npm.
+
+---
+
+# macOS: `xcrun`, `clang`, SDK, or linker errors
 
 ## What it usually means
 
-Tauri tried to launch Cargo, but `cargo` was not installed or was not visible on your
-`PATH`. The words “No such file or directory” often refer to the **Cargo executable**, not
-to Scholion's `Cargo.toml`.
+Rust/Cargo is installed, but the Apple native compiler/SDK selected for the shell is missing
+or unhealthy. npm cannot install Apple's native SDK for you.
 
 ## Check
 
 ```bash
-cargo --version
-rustc --version
-which cargo        # Linux/macOS
+xcode-select -p
+xcrun --find clang
+xcrun --show-sdk-path
 ```
 
-On Windows use:
+If `xcode-select -p` or `xcrun --find clang` fails, install the Command Line Tools:
+
+```bash
+xcode-select --install
+```
+
+Then open a new terminal and rerun the checks. After a macOS/Xcode upgrade, an existing
+Command Line Tools installation can occasionally need repair. Do not alter developer-directory
+paths by guesswork. Confirm which installation actually exists before using `xcode-select`
+to switch it.
+
+Run the repository's authoritative native compile from the repository root:
+
+```bash
+cargo check --locked --manifest-path frontend/src-tauri/Cargo.toml
+```
+
+A failure here is more informative than a successful Vite build because it exercises the
+native host.
+
+---
+
+# macOS: native-wheel or linker errors on Apple Silicon
+
+## Why architecture matters
+
+An Apple Silicon machine can run arm64 tools natively and x86_64 tools through Rosetta. A
+mixed source-build stack can therefore contain an x86_64 Node process, arm64 Python, and an
+arm64 Rust target without the mismatch being visually obvious.
+
+## Check all four layers
+
+```bash
+uname -m
+node -p "process.arch"
+.venv/bin/python -c "import platform; print(platform.machine())"
+rustc -vV
+```
+
+For the simplest Apple Silicon build, these should normally agree on arm64/aarch64. If one
+runtime is x86_64 because it was installed under Rosetta, replace or intentionally align that
+runtime rather than changing Scholion source code to accommodate an accidental mixed toolchain.
+
+Current accelerated transcription support is CUDA/NVIDIA-oriented. Seeing CPU planning on a
+Mac is expected; it is not an Apple-GPU detection failure.
+
+---
+
+# Windows: `linker 'link.exe' not found`, MSVC, or Windows SDK errors
+
+## What it usually means
+
+Rust is installed, but the Microsoft native C++ build toolchain needed by the Windows Tauri
+host is missing or incomplete.
+
+Install or modify **Visual Studio 2022 Build Tools** (or Visual Studio 2022) so it includes:
+
+- **Desktop development with C++**;
+- an MSVC v143 C++ toolset; and
+- a current Windows SDK.
+
+Open a new PowerShell session after installation.
+
+## Check
 
 ```powershell
-Get-Command cargo
-```
-
-## Fix
-
-Install a stable Rust toolchain. On Arch/Manjaro, one option is:
-
-```bash
-sudo pacman -S rustup
-rustup default stable
-```
-
-Then open a new shell if necessary and rerun:
-
-```bash
 cargo --version
 rustc --version
+where.exe link.exe
+cargo check --locked --manifest-path frontend\src-tauri\Cargo.toml
 ```
 
-Scholion's Tauri manifest is `frontend/src-tauri/Cargo.toml`. You should not need a global
-Tauri CLI because the repository already carries its Tauri CLI through npm.
+`where.exe link.exe` can fail in an ordinary PowerShell session even when Cargo can discover
+Visual Studio through its normal tooling. That is why the desktop doctor reports it as a
+warning rather than an automatic failure. The `cargo check --locked` result is authoritative.
+
+Do not install a random Unix linker or switch Rust to the GNU Windows target just to make the
+message disappear. Scholion's normal Windows path is the MSVC toolchain.
+
+---
+
+# Windows: WebView2 runtime error or native window cannot create its webview
+
+Tauri uses Microsoft Edge WebView2 on Windows. The runtime is present on most supported
+Windows installations, but it can be missing or damaged.
+
+If the Tauri terminal reports a WebView2 initialization/runtime error, repair or install the
+**Evergreen WebView2 Runtime**, then reopen the terminal and retry:
+
+```powershell
+Set-Location frontend
+npm run tauri dev
+```
+
+This is an operating-system runtime issue. Do not add a browser package to `package.json` as
+a substitute for the native WebView2 Runtime.
+
+---
+
+# Windows: `npm.ps1 cannot be loaded because running scripts is disabled`
+
+## What it means
+
+PowerShell is refusing the `.ps1` command shim generated by Node. This does not mean npm is
+missing and it does not require changing the machine's execution policy.
+
+## Check
+
+```powershell
+Get-Command npm.cmd
+npm.cmd --version
+```
+
+## Run Scholion through the executable shim
+
+```powershell
+npm.cmd ci
+npm.cmd run doctor:desktop
+npm.cmd run tauri dev
+```
+
+This keeps the local PowerShell policy intact.
 
 ---
 
 # Symptom: `found version mismatch Tauri packages`
 
-## Why it happens
-
-Tauri has JavaScript packages **and** Rust crates. They are two halves of one desktop
-runtime. If npm is using one Tauri minor line while Cargo independently resolves a newer
-Rust line, the CLI can refuse to run because those halves were not tested as one family.
-
-Scholion previously used exact npm versions but broad Rust declarations such as
-`tauri = "2"`, with no committed Cargo lockfile. That allowed Cargo to resolve newer 2.x
-crates while npm stayed fixed.
-
-Current Scholion declares the intended family in:
+Tauri has JavaScript packages **and** Rust crates. They are two halves of one desktop runtime.
+Scholion declares the intended family in:
 
 ```text
 frontend/tauri-versions.json
 ```
 
-and checks it with:
+and freezes the Rust graph in `frontend/src-tauri/Cargo.lock`.
+
+From `frontend/`:
 
 ```bash
 npm run check:tauri-versions
-```
-
-The Rust graph is also committed in `frontend/src-tauri/Cargo.lock` and CI builds it with
-`--locked`.
-
-## Fix
-
-Do **not** globally upgrade or downgrade Tauri by trial and error.
-
-First:
-
-```bash
-cd frontend
-npm run check:tauri-versions
-```
-
-If it fails, `package.json`, `tauri-versions.json`, and `src-tauri/Cargo.toml` probably came
-from different revisions or were locally modified. Inspect:
-
-```bash
-git status
-```
-
-Restore or reconcile those files deliberately. Then:
-
-```bash
-npm ci
 cargo check --locked --manifest-path src-tauri/Cargo.toml
 ```
 
-If `--locked` says the lockfile needs to change, that is useful evidence: dependency metadata
-changed without the reviewed lockfile changing. Do not delete `Cargo.lock` to make the error
-go away.
+If the version check fails, `package.json`, `tauri-versions.json`, and
+`src-tauri/Cargo.toml` may have come from different revisions or been locally modified.
+Inspect `git status` before changing anything.
+
+Do **not** globally upgrade/downgrade Tauri by trial and error, and do not delete `Cargo.lock`
+to make `--locked` stop complaining.
 
 ---
 
 # Symptom: `failed to open icon ... src-tauri/icons/icon.png`
 
-## What it means
+Tauri reads native application assets at compile time. The React frontend does not import the
+icon, so a Vite build can be healthy while the native host fails.
 
-Tauri reads native application assets at compile time. The React frontend does not import
-the icon, so a Vite build can be perfectly healthy while the native Rust host fails.
-
-## Check
+macOS/Linux from `frontend/`:
 
 ```bash
 ls -l src-tauri/icons/icon.png
 ```
 
-from `frontend/`.
+Windows PowerShell:
 
-## Fix
+```powershell
+Get-Item src-tauri\icons\icon.png
+```
 
-Restore the checked-in binary asset from Git. Do not replace it with an empty file or text
-placeholder. CI compiles the native host specifically to protect this class of failure.
+Restore the checked-in binary asset from Git if it is missing. Do not replace it with an empty
+file or text placeholder.
 
 ---
 
-# Symptom: WebKitGTK / GTK / `pkg-config` errors during a Linux native build
+# Symptom: `Scholion's local Python service is unavailable`
 
-## Why it happens
+The native Rust host delegates application/evidence rules to the local Python bridge. In a
+source checkout it prefers the repository's `.venv`. If that environment has not been
+created, the native UI can launch while backend-backed actions fail.
 
-A Tauri Linux app uses the operating system's native webview stack. npm can install the
-JavaScript packages and Cargo can download Rust crates, but neither one installs Linux's
-GTK/WebKit development libraries for you.
+From the repository root:
 
-## Check
+```bash
+uv sync --locked --extra transcription
+```
+
+macOS/Linux verification:
+
+```bash
+.venv/bin/python -c "import scholion; print('Scholion import OK')"
+```
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -c "import scholion; print('Scholion import OK')"
+```
+
+Scholion currently requires Python 3.12. If `uv sync` reports an incompatible interpreter,
+verify the Python seen by your environment instead of editing the version constraint:
+
+macOS/Linux:
+
+```bash
+python3.12 --version
+```
+
+Windows:
+
+```powershell
+py -3.12 --version
+```
+
+Then rerun the desktop doctor from `frontend/`.
+
+### Advanced interpreter override
+
+macOS/Linux for one launch:
+
+```bash
+SCHOLION_PYTHON=/path/to/python npm run tauri dev
+```
+
+Windows PowerShell for the current process:
+
+```powershell
+$env:SCHOLION_PYTHON = "C:\path\to\python.exe"
+npm run tauri dev
+```
+
+Unset the variable after diagnosis if you do not want future launches to use it.
+
+---
+
+# Symptom: FFmpeg or FFprobe is missing
+
+## What it affects
+
+You can still inspect the browser mock and can usually render the native window, but Scholion
+cannot probe/process real recordings without both tools.
+
+macOS:
+
+```bash
+ffmpeg -version
+ffprobe -version
+```
+
+If you use Homebrew, one installation path is `brew install ffmpeg`.
+
+Windows PowerShell:
+
+```powershell
+Get-Command ffmpeg
+Get-Command ffprobe
+ffmpeg -version
+ffprobe -version
+```
+
+If the commands are not found, install a trusted Windows FFmpeg distribution and add the
+directory containing both executables to PATH. Open a new PowerShell session after modifying
+PATH.
+
+Linux:
+
+```bash
+ffmpeg -version
+ffprobe -version
+```
+
+Install your distribution's FFmpeg package if either command is absent.
+
+The desktop doctor treats missing media tools as warnings because they are not required to
+merely render the app.
+
+---
+
+# Linux: WebKitGTK / GTK / `pkg-config` errors
+
+A Tauri Linux app uses the operating system's WebKitGTK stack. npm can install JavaScript
+packages and Cargo can download Rust crates, but neither installs Linux GTK/WebKit development
+libraries.
 
 ```bash
 pkg-config --version
 pkg-config --exists webkit2gtk-4.1 gtk+-3.0 && echo "WebKitGTK/GTK found"
 ```
 
-The desktop doctor performs the same high-signal check.
-
-## Arch/Manjaro development prerequisites
-
-A typical Tauri 2 development setup uses:
+On Arch/Manjaro, a typical Tauri 2 development set is:
 
 ```bash
 sudo pacman -S --needed \
@@ -312,149 +540,68 @@ sudo pacman -S --needed \
   librsvg
 ```
 
-Package names can change across distribution releases. If one name is unavailable, use your
-distribution's current Tauri 2 prerequisite package rather than substituting an unrelated
-library.
-
-Installing these system packages affects the development machine. It is different from
-`npm ci`, which is repository-local.
+Package names can change across distribution releases. Use your distribution's current Tauri
+2 prerequisites if a name changes rather than substituting unrelated packages.
 
 ---
 
-# Symptom: `Scholion's local Python service is unavailable`
-
-## Why it happens
-
-The native Rust host is intentionally thin. For application/evidence rules it starts:
-
-```text
-python -m scholion.desktop.bridge
-```
-
-In a source checkout, Scholion now prefers the repository's `.venv` automatically. If that
-environment has not been created yet, native UI can launch but backend-backed actions cannot
-work.
-
-## Fix
-
-From the repository root:
-
-```bash
-uv sync --locked --extra transcription
-```
-
-Then verify:
-
-```bash
-.venv/bin/python -c "import scholion; print('Scholion import OK')"   # Linux/macOS
-```
-
-On Windows:
-
-```powershell
-.venv\Scripts\python.exe -c "import scholion; print('Scholion import OK')"
-```
-
-Then rerun:
-
-```bash
-cd frontend
-npm run doctor:desktop
-npm run tauri dev
-```
-
-### Advanced override
-
-If you intentionally want a different compatible Python interpreter:
-
-```bash
-SCHOLION_PYTHON=/path/to/python npm run tauri dev
-```
-
-`SCHOLION_PYTHON` has priority over automatic `.venv` discovery. Do not set it globally
-unless you actually want that override for future shells.
-
-### Do I need to install a Whisper model now?
-
-No. A model is needed when you actually ask Scholion to transcribe. It is not a prerequisite
-for rendering the UI, starting the Tauri window, browsing an existing library, or testing
-the browser mock.
-
----
-
-# Symptom: `Error 71: Protocol error, dispatching to Wayland display`
-
-## What it usually means
+# Linux: `Error 71: Protocol error, dispatching to Wayland display`
 
 On Linux the Tauri webview is WebKitGTK. WebKitGTK, the GPU/DMABUF renderer, the Wayland
 compositor, and the graphics driver all participate in drawing the window. Some combinations
 can terminate at the Wayland protocol layer even when Scholion's React and Rust code are
 valid.
 
-This is a **display-stack compatibility failure**, not evidence that your transcript library
-or Python environment is corrupt.
+This is a display-stack compatibility failure, not evidence that your transcript library or
+Python environment is corrupt.
 
-## First check
+Run the doctor first. If its native prerequisites are healthy and Wayland is detected, try
+these **one command at a time**.
 
-Run:
-
-```bash
-npm run doctor:desktop
-```
-
-If it reports the Tauri/Rust/WebKit prerequisites as healthy and says Wayland is detected,
-try the following **one command at a time**.
-
-## Option 1: disable WebKitGTK's DMABUF renderer for this launch
+Disable WebKitGTK's DMABUF renderer for one launch:
 
 ```bash
 WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev
 ```
 
-This changes how WebKitGTK hands rendered buffers to the compositor. Because the variable is
-prefixed to one command, it does not permanently change your system configuration.
-
-## Option 2: diagnostic X11/XWayland launch
+Diagnostic X11/XWayland launch:
 
 ```bash
 GDK_BACKEND=x11 npm run tauri dev
 ```
 
-This asks GTK to use its X11 backend for that launch. If it works while native Wayland does
-not, you have isolated the problem to the Wayland/webview/display path rather than Scholion's
-application backend.
-
-## Option 3: combine both compatibility switches
+Combine them only when needed:
 
 ```bash
 GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev
 ```
 
-Use this as diagnosis/fallback, not as Scholion's universal default. Different Linux
-machines have different GPU/compositor stacks, and globally forcing a backend that fixes one
-machine can make another worse.
+Use these as diagnosis/fallback, not global defaults.
 
 ---
 
 # Symptom: `Port 5173 is already in use`
 
-## Why it now fails instead of silently choosing another port
+Tauri's development URL is fixed to `http://localhost:5173`. Scholion runs Vite with
+`--strictPort` because silently moving Vite to 5174 would leave Tauri pointing at the wrong
+process.
 
-Tauri's development configuration points to:
+## macOS
 
-```text
-http://localhost:5173
+```bash
+lsof -nP -iTCP:5173 -sTCP:LISTEN
 ```
 
-Vite normally tries 5174, 5175, and so on when its preferred port is occupied. That behavior
-is convenient for a standalone website but dangerous here: Tauri would still be looking at
-5173 and could connect to the wrong process.
+## Windows PowerShell
 
-Scholion therefore starts Vite with `--strictPort` and fails loudly.
+```powershell
+Get-NetTCPConnection -LocalPort 5173 -State Listen | Select-Object LocalAddress,LocalPort,OwningProcess
+Get-Process -Id <PID>
+```
 
-## Find the old process
+Replace `<PID>` only after reading the owning process from the first command.
 
-Linux:
+## Linux
 
 ```bash
 ss -ltnp | grep 5173
@@ -466,26 +613,29 @@ or:
 lsof -i :5173
 ```
 
-Stop the Vite/Tauri process you previously launched, normally with `Ctrl+C` in its terminal.
-Do not kill unrelated processes merely because they use a port.
-
-Then retry:
-
-```bash
-npm run dev:mock
-# or
-npm run tauri dev
-```
+Stop the Vite/Tauri process you previously launched, normally with `Ctrl+C` in its original
+terminal. Do not kill an unrelated process just because it uses the port.
 
 ---
 
 # Symptom: npm dependencies seem stale or impossible
 
-Use the lockfile as authority:
+Use the lockfile as authority.
+
+macOS/Linux from the repository root:
 
 ```bash
+rm -rf frontend/node_modules
 cd frontend
-rm -rf node_modules
+npm ci
+npm run check:tauri-versions
+```
+
+Windows PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force frontend\node_modules
+Set-Location frontend
 npm ci
 npm run check:tauri-versions
 ```
@@ -497,16 +647,20 @@ that should be reviewed and committed deliberately.
 
 # Symptom: Rust build state seems stale or impossible
 
-You may remove **build output** without removing the Rust lockfile:
+You may remove **build output** without removing the Rust lockfile.
+
+macOS/Linux from the repository root:
 
 ```bash
 cargo clean --manifest-path frontend/src-tauri/Cargo.toml
+cargo check --locked --manifest-path frontend/src-tauri/Cargo.toml
 ```
 
-Then rebuild from the committed graph:
+Windows PowerShell:
 
-```bash
-cargo check --locked --manifest-path frontend/src-tauri/Cargo.toml
+```powershell
+cargo clean --manifest-path frontend\src-tauri\Cargo.toml
+cargo check --locked --manifest-path frontend\src-tauri\Cargo.toml
 ```
 
 `target/` is disposable. `Cargo.lock` is not disposable in this application repository; it
@@ -536,9 +690,45 @@ saved searches
 
 Do not solve a development-tool problem by deleting product evidence or durable research.
 
-## The short recovery recipe
+# Short recovery recipes
 
-If you do not know where to start and your Git working tree is understood/safe:
+Use these only after `git status` is understood and local work is safe.
+
+## macOS
+
+```bash
+# repository root
+xcode-select -p
+xcrun --find clang
+uv sync --locked --extra transcription
+
+cd frontend
+rm -rf node_modules
+npm ci
+npm run check:tauri-versions
+npm run doctor:desktop
+cargo check --locked --manifest-path src-tauri/Cargo.toml
+npm run tauri dev
+```
+
+## Windows PowerShell
+
+```powershell
+# repository root
+uv sync --locked --extra transcription
+
+Set-Location frontend
+Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
+npm ci
+npm run check:tauri-versions
+npm run doctor:desktop
+cargo check --locked --manifest-path src-tauri\Cargo.toml
+npm run tauri dev
+```
+
+If PowerShell blocks `npm.ps1`, replace each `npm` with `npm.cmd`.
+
+## Linux
 
 ```bash
 # repository root
@@ -549,10 +739,13 @@ rm -rf node_modules
 npm ci
 npm run check:tauri-versions
 npm run doctor:desktop
+cargo check --locked --manifest-path src-tauri/Cargo.toml
 npm run tauri dev
 ```
 
-For UI-only work, the much smaller recipe is:
+## UI-only recovery on any platform
+
+The much smaller recipe is:
 
 ```bash
 cd frontend
@@ -561,6 +754,7 @@ npm run doctor:desktop -- --mode=mock
 npm run dev:mock
 ```
 
+On Windows, use `npm.cmd` when PowerShell script policy requires it.
+
 That separation is intentional. Frontend visual work should not require a researcher, UI
-contributor, or first-time developer to install a transcription runtime just to see a
-button.
+contributor, or first-time developer to install a transcription runtime just to see a button.

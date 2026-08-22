@@ -1,6 +1,6 @@
-# EchoFlow development docs 🧪🔧
+# Scholion development docs 🧪🔧
 
-This area explains how EchoFlow turns architecture claims into failing tests instead of hoping the screenshots are persuasive.
+This area explains how Scholion turns architecture claims into failing tests instead of hoping the screenshots are persuasive.
 
 ## Start here
 
@@ -41,7 +41,7 @@ Do not turn a current test count into a health metric. Counts go stale; behavior
 
 ## Quality philosophy
 
-EchoFlow has decision-heavy application code: resource admission, model custody, canonical-generation verification, resume, cleanup ordering, search filtering/rank composition, evidence anchoring, transactional user state, projection recovery, speaker authority, derived publication, desktop allowlists, and privacy boundaries.
+Scholion has decision-heavy application code: resource admission, model custody, canonical-generation verification, resume, cleanup ordering, search filtering/rank composition, evidence anchoring, transactional user state, projection recovery, speaker authority, derived publication, desktop allowlists, and privacy boundaries.
 
 Branch coverage alone cannot prove those decisions are right. Use several independent oracles:
 

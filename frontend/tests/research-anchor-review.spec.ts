@@ -17,7 +17,7 @@ test("Susan can review an older anchor before deliberately re-anchoring it", asy
   });
   await expect(maintenance).toBeVisible();
   await expect(maintenance).toContainText(
-    "EchoFlow never silently moves research to a newer transcript.",
+    "Scholion never silently moves research to a newer transcript.",
   );
 
   const card = maintenance

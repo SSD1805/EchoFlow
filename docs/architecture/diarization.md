@@ -1,12 +1,12 @@
 # Anonymous speaker diarization 👥
 
-EchoFlow treats diarization as **speaker-timeline evidence**, not identity.
+Scholion treats diarization as **speaker-timeline evidence**, not identity.
 
 In ordinary language: diarization tries to answer **who spoke when inside this one
 recording?** It gives recording-scoped labels such as `speaker-01` and `speaker-02` so a
 transcript can say which anonymous voice most likely owns a passage.
 
-It does **not** mean “identify this human,” and EchoFlow does not infer that
+It does **not** mean “identify this human,” and Scholion does not infer that
 `speaker-01` in one recording is the same person as `speaker-01` in another.
 
 ```mermaid
@@ -30,19 +30,19 @@ flowchart LR
 The intended CLI surface is opt-in:
 
 ```bash
-uv run echoflow transcribe interview.wav --diarize
+uv run scholion transcribe interview.wav --diarize
 ```
 
 If the speaker count is known:
 
 ```bash
-uv run echoflow transcribe focus-group.wav --diarize --speakers 4
+uv run scholion transcribe focus-group.wav --diarize --speakers 4
 ```
 
 Or provide a bounded range:
 
 ```bash
-uv run echoflow transcribe meeting.wav --diarize --min-speakers 2 --max-speakers 6
+uv run scholion transcribe meeting.wav --diarize --min-speakers 2 --max-speakers 6
 ```
 
 Exact and bounded speaker-count options are mutually exclusive. Speaker-count options
@@ -58,9 +58,9 @@ checkpoint-loading remote-code-execution vulnerability.
 
 This is not an irrelevant transitive advisory. Pyannote subclasses
 `lightning.LightningModule` and loads pretrained checkpoints through Lightning, so the
-vulnerable path intersects the feature EchoFlow would actually execute.
+vulnerable path intersects the feature Scholion would actually execute.
 
-EchoFlow therefore **fails closed** before pyannote import or model acquisition when the
+Scholion therefore **fails closed** before pyannote import or model acquisition when the
 installed Lightning safety cannot be established.
 
 The dependency audit carries one narrow documented exception for that exact advisory
@@ -80,23 +80,23 @@ So the current product description is deliberately precise:
 Pyannote model acquisition may require accepting upstream model conditions and
 authenticating with Hugging Face.
 
-EchoFlow does not store a Hugging Face token in its own configuration.
+Scholion does not store a Hugging Face token in its own configuration.
 
 Any model download authorization is narrowly scoped to diarization:
 
 ```bash
-uv run echoflow transcribe interview.wav \
+uv run scholion transcribe interview.wav \
   --diarize \
   --allow-diarization-model-download
 ```
 
 That flag does **not** authorize faster-whisper model downloads. ASR model acquisition
-remains the separate explicit `echoflow models install MODEL` path.
+remains the separate explicit `scholion models install MODEL` path.
 
-Pyannote telemetry is disabled by EchoFlow before package import. Diarization provenance
+Pyannote telemetry is disabled by Scholion before package import. Diarization provenance
 records `telemetry_enabled: false`. Recording audio remains local during inference.
 
-Once a snapshot is resolved into EchoFlow's configured private model cache, inference
+Once a snapshot is resolved into Scholion's configured private model cache, inference
 uses the local snapshot path.
 
 ## Dependency footprint
@@ -109,7 +109,7 @@ uv sync --locked --extra transcription --extra diarization
 ```
 
 Representative CPU-only Windows/Linux/macOS installation size, peak RAM, and sustained
-real-time factor still need physical-device qualification before EchoFlow should call
+real-time factor still need physical-device qualification before Scholion should call
 this a comfortable feature for an 8 GB machine.
 
 ## The evidence model
@@ -124,19 +124,19 @@ The primary diarization artifact is a source-relative speaker-turn timeline:
 
 Overlap is real evidence, not an error condition.
 
-Raw backend labels are not stable API. EchoFlow sorts turns deterministically and maps
+Raw backend labels are not stable API. Scholion sorts turns deterministically and maps
 them to `speaker-01`, `speaker-02`, and so on in first-seen timeline order.
 
 The current canonical transcript schema keeps optional diarization fields in the same
 structural contract rather than inventing a new schema version for each combination of
 features.
 
-## Why EchoFlow is conservative about putting a speaker name on text
+## Why Scholion is conservative about putting a speaker name on text
 
 ASR and diarization still come from independent evidence streams. Word-level timing
-simply gives EchoFlow finer coordinates for reconciling them.
+simply gives Scholion finer coordinates for reconciling them.
 
-When native word timing exists, EchoFlow compares **each word interval** with the
+When native word timing exists, Scholion compares **each word interval** with the
 speaker-turn timeline:
 
 ```text
@@ -153,7 +153,7 @@ words in one ASR segment resolve to speaker-01 → speaker-02
     → segment.speaker_ref = null
 ```
 
-If word evidence is absent, EchoFlow preserves the older conservative whole-segment
+If word evidence is absent, Scholion preserves the older conservative whole-segment
 rule: the segment gets a speaker only when exactly one unique diarized speaker overlaps
 that segment.
 
@@ -167,7 +167,7 @@ source-relative assembly contract.
 
 ## What alignment now unlocks ✨
 
-Word timing lets EchoFlow stop treating a long ASR segment as the smallest practical
+Word timing lets Scholion stop treating a long ASR segment as the smallest practical
 text coordinate.
 
 The first payoff is already structural: a speaker handoff can be represented inside one
@@ -183,11 +183,11 @@ The same evidence seam can support:
 
 Alignment does **not** solve simultaneous speech. If two active speakers overlap the same
 word interval, the word remains unattributed. Later source separation may provide more
-evidence, but EchoFlow does not manufacture certainty in the meantime.
+evidence, but Scholion does not manufacture certainty in the meantime.
 
 ## User-assigned display labels without biometric identity
 
-EchoFlow now lets the user say:
+Scholion now lets the user say:
 
 ```text
 speaker-01 → Dr. Chen
@@ -197,9 +197,9 @@ speaker-02 → Interviewer
 through the local transcript library:
 
 ```bash
-echoflow library speakers list TRANSCRIPT_ID
-echoflow library speakers name TRANSCRIPT_ID speaker-01 "Dr. Chen"
-echoflow library speakers forget-name TRANSCRIPT_ID speaker-01
+scholion library speakers list TRANSCRIPT_ID
+scholion library speakers name TRANSCRIPT_ID speaker-01 "Dr. Chen"
+scholion library speakers forget-name TRANSCRIPT_ID speaker-01
 ```
 
 The design rule is that this is **display/user-authored state**, not a rewrite of the
@@ -229,12 +229,12 @@ speaker reference. If the canonical transcript changes, the old label is retaine
 user-authored state but is treated as stale and is not silently applied to the new
 speaker generation.
 
-Before accepting a new label, EchoFlow verifies that the current canonical bytes still
+Before accepting a new label, Scholion verifies that the current canonical bytes still
 match the hash recorded in the library and that the anonymous speaker actually appears
 in canonical evidence. Both segment-level refs and aligned word-level refs count, so a
 speaker involved only in a mixed-speaker handoff remains nameable.
 
-EchoFlow can therefore stay anonymous-by-default while still letting a researcher make
+Scholion can therefore stay anonymous-by-default while still letting a researcher make
 their own recording understandable.
 
 See [Give the anonymous speakers names](../speaker-names.md) for the human-facing guide.
@@ -243,11 +243,11 @@ See [Give the anonymous speakers names](../speaker-names.md) for the human-facin
 
 Overlap still deserves two distinct product steps.
 
-First, EchoFlow improves **representation and presentation** using finer word timing,
+First, Scholion improves **representation and presentation** using finer word timing,
 explicit multi-speaker turn evidence, user-controlled display labels, and UI/export
 behavior that does not force one speaker when multiple voices are active.
 
-Only later should EchoFlow consider **speech/source separation**, where the audio itself
+Only later should Scholion consider **speech/source separation**, where the audio itself
 is decomposed into estimated sources before or during recognition.
 
 Source separation is materially heavier. It adds compute, model/dependency custody,

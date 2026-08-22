@@ -1,8 +1,8 @@
-# EchoFlow roadmap 🗺️✨
+# Scholion roadmap 🗺️✨
 
-EchoFlow is becoming a **private local workspace for recorded evidence**. Its job is not to out-engine every speech-recognition runtime. Its job is to make local transcription dependable, resumable, inspectable, searchable, navigable, annotatable, portable, and safe on ordinary computers while keeping source evidence and human-authored knowledge under clear custody.
+Scholion is becoming a **private local workspace for recorded evidence**. Its job is not to out-engine every speech-recognition runtime. Its job is to make local transcription dependable, resumable, inspectable, searchable, navigable, annotatable, portable, and safe on ordinary computers while keeping source evidence and human-authored knowledge under clear custody.
 
-Modern EchoFlow restarted on August 2, 2026. The project has moved from “can we transcribe a file?” through a substantial backend foundation into a native desktop that can import, process, make an explicit embedded-audio-track choice, search, verify, annotate, inspect speakers/provenance, publish derived transcript views, play exact verified source evidence, and review/apply custody-aware storage changes. This roadmap is a productization map, not a class inventory.
+Modern Scholion restarted on August 2, 2026. The project has moved from “can we transcribe a file?” through a substantial backend foundation into a native desktop that can import, process, make an explicit embedded-audio-track choice, search, verify, annotate, inspect speakers/provenance, publish derived transcript views, play exact verified source evidence, and review/apply custody-aware storage changes. This roadmap is a productization map, not a class inventory.
 
 ```mermaid
 flowchart LR
@@ -44,11 +44,11 @@ flowchart LR
 <details>
 <summary>Static diagram fallback if rich rendering is unavailable</summary>
 
-![EchoFlow product-roadmap static diagram](docs/diagrams/product-roadmap.svg)
+![Scholion product-roadmap static diagram](docs/diagrams/product-roadmap.svg)
 
 </details>
 
-Text fallback: EchoFlow already spans local media, reliable transcription, explicit embedded-track selection, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts and desktop controls, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, and an accessible multi-theme shell. The pre-identity architecture/redundancy audit is complete. The next first-release work is product identity migration, packaging, portability, packaged semantic custody, and real-device qualification.
+Text fallback: Scholion already spans local media, reliable transcription, explicit embedded-track selection, canonical evidence, lexical/semantic/hybrid retrieval, verified navigation, durable research, lifecycle contracts and desktop controls, incremental refresh, remembered locations, native import, Processing, Library, Research, transcript/speaker tools, verified native playback, an accessible multi-theme shell, architecture/redundancy consolidation, and the Scholion identity migration. The next first-release work is packaging, portability, packaged semantic custody, and real-device qualification.
 
 # First-release foundation now
 
@@ -56,7 +56,7 @@ Text fallback: EchoFlow already spans local media, reliable transcription, expli
 
 ## Local processing, audio tracks, and model custody
 
-EchoFlow inspects effective CPU/memory and accelerator topology before admitting a local strategy. FFprobe owns bounded media inspection; `AudioStreamSelector` owns deterministic exact-stream selection; FFmpeg owns canonical normalization and optional deterministic enhancement. Managed model revisions are explicit, verified, and pinned before transcription.
+Scholion inspects effective CPU/memory and accelerator topology before admitting a local strategy. FFprobe owns bounded media inspection; `AudioStreamSelector` owns deterministic exact-stream selection; FFmpeg owns canonical normalization and optional deterministic enhancement. Managed model revisions are explicit, verified, and pinned before transcription.
 
 The Processing Center presents readiness, model state, preflight, supervised start/cancel, durable job status, checkpoint resume, fresh retry, and private execution-state discard. Python remains authoritative for planning, admission, model custody, stream-selection validation, resume compatibility, and transcript correctness. Tauri owns allowlisted long-running child-process lifetime. React submits intent and presents state.
 
@@ -80,7 +80,7 @@ See **[Transcript and speaker tools](docs/transcript-tools.md)** and **[Speaker 
 
 The desktop can play original local audio/video from the same verified source-relative cursor used by evidence navigation.
 
-Playback is generation-bound rather than path-driven. Python verifies canonical bytes, source identity, current source SHA-256/size, duration bounds, and audio-stream identity. Rust opens only the approved source, narrows the verification/open race with metadata checks, stores the opened file behind an opaque session ID, and serves bounded byte ranges through the dedicated `echoflow-media` protocol.
+Playback is generation-bound rather than path-driven. Python verifies canonical bytes, source identity, current source SHA-256/size, duration bounds, and audio-stream identity. Rust opens only the approved source, narrows the verification/open race with metadata checks, stores the opened file behind an opaque session ID, and serves bounded byte ranges through the dedicated `scholion-media` protocol.
 
 Multi-track transcription is explicitly supported. Multi-track playback fails closed until the native layer can prove the rendered stream matches canonical provenance.
 
@@ -90,7 +90,7 @@ See **[Verified native playback](docs/native-playback.md)**.
 
 The library has a database-neutral retrieval contract, DuckDB lexical projection, BM25-style ranking, optional semantic chunks/embeddings, hybrid reciprocal-rank fusion, and exact-generation evidence identity.
 
-Search ranking and evidence navigation remain separate. A ranked passage becomes precise evidence only after EchoFlow verifies canonical generation and resolves exact segment/word coordinates.
+Search ranking and evidence navigation remain separate. A ranked passage becomes precise evidence only after Scholion verifies canonical generation and resolves exact segment/word coordinates.
 
 Authoritative SQLite owns evidence notes, tags, collections, anchor history, and saved-search intent. DuckDB research/search state is rebuildable. The desktop supports note create/edit/delete, tag/collection navigation, one typed saved-question lifecycle, typed Research search, exact-generation return, and explicit stale-anchor review/re-anchor.
 
@@ -109,10 +109,10 @@ Remembered recording/transcript locations are durable permissions. Recording dis
 The desktop architecture remains:
 
 ```text
-EchoFlow Desktop
+Scholion Desktop
 ├── React + TypeScript + Vite     presentation
 ├── Tauri / Rust                  narrow native capability host
-└── Python EchoFlow               application and evidence rules
+└── Python Scholion               application and evidence rules
 ```
 
 The shell has eight skins: **Archive, Midnight, Paper, Moss, Plum, Ember, Pride, and Monochrome**. All use one semantic token contract for surfaces, text, controls, focus, errors, selection, and accent foregrounds. Theme preference is local presentation state and never evidence/research state.
@@ -139,7 +139,7 @@ The shell has eight skins: **Archive, Midnight, Paper, Moss, Plum, Ember, Pride,
 | Safe deletion/retention | typed plan-bound Python custody | implemented desktop Storage plan/apply | representative-device/path qualification |
 | Native source playback | generation/source authorization + Rust session | implemented | decoder/device qualification; future proven multi-track selection |
 | Themes/accessibility | semantic palette + browser/native controls | 8 skins qualified | representative OS/forced-colors checks |
-| Architecture/redundancy | capability-blind transport + centralized composition + one Research contract | complete | identity/API migration only where compatibility is intentionally broken |
+| Architecture/redundancy | capability-blind transport + centralized composition + one Research contract | complete | release/API migration only where compatibility is intentionally broken |
 | Frontend tests | strict TS/build + Playwright/axe | primary surfaces + playback + multitrack + lifecycle covered | grow with features, avoid duplicated backend policy |
 | Packaging | Python wheel + source Tauri | development only | managed runtime/installers/update/uninstall |
 | Backup/restore | authority boundaries known | none | manifest/reconcile/restore UI |
@@ -173,7 +173,7 @@ The Storage workspace productizes existing custody contracts without creating a 
 
 ## 7. Architecture/redundancy audit complete
 
-The pre-identity audit is closed. It consolidated capability-blind Python stdin/stdout mechanics, moved application-service construction into `AppContainer`, migrated bounded frontend desktop/Processing calls onto one fixed-command protocol helper, collapsed duplicate Research saved-question ingress, centralized Research evidence serialization/label invariants, and retained separate playback/custody/long-task boundaries where authority actually differs.
+The architecture/redundancy audit is closed. It consolidated capability-blind Python stdin/stdout mechanics, moved application-service construction into `AppContainer`, migrated bounded frontend desktop/Processing calls onto one fixed-command protocol helper, collapsed duplicate Research saved-question ingress, centralized Research evidence serialization/label invariants, and retained separate playback/custody/long-task boundaries where authority actually differs.
 
 The audit deliberately does **not** create a generic bridge, arbitrary Python-module selector, dynamic Tauri command dispatcher, frontend policy framework, or universal Pydantic hierarchy. Similar-looking code remains only where security visibility, lifecycle semantics, readability, or compatibility justify it.
 
@@ -181,9 +181,9 @@ A pre-package follow-up retired the deprecated runner `ModelTier` and `recommend
 
 See **[Architecture and redundancy audit](docs/architecture/redundancy-audit.md)**.
 
-## 8. Product identity checkpoint ← next
+## 8. Product identity checkpoint complete
 
-Make the final first-release naming decision **before** packaging/signing turns identity into a migration contract.
+The first-release product identity is **Scholion**. The Python package/CLI, environment prefix, desktop package, Tauri product/window identity, bundle identifier, playback protocol, frontend copy, tests, tooling, and documentation now use the Scholion identity before installer/update compatibility is frozen.
 
 A rename affects more than the GitHub repository label. Audit and intentionally migrate:
 
@@ -193,11 +193,11 @@ A rename affects more than the GitHub repository label. Audit and intentionally 
 - installer/update-channel/signing identities;
 - documentation/examples and generated artifacts;
 - environment variables and integration points; and
-- migration/compatibility behavior for existing local EchoFlow workspaces.
+- migration/compatibility behavior for existing local Scholion workspaces.
 
-Choose the replacement name first, verify pronunciation/searchability/legal/package-namespace collisions, then perform one deliberate identity migration before installers exist. If EchoFlow remains the name, record that decision and freeze the identity surface.
+The identity surface is documented in **[Product identity](docs/product-identity.md)**. Future changes must be explicit migrations and must never silently move, delete, or invalidate authoritative user evidence.
 
-## 9. Packaging + first run + update/uninstall
+## 9. Packaging + first run + update/uninstall ← next
 
 Ship a managed Python runtime/sidecar, FFmpeg/native dependencies, Windows/macOS/Linux delivery, storage onboarding/repair, signed updates, and evidence-safe uninstall semantics.
 
@@ -225,4 +225,4 @@ Freeform research memos/notebook pages, snapshots/diffs, REFI-QDA interoperabili
 
 A future notebook page should live in authoritative SQLite as its own research-document type with optional explicit references to evidence notes/anchors. It should not weaken the current `ResearchNote` invariant by making its evidence anchor optional. DuckDB can later project memo text/relationships for search, and Markdown/plain-text/HTML/research-bundle exports can remain derived views.
 
-The sequencing rule remains simple: do not build a larger research superstructure while the ordinary desktop still needs identity migration, packaging, portability, and real-device qualification.
+The sequencing rule remains simple: do not build a larger research superstructure while the ordinary desktop still needs packaging, portability, and real-device qualification.

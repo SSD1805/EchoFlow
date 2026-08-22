@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 async function openLibraryResult(page: import("@playwright/test").Page) {
   await page.goto("/?e2e=1");
   await page.getByRole("button", { name: "Library" }).click();
-  await page.getByRole("searchbox", { name: "Search EchoFlow" }).fill("ABC");
+  await page.getByRole("searchbox", { name: "Search Scholion" }).fill("ABC");
   await page.getByRole("button", { name: "Search", exact: true }).click();
 }
 
@@ -33,9 +33,9 @@ test("global help explains the evidence model without exposing implementation pa
   page,
 }) => {
   await page.goto("/?e2e=1");
-  await page.getByRole("button", { name: "How EchoFlow works" }).click();
+  await page.getByRole("button", { name: "How Scholion works" }).click();
 
-  await expect(page.getByRole("heading", { name: "How EchoFlow works" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "How Scholion works" })).toBeVisible();
   await expect(page.getByText(/Original recordings and canonical transcript JSON/)).toBeVisible();
   await expect(page.getByText("source_path")).toHaveCount(0);
   await expect(page.getByText("canonical_path")).toHaveCount(0);

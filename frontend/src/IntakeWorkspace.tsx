@@ -42,7 +42,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
     void client
       .listLocations()
       .then(setLocations)
-      .catch(() => setStatus("EchoFlow is ready for a new local import."));
+      .catch(() => setStatus("Scholion is ready for a new local import."));
   }, [client]);
 
   const canRemember = selectionType === "folder" && selectedPaths.length === 1;
@@ -73,7 +73,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
     setSelectedPaths([path]);
     setRemember(false);
     setAutomatic(false);
-    setStatus("Choose whether EchoFlow should use this folder once or remember it for future discovery.");
+    setStatus("Choose whether Scholion should use this folder once or remember it for future discovery.");
   }
 
   async function applySelection() {
@@ -84,8 +84,8 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
       if (!remember) {
         setStatus(
           purpose === "recording-source"
-            ? "Ready for transcription planning. EchoFlow has not saved a folder permission."
-            : "Ready for one-time transcript import. EchoFlow has not saved a folder permission.",
+            ? "Ready for transcription planning. Scholion has not saved a folder permission."
+            : "Ready for one-time transcript import. Scholion has not saved a folder permission.",
         );
         return;
       }
@@ -102,10 +102,10 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
         );
       } else {
         await client.refreshTranscriptLocations();
-        setStatus("Transcript library remembered and reconciled with EchoFlow's local index.");
+        setStatus("Transcript library remembered and reconciled with Scholion's local index.");
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not add this location safely.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not add this location safely.");
     } finally {
       setBusy(false);
     }
@@ -132,11 +132,11 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
 
       <section className="intro-copy" aria-labelledby="intake-title">
         <div>
-          <p className="section-kicker">01 · Choose what EchoFlow should know about</p>
+          <p className="section-kicker">01 · Choose what Scholion should know about</p>
           <h2 id="intake-title">Add local evidence without giving up custody.</h2>
         </div>
         <p>
-          Select individual files for a one-time job, or remember a research folder so EchoFlow can discover new material when you ask it to refresh.
+          Select individual files for a one-time job, or remember a research folder so Scholion can discover new material when you ask it to refresh.
         </p>
       </section>
 
@@ -167,7 +167,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
             <span className="picker-icon" aria-hidden="true">↥</span>
             <span className="picker-title">Choose files</span>
             <span className="picker-detail">
-              {purpose === "recording-source" ? "Audio or video, one or many" : "Canonical EchoFlow JSON"}
+              {purpose === "recording-source" ? "Audio or video, one or many" : "Canonical Scholion JSON"}
             </span>
           </button>
           <button className="picker-card" type="button" onClick={() => void chooseFolder()}>
@@ -197,7 +197,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
 
         {canRemember && (
           <fieldset className="retention-choice">
-            <legend>How should EchoFlow use this location?</legend>
+            <legend>How should Scholion use this location?</legend>
             <label className={!remember ? "choice-card choice-active" : "choice-card"}>
               <input
                 type="radio"
@@ -279,7 +279,7 @@ export function IntakeWorkspace({ client, theme, onThemeChange }: IntakeWorkspac
         <article className="info-card provenance-card">
           <p className="mini-label">Custody rule</p>
           <strong>Originals stay original.</strong>
-          <p>Selecting media does not move it into a hidden EchoFlow vault.</p>
+          <p>Selecting media does not move it into a hidden Scholion vault.</p>
         </article>
       </section>
     </>

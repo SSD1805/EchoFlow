@@ -1,8 +1,8 @@
-# EchoFlow architecture 🔧
+# Scholion architecture 🔧
 
 Welcome to the maintenance hatch.
 
-The user-facing docs explain what EchoFlow does. These pages explain **why the boundaries
+The user-facing docs explain what Scholion does. These pages explain **why the boundaries
 exist, what each capability owns, what it refuses to own, and which invariants must survive
 refactors**.
 
@@ -11,8 +11,8 @@ If you are trying to transcribe a file rather than maintain the system, use
 
 ## The shape of the system
 
-EchoFlow is composed from narrow local capabilities in
-`src/echoflow/app/app_container.py`. The through-line is custody: source evidence,
+Scholion is composed from narrow local capabilities in
+`src/scholion/app/app_container.py`. The through-line is custody: source evidence,
 canonical transcript truth, private execution state, rebuildable projections, durable human
 knowledge, native process/media lifetime, and desktop presentation deliberately do not share
 authority semantics.
@@ -68,7 +68,7 @@ flowchart LR
 <details>
 <summary>Static diagram fallback if rich rendering is unavailable</summary>
 
-![EchoFlow system-architecture static diagram](../diagrams/system-architecture.svg)
+![Scholion system-architecture static diagram](../diagrams/system-architecture.svg)
 
 </details>
 
@@ -87,10 +87,10 @@ Python-to-Rust paths rather than widening the general bridge.
 | [Processing capabilities](processing-capabilities.md) | How does the local transcription/research system fit together? |
 | [Processing Center](processing-center.md) | How does the desktop expose readiness, preflight, embedded-track choice, jobs, and long-running native work without becoming the scheduler? |
 | [Architecture and redundancy audit](redundancy-audit.md) | Which duplicated seams were consolidated before identity/packaging, and which similarities are intentionally retained? |
-| [Audio tracks](../audio-tracks.md) | How does EchoFlow choose among several embedded audio streams without guessing or confusing transcription with playback? |
+| [Audio tracks](../audio-tracks.md) | How does Scholion choose among several embedded audio streams without guessing or confusing transcription with playback? |
 | [Verified native playback](../native-playback.md) | How does exact-generation evidence become a local media capability without exposing paths to React? |
 | [Storage and lifecycle controls](../storage-lifecycle.md) | How does the desktop expose plan-bound custody and retention without giving React filesystem authority? |
-| [Adaptive heterogeneous execution](adaptive-heterogeneous-execution.md) | How does EchoFlow decide what this machine can safely run? |
+| [Adaptive heterogeneous execution](adaptive-heterogeneous-execution.md) | How does Scholion decide what this machine can safely run? |
 | [Media and timeline](media-and-timeline.md) | Which source/stream did we use, and what do timestamps mean? |
 | [Word-level timestamp alignment](word-alignment.md) | How do engine timings become source-relative evidence? |
 | [Local model management](model-management.md) | Which model revision is allowed to execute, and how did it get here? |
@@ -126,7 +126,7 @@ Python-to-Rust paths rather than widening the general bridge.
 
 ## Capability boundaries
 
-EchoFlow prefers a small object with one clear job over a universal manager.
+Scholion prefers a small object with one clear job over a universal manager.
 
 The search/research/custody/processing/desktop area deliberately separates responsibilities:
 
@@ -143,10 +143,10 @@ The search/research/custody/processing/desktop area deliberately separates respo
 11. `LibraryCustodyService` owns typed deletion planning/execution and age-based private execution-state retention.
 12. `ProcessingCenterService` composes health/resource/model/job/preflight authority, including whether multi-track preflight requires explicit user confirmation, and is composed by `AppContainer`.
 13. `PlaybackAuthorizationService` verifies exact canonical generation, current source bytes, coordinate bounds, and stream identity before native media can open.
-14. `echoflow.desktop.host_protocol` owns only bounded JSON stdin/stdout mechanics and the versioned envelope; individual bridges retain method/service/error authority.
-15. `echoflow.desktop.bridge` exposes the ordinary allowlisted versioned IPC surface for Library/Research/Processing.
+14. `scholion.desktop.host_protocol` owns only bounded JSON stdin/stdout mechanics and the versioned envelope; individual bridges retain method/service/error authority.
+15. `scholion.desktop.bridge` exposes the ordinary allowlisted versioned IPC surface for Library/Research/Processing.
 16. The playback bridge is private to a fixed Rust host path and cannot be redirected to an arbitrary Python module.
-17. `echoflow.desktop.custody_bridge` exposes only document listing, deletion plan/apply, and retention plan/apply through a dedicated fixed Tauri command; it strips action/workspace paths before serialization.
+17. `scholion.desktop.custody_bridge` exposes only document listing, deletion plan/apply, and retention plan/apply through a dedicated fixed Tauri command; it strips action/workspace paths before serialization.
 18. Tauri supervises allowlisted long-running native child processes, owns opaque opened playback sessions, and invokes fixed Python modules. It owns process/file lifetime, not strategy selection, stream selection, model validity, transcript correctness, or custody policy.
 19. React owns interaction and presentation only. It does not issue SQL, mutate DuckDB/SQLite directly, select canonical generations, inspect media, choose a preferred audio track by policy, or decide effective deletion/retention policy.
 
@@ -223,7 +223,7 @@ eligibility, resume-loss flags, and the plan-bound confirmation token.
 16. **Long-running native process supervision does not create a second job or checkpoint authority.**
 17. **Verified playback authorization does not turn an opaque media session into source/evidence authority.**
 18. **Theme/presentation state is machine-local preference, not evidence or research state.**
-19. **EchoFlow does not claim secure erasure it cannot prove.**
+19. **Scholion does not claim secure erasure it cannot prove.**
 
 Search infrastructure may disappear. User-authored knowledge may not disappear by accident.
 
@@ -239,7 +239,7 @@ the native lifetime of allowlisted long-running tasks. Multi-track confirmation 
 by Python preflight, and a user choice is rebound through Python before execution.
 Resume/retry semantics remain Python application policy.
 
-Bounded trusted-host bridges share `echoflow.desktop.host_protocol`. On the frontend,
+Bounded trusted-host bridges share `scholion.desktop.host_protocol`. On the frontend,
 ordinary desktop/Processing bounded requests, transcript tools, Research anchor maintenance,
 and lifecycle calls share `nativeProtocol.ts` with a closed Tauri-command union. Playback
 and supervised Processing task commands remain separate because they return different
@@ -247,7 +247,7 @@ contracts and carry different lifetime authority.
 
 Verified playback composes through `PlaybackAuthorizationService` plus the private fixed
 playback bridge. Rust opens the approved file, retains it behind an opaque active session,
-and serves bounded byte ranges through `echoflow-media`. React does not receive the path.
+and serves bounded byte ranges through `scholion-media`. React does not receive the path.
 Multi-track playback deliberately fails closed until the native layer can prove the rendered
 embedded stream.
 
@@ -258,9 +258,9 @@ repair/recovery lever, not a normal “one file changed” workflow.
 Custody-sensitive operations remain separate through `LibraryCustodyService`:
 
 ```bash
-echoflow library delete TRANSCRIPT_ID --scope library-view
-echoflow library delete TRANSCRIPT_ID --scope canonical-transcript
-echoflow library retention --execution-days 30
+scholion library delete TRANSCRIPT_ID --scope library-view
+scholion library delete TRANSCRIPT_ID --scope canonical-transcript
+scholion library retention --execution-days 30
 ```
 
 The native Storage workspace exposes the same plan/apply contract through the dedicated
@@ -289,7 +289,7 @@ Architecture pages should provide a plain-English doorway, a structural model wh
 the exact implementation contract, ownership/failure semantics, and explicit current
 limits or future seams.
 
-Mermaid diagrams use direct GitHub-supported fenced syntax and the approved EchoFlow
+Mermaid diagrams use direct GitHub-supported fenced syntax and the approved Scholion
 palette; color helps hierarchy but never carries the only meaning. See
 **[documentation-style.md](../documentation-style.md)** for the editorial and visual
 contract.

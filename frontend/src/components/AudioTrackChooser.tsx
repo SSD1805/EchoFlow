@@ -31,13 +31,13 @@ export function AudioTrackChooser({
     <fieldset className="audio-track-chooser" aria-describedby="audio-track-help">
       <legend>Choose the audio track to transcribe</legend>
       <p id="audio-track-help">
-        EchoFlow found {streams.length} audio tracks in this recording. Choose the track that
+        Scholion found {streams.length} audio tracks in this recording. Choose the track that
         contains the evidence you want transcribed. Container titles, languages, and default
-        flags are descriptive source metadata, not an EchoFlow recommendation.
+        flags are descriptive source metadata, not an Scholion recommendation.
       </p>
       {selectionRequired && (
         <p className="audio-track-required" role="status">
-          Confirm one track before starting. EchoFlow will re-run backend preflight with that
+          Confirm one track before starting. Scholion will re-run backend preflight with that
           exact stream bound into the transcription plan.
         </p>
       )}

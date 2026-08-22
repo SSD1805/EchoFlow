@@ -1,20 +1,24 @@
-# EchoFlow 🦝✨
+# Scholion 🦝✨
 
 **A private, local-first workspace for recorded evidence.**
 
-EchoFlow turns audio and video into reproducible canonical transcripts, preserves source and processing provenance, lets people search a private corpus and navigate results back to exact verified evidence, and keeps notes, tags, collections, speaker labels, and saved research questions as durable user-owned knowledge.
+Scholion turns audio and video into reproducible canonical transcripts, preserves source and processing provenance, lets people search a private corpus and navigate results back to exact verified evidence, and keeps notes, tags, collections, speaker labels, and saved research questions as durable user-owned knowledge.
 
-Transcription is the engine room, not the whole product. EchoFlow also inspects the machine, chooses a safe local execution strategy, manages model custody, survives interrupted work, keeps word-level timing and anonymous-speaker evidence, publishes portable transcript views, incrementally reconciles an evolving library, plays verified local source evidence, and gives deletion the same explicit custody rules as creation.
+Transcription is the engine room, not the whole product. Scholion also inspects the machine, chooses a safe local execution strategy, manages model custody, survives interrupted work, keeps word-level timing and anonymous-speaker evidence, publishes portable transcript views, incrementally reconciles an evolving library, plays verified local source evidence, and gives deletion the same explicit custody rules as creation.
 
 Canonical transcript JSON is authoritative transcript evidence. Human-authored research state is authoritative user knowledge. DuckDB search/research projections and publication formats are rebuildable. The original recording is read-only throughout normal processing and can only be deleted through a separate explicit provenance-checked operation.
 
-> **EchoFlow's product rule:** do complicated work locally, keep the evidence understandable, portable, and owned by the user.
+> **Scholion's product rule:** do complicated work locally, keep the evidence understandable, portable, and owned by the user.
+
+## Why Scholion?
+
+A *scholion* is an explanatory, critical, or interpretive note attached to a text; the plural is *scholia*. The name matches the product's evidence model: the recording and canonical transcript remain the source evidence, while human notes, labels, collections, and saved research questions accumulate around verified passages without replacing the source. See **[Product identity](docs/product-identity.md)** for the canonical naming contract.
 
 Start with **[docs/README.md](docs/README.md)** for human-facing documentation or **[Getting started](docs/getting-started.md)** for the shortest clone-to-transcript path. The desktop also keeps contextual help available inside the app so ordinary use does not depend on having repository docs open.
 
 ## What can it do right now?
 
-EchoFlow is pre-production, but the backend and desktop cover a coherent path from importing a recording through local processing, evidence search, durable research, transcript/speaker management, verified local playback, and custody-aware storage management.
+Scholion is pre-production, but the backend and desktop cover a coherent path from importing a recording through local processing, evidence search, durable research, transcript/speaker management, verified local playback, and custody-aware storage management.
 
 | Area | Current foundation |
 |---|---|
@@ -40,7 +44,7 @@ EchoFlow is pre-production, but the backend and desktop cover a coherent path fr
 | Desktop guidance | persistent screen/overview help plus contextual Evidence, Playback, Transcript, multi-track preflight, and Storage explanations without duplicating backend policy |
 | Desktop presentation | Tauri + React Intake, Processing, Library, verified evidence reader/playback, Research, Storage, transcript tools, and eight semantic-token themes |
 | Accessibility | keyboard/semantic-role tests, axe, non-hover contextual help, explicit light/dark browser schemes, and an eight-skin contrast matrix |
-| Architecture hygiene | pre-identity redundancy audit complete: shared capability-blind transport, centralized application composition, one typed saved-question surface, one Research evidence presentation contract |
+| Architecture hygiene | architecture/redundancy audit complete: shared capability-blind transport, centralized application composition, one typed saved-question surface, one Research evidence presentation contract |
 | Quality | Linux/macOS/Windows CI, strict typing, lint/format/security, complexity/dead-code, branch coverage, dependency audit, Playwright/axe, native Rust tests, package verification, targeted mutation qualification |
 
 ## From recording to useful evidence
@@ -83,7 +87,7 @@ flowchart LR
 <details>
 <summary>Static diagram fallback if rich rendering is unavailable</summary>
 
-![EchoFlow recording-to-evidence static diagram](docs/diagrams/recording-to-evidence.svg)
+![Scholion recording-to-evidence static diagram](docs/diagrams/recording-to-evidence.svg)
 
 </details>
 
@@ -104,7 +108,7 @@ The Tauri + React desktop currently provides:
 - Research note create/edit/delete, tag/collection navigation, saved-search lifecycle, typed retrieval controls, exact-generation evidence return, and explicit anchor review;
 - transcript details/provenance, generation-safe speaker-name management, explicit speaker-overlap presentation, and post-hoc derived publication;
 - a Storage workspace for backend-planned transcript custody changes, explicit source protection, and previewed old-processing cleanup;
-- persistent **How this screen works** and **How EchoFlow works** guidance plus local Evidence/Playback/Transcript/multi-track/Storage explanations;
+- persistent **How this screen works** and **How Scholion works** guidance plus local Evidence/Playback/Transcript/multi-track/Storage explanations;
 - eight accessible presentation skins through one compact theme picker; and
 - persisted presentation preference without mixing theme state into evidence or research.
 
@@ -124,7 +128,7 @@ There are still no end-user installers or Releases. The supported path remains a
 
 ## Themes and accessibility
 
-EchoFlow ships **Archive, Midnight, Paper, Moss, Plum, Ember, Pride, and Monochrome**. They are not eight independent CSS systems. Every skin supplies the same semantic roles for background, surfaces, text, borders, accent/on-accent, controls, focus, errors, and selection.
+Scholion ships **Archive, Midnight, Paper, Moss, Plum, Ember, Pride, and Monochrome**. They are not eight independent CSS systems. Every skin supplies the same semantic roles for background, surfaces, text, borders, accent/on-accent, controls, focus, errors, and selection.
 
 Pride adds a decorative rainbow edge while leaving status meaning in text/structure. Monochrome is intentionally grayscale rather than another tinted dark theme. Every registered skin declares its native browser `color-scheme` and automatically enters the same Playwright WCAG-oriented contrast matrix and axe qualification.
 
@@ -135,11 +139,11 @@ Read **[Desktop themes and accessibility](docs/development/desktop-accessibility
 The supported development/source path uses Python 3.12 and `uv`:
 
 ```bash
-git clone https://github.com/SSD1805/EchoFlow.git
-cd EchoFlow
+git clone https://github.com/SSD1805/Scholion.git
+cd Scholion
 uv sync --locked --extra transcription
-uv run echoflow init
-uv run echoflow doctor
+uv run scholion init
+uv run scholion doctor
 ```
 
 For the native desktop, follow **[Desktop development prerequisites](docs/development/desktop-development.md)**.
@@ -147,29 +151,29 @@ For the native desktop, follow **[Desktop development prerequisites](docs/develo
 ## Plan, transcribe, and resume from the CLI
 
 ```bash
-uv run echoflow models recommend
-uv run echoflow models install small
-uv run echoflow transcribe interview.m4a --dry-run
-uv run echoflow transcribe interview.m4a
+uv run scholion models recommend
+uv run scholion models install small
+uv run scholion transcribe interview.m4a --dry-run
+uv run scholion transcribe interview.m4a
 ```
 
 For a source with several embedded audio tracks, bind the exact FFmpeg stream index:
 
 ```bash
-uv run echoflow transcribe meeting.mkv --audio-stream 3 --dry-run
-uv run echoflow transcribe meeting.mkv --audio-stream 3
+uv run scholion transcribe meeting.mkv --audio-stream 3 --dry-run
+uv run scholion transcribe meeting.mkv --audio-stream 3
 ```
 
 Add derived publication formats when useful:
 
 ```bash
-uv run echoflow transcribe interview.m4a --export txt --export srt --export vtt
+uv run scholion transcribe interview.m4a --export txt --export srt --export vtt
 ```
 
 Resume a validated interrupted job:
 
 ```bash
-uv run echoflow transcribe interview.m4a --resume JOB_ID
+uv run scholion transcribe interview.m4a --resume JOB_ID
 ```
 
 Model acquisition is explicit and network-bearing. Resume rechecks source identity and current resource admission rather than silently changing the execution contract, including its selected audio stream.
@@ -177,12 +181,12 @@ Model acquisition is explicit and network-bearing. Resume rechecks source identi
 ## Search, annotate, and name speakers
 
 ```bash
-uv run echoflow library rebuild
-uv run echoflow library search "housing insecurity"
-uv run echoflow library find "housing insecurity" --context-segments 1
-uv run echoflow library speakers list JOB_ID
-uv run echoflow library speakers name JOB_ID speaker-02 "Dr. Chen"
-uv run echoflow library speakers transcript JOB_ID
+uv run scholion library rebuild
+uv run scholion library search "housing insecurity"
+uv run scholion library find "housing insecurity" --context-segments 1
+uv run scholion library speakers list JOB_ID
+uv run scholion library speakers name JOB_ID speaker-02 "Dr. Chen"
+uv run scholion library speakers transcript JOB_ID
 ```
 
 Speaker names are durable user-authored state. `speaker-02` remains anonymous machine-produced evidence; the human label is separate and generation-bound.
@@ -194,7 +198,7 @@ Research metadata can constrain retrieval, and saved searches persist the questi
 Deletion remains dry-run first from the CLI:
 
 ```bash
-uv run echoflow library delete JOB_ID --scope library-view
+uv run scholion library delete JOB_ID --scope library-view
 ```
 
 The plan prints actions and a confirmation token. Nothing changes until the same request is repeated with that token. `canonical-transcript` does **not** imply `research-notes`, `saved-searches`, or `source-recording`.
@@ -204,7 +208,7 @@ The native desktop exposes the same contract under **Storage**: select explicit 
 Age-based retention is narrower:
 
 ```bash
-uv run echoflow library retention --execution-days 30
+uv run scholion library retention --execution-days 30
 ```
 
 The Storage workspace can preview the same private-state cleanup and marks interrupted/failed candidates whose resume capability would be lost. Retention preserves canonical transcripts, human research, source media, and lightweight lifecycle manifests.
@@ -236,13 +240,12 @@ Normal qualification includes Ruff, strict mypy, Vulture, Radon, branch coverage
 
 ## Where the project goes next
 
-Research/search, Processing, explicit embedded-track transcription, desktop comprehension/themes, transcript/speaker tools, verified native playback, contextual guidance, desktop lifecycle/retention controls, and the pre-identity architecture/redundancy audit are complete first-release foundation. The next first-release sequence is:
+Research/search, Processing, explicit embedded-track transcription, desktop comprehension/themes, transcript/speaker tools, verified native playback, contextual guidance, desktop lifecycle/retention controls, architecture/redundancy consolidation, and the Scholion identity migration are complete first-release foundation. The next first-release sequence is:
 
-1. product identity decision and deliberate identity migration before installers freeze names, bundle IDs, app-data paths, environment variables, and compatibility behavior;
-2. packaging, first-run storage setup, signed updates, and evidence-safe uninstall;
-3. backup/restore plus selected research portability;
-4. packaged semantic-model/dependency custody; and
-5. representative-device qualification across ordinary consumer hardware and hostile path, disk, interruption, upgrade, and accessibility cases.
+1. packaging, first-run storage setup, signed updates, and evidence-safe uninstall;
+2. backup/restore plus selected research portability;
+3. packaged semantic-model/dependency custody; and
+4. representative-device qualification across ordinary consumer hardware and hostile path, disk, interruption, upgrade, and accessibility cases.
 
 Freeform research notebook pages are a useful later research-native feature, but they are intentionally separate from evidence-anchored notes and are not on the first-release critical path.
 

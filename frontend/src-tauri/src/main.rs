@@ -13,7 +13,7 @@ fn main() {
         .manage(playback_sessions)
         .plugin(tauri_plugin_dialog::init())
         .register_asynchronous_uri_scheme_protocol(
-            "echoflow-media",
+            "scholion-media",
             move |_context, request, responder| {
                 responder.respond(playback_protocol.protocol_response(request));
             },
@@ -29,5 +29,5 @@ fn main() {
             playback::playback_release,
         ])
         .run(tauri::generate_context!())
-        .expect("EchoFlow desktop host could not start");
+        .expect("Scholion desktop host could not start");
 }

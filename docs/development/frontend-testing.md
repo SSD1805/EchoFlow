@@ -1,6 +1,6 @@
 # Frontend testing strategy
 
-EchoFlow tests the desktop according to its architecture: React proves presentation and human interaction; Python proves application, evidence, custody, resource, media-selection, and playback-authorization decisions; Rust proves narrow native capability wiring, process lifetime, and local media transport.
+Scholion tests the desktop according to its architecture: React proves presentation and human interaction; Python proves application, evidence, custody, resource, media-selection, and playback-authorization decisions; Rust proves narrow native capability wiring, process lifetime, and local media transport.
 
 The goal is not equal tool counts in every language. The goal is to place each behavioral oracle beside the authority it can actually judge.
 
@@ -93,7 +93,7 @@ Help content is static local presentation text. It must not become a remote-docu
 
 ## Native Rust qualification
 
-Rust owns the opened playback file handle, opaque session lifetime, and `echoflow-media` byte-range transport. Those are not browser-policy questions, so they are covered beside the native implementation.
+Rust owns the opened playback file handle, opaque session lifetime, and `scholion-media` byte-range transport. Those are not browser-policy questions, so they are covered beside the native implementation.
 
 `cargo test --locked` runs in the normal `native-tauri` CI lane and covers:
 
@@ -107,7 +107,7 @@ Rust owns the opened playback file handle, opaque session lifetime, and `echoflo
 
 ## Why there is no Stryker gate today
 
-Stryker is useful when JavaScript/TypeScript contains decision-heavy pure logic whose tests should kill semantic mutations. EchoFlow deliberately keeps those decisions out of React.
+Stryker is useful when JavaScript/TypeScript contains decision-heavy pure logic whose tests should kill semantic mutations. Scholion deliberately keeps those decisions out of React.
 
 The important mutants in current desktop policy are questions such as:
 
@@ -151,7 +151,7 @@ A new interactive slice should normally ship with:
 - at least one meaningful negative/boundary case;
 - keyboard/semantic-role coverage where interactive;
 - axe on the rendered slice;
-- contextual guidance when the user must understand a non-obvious EchoFlow concept;
+- contextual guidance when the user must understand a non-obvious Scholion concept;
 - explicit path/capability assertions if sensitive local state is involved;
 - native tests when Rust gains a new privileged capability; and
 - backend property/mutation tests when the feature changes decision-heavy application policy.

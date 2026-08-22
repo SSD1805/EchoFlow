@@ -1,9 +1,9 @@
 # Safe deletion and retention controls
 
-EchoFlow treats deletion as a custody decision, not a filesystem shortcut.
+Scholion treats deletion as a custody decision, not a filesystem shortcut.
 
 The deletion surface therefore starts with a typed plan. A plan identifies the exact
-canonical generation, every mutation EchoFlow intends to make, durable research objects
+canonical generation, every mutation Scholion intends to make, durable research objects
 that will be preserved, saved searches whose results may change, and a confirmation token
 bound to that exact plan. No deletion occurs until the same request is repeated with the
 matching token.
@@ -39,7 +39,7 @@ The desktop path is intentionally narrow:
 ```text
 React Storage
     -> fixed Tauri lifecycle_request
-    -> python -m echoflow.desktop.custody_bridge
+    -> python -m scholion.desktop.custody_bridge
     -> LibraryCustodyService
 ```
 
@@ -55,7 +55,7 @@ See **[Storage and lifecycle controls](../storage-lifecycle.md)** for the user/n
 Plan an operation:
 
 ```bash
-echoflow library delete TRANSCRIPT_ID --scope library-view
+scholion library delete TRANSCRIPT_ID --scope library-view
 ```
 
 The command is a dry run unless `--confirm` is supplied. The human and JSON forms both
@@ -64,7 +64,7 @@ include the plan-bound confirmation token.
 Apply exactly the reviewed plan:
 
 ```bash
-echoflow library delete TRANSCRIPT_ID \
+scholion library delete TRANSCRIPT_ID \
   --scope library-view \
   --confirm 'delete:...'
 ```
@@ -72,21 +72,21 @@ echoflow library delete TRANSCRIPT_ID \
 Scopes can be repeated:
 
 ```bash
-echoflow library delete TRANSCRIPT_ID \
+scholion library delete TRANSCRIPT_ID \
   --scope research-notes \
   --scope source-recording \
   --allow-source
 ```
 
-Source deletion has a second safety gate: `--allow-source` is required and EchoFlow refuses
+Source deletion has a second safety gate: `--allow-source` is required and Scholion refuses
 to delete the recording unless the current source bytes still match the source SHA-256
 recorded when the transcript was created.
 
 Private execution-state retention uses the same plan/apply contract:
 
 ```bash
-echoflow library retention --execution-days 30
-echoflow library retention --execution-days 30 --confirm 'retention:...'
+scholion library retention --execution-days 30
+scholion library retention --execution-days 30 --confirm 'retention:...'
 ```
 
 By default only completed job workspaces are eligible. Failed and interrupted workspaces
@@ -126,7 +126,7 @@ If canonical JSON is explicitly deleted without the `research-notes` scope, thos
 notes remain in authoritative SQLite. They become historical/stale anchors because their
 exact canonical generation is no longer present in the active transcript index.
 
-That is intentional. EchoFlow prefers:
+That is intentional. Scholion prefers:
 
 ```text
 note survives + evidence is reported unavailable
@@ -174,7 +174,7 @@ the deletion service contract.
 ## Canonical integrity is rechecked before mutation
 
 The deletion plan binds to `canonical_sha256`. Immediately before executing any action,
-EchoFlow re-reads the canonical JSON scheduled for deletion and recomputes SHA-256.
+Scholion re-reads the canonical JSON scheduled for deletion and recomputes SHA-256.
 
 If the bytes changed after indexing, execution fails before any mutation. The user must
 rebuild/review the current generation and obtain a new plan.
@@ -187,7 +187,7 @@ that binds the user's approval to the exact planned mutation set.
 
 ## Source deletion has an additional provenance boundary
 
-Original recordings are treated read-only throughout normal EchoFlow processing.
+Original recordings are treated read-only throughout normal Scholion processing.
 
 A source recording can be deleted only when all of the following are true:
 
@@ -198,7 +198,7 @@ A source recording can be deleted only when all of the following are true:
 4. the source still exists; and
 5. current source integrity is `matches-recorded-source`.
 
-If a recording changed since transcription, EchoFlow refuses deletion. That prevents a
+If a recording changed since transcription, Scholion refuses deletion. That prevents a
 transcript's old provenance record from becoming authorization to delete new bytes at the
 same path.
 
@@ -248,11 +248,11 @@ into `--include-incomplete`. Running jobs are never eligible, regardless of age.
 shows backend-provided `resume_capability_lost` state before a reviewed plan can be applied.
 
 Retention plans are recalculated at execution time. If candidates changed, the old token
-no longer matches and EchoFlow refuses to apply the stale plan.
+no longer matches and Scholion refuses to apply the stale plan.
 
 ## Filesystem and failure semantics
 
-EchoFlow cannot make SQLite, DuckDB, arbitrary public files, private workspaces, and source
+Scholion cannot make SQLite, DuckDB, arbitrary public files, private workspaces, and source
 media participate in one cross-filesystem ACID transaction.
 
 The executor therefore orders operations by custody risk:
@@ -272,15 +272,15 @@ cleanup step.
 Before the first mutation, destructive canonical inputs are revalidated.
 
 If a later filesystem operation fails, earlier disposable mutations may already have
-occurred. Those can be rebuilt. EchoFlow deliberately avoids deleting unique evidence
+occurred. Those can be rebuilt. Scholion deliberately avoids deleting unique evidence
 first and hoping cleanup succeeds afterward.
 
 ## Secure erasure is not claimed
 
-Deletion means EchoFlow asks the operating system/filesystem to remove the selected file
+Deletion means Scholion asks the operating system/filesystem to remove the selected file
 or directory.
 
-It does **not** mean EchoFlow can prove the bytes are unrecoverable from:
+It does **not** mean Scholion can prove the bytes are unrecoverable from:
 
 - SSD wear-levelled blocks;
 - copy-on-write filesystem history;

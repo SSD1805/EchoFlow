@@ -479,78 +479,6 @@ wheels = [
 ]
 
 [[package]]
-name = "echoflow"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "dependency-injector" },
-    { name = "duckdb" },
-    { name = "platformdirs" },
-    { name = "psutil" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "rich" },
-    { name = "structlog" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-diarization = [
-    { name = "pyannote-audio" },
-]
-transcription = [
-    { name = "faster-whisper" },
-    { name = "lingua-language-detector" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "hypothesis" },
-    { name = "mypy" },
-    { name = "poodle" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-mock" },
-    { name = "radon" },
-    { name = "ruff" },
-    { name = "types-psutil" },
-    { name = "vulture" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dependency-injector", specifier = ">=4.48,<5" },
-    { name = "duckdb", specifier = ">=1.4,<2" },
-    { name = "faster-whisper", marker = "extra == 'transcription'", specifier = ">=1.2.1,<2" },
-    { name = "lingua-language-detector", marker = "extra == 'transcription'", specifier = ">=2,<3" },
-    { name = "platformdirs", specifier = ">=4.10.1,<5" },
-    { name = "psutil", specifier = ">=7,<8" },
-    { name = "pyannote-audio", marker = "extra == 'diarization'", specifier = ">=4,<5" },
-    { name = "pydantic", specifier = ">=2.10,<3" },
-    { name = "pydantic-settings", specifier = ">=2.6,<3" },
-    { name = "rich", specifier = ">=15.0.0,<16" },
-    { name = "structlog", specifier = ">=26.1.0,<27" },
-    { name = "typer", specifier = ">=0.16,<1" },
-]
-provides-extras = ["transcription", "diarization"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "hypothesis", specifier = ">=6.135,<7" },
-    { name = "mypy", specifier = ">=2.3.1,<3" },
-    { name = "poodle", specifier = ">=1.2,<2" },
-    { name = "pre-commit", specifier = ">=4,<5" },
-    { name = "pytest", specifier = ">=9.0.3,<10" },
-    { name = "pytest-cov", specifier = ">=6,<8" },
-    { name = "pytest-mock", specifier = ">=3.14,<4" },
-    { name = "radon", specifier = ">=6,<7" },
-    { name = "ruff", specifier = ">=0.12,<1" },
-    { name = "types-psutil", specifier = ">=7,<8" },
-    { name = "vulture", specifier = ">=2.16,<3" },
-]
-
-[[package]]
 name = "einops"
 version = "0.8.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2060,6 +1988,78 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/8e/3f/73ccf82579412b4a71c4ca673f10b5f1f888d7cf5af7fe24f27d30307be4/safetensors-0.8.0-cp310-abi3-win32.whl", hash = "sha256:2ddf52eac562eda224f99acfa7889d02968c1fd59a5b011ae7d8137c37e9c02d", size = 342401, upload-time = "2026-06-09T07:52:28.895Z" },
     { url = "https://files.pythonhosted.org/packages/1b/6d/3fba214c1e5e0f69991677ec3bc17023f0421776975e1de0c682dca475e2/safetensors-0.8.0-cp310-abi3-win_amd64.whl", hash = "sha256:096ec1a98435df7beb08853bb5aa9081a84f23d0adc67ed1a0a10550f608373f", size = 355540, upload-time = "2026-06-09T07:52:27.832Z" },
     { url = "https://files.pythonhosted.org/packages/8d/fc/7eedc3510d97878876e32774eebbeb61c43f148a96e915c84229a3e967aa/safetensors-0.8.0-cp310-abi3-win_arm64.whl", hash = "sha256:f7838e5135a406ad3e02efdcb8cf2e5397d368b0154537c4fec682dbc544d452", size = 340500, upload-time = "2026-06-09T07:52:26.745Z" },
+]
+
+[[package]]
+name = "scholion"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "dependency-injector" },
+    { name = "duckdb" },
+    { name = "platformdirs" },
+    { name = "psutil" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "rich" },
+    { name = "structlog" },
+    { name = "typer" },
+]
+
+[package.optional-dependencies]
+diarization = [
+    { name = "pyannote-audio" },
+]
+transcription = [
+    { name = "faster-whisper" },
+    { name = "lingua-language-detector" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "hypothesis" },
+    { name = "mypy" },
+    { name = "poodle" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "radon" },
+    { name = "ruff" },
+    { name = "types-psutil" },
+    { name = "vulture" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dependency-injector", specifier = ">=4.48,<5" },
+    { name = "duckdb", specifier = ">=1.4,<2" },
+    { name = "faster-whisper", marker = "extra == 'transcription'", specifier = ">=1.2.1,<2" },
+    { name = "lingua-language-detector", marker = "extra == 'transcription'", specifier = ">=2,<3" },
+    { name = "platformdirs", specifier = ">=4.10.1,<5" },
+    { name = "psutil", specifier = ">=7,<8" },
+    { name = "pyannote-audio", marker = "extra == 'diarization'", specifier = ">=4,<5" },
+    { name = "pydantic", specifier = ">=2.10,<3" },
+    { name = "pydantic-settings", specifier = ">=2.6,<3" },
+    { name = "rich", specifier = ">=15.0.0,<16" },
+    { name = "structlog", specifier = ">=26.1.0,<27" },
+    { name = "typer", specifier = ">=0.16,<1" },
+]
+provides-extras = ["transcription", "diarization"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "hypothesis", specifier = ">=6.135,<7" },
+    { name = "mypy", specifier = ">=2.3.1,<3" },
+    { name = "poodle", specifier = ">=1.2,<2" },
+    { name = "pre-commit", specifier = ">=4,<5" },
+    { name = "pytest", specifier = ">=9.0.3,<10" },
+    { name = "pytest-cov", specifier = ">=6,<8" },
+    { name = "pytest-mock", specifier = ">=3.14,<4" },
+    { name = "radon", specifier = ">=6,<7" },
+    { name = "ruff", specifier = ">=0.12,<1" },
+    { name = "types-psutil", specifier = ">=7,<8" },
+    { name = "vulture", specifier = ">=2.16,<3" },
 ]
 
 [[package]]

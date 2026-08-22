@@ -4,11 +4,11 @@ export function DevelopmentModeNotice() {
   return (
     <main className="dev-mode-shell">
       <section className="dev-mode-card" aria-labelledby="dev-mode-title">
-        <p className="section-kicker">EchoFlow source development</p>
+        <p className="section-kicker">Scholion source development</p>
         <h1 id="dev-mode-title">You opened the Vite server without a desktop host.</h1>
         <p className="dev-mode-lede">
           Nothing is broken. This browser tab does not have Tauri's native filesystem and
-          Python bridge capabilities, so EchoFlow will not silently pretend that mock data is
+          Python bridge capabilities, so Scholion will not silently pretend that mock data is
           your real local workspace.
         </p>
 
@@ -28,7 +28,7 @@ export function DevelopmentModeNotice() {
             <h2>Run the Tauri host.</h2>
             <code>npm run tauri dev</code>
             <p>
-              This needs the native development prerequisites and EchoFlow's local Python
+              This needs the native development prerequisites and Scholion's local Python
               environment for backend actions. Run <code>npm run doctor:desktop</code> first if
               you are unsure what is installed.
             </p>

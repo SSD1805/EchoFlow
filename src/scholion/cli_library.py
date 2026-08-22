@@ -1,0 +1,741 @@
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from pathlib import Path
+from typing import Annotated, cast
+
+import typer
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
+
+from scholion.app.app_container import AppContainer
+from scholion.cli_discovery import register_discovery_command
+from scholion.cli_research import register_research_commands
+from scholion.cli_speakers import register_speaker_commands
+from scholion.core.errors import ScholionError
+from scholion.library.evidence import (
+    EvidenceContextSegment,
+    EvidenceLocation,
+    EvidenceWord,
+)
+from scholion.library.index import (
+    IndexedDocument,
+    SearchOperator,
+    SearchQuery,
+    SearchSort,
+)
+from scholion.library.research import LocatedSearchPassage
+from scholion.library.research_workspace import (
+    ResearchQueryFilters,
+    WorkspaceSearchPassage,
+    WorkspaceSearchResponse,
+)
+from scholion.library.retrieval import RetrievalMode
+from scholion.library.semantic import EmbeddingProfile, SemanticState
+from scholion.library.service import (
+    LibraryEvidenceReceipt,
+    LibraryRebuildReport,
+    SemanticRebuildReport,
+)
+from scholion.media.time_coordinates import format_elapsed_timestamp
+
+ContainerFactory = Callable[[typer.Context], AppContainer]
+
+
+def _root_context(context: typer.Context) -> typer.Context:
+    return cast("typer.Context", context.find_root())
+
+
+def _document_dict(document: IndexedDocument) -> dict[str, object]:
+    return {
+        "document_id": document.document_id,
+        "source_sha256": document.source_sha256,
+        "canonical_sha256": document.canonical_sha256,
+        "detected_language": document.detected_language,
+        "canonical_path": document.canonical_path,
+        "source_path": document.source_path,
+        "segment_count": document.segment_count,
+    }
+
+
+def _profile_dict(profile: EmbeddingProfile) -> dict[str, object]:
+    return {
+        "profile_id": profile.profile_id,
+        "provider": profile.provider,
+        "model_id": profile.model_id,
+        "resolved_revision": profile.resolved_revision,
+        "dimensions": profile.dimensions,
+        "normalization": profile.normalization,
+        "pooling": profile.pooling,
+        "distance_metric": profile.distance_metric,
+        "query_prefix": profile.query_prefix,
+        "passage_prefix": profile.passage_prefix,
+        "chunking_profile_id": profile.chunking_profile_id,
+        "embedding_schema_version": profile.embedding_schema_version,
+    }
+
+
+def _state_dict(state: SemanticState) -> dict[str, object]:
+    return {
+        "semantic_ready": True,
+        "corpus_fingerprint": state.corpus_fingerprint,
+        "chunk_count": state.chunk_count,
+        "profile": _profile_dict(state.profile),
+    }
+
+
+def _word_dict(word: EvidenceWord) -> dict[str, object]:
+    return {
+        "segment_id": word.segment_id,
+        "word_index": word.word_index,
+        "start_seconds": word.start_seconds,
+        "end_seconds": word.end_seconds,
+        "start_timestamp": format_elapsed_timestamp(word.start_seconds),
+        "end_timestamp": format_elapsed_timestamp(word.end_seconds),
+        "text": word.text,
+        "speaker_ref": word.speaker_ref,
+        "highlighted": word.highlighted,
+    }
+
+
+def _context_segment_dict(segment: EvidenceContextSegment) -> dict[str, object]:
+    return {
+        "segment_id": segment.segment_id,
+        "start_seconds": segment.start_seconds,
+        "end_seconds": segment.end_seconds,
+        "start_timestamp": format_elapsed_timestamp(segment.start_seconds),
+        "end_timestamp": format_elapsed_timestamp(segment.end_seconds),
+        "text": segment.text,
+        "speaker_refs": list(segment.speaker_refs),
+        "is_result_segment": segment.is_result_segment,
+        "lexical_match": segment.lexical_match,
+        "words": [_word_dict(word) for word in segment.words],
+    }
+
+
+def _evidence_dict(location: EvidenceLocation) -> dict[str, object]:
+    return {
+        "document_id": location.document_id,
+        "source_sha256": location.source_sha256,
+        "canonical_sha256": location.canonical_sha256,
+        "result_segment_ids": list(location.result_segment_ids),
+        "start_seconds": location.start_seconds,
+        "end_seconds": location.end_seconds,
+        "start_timestamp": format_elapsed_timestamp(location.start_seconds),
+        "end_timestamp": format_elapsed_timestamp(location.end_seconds),
+        "seek_seconds": location.seek_seconds,
+        "seek_timestamp": format_elapsed_timestamp(location.seek_seconds),
+        "result_speaker_refs": list(location.result_speaker_refs),
+        "matched_words": [_word_dict(word) for word in location.matched_words],
+        "context_segments": [
+            _context_segment_dict(segment) for segment in location.context_segments
+        ],
+    }
+
+
+def _located_dict(result: LocatedSearchPassage) -> dict[str, object]:
+    passage = result.passage
+    return {
+        "document_id": passage.document_id,
+        "source_sha256": passage.source_sha256,
+        "canonical_sha256": passage.canonical_sha256,
+        "canonical_path": passage.canonical_path,
+        "source_path": passage.source_path,
+        "chunk_id": passage.chunk_id,
+        "segment_ids": list(passage.segment_ids),
+        "matched_segment_ids": list(passage.matched_segment_ids),
+        "start_seconds": passage.start_seconds,
+        "end_seconds": passage.end_seconds,
+        "start_timestamp": format_elapsed_timestamp(passage.start_seconds),
+        "end_timestamp": format_elapsed_timestamp(passage.end_seconds),
+        "text": passage.text,
+        "languages": list(passage.languages),
+        "speaker_refs": list(passage.speaker_refs),
+        "speaker_display_labels": {
+            item.speaker_ref: item.display_label
+            for item in result.speakers
+            if item.display_label is not None
+        },
+        "lexical_rank": passage.lexical_rank,
+        "semantic_rank": passage.semantic_rank,
+        "fused_rank": passage.fused_rank,
+        "evidence_location": _evidence_dict(result.evidence),
+    }
+
+
+def _workspace_result_dict(result: WorkspaceSearchPassage) -> dict[str, object]:
+    return {
+        **_located_dict(result.located),
+        "research_state": {
+            "note_ids": list(result.research.note_ids),
+            "note_count": result.research.note_count,
+            "tags": list(result.research.tags),
+            "collections": list(result.research.collections),
+        },
+    }
+
+
+def _response_dict(response: WorkspaceSearchResponse) -> dict[str, object]:
+    retrieval = response.navigation.retrieval
+    query = retrieval.query
+    return {
+        "query": {
+            "text": query.text,
+            "phrase": query.phrase,
+            "operator": query.operator.value,
+            "speaker_refs": list(query.speaker_refs),
+            "languages": list(query.languages),
+            "document_ids": list(query.document_ids),
+            "sort": query.sort.value,
+            "limit": query.limit,
+        },
+        "research_filter": {
+            "tags": list(response.filters.tags),
+            "collections": list(response.filters.collections),
+            "note_text": response.filters.note_text,
+            "with_notes": response.filters.with_notes,
+        },
+        "retrieval": {
+            "mode": retrieval.mode.value,
+            "lexical_backend_id": retrieval.lexical_backend_id,
+            "semantic_backend_id": retrieval.semantic_backend_id,
+            "semantic_profile": (
+                None
+                if retrieval.semantic_profile is None
+                else _profile_dict(retrieval.semantic_profile)
+            ),
+            "fusion_profile": retrieval.fusion_profile,
+        },
+        "result_count": len(response.results),
+        "results": [_workspace_result_dict(item) for item in response.results],
+    }
+
+
+def _receipt_dict(receipt: LibraryEvidenceReceipt) -> dict[str, object]:
+    return {
+        **_document_dict(receipt.document),
+        "source_integrity": receipt.source_integrity.value,
+        "current_source_sha256": receipt.current_source_sha256,
+        "source_handling": receipt.source_handling,
+        "index_custody": receipt.index_custody,
+    }
+
+
+def _render_documents(documents: tuple[IndexedDocument, ...], console: Console) -> None:
+    table = Table(title="Scholion transcript library")
+    table.add_column("Transcript")
+    table.add_column("Recording")
+    table.add_column("Language")
+    table.add_column("Segments")
+    table.add_column("Canonical transcript")
+    for document in documents:
+        recording = (
+            "unknown"
+            if document.source_path is None
+            else Path(document.source_path).name
+        )
+        table.add_row(
+            document.document_id,
+            recording,
+            document.detected_language or "mixed/unknown",
+            str(document.segment_count),
+            document.canonical_path,
+        )
+    console.print(table)
+
+
+def _render_receipt(receipt: LibraryEvidenceReceipt, console: Console) -> None:
+    document = receipt.document
+    table = Table(title=f"Scholion transcript evidence: {document.document_id}")
+    table.add_column("What")
+    table.add_column("Evidence")
+    rows = (
+        ("Original recording", document.source_path or "path unavailable"),
+        ("Scholion source handling", receipt.source_handling),
+        ("Recorded source SHA-256", document.source_sha256),
+        ("Canonical SHA-256", document.canonical_sha256 or "rebuild library to record"),
+        ("Current source integrity", receipt.source_integrity.value),
+        ("Current source SHA-256", receipt.current_source_sha256 or "not available"),
+        ("Canonical transcript", document.canonical_path),
+        ("Search index", receipt.index_custody),
+        ("Indexed segments", str(document.segment_count)),
+    )
+    for label, value in rows:
+        table.add_row(label, value)
+    console.print(table)
+
+
+def _render_context(result: LocatedSearchPassage) -> Text:
+    rendered = Text()
+    for index, segment in enumerate(result.evidence.context_segments):
+        if index:
+            rendered.append("\n")
+        rendered.append("› " if segment.is_result_segment else "  ", style="bold")
+        if segment.words:
+            for word in segment.words:
+                style = "bold underline" if word.highlighted else None
+                if not segment.is_result_segment and style is None:
+                    style = "dim"
+                rendered.append(word.text, style=style)
+        else:
+            rendered.append(
+                segment.text,
+                style=None if segment.is_result_segment else "dim",
+            )
+    return rendered
+
+
+def _research_summary(result: WorkspaceSearchPassage) -> str:
+    lines: list[str] = []
+    if result.research.note_count:
+        suffix = "note" if result.research.note_count == 1 else "notes"
+        lines.append(f"{result.research.note_count} {suffix}")
+    if result.research.tags:
+        lines.append("# " + ", ".join(result.research.tags))
+    if result.research.collections:
+        lines.append("in " + ", ".join(result.research.collections))
+    return "\n".join(lines) or "—"
+
+
+def _render_response(response: WorkspaceSearchResponse, console: Console) -> None:
+    retrieval = response.navigation.retrieval
+    table = Table(
+        title=(
+            f"Scholion {retrieval.mode.value} evidence search: "
+            f"{len(response.results)} result(s)"
+        )
+    )
+    table.add_column("Recording", min_width=13, no_wrap=True)
+    table.add_column("Evidence time", min_width=12, no_wrap=True)
+    table.add_column("Speaker", min_width=10, no_wrap=True)
+    table.add_column("Research", min_width=11)
+    table.add_column("Passage + context")
+    for workspace_result in response.results:
+        result = workspace_result.located
+        passage = result.passage
+        recording_name = (
+            passage.document_id
+            if passage.source_path is None
+            else Path(passage.source_path).name
+        )
+        recording = f"{recording_name}\n{passage.document_id}"
+        if result.evidence.matched_words:
+            start = result.evidence.matched_words[0].start_seconds
+            end = result.evidence.matched_words[-1].end_seconds
+        else:
+            start = passage.start_seconds
+            end = passage.end_seconds
+        time_range = (
+            f"{format_elapsed_timestamp(start)}\n{format_elapsed_timestamp(end)}"
+        )
+        table.add_row(
+            recording,
+            time_range,
+            ", ".join(item.display_name for item in result.speakers) or "unknown",
+            _research_summary(workspace_result),
+            _render_context(result),
+        )
+    console.print(table)
+
+
+def _handle_error(exc: Exception) -> None:
+    if isinstance(exc, ScholionError):
+        typer.echo(exc.public_message, err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    if isinstance(exc, (ValueError, ModuleNotFoundError)):
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(
+        f"Scholion transcript library failed internally ({type(exc).__name__})",
+        err=True,
+    )
+    raise typer.Exit(code=3) from None
+
+
+def _list_library(
+    context: typer.Context,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        documents = (
+            container_factory(_root_context(context)).transcript_library().documents()
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(
+            json.dumps([_document_dict(item) for item in documents], sort_keys=True)
+        )
+        return
+    _render_documents(documents, Console())
+
+
+def _rebuild_library(
+    context: typer.Context,
+    paths: tuple[Path, ...],
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        report = (
+            container_factory(_root_context(context))
+            .transcript_library()
+            .rebuild(paths)
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_report_dict(report), sort_keys=True))
+        return
+    typer.echo(
+        f"Indexed {report.indexed_documents} transcript(s) with {report.backend_id}; "
+        f"skipped {report.skipped_files} non-transcript JSON file(s)."
+    )
+
+
+def _report_dict(report: LibraryRebuildReport) -> dict[str, object]:
+    return {
+        "backend_id": report.backend_id,
+        "indexed_documents": report.indexed_documents,
+        "skipped_files": report.skipped_files,
+    }
+
+
+def _semantic_report_dict(report: SemanticRebuildReport) -> dict[str, object]:
+    return {
+        "lexical_backend_id": report.lexical_backend_id,
+        "semantic_backend_id": report.semantic_backend_id,
+        "embedding_profile_id": report.embedding_profile_id,
+        "model_id": report.model_id,
+        "resolved_revision": report.resolved_revision,
+        "corpus_fingerprint": report.corpus_fingerprint,
+        "indexed_documents": report.indexed_documents,
+        "indexed_chunks": report.indexed_chunks,
+        "skipped_files": report.skipped_files,
+    }
+
+
+def _show_transcript(
+    context: typer.Context,
+    document_id: str,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        receipt = (
+            container_factory(_root_context(context))
+            .transcript_library()
+            .inspect(document_id)
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_receipt_dict(receipt), sort_keys=True))
+        return
+    _render_receipt(receipt, Console())
+
+
+def _search_library(
+    context: typer.Context,
+    text: str,
+    *,
+    phrase: bool,
+    all_terms: bool,
+    speakers: tuple[str, ...],
+    languages: tuple[str, ...],
+    documents: tuple[str, ...],
+    tags: tuple[str, ...],
+    collections: tuple[str, ...],
+    note_text: str | None,
+    with_notes: bool,
+    sort: SearchSort,
+    mode: RetrievalMode,
+    limit: int,
+    context_segments: int,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        query = SearchQuery(
+            text=text,
+            phrase=phrase,
+            operator=SearchOperator.ALL if all_terms else SearchOperator.ANY,
+            speaker_refs=speakers,
+            languages=languages,
+            document_ids=documents,
+            sort=sort,
+            limit=limit,
+        )
+        filters = ResearchQueryFilters(
+            tags=tags,
+            collections=collections,
+            note_text=note_text,
+            with_notes=with_notes,
+        )
+        response = (
+            container_factory(_root_context(context))
+            .research_workspace()
+            .search(
+                query,
+                filters=filters,
+                mode=mode,
+                context_segments=context_segments,
+            )
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_response_dict(response), sort_keys=True))
+        return
+    _render_response(response, Console())
+
+
+def _build_embeddings(
+    context: typer.Context,
+    model_path: Path,
+    revision: str,
+    paths: tuple[Path, ...],
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        container = container_factory(_root_context(context))
+        provider = container.semantic_embedding_provider(
+            snapshot_path=model_path,
+            resolved_revision=revision,
+        )
+        report = container.transcript_library().rebuild_semantic(provider, paths)
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        typer.echo(json.dumps(_semantic_report_dict(report), sort_keys=True))
+        return
+    typer.echo(
+        f"Built {report.indexed_chunks} semantic chunk(s) across "
+        f"{report.indexed_documents} transcript(s) with {report.model_id} "
+        f"at revision {report.resolved_revision}."
+    )
+
+
+def _embedding_status(
+    context: typer.Context,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        state = (
+            container_factory(_root_context(context))
+            .transcript_library()
+            .semantic_state()
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        return
+    if json_output:
+        document: dict[str, object] = (
+            {"semantic_ready": False} if state is None else _state_dict(state)
+        )
+        typer.echo(json.dumps(document, sort_keys=True))
+        return
+    if state is None:
+        typer.echo("Semantic embeddings have not been built.")
+        return
+    table = Table(title="Scholion semantic index")
+    table.add_column("Setting")
+    table.add_column("Value")
+    table.add_row("Model", state.profile.model_id)
+    table.add_row("Resolved revision", state.profile.resolved_revision)
+    table.add_row("Dimensions", str(state.profile.dimensions))
+    table.add_row("Normalization", state.profile.normalization)
+    table.add_row("Pooling", state.profile.pooling)
+    table.add_row("Distance metric", state.profile.distance_metric)
+    table.add_row("Chunking", state.profile.chunking_profile_id)
+    table.add_row("Chunks", str(state.chunk_count))
+    table.add_row("Corpus fingerprint", state.corpus_fingerprint)
+    Console().print(table)
+
+
+def register_library_commands(
+    app: typer.Typer, container_factory: ContainerFactory
+) -> None:
+    library_app = typer.Typer(
+        help="Search and inspect the local transcript research library.",
+        invoke_without_command=True,
+        no_args_is_help=False,
+    )
+
+    @library_app.callback()
+    def library_root(
+        context: typer.Context,
+        json_output: bool = typer.Option(
+            False, "--json", help="Emit machine-readable library records."
+        ),
+    ) -> None:
+        if context.invoked_subcommand is None:
+            _list_library(
+                context,
+                json_output=json_output,
+                container_factory=container_factory,
+            )
+
+    @library_app.command("rebuild")
+    def rebuild_library(
+        context: typer.Context,
+        paths: Annotated[
+            list[Path] | None,
+            typer.Argument(
+                metavar="[PATH]...",
+                help="Optional canonical transcript file(s) or directories to include.",
+            ),
+        ] = None,
+        json_output: bool = typer.Option(False, "--json"),
+    ) -> None:
+        _rebuild_library(
+            context,
+            tuple(paths or ()),
+            json_output=json_output,
+            container_factory=container_factory,
+        )
+
+    @library_app.command("show")
+    def show_transcript(
+        context: typer.Context,
+        document_id: str = typer.Argument(..., metavar="TRANSCRIPT_ID"),
+        json_output: bool = typer.Option(False, "--json"),
+    ) -> None:
+        _show_transcript(
+            context,
+            document_id,
+            json_output=json_output,
+            container_factory=container_factory,
+        )
+
+    @library_app.command("search")
+    def search_library(
+        context: typer.Context,
+        text: str = typer.Argument(..., metavar="QUERY"),
+        phrase: bool = typer.Option(
+            False, "--phrase", help="Require the exact phrase."
+        ),
+        all_terms: bool = typer.Option(
+            False, "--all-terms", help="Require every lexical query term."
+        ),
+        speakers: Annotated[list[str] | None, typer.Option("--speaker")] = None,
+        languages: Annotated[list[str] | None, typer.Option("--language")] = None,
+        documents: Annotated[list[str] | None, typer.Option("--transcript")] = None,
+        tags: Annotated[list[str] | None, typer.Option("--tag")] = None,
+        collections: Annotated[list[str] | None, typer.Option("--collection")] = None,
+        note_text: str | None = typer.Option(
+            None, "--note-text", help="Require all lexical terms in your notes."
+        ),
+        with_notes: bool = typer.Option(
+            False, "--with-notes", help="Only return evidence with durable notes."
+        ),
+        sort: Annotated[SearchSort, typer.Option("--sort")] = SearchSort.RELEVANCE,
+        mode: Annotated[
+            RetrievalMode,
+            typer.Option(
+                "--mode",
+                help="Use lexical, semantic, or local hybrid retrieval.",
+            ),
+        ] = RetrievalMode.LEXICAL,
+        limit: int = typer.Option(100, "--limit", min=1, max=1_000),
+        context_segments: int = typer.Option(
+            0,
+            "--context-segments",
+            min=0,
+            max=10,
+            help="Include this many canonical segments before and after each result.",
+        ),
+        json_output: bool = typer.Option(False, "--json"),
+    ) -> None:
+        _search_library(
+            context,
+            text,
+            phrase=phrase,
+            all_terms=all_terms,
+            speakers=tuple(speakers or ()),
+            languages=tuple(languages or ()),
+            documents=tuple(documents or ()),
+            tags=tuple(tags or ()),
+            collections=tuple(collections or ()),
+            note_text=note_text,
+            with_notes=with_notes,
+            sort=sort,
+            mode=mode,
+            limit=limit,
+            context_segments=context_segments,
+            json_output=json_output,
+            container_factory=container_factory,
+        )
+
+    embeddings_app = typer.Typer(
+        help="Build and inspect private rebuildable semantic embedding state.",
+        invoke_without_command=True,
+        no_args_is_help=False,
+    )
+
+    @embeddings_app.callback()
+    def embeddings_root(
+        context: typer.Context,
+        json_output: bool = typer.Option(False, "--json"),
+    ) -> None:
+        if context.invoked_subcommand is None:
+            _embedding_status(
+                context,
+                json_output=json_output,
+                container_factory=container_factory,
+            )
+
+    @embeddings_app.command("build")
+    def build_embeddings(
+        context: typer.Context,
+        model_path: Annotated[
+            Path,
+            typer.Argument(
+                metavar="MODEL_SNAPSHOT",
+                help="Local immutable multilingual-e5-small snapshot directory.",
+            ),
+        ],
+        revision: Annotated[
+            str,
+            typer.Option(
+                "--revision",
+                help="Immutable resolved model revision; must match snapshot dirname.",
+            ),
+        ],
+        paths: Annotated[
+            list[Path] | None,
+            typer.Argument(
+                metavar="[PATH]...",
+                help="Optional canonical transcript file(s) or directories to include.",
+            ),
+        ] = None,
+        json_output: bool = typer.Option(False, "--json"),
+    ) -> None:
+        _build_embeddings(
+            context,
+            model_path,
+            revision,
+            tuple(paths or ()),
+            json_output=json_output,
+            container_factory=container_factory,
+        )
+
+    library_app.add_typer(embeddings_app, name="embeddings")
+    register_discovery_command(library_app, container_factory)
+    register_speaker_commands(library_app, container_factory)
+    register_research_commands(library_app, container_factory)
+    app.add_typer(library_app, name="library")

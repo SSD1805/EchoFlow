@@ -6,10 +6,10 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - "src/echoflow/library/playback.py"
-      - "src/echoflow/library/tests/test_playback*.py"
-      - "src/echoflow/desktop/playback_bridge.py"
-      - "src/echoflow/desktop/tests/test_playback_bridge.py"
+      - "src/scholion/library/playback.py"
+      - "src/scholion/library/tests/test_playback*.py"
+      - "src/scholion/desktop/playback_bridge.py"
+      - "src/scholion/desktop/tests/test_playback_bridge.py"
       - ".github/workflows/mutation-playback.yml"
       - "pyproject.toml"
 
@@ -49,11 +49,11 @@ jobs:
       - name: Establish playback qualification baseline
         run: >-
           uv run pytest
-          src/echoflow/library/tests/test_playback.py
-          src/echoflow/library/tests/test_playback_edges.py
-          src/echoflow/desktop/tests/test_playback_bridge.py
-          src/echoflow/media/tests/test_probe.py
-          --cov=echoflow
+          src/scholion/library/tests/test_playback.py
+          src/scholion/library/tests/test_playback_edges.py
+          src/scholion/desktop/tests/test_playback_bridge.py
+          src/scholion/media/tests/test_probe.py
+          --cov=scholion
           --cov-context=test
           --cov-report=
           --cov-fail-under=0
@@ -62,5 +62,5 @@ jobs:
         run: >-
           uv run poodle
           -w 4
-          --only src/echoflow/library/playback.py
-          --only src/echoflow/desktop/playback_bridge.py
+          --only src/scholion/library/playback.py
+          --only src/scholion/desktop/playback_bridge.py

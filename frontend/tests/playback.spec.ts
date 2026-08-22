@@ -7,7 +7,7 @@ async function openLibraryEvidence(
 ) {
   await page.goto(`/${query}`);
   await page.getByRole("button", { name: "Library" }).click();
-  await page.getByRole("searchbox", { name: "Search EchoFlow" }).fill("ABC");
+  await page.getByRole("searchbox", { name: "Search Scholion" }).fill("ABC");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.getByRole("button", { name: /Open transcript passage from interview-42/ }).click();
   return page.getByRole("complementary", { name: "Evidence reader" });
@@ -55,7 +55,7 @@ for (const [mode, expected] of [
   ["changed", "Original recording no longer matches the source used for this transcript"],
   [
     "multi-audio",
-    "Playback for recordings with multiple audio streams is not enabled yet; EchoFlow will not guess which track matches this transcript",
+    "Playback for recordings with multiple audio streams is not enabled yet; Scholion will not guess which track matches this transcript",
   ],
 ] as const) {
   test(`playback ${mode} failure is explicit and never creates a media session`, async ({

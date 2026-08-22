@@ -46,25 +46,25 @@ jobs:
       - name: Establish mutation baseline
         run: >-
           uv run pytest
-          src/echoflow/runner/tests/test_topology.py
-          src/echoflow/transcription/tests/test_capabilities.py
-          src/echoflow/transcription/tests/test_heterogeneous_strategy.py
-          src/echoflow/transcription/tests/test_pipeline.py
-          --cov=echoflow
+          src/scholion/runner/tests/test_topology.py
+          src/scholion/transcription/tests/test_capabilities.py
+          src/scholion/transcription/tests/test_heterogeneous_strategy.py
+          src/scholion/transcription/tests/test_pipeline.py
+          --cov=scholion
           --cov-context=test
           --cov-report=
           --cov-fail-under=0
 
       # Keep this intentionally smaller than the configured project mutation scope.
       # Poodle's broad command-line runner has shown timeout-cleanup instability in
-      # EchoFlow; these four modules contain the new load-bearing decisions and
+      # Scholion; these four modules contain the new load-bearing decisions and
       # ownership boundaries. Planner/executor remain in pyproject.toml for deliberate
       # local follow-up runs without making routine PR qualification hostage to that bug.
       - name: Mutate adaptive decision primitives
         run: >-
           uv run poodle
           -w 4
-          --only src/echoflow/runner/topology.py
-          --only src/echoflow/transcription/capabilities.py
-          --only src/echoflow/transcription/strategy.py
-          --only src/echoflow/transcription/pipeline.py
+          --only src/scholion/runner/topology.py
+          --only src/scholion/transcription/capabilities.py
+          --only src/scholion/transcription/strategy.py
+          --only src/scholion/transcription/pipeline.py

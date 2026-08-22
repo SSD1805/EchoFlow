@@ -1,6 +1,6 @@
 # Library lifecycle, custody, refresh, and deletion
 
-EchoFlow's library contains several kinds of local data with deliberately different
+Scholion's library contains several kinds of local data with deliberately different
 retention and recovery rules. A transcript is not a search index, a note is not a cache,
 and an operational log is not evidence.
 
@@ -14,25 +14,25 @@ A second rule now governs destructive operations:
 > **Removing evidence from search must never silently erase canonical evidence,
 > user-authored research knowledge, or an original recording.**
 
-These distinctions explain why EchoFlow can rescan or rebuild a library without
+These distinctions explain why Scholion can rescan or rebuild a library without
 re-transcribing a recording, and why deletion is exposed as a typed plan instead of a
 generic filesystem command.
 
 ## Where canonical transcripts live
 
-By default, EchoFlow publishes user-visible artifacts under the operating system's normal
+By default, Scholion publishes user-visible artifacts under the operating system's normal
 Downloads directory:
 
 ```text
 Downloads/
-└── EchoFlow/
+└── Scholion/
     ├── interview.json
     ├── interview.txt
     ├── interview.srt
     └── interview.vtt
 ```
 
-The exact platform path is resolved with `platformdirs`; EchoFlow does not assume a
+The exact platform path is resolved with `platformdirs`; Scholion does not assume a
 hard-coded Unix or Windows home layout.
 
 Canonical JSON is the authoritative transcript artifact. TXT, SRT, and VTT are derived
@@ -41,29 +41,29 @@ publication formats and may be regenerated from canonical JSON without rerunning
 A user may choose another output directory for a transcription:
 
 ```bash
-echoflow transcribe recording.m4a --output-dir /path/to/research/project
+scholion transcribe recording.m4a --output-dir /path/to/research/project
 ```
 
-The configured default is `ECHOFLOW_OUTPUT_DIR`. An explicitly selected EchoFlow dotenv
+The configured default is `SCHOLION_OUTPUT_DIR`. An explicitly selected Scholion dotenv
 configuration file can therefore make another location the normal destination across
 commands:
 
 ```text
-ECHOFLOW_OUTPUT_DIR=/path/to/research/project
+SCHOLION_OUTPUT_DIR=/path/to/research/project
 ```
 
 ```bash
-echoflow --config /path/to/echoflow.env transcribe recording.m4a
+scholion --config /path/to/scholion.env transcribe recording.m4a
 ```
 
-`echoflow init --output-dir ...` initializes a selected public output directory for that
+`scholion init --output-dir ...` initializes a selected public output directory for that
 invocation; it does not silently rewrite a persistent configuration file.
 
-Public transcript output is intentionally kept separate from EchoFlow's private state and
+Public transcript output is intentionally kept separate from Scholion's private state and
 cache directories. `WorkspacePaths` rejects layouts where the public output tree overlaps
 private state/cache.
 
-Artifact allocation is collision-safe. EchoFlow does not silently overwrite an existing
+Artifact allocation is collision-safe. Scholion does not silently overwrite an existing
 canonical transcript with the same friendly filename.
 
 ## What `library rebuild` actually means
@@ -99,13 +99,13 @@ DuckDB research projection       disposable
 
 The transcript library discovers canonical JSON from three sources:
 
-1. completed EchoFlow lifecycle records that point to an existing canonical artifact;
-2. the configured EchoFlow output directory; and
-3. file or directory paths explicitly supplied to `echoflow library rebuild`.
+1. completed Scholion lifecycle records that point to an existing canonical artifact;
+2. the configured Scholion output directory; and
+3. file or directory paths explicitly supplied to `scholion library rebuild`.
 
 An explicit file is treated strictly: if it is claimed as a canonical transcript but
 cannot be loaded, rebuild fails rather than pretending it was harmless noise. Directory
-scans may skip unrelated JSON files that are not EchoFlow canonical transcripts.
+scans may skip unrelated JSON files that are not Scholion canonical transcripts.
 
 ## Why would a user ever rescan the transcripts?
 
@@ -116,7 +116,7 @@ Normal reasons include:
 
 ### A new transcript exists
 
-A user transcribes another interview, imports an older EchoFlow canonical JSON, or copies a
+A user transcribes another interview, imports an older Scholion canonical JSON, or copies a
 canonical transcript into a research directory. The evidence exists on disk, but an older
 index cannot know about it until the library is refreshed.
 
@@ -127,34 +127,34 @@ preprocessing policy, language handling, or another transcription contract. The 
 canonical bytes have a different SHA-256 and represent a different evidence generation.
 
 The lexical index should then reflect the new canonical generation. Existing semantic
-vectors are not silently trusted: EchoFlow compares corpus fingerprints and refuses stale
+vectors are not silently trusted: Scholion compares corpus fingerprints and refuses stale
 semantic search until embeddings are rebuilt for the current corpus.
 
 ### A transcript was removed or moved
 
-A rebuild re-derives the indexed corpus from what EchoFlow can currently discover. That
+A rebuild re-derives the indexed corpus from what Scholion can currently discover. That
 lets a removed transcript disappear from a disposable index without requiring the index
 to become a second authority about whether the evidence still exists.
 
 Moving a canonical transcript outside the configured output directory may require adding
-its new directory explicitly when rebuilding unless EchoFlow already knows the artifact
+its new directory explicitly when rebuilding unless Scholion already knows the artifact
 through durable job lifecycle state.
 
 ### A rebuildable database was deleted, damaged, or became incompatible
 
 Lexical, semantic, and research DuckDB files are not unique user knowledge. If one is
-missing or cannot be trusted, EchoFlow can rebuild it from authoritative evidence/state
+missing or cannot be trusted, Scholion can rebuild it from authoritative evidence/state
 instead of attempting heroic in-place repair.
 
 ### Search/index implementation changed
 
-A later EchoFlow release may change projection schema, tokenization, chunk mapping, or
+A later Scholion release may change projection schema, tokenization, chunk mapping, or
 another derived representation. Rebuilding lets the new release regenerate those views
 from canonical evidence rather than migrating every historical cache representation.
 
 ## Full rebuild versus incremental refresh
 
-Today, `echoflow library rebuild` is the explicit whole-corpus repair/discovery path.
+Today, `scholion library rebuild` is the explicit whole-corpus repair/discovery path.
 
 That is correct but eventually inefficient for a large library when only one transcript
 changed. The planned incremental refresh contract uses stable transcript-generation
@@ -180,7 +180,7 @@ refresh exists.
 
 Saved searches are durable **questions**, not frozen answers.
 
-EchoFlow stores typed search intent in authoritative SQLite:
+Scholion stores typed search intent in authoritative SQLite:
 
 - transcript query text;
 - phrase / ANY / ALL semantics;
@@ -204,7 +204,7 @@ If a transcript is later removed or deleted, a saved search constrained to that
 Frequent/recent tags and collections are computed from current note relationships and note
 update timestamps.
 
-EchoFlow does **not** store authoritative `usage_count` or `last_used_at` counters on tag
+Scholion does **not** store authoritative `usage_count` or `last_used_at` counters on tag
 and collection records. Those values are views.
 
 If the derived navigation calculation changes tomorrow, no user-authored state needs to
@@ -214,7 +214,7 @@ be migrated or repaired.
 
 | Class | Examples | Retention rule |
 |---|---|---|
-| Authoritative source evidence | original recording | user-owned; EchoFlow treats input read-only except an explicit provenance-checked source-deletion request |
+| Authoritative source evidence | original recording | user-owned; Scholion treats input read-only except an explicit provenance-checked source-deletion request |
 | Authoritative transcript evidence | canonical JSON | durable user-visible artifact; explicit deletion only |
 | Authoritative human work | notes, tags, collections, speaker labels, saved searches | durable; explicit deletion only |
 | Derived publications | TXT, SRT, VTT | regenerable; may be deleted explicitly |
@@ -223,7 +223,7 @@ be migrated or repaired.
 | Lifecycle metadata | compact job manifests | retained by execution-workspace cleanup because they can preserve discovery pointers |
 | Operational logs | structured process log stream | diagnostic only; not transcript evidence |
 
-EchoFlow's structured application logger currently writes to the process stream (`stderr`)
+Scholion's structured application logger currently writes to the process stream (`stderr`)
 rather than creating a durable transcript-log archive. Routine local filesystem paths are
 redacted unless path disclosure is explicitly enabled.
 
@@ -235,7 +235,7 @@ The detailed design is in
 The user-facing surface is plan-first:
 
 ```bash
-echoflow library delete TRANSCRIPT_ID --scope library-view
+scholion library delete TRANSCRIPT_ID --scope library-view
 ```
 
 Without `--confirm`, no mutation occurs. The plan shows exact actions, affected durable
@@ -245,7 +245,7 @@ set.
 Applying the plan requires the same request plus that exact token:
 
 ```bash
-echoflow library delete TRANSCRIPT_ID \
+scholion library delete TRANSCRIPT_ID \
   --scope library-view \
   --confirm 'delete:...'
 ```
@@ -269,7 +269,7 @@ evidence becomes unavailable/current=false once that generation is no longer in 
 library.
 
 Source deletion is even narrower: it requires both the explicit `source-recording` scope
-and `--allow-source`, and EchoFlow refuses if current source bytes no longer match the
+and `--allow-source`, and Scholion refuses if current source bytes no longer match the
 recorded source provenance.
 
 ## Why the semantic index is cleared when one transcript leaves the library
@@ -278,7 +278,7 @@ The current semantic index is bound to a corpus fingerprint and exposes whole-co
 rebuild/clear semantics.
 
 Removing one lexical document while retaining semantic vectors from the old corpus would
-leave derived state whose fingerprint still claims deleted evidence. EchoFlow therefore
+leave derived state whose fingerprint still claims deleted evidence. Scholion therefore
 clears the semantic corpus when a transcript is removed from the active library.
 
 This is conservative and rebuildable. A future incremental semantic index may support
@@ -289,7 +289,7 @@ generation-scoped removal while keeping the same custody service contract.
 Age-based retention currently applies only to private job workspaces:
 
 ```bash
-echoflow library retention --execution-days 30
+scholion library retention --execution-days 30
 ```
 
 The command is also a dry run until the matching plan token is supplied with `--confirm`.
@@ -324,7 +324,7 @@ checkpoints/intermediates are gone.
 SQLite, DuckDB, public files, private workspaces, and arbitrary source media cannot
 participate in one cross-filesystem ACID transaction.
 
-EchoFlow therefore validates destructive inputs first and then orders mutations from most
+Scholion therefore validates destructive inputs first and then orders mutations from most
 recoverable to most unique:
 
 1. rebuildable lexical/semantic state;
@@ -335,7 +335,7 @@ recoverable to most unique:
 6. explicitly requested document-scoped saved searches; and
 7. explicitly requested research notes.
 
-Immediately before a canonical deletion, EchoFlow re-hashes the canonical JSON and refuses
+Immediately before a canonical deletion, Scholion re-hashes the canonical JSON and refuses
 the operation if those bytes no longer match the indexed `canonical_sha256`.
 
 The confirmation token is not an authentication secret. It is a change-detection primitive
@@ -347,7 +347,7 @@ Deleting a path through the operating system does not prove that bytes are unrec
 from SSD wear leveling, copy-on-write history, snapshots, backups, sync/version history,
 controller caches, or forensic tooling.
 
-EchoFlow therefore reports deletion precisely and sets
+Scholion therefore reports deletion precisely and sets
 `secure_erasure_guaranteed = false` in machine-readable deletion output.
 
 ## Test contract
@@ -400,4 +400,4 @@ branch-coverage pytest, distribution build/install verification, and full platfo
 8. Source media remains read-only unless a separate explicit, provenance-checked deletion
    scope is chosen.
 9. Age-based retention cannot delete canonical evidence or research knowledge.
-10. EchoFlow never claims secure erasure it cannot prove.
+10. Scholion never claims secure erasure it cannot prove.

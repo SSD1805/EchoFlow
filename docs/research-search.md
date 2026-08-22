@@ -1,6 +1,6 @@
 # Research search
 
-EchoFlow has two complementary search surfaces.
+Scholion has two complementary search surfaces.
 
 **Library** is the quick doorway: type what you remember and search transcripts, notes,
 tags, and collections. **Research** adds explicit choices when you need to narrow or save a
@@ -172,7 +172,7 @@ exists at that time.
 
 Editing a saved search replaces **display metadata and the complete typed intent in one
 authoritative SQLite transaction**. The mutation carries `expected_updated_at`; if another
-local surface changed the saved search after it was opened, EchoFlow refuses the stale write
+local surface changed the saved search after it was opened, Scholion refuses the stale write
 rather than losing the newer edit.
 
 The UI calls these actions **Save search** and **Update saved search**. “Typed intent” remains

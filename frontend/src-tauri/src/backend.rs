@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 const MAX_REQUEST_BYTES: usize = 128 * 1024;
 
 pub(crate) fn configured_python() -> PathBuf {
-    if let Ok(value) = env::var("ECHOFLOW_PYTHON") {
+    if let Ok(value) = env::var("SCHOLION_PYTHON") {
         if !value.trim().is_empty() {
             return PathBuf::from(value);
         }
@@ -30,19 +30,19 @@ pub(crate) fn configured_python() -> PathBuf {
 
 fn python_unavailable_message() -> String {
     if cfg!(debug_assertions) {
-        "EchoFlow's local Python service is unavailable. From the repository root run `uv sync --locked --extra transcription`, or set ECHOFLOW_PYTHON to a compatible interpreter."
+        "Scholion's local Python service is unavailable. From the repository root run `uv sync --locked --extra transcription`, or set SCHOLION_PYTHON to a compatible interpreter."
             .to_string()
     } else {
-        "EchoFlow's local Python service is unavailable".to_string()
+        "Scholion's local Python service is unavailable".to_string()
     }
 }
 
 fn python_exit_message() -> String {
     if cfg!(debug_assertions) {
-        "EchoFlow's local Python service exited unexpectedly. From frontend run `npm run doctor:desktop` to verify the source environment before retrying."
+        "Scholion's local Python service exited unexpectedly. From frontend run `npm run doctor:desktop` to verify the source environment before retrying."
             .to_string()
     } else {
-        "EchoFlow's local Python service exited unexpectedly".to_string()
+        "Scholion's local Python service exited unexpectedly".to_string()
     }
 }
 
@@ -64,44 +64,44 @@ fn run_python_request(module: &'static str, request: Value) -> Result<Value, Str
     let mut stdin = child
         .stdin
         .take()
-        .ok_or_else(|| "Could not open the EchoFlow desktop bridge".to_string())?;
+        .ok_or_else(|| "Could not open the Scholion desktop bridge".to_string())?;
     stdin
         .write_all(&encoded)
-        .map_err(|_| "Could not send the request to EchoFlow".to_string())?;
+        .map_err(|_| "Could not send the request to Scholion".to_string())?;
     drop(stdin);
 
     let output = child
         .wait_with_output()
-        .map_err(|_| "EchoFlow's local Python service did not finish cleanly".to_string())?;
+        .map_err(|_| "Scholion's local Python service did not finish cleanly".to_string())?;
     if !output.status.success() {
         return Err(python_exit_message());
     }
 
     serde_json::from_slice(&output.stdout)
-        .map_err(|_| "EchoFlow's local Python service returned an invalid response".to_string())
+        .map_err(|_| "Scholion's local Python service returned an invalid response".to_string())
 }
 
 async fn request_module(module: &'static str, request: Value) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || run_python_request(module, request))
         .await
-        .map_err(|_| "EchoFlow's local service task could not be completed".to_string())?
+        .map_err(|_| "Scholion's local service task could not be completed".to_string())?
 }
 
 pub(crate) async fn playback_authorization_request(request: Value) -> Result<Value, String> {
-    request_module("echoflow.desktop.playback_bridge", request).await
+    request_module("scholion.desktop.playback_bridge", request).await
 }
 
 #[tauri::command]
 pub async fn desktop_request(request: Value) -> Result<Value, String> {
-    request_module("echoflow.desktop.bridge", request).await
+    request_module("scholion.desktop.bridge", request).await
 }
 
 #[tauri::command]
 pub async fn transcript_tools_request(request: Value) -> Result<Value, String> {
-    request_module("echoflow.desktop.transcript_tools_bridge", request).await
+    request_module("scholion.desktop.transcript_tools_bridge", request).await
 }
 
 #[tauri::command]
 pub async fn lifecycle_request(request: Value) -> Result<Value, String> {
-    request_module("echoflow.desktop.custody_bridge", request).await
+    request_module("scholion.desktop.custody_bridge", request).await
 }

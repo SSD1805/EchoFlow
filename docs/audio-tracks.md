@@ -2,11 +2,11 @@
 
 A recording file can contain more than one embedded audio track. A video might carry a camera microphone and a clean lavalier feed; an archive file might contain several language tracks; a recorder may preserve a mix and isolated channels as separate streams.
 
-EchoFlow treats **one file with multiple embedded audio streams** as one source recording with an explicit transcription-track choice. This is different from giving EchoFlow several separate files and asking it to synchronize them.
+Scholion treats **one file with multiple embedded audio streams** as one source recording with an explicit transcription-track choice. This is different from giving Scholion several separate files and asking it to synchronize them.
 
 ## Single-track recordings
 
-If FFprobe finds exactly one audio stream, EchoFlow uses that stream. There is nothing useful for the user to choose.
+If FFprobe finds exactly one audio stream, Scholion uses that stream. There is nothing useful for the user to choose.
 
 The selected stream index is still recorded in the transcription source contract so canonical evidence can explain exactly which audio produced the transcript.
 
@@ -23,7 +23,7 @@ Instead it:
 5. re-runs backend preflight with the exact selected index; and
 6. enables **Start local transcription** only after the backend returns a plan bound to that stream.
 
-The chooser is not an audio-quality classifier. A label such as `Lav microphone`, `eng`, or `container default` came from the source container. EchoFlow shows that information to help a person recognize the track, but it does not claim the label is accurate or recommend a stream because of it.
+The chooser is not an audio-quality classifier. A label such as `Lav microphone`, `eng`, or `container default` came from the source container. Scholion shows that information to help a person recognize the track, but it does not claim the label is accurate or recommend a stream because of it.
 
 Track title and language are bounded before they can enter the desktop DTO. They are display metadata, not filesystem authority, and they are not added to canonical source identity.
 
@@ -32,11 +32,11 @@ Track title and language are bounded before they can enter the desktop DTO. They
 The CLI already accepts an exact FFmpeg stream index:
 
 ```bash
-uv run echoflow transcribe meeting.mkv --audio-stream 3 --dry-run
-uv run echoflow transcribe meeting.mkv --audio-stream 3
+uv run scholion transcribe meeting.mkv --audio-stream 3 --dry-run
+uv run scholion transcribe meeting.mkv --audio-stream 3
 ```
 
-EchoFlow validates that the requested index exists and is an audio stream. An unavailable or non-audio index fails instead of falling back to another track.
+Scholion validates that the requested index exists and is an audio stream. An unavailable or non-audio index fails instead of falling back to another track.
 
 Use the dry-run plan to inspect the selected stream and other processing decisions before starting work.
 
@@ -54,9 +54,9 @@ A fresh retry is different: it creates a new plan and may choose another track e
 
 These are different guarantees.
 
-During transcription EchoFlow owns extraction. FFmpeg receives an explicit mapping for the selected stream and drops unrelated video, subtitle, data, and other audio streams from the canonical working-audio path. EchoFlow can therefore prove which track entered ASR.
+During transcription Scholion owns extraction. FFmpeg receives an explicit mapping for the selected stream and drops unrelated video, subtitle, data, and other audio streams from the canonical working-audio path. Scholion can therefore prove which track entered ASR.
 
-Verified native playback currently hands the original container to the operating-system WebView media engine. EchoFlow does not yet have a portable native guarantee that every platform will render the same embedded audio stream recorded in canonical provenance.
+Verified native playback currently hands the original container to the operating-system WebView media engine. Scholion does not yet have a portable native guarantee that every platform will render the same embedded audio stream recorded in canonical provenance.
 
 Playing track 1 while displaying a transcript produced from track 3 would be an evidence error. For that reason verified playback currently refuses sources with multiple audio streams instead of guessing. See **[Verified native playback](native-playback.md)**.
 
@@ -64,7 +64,7 @@ A future relaxation must make native playback track selection explicit and verif
 
 ## What this does not support
 
-EchoFlow does **not** currently treat several separate files as synchronized tracks of one evidence object, for example:
+Scholion does **not** currently treat several separate files as synchronized tracks of one evidence object, for example:
 
 ```text
 camera.wav

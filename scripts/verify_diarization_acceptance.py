@@ -5,8 +5,8 @@ import os
 import sys
 from pathlib import Path
 
-from echoflow.transcription.diarization import PyannoteSpeakerDiarizer
-from echoflow.transcription.speaker_models import SpeakerDiarizationResult
+from scholion.transcription.diarization import PyannoteSpeakerDiarizer
+from scholion.transcription.speaker_models import SpeakerDiarizationResult
 
 
 def _validate_result(*, audio_path: Path, result: SpeakerDiarizationResult) -> None:

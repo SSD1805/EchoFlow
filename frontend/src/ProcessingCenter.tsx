@@ -33,11 +33,11 @@ const PROFILE_COPY: Record<
   },
   balanced: {
     label: "Balanced",
-    detail: "Default. EchoFlow chooses the safest quality/performance fit for this machine.",
+    detail: "Default. Scholion chooses the safest quality/performance fit for this machine.",
   },
   accuracy: {
     label: "Best locally safe",
-    detail: "Use the highest-quality strategy EchoFlow can admit on this machine.",
+    detail: "Use the highest-quality strategy Scholion can admit on this machine.",
   },
 };
 
@@ -73,7 +73,7 @@ function progressText(job: ProcessingJob): string {
 
 function taskLabel(task: ProcessingTaskStatus | null): string {
   if (!task) return "No supervised task is active.";
-  if (task.state === "running") return "Running locally under EchoFlow supervision.";
+  if (task.state === "running") return "Running locally under Scholion supervision.";
   if (task.state === "completed") return "Local task completed.";
   if (task.state === "cancelled") return "Local task cancelled. Valid checkpoints remain private.";
   return "Local task stopped before completion. Refresh readiness or job state for details.";
@@ -113,7 +113,7 @@ export function ProcessingCenter({
   const [pendingDiscard, setPendingDiscard] = useState<ProcessingJob | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(
-    "EchoFlow will inspect this machine before it offers a processing path.",
+    "Scholion will inspect this machine before it offers a processing path.",
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -140,7 +140,7 @@ export function ProcessingCenter({
         setError(
           caught instanceof Error
             ? caught.message
-            : "EchoFlow could not inspect local processing readiness.",
+            : "Scholion could not inspect local processing readiness.",
         );
       })
       .finally(() => setBusy(false));
@@ -189,7 +189,7 @@ export function ProcessingCenter({
     setAudioStreamIndex(null);
     setPreflight(null);
     setRetrySourceJobId(null);
-    setStatus("Profile changed. EchoFlow is recalculating the safest local path.");
+    setStatus("Profile changed. Scholion is recalculating the safest local path.");
   }
 
   async function chooseRecording() {
@@ -217,15 +217,15 @@ export function ProcessingCenter({
       setRetrySourceJobId(null);
       setStatus(
         plan.audio_stream_selection_required
-          ? `Preflight found ${plan.audio_streams.length} audio tracks. Choose the track EchoFlow should transcribe.`
-          : `Preflight complete. EchoFlow admitted ${plan.model} on ${plan.device}/${plan.compute_type}.`,
+          ? `Preflight found ${plan.audio_streams.length} audio tracks. Choose the track Scholion should transcribe.`
+          : `Preflight complete. Scholion admitted ${plan.model} on ${plan.device}/${plan.compute_type}.`,
       );
     } catch (caught) {
       setPreflight(null);
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not safely plan this recording.",
+          : "Scholion could not safely plan this recording.",
       );
     } finally {
       setBusy(false);
@@ -251,11 +251,11 @@ export function ProcessingCenter({
       );
       setStatus(
         plan.audio_stream_selection_required
-          ? `Fresh retry preflight found ${plan.audio_streams.length} audio tracks. Choose the track EchoFlow should transcribe.`
+          ? `Fresh retry preflight found ${plan.audio_streams.length} audio tracks. Choose the track Scholion should transcribe.`
           : `Fresh retry preflight complete for ${job.recording_name}. The interrupted job was not changed.`,
       );
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not plan a fresh retry.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not plan a fresh retry.");
     } finally {
       setBusy(false);
     }
@@ -276,14 +276,14 @@ export function ProcessingCenter({
       setPreflight(plan);
       setAudioStreamIndex(plan.selected_audio_stream_index);
       setStatus(
-        `Audio track #${plan.selected_audio_stream_index} confirmed. EchoFlow re-ran backend preflight with that exact stream.`,
+        `Audio track #${plan.selected_audio_stream_index} confirmed. Scholion re-ran backend preflight with that exact stream.`,
       );
     } catch (caught) {
       setAudioStreamIndex(previousIndex);
       setError(
         caught instanceof Error
           ? caught.message
-          : "EchoFlow could not safely bind that audio track.",
+          : "Scholion could not safely bind that audio track.",
       );
     } finally {
       setBusy(false);
@@ -316,7 +316,7 @@ export function ProcessingCenter({
       );
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not launch this local job.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not launch this local job.");
     } finally {
       setBusy(false);
     }
@@ -334,7 +334,7 @@ export function ProcessingCenter({
       );
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not resume this job safely.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not resume this job safely.");
     } finally {
       setBusy(false);
     }
@@ -348,10 +348,10 @@ export function ProcessingCenter({
       setTask(started);
       setTaskDescription(`Installing verified ${model.model_id} model`);
       setStatus(
-        `Model acquisition started locally. EchoFlow will not register ${model.model_id} until the snapshot passes verification.`,
+        `Model acquisition started locally. Scholion will not register ${model.model_id} until the snapshot passes verification.`,
       );
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not start model installation.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not start model installation.");
     } finally {
       setBusy(false);
     }
@@ -369,7 +369,7 @@ export function ProcessingCenter({
         "Model removal started. The expected verified revision is bound to this request; changed model state will be rejected.",
       );
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not remove that model safely.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not remove that model safely.");
     } finally {
       setBusy(false);
     }
@@ -382,12 +382,12 @@ export function ProcessingCenter({
       const verified = await processing.verifyModel(model.model_id);
       setStatus(
         verified.installed
-          ? `${model.model_id} is still a verified EchoFlow-managed revision.`
-          : `${model.model_id} is not currently installed under EchoFlow custody.`,
+          ? `${model.model_id} is still a verified Scholion-managed revision.`
+          : `${model.model_id} is not currently installed under Scholion custody.`,
       );
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not verify that model.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not verify that model.");
     } finally {
       setBusy(false);
     }
@@ -404,7 +404,7 @@ export function ProcessingCenter({
       );
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not discard that private state.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not discard that private state.");
     } finally {
       setBusy(false);
     }
@@ -422,7 +422,7 @@ export function ProcessingCenter({
       );
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not cancel that local task.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not cancel that local task.");
     } finally {
       setBusy(false);
     }
@@ -449,7 +449,7 @@ export function ProcessingCenter({
       <section className="processing-intro" aria-labelledby="processing-title">
         <div>
           <p className="section-kicker">02 · Plan, admit, run, recover</p>
-          <h2 id="processing-title">EchoFlow chooses a safe local path before it spends your machine.</h2>
+          <h2 id="processing-title">Scholion chooses a safe local path before it spends your machine.</h2>
         </div>
         <p>
           Machine limits, model custody, transcription planning, and checkpoint recovery stay in Python. Tauri supervises long work. This screen only presents and submits your intent.
@@ -493,7 +493,7 @@ export function ProcessingCenter({
 
         <article className="processing-card profile-card">
           <p className="mini-label">Processing intent</p>
-          <h3>Tell EchoFlow the outcome, not the thread count.</h3>
+          <h3>Tell Scholion the outcome, not the thread count.</h3>
           <fieldset className="profile-options">
             <legend>Processing profile</legend>
             {(Object.keys(PROFILE_COPY) as ProcessingProfile[]).map((value) => (
@@ -510,8 +510,8 @@ export function ProcessingCenter({
             ))}
           </fieldset>
           {recommendedStrategy && (
-            <p className="backend-choice" aria-label="EchoFlow recommendation">
-              <strong>EchoFlow currently recommends:</strong> {recommendedStrategy.model} · {recommendedStrategy.device}/{recommendedStrategy.compute_type}
+            <p className="backend-choice" aria-label="Scholion recommendation">
+              <strong>Scholion currently recommends:</strong> {recommendedStrategy.model} · {recommendedStrategy.device}/{recommendedStrategy.compute_type}
             </p>
           )}
         </article>
@@ -552,7 +552,7 @@ export function ProcessingCenter({
         {pendingRemove && (
           <div className="confirmation-panel" aria-label={`Remove ${pendingRemove.model_id} confirmation`}>
             <p>
-              Remove EchoFlow's managed <strong>{pendingRemove.model_id}</strong> revision from the local model cache? Transcript evidence and recordings are not part of this operation.
+              Remove Scholion's managed <strong>{pendingRemove.model_id}</strong> revision from the local model cache? Transcript evidence and recordings are not part of this operation.
             </p>
             <div>
               <button type="button" onClick={() => setPendingRemove(null)}>Keep model</button>
@@ -566,7 +566,7 @@ export function ProcessingCenter({
         <div className="processing-card-heading">
           <div>
             <p className="mini-label">Transcription preflight</p>
-            <h3 id="preflight-title">Review the plan before EchoFlow starts.</h3>
+            <h3 id="preflight-title">Review the plan before Scholion starts.</h3>
           </div>
           <button type="button" className="secondary-action" onClick={() => void chooseRecording()} disabled={busy}>
             Choose recording
@@ -613,7 +613,7 @@ export function ProcessingCenter({
           <div className="preflight-result" aria-label="Backend transcription preflight">
             <div className="preflight-hero">
               <div>
-                <span className="mini-label">Admitted by EchoFlow</span>
+                <span className="mini-label">Admitted by Scholion</span>
                 <strong>{PROFILE_COPY[preflight.profile].label} · {preflight.model}</strong>
                 <p>{preflight.engine} · {preflight.device}/{preflight.compute_type} · {preflight.decode_strategy}</p>
               </div>
@@ -685,7 +685,7 @@ export function ProcessingCenter({
             <div className="launch-row">
               <p>
                 {preflight.audio_stream_selection_required
-                  ? "Choose an audio track above before starting. EchoFlow will not treat the container's first track as user intent."
+                  ? "Choose an audio track above before starting. Scholion will not treat the container's first track as user intent."
                   : "Start re-runs backend admission immediately before execution. A changed machine, model, source, or strategy fails closed instead of trusting this displayed plan."}
               </p>
               <button

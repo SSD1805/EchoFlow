@@ -1,6 +1,6 @@
 # Testing and regression bisection 🧪🦝
 
-EchoFlow has enough failure-sensitive logic that “the happy path passed” is not a
+Scholion has enough failure-sensitive logic that “the happy path passed” is not a
 satisfying definition of tested.
 
 The testing strategy therefore prefers **small deterministic oracles, explicit boundary
@@ -20,11 +20,11 @@ Every capability keeps tests in a `tests/` directory directly beneath the packag
 protects:
 
 ```text
-src/echoflow/core/health_check.py
-src/echoflow/core/tests/test_health_check.py
+src/scholion/core/health_check.py
+src/scholion/core/tests/test_health_check.py
 
-src/echoflow/interfaces/local_file_manager.py
-src/echoflow/interfaces/tests/test_local_file_manager.py
+src/scholion/interfaces/local_file_manager.py
+src/scholion/interfaces/tests/test_local_file_manager.py
 ```
 
 Repository-wide pytest configuration belongs in root `conftest.py`.
@@ -63,16 +63,16 @@ Typical commands:
 ```bash
 uv run pytest path/to/test.py::test_name
 uv run pytest path/to/test.py
-uv run pytest src/echoflow/PACKAGE/tests
+uv run pytest src/scholion/PACKAGE/tests
 uv run pytest --last-failed
 uv run pytest
-uv run pytest --cov=echoflow --cov-branch --cov-report=term-missing
+uv run pytest --cov=scholion --cov-branch --cov-report=term-missing
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy
 uv run vulture
-uv run radon cc src/echoflow --total-average
-uv run radon mi src/echoflow
+uv run radon cc src/scholion --total-average
+uv run radon mi src/scholion
 ```
 
 The narrow test should answer the local question. The wide suite should answer whether
@@ -80,7 +80,7 @@ the change broke a contract you did not realize was adjacent.
 
 ## Mutation anticipation: think like a tiny malicious editor
 
-Mutation testing should not be the first place EchoFlow discovers that tests are vague.
+Mutation testing should not be the first place Scholion discovers that tests are vague.
 
 When changing load-bearing decision logic, enumerate plausible bad edits during test
 design.
@@ -170,7 +170,7 @@ property-based failure seed.
 When model-management or ASR custody changes, tests should kill bad edits such as:
 
 - failed structural verification treated as managed;
-- manifest path escaping EchoFlow's model cache;
+- manifest path escaping Scholion's model cache;
 - provider repository identity substituted;
 - recorded revision/snapshot path disagreeing;
 - requested revision silently replaced;
@@ -227,7 +227,7 @@ See [semantic-retrieval-testing.md](semantic-retrieval-testing.md) for the focus
 
 ## Pre-production schema rule
 
-EchoFlow currently has no released/dogfooded durable-schema compatibility obligation.
+Scholion currently has no released/dogfooded durable-schema compatibility obligation.
 
 Tests protect **one current job-plan, checkpoint, and canonical-transcript contract**.
 
@@ -242,7 +242,7 @@ fictional history.
 
 ## Sandbox readiness
 
-A sandbox can run repository-local tools only when an EchoFlow checkout is actually
+A sandbox can run repository-local tools only when an Scholion checkout is actually
 mounted.
 
 When a checkout exists:
@@ -268,7 +268,7 @@ Start from known bad/good revisions and use the smallest test proving the regres
 
 ```bash
 git bisect start BAD GOOD
-git bisect run uv run pytest src/echoflow/core/tests/test_health_check.py -q
+git bisect run uv run pytest src/scholion/core/tests/test_health_check.py -q
 git bisect reset
 ```
 

@@ -52,7 +52,7 @@ impl ProcessEntry {
         };
         let status = child
             .try_wait()
-            .map_err(|_| "EchoFlow could not inspect the local processing task".to_string())?;
+            .map_err(|_| "Scholion could not inspect the local processing task".to_string())?;
         if let Some(status) = status {
             self.finish(status);
         }
@@ -121,10 +121,10 @@ fn validate_envelope(task: &Value) -> Result<TaskEnvelope, String> {
 
 fn python_unavailable_message() -> String {
     if cfg!(debug_assertions) {
-        "EchoFlow's local Python worker is unavailable. From the repository root run `uv sync --locked --extra transcription`, or set ECHOFLOW_PYTHON to a compatible interpreter."
+        "Scholion's local Python worker is unavailable. From the repository root run `uv sync --locked --extra transcription`, or set SCHOLION_PYTHON to a compatible interpreter."
             .to_string()
     } else {
-        "EchoFlow's local Python worker is unavailable".to_string()
+        "Scholion's local Python worker is unavailable".to_string()
     }
 }
 
@@ -143,13 +143,13 @@ pub async fn processing_start_task(
     let mut entries = processes
         .entries
         .lock()
-        .map_err(|_| "EchoFlow processing state is unavailable".to_string())?;
+        .map_err(|_| "Scholion processing state is unavailable".to_string())?;
     if entries.contains_key(&envelope.task_id) {
         return Err("Processing task identifier is already in use".to_string());
     }
 
     let mut child = Command::new(crate::backend::configured_python())
-        .args(["-m", "echoflow.desktop.processing_worker"])
+        .args(["-m", "scholion.desktop.processing_worker"])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -159,11 +159,11 @@ pub async fn processing_start_task(
     let write_result = child
         .stdin
         .take()
-        .ok_or_else(|| "Could not open the EchoFlow processing worker".to_string())
+        .ok_or_else(|| "Could not open the Scholion processing worker".to_string())
         .and_then(|mut stdin| {
             stdin
                 .write_all(&encoded)
-                .map_err(|_| "Could not send the processing task to EchoFlow".to_string())
+                .map_err(|_| "Could not send the processing task to Scholion".to_string())
         });
     if let Err(message) = write_result {
         let _ = child.kill();
@@ -187,10 +187,10 @@ pub async fn processing_task_status(
     let mut entries = processes
         .entries
         .lock()
-        .map_err(|_| "EchoFlow processing state is unavailable".to_string())?;
+        .map_err(|_| "Scholion processing state is unavailable".to_string())?;
     let entry = entries
         .get_mut(&task_id)
-        .ok_or_else(|| "Processing task is not known to this EchoFlow session".to_string())?;
+        .ok_or_else(|| "Processing task is not known to this Scholion session".to_string())?;
     entry.refresh()?;
     Ok(entry.status(&task_id))
 }
@@ -203,17 +203,17 @@ pub async fn processing_cancel_task(
     let mut entries = processes
         .entries
         .lock()
-        .map_err(|_| "EchoFlow processing state is unavailable".to_string())?;
+        .map_err(|_| "Scholion processing state is unavailable".to_string())?;
     let entry = entries
         .get_mut(&task_id)
-        .ok_or_else(|| "Processing task is not known to this EchoFlow session".to_string())?;
+        .ok_or_else(|| "Processing task is not known to this Scholion session".to_string())?;
     entry.refresh()?;
     if let Some(child) = entry.child.as_mut() {
         child
             .kill()
-            .map_err(|_| "EchoFlow could not stop the local processing task".to_string())?;
+            .map_err(|_| "Scholion could not stop the local processing task".to_string())?;
         let status = child.wait().map_err(|_| {
-            "EchoFlow could not finish stopping the local processing task".to_string()
+            "Scholion could not finish stopping the local processing task".to_string()
         })?;
         entry.exit_code = status.code();
         entry.state = "cancelled";

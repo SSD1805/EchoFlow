@@ -29,7 +29,7 @@ export interface PlaybackClient {
 
 function assertPrepared(value: unknown): NativePlaybackPrepared {
   if (!value || typeof value !== "object") {
-    throw new Error("EchoFlow playback returned an invalid native session");
+    throw new Error("Scholion playback returned an invalid native session");
   }
   const candidate = value as Partial<NativePlaybackPrepared>;
   if (
@@ -44,7 +44,7 @@ function assertPrepared(value: unknown): NativePlaybackPrepared {
     candidate.seek_seconds > candidate.duration_seconds ||
     (candidate.media_kind !== "audio" && candidate.media_kind !== "video")
   ) {
-    throw new Error("EchoFlow playback returned an incompatible native session");
+    throw new Error("Scholion playback returned an incompatible native session");
   }
   return candidate as NativePlaybackPrepared;
 }
@@ -66,7 +66,7 @@ class TauriPlaybackClient implements PlaybackClient {
     );
     return {
       session_id: prepared.session_id,
-      media_url: convertFileSrc(prepared.media_token, "echoflow-media"),
+      media_url: convertFileSrc(prepared.media_token, "scholion-media"),
       duration_seconds: prepared.duration_seconds,
       seek_seconds: prepared.seek_seconds,
       media_kind: prepared.media_kind,
@@ -99,7 +99,7 @@ class MockPlaybackClient implements PlaybackClient {
     }
     if (failure === "multi-audio") {
       throw new Error(
-        "Playback for recordings with multiple audio streams is not enabled yet; EchoFlow will not guess which track matches this transcript",
+        "Playback for recordings with multiple audio streams is not enabled yet; Scholion will not guess which track matches this transcript",
       );
     }
     if (!Number.isFinite(seekSeconds) || seekSeconds < 0 || seekSeconds > 1460.4) {

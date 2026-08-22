@@ -39,9 +39,9 @@ interface ReanchorResult {
 }
 
 const ANCHOR_PROTOCOL_MESSAGES = {
-  invalid: "EchoFlow desktop bridge returned an incompatible response",
-  incompatible: "EchoFlow desktop bridge returned an incompatible response",
-  failure: "EchoFlow could not complete that request",
+  invalid: "Scholion desktop bridge returned an incompatible response",
+  incompatible: "Scholion desktop bridge returned an incompatible response",
+  failure: "Scholion could not complete that request",
 } as const;
 
 let mockReanchored = false;

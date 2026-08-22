@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "EchoFlow",
+  "productName": "Scholion",
   "version": "0.1.0",
-  "identifier": "org.echoflow.desktop",
+  "identifier": "org.scholion.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "EchoFlow",
+        "title": "Scholion",
         "width": 1180,
         "height": 780,
         "minWidth": 840,
@@ -22,8 +22,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; media-src 'self' echoflow-media: http://echoflow-media.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'",
-      "devCsp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:5173; img-src 'self' asset: http://asset.localhost data:; media-src 'self' echoflow-media: http://echoflow-media.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'",
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; media-src 'self' scholion-media: http://scholion-media.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'",
+      "devCsp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:5173; img-src 'self' asset: http://asset.localhost data:; media-src 'self' scholion-media: http://scholion-media.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'",
       "freezePrototype": true
     }
   },

@@ -1,0 +1,231 @@
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from typing import cast
+
+import typer
+from rich.console import Console
+from rich.table import Table
+
+from scholion.app.app_container import AppContainer
+from scholion.core.errors import ScholionError
+from scholion.workspace.lifecycle import JobLifecycleRecord, JobStatus
+from scholion.workspace.models import JobId
+
+ContainerFactory = Callable[[typer.Context], AppContainer]
+
+
+def _root_context(context: typer.Context) -> typer.Context:
+    return cast("typer.Context", context.find_root())
+
+
+def _progress_text(record: JobLifecycleRecord) -> str:
+    if record.total_segments is None:
+        return "not started"
+    return f"{record.completed_segments}/{record.total_segments}"
+
+
+def _record_document(
+    container: AppContainer, record: JobLifecycleRecord
+) -> dict[str, object]:
+    document = record.to_dict()
+    document["resumable"] = container.job_lifecycle_store().is_resumable(record.job_id)
+    return document
+
+
+def _render_jobs(
+    container: AppContainer,
+    records: tuple[JobLifecycleRecord, ...],
+    console: Console,
+) -> None:
+    table = Table(title="Scholion jobs")
+    table.add_column("Job ID")
+    table.add_column("Status")
+    table.add_column("Progress")
+    table.add_column("Recording")
+    table.add_column("Resumable")
+    table.add_column("Updated")
+    for record in records:
+        table.add_row(
+            record.job_id.value,
+            record.status.value,
+            _progress_text(record),
+            record.input_path.name,
+            str(container.job_lifecycle_store().is_resumable(record.job_id)).lower(),
+            record.updated_at,
+        )
+    console.print(table)
+
+
+def _render_job(
+    container: AppContainer,
+    record: JobLifecycleRecord,
+    console: Console,
+) -> None:
+    resumable = container.job_lifecycle_store().is_resumable(record.job_id)
+    table = Table(title=f"Scholion job {record.job_id.value}")
+    table.add_column("Setting")
+    table.add_column("Value")
+    rows = [
+        ("Status", record.status.value),
+        ("Progress", _progress_text(record)),
+        ("Resumable", str(resumable).lower()),
+        ("Input", str(record.input_path)),
+        ("Output directory", str(record.output_dir)),
+        ("Started", record.started_at),
+        ("Updated", record.updated_at),
+        ("Error code", record.error_code or "none"),
+        (
+            "Canonical artifact",
+            "none" if record.artifact_path is None else str(record.artifact_path),
+        ),
+    ]
+    if resumable:
+        rows.append(
+            (
+                "Resume",
+                f"scholion transcribe {record.input_path} --resume {record.job_id.value}",
+            )
+        )
+    for setting, value in rows:
+        table.add_row(setting, value)
+    console.print(table)
+
+
+def _list_jobs(
+    context: typer.Context,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        container = container_factory(_root_context(context))
+        records = container.job_lifecycle_store().list_records()
+    except ScholionError as exc:
+        typer.echo(exc.public_message, err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    except Exception as exc:
+        typer.echo(
+            f"Scholion job inspection failed internally ({type(exc).__name__})",
+            err=True,
+        )
+        raise typer.Exit(code=3) from None
+    if json_output:
+        typer.echo(
+            json.dumps(
+                [_record_document(container, record) for record in records],
+                sort_keys=True,
+            )
+        )
+        return
+    _render_jobs(container, records, Console())
+
+
+def _show_job(
+    context: typer.Context,
+    job_id: str,
+    *,
+    json_output: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        container = container_factory(_root_context(context))
+        record = container.job_lifecycle_store().get(JobId(job_id))
+    except ScholionError as exc:
+        typer.echo(exc.public_message, err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="JOB_ID") from exc
+    if json_output:
+        typer.echo(json.dumps(_record_document(container, record), sort_keys=True))
+        return
+    _render_job(container, record, Console())
+
+
+def _discard_job(
+    context: typer.Context,
+    job_id: str,
+    *,
+    yes: bool,
+    container_factory: ContainerFactory,
+) -> None:
+    try:
+        container = container_factory(_root_context(context))
+        selected = JobId(job_id)
+        record = container.job_lifecycle_store().get(selected)
+        if record.status is JobStatus.RUNNING:
+            raise typer.BadParameter("a running job cannot be discarded")
+        if not yes and not typer.confirm(
+            "Discard this job's private checkpoints and lifecycle state? "
+            "Published transcript files will remain."
+        ):
+            raise typer.Abort()
+        container.job_lifecycle_store().discard(selected)
+    except (typer.Abort, typer.BadParameter):
+        raise
+    except ScholionError as exc:
+        typer.echo(exc.public_message, err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="JOB_ID") from exc
+    typer.echo(f"Discarded private Scholion job {job_id}")
+
+
+def register_job_commands(
+    app: typer.Typer, container_factory: ContainerFactory
+) -> None:
+    jobs_app = typer.Typer(
+        help="Inspect and clean up private local transcription jobs.",
+        invoke_without_command=True,
+        no_args_is_help=False,
+    )
+
+    @jobs_app.callback()
+    def jobs_root(
+        context: typer.Context,
+        json_output: bool = typer.Option(
+            False, "--json", help="Emit machine-readable lifecycle records."
+        ),
+    ) -> None:
+        if context.invoked_subcommand is None:
+            _list_jobs(
+                context,
+                json_output=json_output,
+                container_factory=container_factory,
+            )
+
+    @jobs_app.command("show")
+    def show_job(
+        context: typer.Context,
+        job_id: str = typer.Argument(..., metavar="JOB_ID"),
+        json_output: bool = typer.Option(
+            False, "--json", help="Emit the lifecycle record as JSON."
+        ),
+    ) -> None:
+        _show_job(
+            context,
+            job_id,
+            json_output=json_output,
+            container_factory=container_factory,
+        )
+
+    @jobs_app.command("discard")
+    def discard_job(
+        context: typer.Context,
+        job_id: str = typer.Argument(..., metavar="JOB_ID"),
+        yes: bool = typer.Option(
+            False,
+            "--yes",
+            "-y",
+            help="Discard private state without an interactive confirmation.",
+        ),
+    ) -> None:
+        _discard_job(
+            context,
+            job_id,
+            yes=yes,
+            container_factory=container_factory,
+        )
+
+    app.add_typer(jobs_app, name="jobs")

@@ -57,8 +57,8 @@ jobs:
 
       - name: Report complexity
         run: |
-          uv run radon cc src/echoflow --total-average
-          uv run radon mi src/echoflow
+          uv run radon cc src/scholion --total-average
+          uv run radon mi src/scholion
 
       - name: Export locked runtime and optional capability dependencies
         run: >-
@@ -70,18 +70,18 @@ jobs:
           --no-emit-project
           --no-hashes
           --format requirements-txt
-          --output-file ${{ runner.temp }}/echoflow-runtime-requirements.txt
+          --output-file ${{ runner.temp }}/scholion-runtime-requirements.txt
 
       - name: Verify compensated Lightning advisory scope
         shell: bash
         run: >-
           grep -Eq '^lightning==2\.6\.5([ ;]|$)'
-          "${{ runner.temp }}/echoflow-runtime-requirements.txt"
+          "${{ runner.temp }}/scholion-runtime-requirements.txt"
 
       - name: Audit locked runtime dependencies
         run: >-
           uvx --from pip-audit==2.10.1 pip-audit
-          --requirement ${{ runner.temp }}/echoflow-runtime-requirements.txt
+          --requirement ${{ runner.temp }}/scholion-runtime-requirements.txt
           --no-deps
           --disable-pip
           --ignore-vuln PYSEC-2026-3624
@@ -117,7 +117,7 @@ jobs:
         shell: bash
         run: |
           if grep -R --line-number --fixed-strings 'dangerouslySetInnerHTML' src; then
-            echo 'EchoFlow renders local evidence as text; dangerouslySetInnerHTML requires a dedicated security review.' >&2
+            echo 'Scholion renders local evidence as text; dangerouslySetInnerHTML requires a dedicated security review.' >&2
             exit 1
           fi
 
@@ -235,7 +235,7 @@ jobs:
       - name: Test with branch coverage
         run: >-
           uv run pytest
-          --cov=echoflow
+          --cov=scholion
           --cov-branch
           --cov-report=term-missing
           --cov-report=xml
@@ -323,7 +323,7 @@ jobs:
         run: uv run pytest
 
       - name: Inspect runner policy
-        run: uv run echoflow runner --json
+        run: uv run scholion runner --json
 
       - name: Build distributions
         run: uv build

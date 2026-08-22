@@ -1,6 +1,6 @@
 # Desktop themes and accessibility
 
-EchoFlow themes are presentation, not application state. A skin may change color and visual tone; it may not change evidence, research, processing, playback authorization, or what an interaction means.
+Scholion themes are presentation, not application state. A skin may change color and visual tone; it may not change evidence, research, processing, playback authorization, or what an interaction means.
 
 ## One semantic token contract
 
@@ -24,7 +24,7 @@ The registry in `frontend/src/themes.ts` is the only source for supported IDs, l
 
 ## Current skins
 
-EchoFlow ships eight skins through one compact **Theme** picker:
+Scholion ships eight skins through one compact **Theme** picker:
 
 - **Archive**: warm paper neutrals with restrained teal;
 - **Midnight**: charcoal surfaces with cool teal;
@@ -65,7 +65,7 @@ Browser automation cannot fully prove how opened native menus or media controls 
 
 ## Help must work without hover
 
-EchoFlow's in-app guidance is progressive disclosure, not a collection of mouse-only tooltips.
+Scholion's in-app guidance is progressive disclosure, not a collection of mouse-only tooltips.
 
 The reusable `InfoPopover` contract requires:
 

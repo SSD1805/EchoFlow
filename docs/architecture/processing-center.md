@@ -1,6 +1,6 @@
 # Processing Center
 
-The Processing Center is EchoFlow's desktop control surface for local transcription work. It is intentionally a productization layer over existing backend authorities, not a second scheduler or transcription implementation.
+The Processing Center is Scholion's desktop control surface for local transcription work. It is intentionally a productization layer over existing backend authorities, not a second scheduler or transcription implementation.
 
 ## Authority boundaries
 
@@ -53,7 +53,7 @@ Audio-track selection is different because it can change **which evidence is tra
 
 React does not score or recommend tracks. Source-declared title, language, and container-default disposition are displayed as clues only. They are bounded by the backend and remain untrusted descriptive metadata. Codec, sample rate, and channel count are also presentation facts, not selection policy.
 
-Model acquisition is never silently inferred from selecting a profile. The UI shows the recommended model and whether a verified EchoFlow-managed snapshot is already installed. Installing or removing a model is an explicit long-running action.
+Model acquisition is never silently inferred from selecting a profile. The UI shows the recommended model and whether a verified Scholion-managed snapshot is already installed. Installing or removing a model is an explicit long-running action.
 
 Optional diarization keeps its network-consent boundary separate from transcription-model custody. Derived TXT/SRT/VTT files remain disposable views; canonical transcript JSON remains evidence.
 
@@ -76,9 +76,9 @@ The selected stream index is not merely presentation state. Planning validates i
 
 ## Multi-track metadata inspection
 
-EchoFlow preserves the original hardened FFprobe query for normal media inspection. If that first query discovers more than one audio stream, the probe performs one additional bounded metadata-only query under the same file-only protocol whitelist and output-size limit.
+Scholion preserves the original hardened FFprobe query for normal media inspection. If that first query discovers more than one audio stream, the probe performs one additional bounded metadata-only query under the same file-only protocol whitelist and output-size limit.
 
-That extra query asks only for stream index, title, language, and default disposition. Title and language are length-bounded before they can enter `MediaStream`. The metadata helps a user identify a track but is not added to cryptographic source identity and is not trusted as an EchoFlow recommendation.
+That extra query asks only for stream index, title, language, and default disposition. Title and language are length-bounded before they can enter `MediaStream`. The metadata helps a user identify a track but is not added to cryptographic source identity and is not trusted as an Scholion recommendation.
 
 This feature covers **multiple embedded audio streams inside one file**. It does not synchronize several separate source files. See **[Audio tracks](../audio-tracks.md)** for the product distinction.
 
@@ -95,7 +95,7 @@ A job reported as `running` whose recorded process identity is no longer active 
 
 ## Playback is a separate guarantee
 
-Explicit multi-track transcription does not imply that verified native playback may choose among embedded tracks. Transcription owns FFmpeg extraction and can prove which stream entered ASR. Current WebView playback of the original container does not provide EchoFlow a portable guarantee that the canonical stream will be the rendered stream.
+Explicit multi-track transcription does not imply that verified native playback may choose among embedded tracks. Transcription owns FFmpeg extraction and can prove which stream entered ASR. Current WebView playback of the original container does not provide Scholion a portable guarantee that the canonical stream will be the rendered stream.
 
 For that reason multi-track transcription is supported while multi-track verified playback still fails closed. See **[Verified native playback](../native-playback.md)**.
 
@@ -105,4 +105,4 @@ Processing Center errors crossing into the desktop are public, bounded messages.
 
 Readiness and job overview responses expose only what is necessary to explain local execution state, such as platform, effective CPU count, available-memory budget, profile, model identity, progress, resumability, and safe failure categories. Multi-track preflight adds bounded stream identity/display fields but no filesystem paths.
 
-The design preserves EchoFlow's central custody rule: recordings, canonical transcript evidence, and human research remain authoritative user-owned material; execution indexes, checkpoints, derived exports, and native task handles are supporting machinery and may be rebuilt or discarded according to their contracts.
+The design preserves Scholion's central custody rule: recordings, canonical transcript evidence, and human research remain authoritative user-owned material; execution indexes, checkpoints, derived exports, and native task handles are supporting machinery and may be rebuilt or discarded according to their contracts.

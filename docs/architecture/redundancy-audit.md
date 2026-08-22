@@ -1,6 +1,6 @@
 # Architecture and redundancy audit
 
-This audit removes duplicated **meaning and ownership**, not merely repeated lines. EchoFlow deliberately keeps several narrow adapters because playback, custody, transcript tools, processing, research, and ordinary desktop operations do not carry the same authority.
+This audit removes duplicated **meaning and ownership**, not merely repeated lines. Scholion deliberately keeps several narrow adapters because playback, custody, transcript tools, processing, research, and ordinary desktop operations do not carry the same authority.
 
 ## Status: complete
 
@@ -18,7 +18,7 @@ This is the architectural freeze point before product identity migration and pac
 
 ### Capability-blind shared plumbing
 
-Share mechanics that cannot grant new authority. `echoflow.desktop.host_protocol` owns bounded JSON stdin/stdout transport and the versioned response envelope. It knows nothing about methods, services, paths, databases, or Tauri commands.
+Share mechanics that cannot grant new authority. `scholion.desktop.host_protocol` owns bounded JSON stdin/stdout transport and the versioned response envelope. It knows nothing about methods, services, paths, databases, or Tauri commands.
 
 The general desktop bridge now uses this same helper alongside playback, transcript-tools, and custody bridges. Each bridge still owns its closed request schema, dispatcher, public error policy, and application capability.
 
@@ -58,9 +58,9 @@ Playback also remains separate because Rust returns opaque media-session state r
 
 ### Shared Research contract, not shared policy
 
-`echoflow.desktop.research_serialization` maps already-authorized evidence into one frontend shape. It does not choose generations, resolve evidence, query storage, or expose canonical/source paths.
+`scholion.desktop.research_serialization` maps already-authorized evidence into one frontend shape. It does not choose generations, resolve evidence, query storage, or expose canonical/source paths.
 
-`echoflow.desktop.research_validation` owns the stable label invariant shared by Research adapters: trim, reject invalid values, de-duplicate case-insensitively, and preserve display spelling.
+`scholion.desktop.research_validation` owns the stable label invariant shared by Research adapters: trim, reject invalid values, de-duplicate case-insensitively, and preserve display spelling.
 
 Search policy and durable saved-question lifecycle remain application/library authority.
 

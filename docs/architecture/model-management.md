@@ -2,13 +2,13 @@
 
 ## The human version
 
-EchoFlow needs speech models to transcribe locally. Those model files are large,
+Scholion needs speech models to transcribe locally. Those model files are large,
 versioned execution dependencies, not mysterious cache confetti.
 
-So EchoFlow keeps one very deliberate boundary around them:
+So Scholion keeps one very deliberate boundary around them:
 
 > **Downloading a model is an explicit action. Running transcription uses a model that
-> EchoFlow has already installed, verified, and pinned to an immutable revision.**
+> Scholion has already installed, verified, and pinned to an immutable revision.**
 
 That gives ordinary users a simpler experience and gives maintainers something they can
 actually reason about.
@@ -35,20 +35,20 @@ flowchart LR
     class H,I run
 ```
 
-## Why EchoFlow does not just trust whatever is in a cache
+## Why Scholion does not just trust whatever is in a cache
 
-The Hugging Face cache is a useful byte-level storage layout. EchoFlow does not need to
+The Hugging Face cache is a useful byte-level storage layout. Scholion does not need to
 copy model weights into a proprietary format.
 
 But “some files exist in a cache directory” is not enough to answer:
 
-- which model EchoFlow intended to install;
+- which model Scholion intended to install;
 - which provider repository it came from;
 - which immutable revision was resolved;
 - whether the expected files are still present; or
 - whether a transcription plan can safely refer to that exact dependency later.
 
-So the provider cache remains the physical home of the bytes while EchoFlow owns private
+So the provider cache remains the physical home of the bytes while Scholion owns private
 **managed manifests** describing snapshots it deliberately installed and verified.
 
 A pre-existing cache entry is not silently adopted as managed state.
@@ -69,7 +69,7 @@ The manifest is a receipt and dependency record, not a second copy of the model.
 
 ## The three main responsibilities
 
-`ModelCatalog` describes the finite set of models EchoFlow knows how to reason about.
+`ModelCatalog` describes the finite set of models Scholion knows how to reason about.
 For faster-whisper, quality/cache metadata is derived from the transcription strategy
 catalog instead of duplicated.
 
@@ -81,7 +81,7 @@ snapshot, validating its layout, and removing an exact cached revision.
 
 `ModelStorageAdmitter` checks disk capacity before acquisition starts.
 
-The split matters because “what models does EchoFlow support?” and “how does this
+The split matters because “what models does Scholion support?” and “how does this
 provider download bytes?” are different questions.
 
 ## Install transaction
@@ -93,12 +93,12 @@ A model install follows this order:
 3. admit the estimated cache requirement against current disk capacity;
 4. create private model/cache/registry directories only after admission succeeds;
 5. ask the provider to acquire the requested repository/revision;
-6. reject a returned snapshot outside EchoFlow's configured model cache;
+6. reject a returned snapshot outside Scholion's configured model cache;
 7. bind the snapshot path to the declared provider repository cache directory;
 8. require the snapshot directory name to equal the resolved immutable revision;
 9. verify provider-specific required files exist and are non-empty;
 10. measure the installed snapshot and construct provenance; and
-11. commit the private EchoFlow manifest **last**.
+11. commit the private Scholion manifest **last**.
 
 That ordering is intentional.
 
@@ -113,21 +113,21 @@ not “we started trying.”
 The normal flow is deliberately boring:
 
 ```bash
-uv run echoflow models recommend
-uv run echoflow models install small
-uv run echoflow transcribe recording.m4a
+uv run scholion models recommend
+uv run scholion models install small
+uv run scholion transcribe recording.m4a
 ```
 
 Inventory is offline:
 
 ```bash
-uv run echoflow models
+uv run scholion models
 ```
 
 Removal is explicit:
 
 ```bash
-uv run echoflow models remove small
+uv run scholion models remove small
 ```
 
 The CLI requires confirmation unless `--yes` is supplied.
@@ -137,19 +137,19 @@ The CLI requires confirmation unless `--yes` is supplied.
 Inventory and resolved-revision lookup are offline and side-effect free. They do not
 create directories, download models, or repair provider state.
 
-When a managed manifest exists, EchoFlow revalidates it before claiming the model is
+When a managed manifest exists, Scholion revalidates it before claiming the model is
 usable. Validation checks that:
 
 - manifest identity still matches the catalog model/repository;
-- the snapshot remains inside EchoFlow's configured model cache;
+- the snapshot remains inside Scholion's configured model cache;
 - the snapshot belongs to the declared provider repository cache directory;
 - the path agrees with the recorded resolved revision;
 - the verification method is supported; and
 - required provider files remain present/non-empty.
 
-If external deletion or tampering makes the manifest stale, EchoFlow fails closed.
+If external deletion or tampering makes the manifest stale, Scholion fails closed.
 
-The receipt is evidence of what EchoFlow verified earlier. It is not allowed to become a
+The receipt is evidence of what Scholion verified earlier. It is not allowed to become a
 magic amulet that makes missing bytes reappear.
 
 ## What current verification does and does not prove
@@ -190,7 +190,7 @@ It never downloads a replacement as a side effect.
 
 ## Network boundary 🔐
 
-`echoflow models install MODEL` is the explicit network-bearing ASR model action.
+`scholion models install MODEL` is the explicit network-bearing ASR model action.
 
 Inventory, recommendation, planning with an already-managed model, and execution do not
 need to contact the model provider.
@@ -208,15 +208,15 @@ Removal is intentionally asymmetric with installation:
 1. resolve and validate the managed manifest;
 2. reconstruct the exact installed snapshot identity;
 3. ask the provider to remove that resolved revision from the local cache; and
-4. delete the EchoFlow manifest **only after provider removal succeeds**.
+4. delete the Scholion manifest **only after provider removal succeeds**.
 
 If provider removal fails, the manifest is retained.
 
-EchoFlow should not forget that it owns bytes it failed to remove.
+Scholion should not forget that it owns bytes it failed to remove.
 
 ## Failure semantics
 
-Private registry/model state lives under EchoFlow's application model root.
+Private registry/model state lives under Scholion's application model root.
 
 These conditions fail closed:
 
@@ -260,7 +260,7 @@ extra.
 A broader shared model-custody abstraction should emerge when a second qualified
 model-backed capability exposes real common variation.
 
-EchoFlow does not need a speculative universal model marketplace merely because such an
+Scholion does not need a speculative universal model marketplace merely because such an
 abstraction would look impressive on a diagram.
 
 ## Current deliberate limits
@@ -276,7 +276,7 @@ Model management does not currently provide:
 
 The stable rule is:
 
-> **EchoFlow should know which local model dependency it chose, where it came from,
+> **Scholion should know which local model dependency it chose, where it came from,
 > which immutable revision it verified, whether it is still present, and when it is safe
 > to remove it.**
 

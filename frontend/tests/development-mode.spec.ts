@@ -16,7 +16,7 @@ test("plain Vite explains how to choose a development mode instead of impersonat
   expect(results.violations).toEqual([]);
 });
 
-test("explicit mock mode still renders the interactive EchoFlow workspace", async ({ page }) => {
+test("explicit mock mode still renders the interactive Scholion workspace", async ({ page }) => {
   await page.goto("/?e2e=1");
 
   await expect(page.getByRole("button", { name: "Add evidence" })).toBeVisible();

@@ -26,7 +26,7 @@ test("canonical deletion is previewed before backend-bound application", async (
     plan.getByText("delete canonical transcript evidence", { exact: true }),
   ).toBeVisible();
   await expect(plan.getByText(/2 anchored notes preserved/)).toBeVisible();
-  await plan.getByText("Why did EchoFlow expand my selection?").click();
+  await plan.getByText("Why did Scholion expand my selection?").click();
   await expect(
     plan.getByText(/Canonical transcript deletion automatically includes/),
   ).toBeVisible();

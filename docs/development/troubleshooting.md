@@ -4,14 +4,14 @@ This page is for the moment when a terminal prints something that sounds catastr
 though the underlying problem is usually one missing tool, one stale dependency tree, or one
 Linux display quirk.
 
-The first rule is to identify **which development mode you are trying to run**. EchoFlow has
+The first rule is to identify **which development mode you are trying to run**. Scholion has
 three different layers, and they do not need the same prerequisites.
 
 | Goal | Command | What you need |
 |---|---|---|
 | Inspect/click the React UI with fake data | `npm run dev:mock` | Node + npm only |
 | Run the real native Tauri window | `npm run tauri dev` | Node/npm + Rust/Cargo + native OS libraries; Python for backend actions |
-| Actually transcribe from source | native app or CLI processing flow | all of the native/Python prerequisites plus FFmpeg and an installed EchoFlow model |
+| Actually transcribe from source | native app or CLI processing flow | all of the native/Python prerequisites plus FFmpeg and an installed Scholion model |
 
 A transcription model is **not** required merely to launch the UI. Rust is **not** required
 for the browser mock. Python is **not** required for the browser mock.
@@ -47,8 +47,8 @@ npm ci
 ```
 
 `npm ci` installs packages into **`frontend/node_modules/`**. It does not globally install
-React, Tauri, Vite, or the rest of EchoFlow's JavaScript dependencies. A global npm install
-requires an explicit command such as `npm install -g ...`; EchoFlow does not require that.
+React, Tauri, Vite, or the rest of Scholion's JavaScript dependencies. A global npm install
+requires an explicit command such as `npm install -g ...`; Scholion does not require that.
 
 The Python equivalent is `uv sync`, which creates/updates the repository-local `.venv`.
 Cargo has a user-level package cache, while this app's disposable Rust build output lives
@@ -61,7 +61,7 @@ under `frontend/src-tauri/target/`.
 ## What it means
 
 Your checkout does not contain the explicit browser-mock script yet, or you are running npm
-from a directory whose `package.json` is not EchoFlow's `frontend/package.json`.
+from a directory whose `package.json` is not Scholion's `frontend/package.json`.
 
 ## Check
 
@@ -78,7 +78,7 @@ contain `dev:mock`.
 Update to a revision that contains the script, then reinstall the locked graph if needed:
 
 ```bash
-cd /path/to/EchoFlow
+cd /path/to/Scholion
 # inspect git status before pulling if you have local work
 git pull
 cd frontend
@@ -91,13 +91,13 @@ to your machine-wide npm installation.
 
 ---
 
-# Symptom: plain `npm run dev` opens a page that is not the EchoFlow workspace
+# Symptom: plain `npm run dev` opens a page that is not the Scholion workspace
 
 ## What it means
 
 This is intentional. `npm run dev` starts the Vite server that the **real Tauri host** also
 uses. An ordinary browser does not have Tauri's native filesystem/dialog/IPC capabilities.
-EchoFlow therefore refuses to silently substitute fake data and pretend it is your real
+Scholion therefore refuses to silently substitute fake data and pretend it is your real
 workspace.
 
 Plain Vite shows a development-mode notice explaining the two valid choices.
@@ -123,7 +123,7 @@ npm run tauri dev
 
 ## Why this can happen
 
-Historically, EchoFlow let a normal browser instantiate its Tauri client even though the
+Historically, Scholion let a normal browser instantiate its Tauri client even though the
 Tauri runtime was absent. The first native call could then fail before useful UI appeared.
 The current source tree prevents that by presenting the development-mode notice instead.
 
@@ -161,7 +161,7 @@ recordings, canonical transcripts, or research state.
 
 Tauri tried to launch Cargo, but `cargo` was not installed or was not visible on your
 `PATH`. The words “No such file or directory” often refer to the **Cargo executable**, not
-to EchoFlow's `Cargo.toml`.
+to Scholion's `Cargo.toml`.
 
 ## Check
 
@@ -193,7 +193,7 @@ cargo --version
 rustc --version
 ```
 
-EchoFlow's Tauri manifest is `frontend/src-tauri/Cargo.toml`. You should not need a global
+Scholion's Tauri manifest is `frontend/src-tauri/Cargo.toml`. You should not need a global
 Tauri CLI because the repository already carries its Tauri CLI through npm.
 
 ---
@@ -206,11 +206,11 @@ Tauri has JavaScript packages **and** Rust crates. They are two halves of one de
 runtime. If npm is using one Tauri minor line while Cargo independently resolves a newer
 Rust line, the CLI can refuse to run because those halves were not tested as one family.
 
-EchoFlow previously used exact npm versions but broad Rust declarations such as
+Scholion previously used exact npm versions but broad Rust declarations such as
 `tauri = "2"`, with no committed Cargo lockfile. That allowed Cargo to resolve newer 2.x
 crates while npm stayed fixed.
 
-Current EchoFlow declares the intended family in:
+Current Scholion declares the intended family in:
 
 ```text
 frontend/tauri-versions.json
@@ -321,17 +321,17 @@ Installing these system packages affects the development machine. It is differen
 
 ---
 
-# Symptom: `EchoFlow's local Python service is unavailable`
+# Symptom: `Scholion's local Python service is unavailable`
 
 ## Why it happens
 
 The native Rust host is intentionally thin. For application/evidence rules it starts:
 
 ```text
-python -m echoflow.desktop.bridge
+python -m scholion.desktop.bridge
 ```
 
-In a source checkout, EchoFlow now prefers the repository's `.venv` automatically. If that
+In a source checkout, Scholion now prefers the repository's `.venv` automatically. If that
 environment has not been created yet, native UI can launch but backend-backed actions cannot
 work.
 
@@ -346,13 +346,13 @@ uv sync --locked --extra transcription
 Then verify:
 
 ```bash
-.venv/bin/python -c "import echoflow; print('EchoFlow import OK')"   # Linux/macOS
+.venv/bin/python -c "import scholion; print('Scholion import OK')"   # Linux/macOS
 ```
 
 On Windows:
 
 ```powershell
-.venv\Scripts\python.exe -c "import echoflow; print('EchoFlow import OK')"
+.venv\Scripts\python.exe -c "import scholion; print('Scholion import OK')"
 ```
 
 Then rerun:
@@ -368,15 +368,15 @@ npm run tauri dev
 If you intentionally want a different compatible Python interpreter:
 
 ```bash
-ECHOFLOW_PYTHON=/path/to/python npm run tauri dev
+SCHOLION_PYTHON=/path/to/python npm run tauri dev
 ```
 
-`ECHOFLOW_PYTHON` has priority over automatic `.venv` discovery. Do not set it globally
+`SCHOLION_PYTHON` has priority over automatic `.venv` discovery. Do not set it globally
 unless you actually want that override for future shells.
 
 ### Do I need to install a Whisper model now?
 
-No. A model is needed when you actually ask EchoFlow to transcribe. It is not a prerequisite
+No. A model is needed when you actually ask Scholion to transcribe. It is not a prerequisite
 for rendering the UI, starting the Tauri window, browsing an existing library, or testing
 the browser mock.
 
@@ -388,7 +388,7 @@ the browser mock.
 
 On Linux the Tauri webview is WebKitGTK. WebKitGTK, the GPU/DMABUF renderer, the Wayland
 compositor, and the graphics driver all participate in drawing the window. Some combinations
-can terminate at the Wayland protocol layer even when EchoFlow's React and Rust code are
+can terminate at the Wayland protocol layer even when Scholion's React and Rust code are
 valid.
 
 This is a **display-stack compatibility failure**, not evidence that your transcript library
@@ -421,7 +421,7 @@ GDK_BACKEND=x11 npm run tauri dev
 ```
 
 This asks GTK to use its X11 backend for that launch. If it works while native Wayland does
-not, you have isolated the problem to the Wayland/webview/display path rather than EchoFlow's
+not, you have isolated the problem to the Wayland/webview/display path rather than Scholion's
 application backend.
 
 ## Option 3: combine both compatibility switches
@@ -430,7 +430,7 @@ application backend.
 GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev
 ```
 
-Use this as diagnosis/fallback, not as EchoFlow's universal default. Different Linux
+Use this as diagnosis/fallback, not as Scholion's universal default. Different Linux
 machines have different GPU/compositor stacks, and globally forcing a backend that fixes one
 machine can make another worse.
 
@@ -450,7 +450,7 @@ Vite normally tries 5174, 5175, and so on when its preferred port is occupied. T
 is convenient for a standalone website but dangerous here: Tauri would still be looking at
 5173 and could connect to the wrong process.
 
-EchoFlow therefore starts Vite with `--strictPort` and fails loudly.
+Scholion therefore starts Vite with `--strictPort` and fails loudly.
 
 ## Find the old process
 

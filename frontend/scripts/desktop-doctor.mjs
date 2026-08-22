@@ -65,8 +65,8 @@ function checkPythonBackend(command, source) {
     fail(
       "Python backend",
       `${source} points to a file that does not exist: ${command}`,
-      source === "ECHOFLOW_PYTHON"
-        ? "Fix or unset ECHOFLOW_PYTHON, or create the repository environment with: uv sync --locked --extra transcription"
+      source === "SCHOLION_PYTHON"
+        ? "Fix or unset SCHOLION_PYTHON, or create the repository environment with: uv sync --locked --extra transcription"
         : "From the repository root run: uv sync --locked --extra transcription",
     );
     return;
@@ -74,7 +74,7 @@ function checkPythonBackend(command, source) {
 
   const importCheck = run(command, [
     "-c",
-    "import echoflow; print('EchoFlow Python backend import is ready')",
+    "import scholion; print('Scholion Python backend import is ready')",
   ]);
   if (importCheck.status === 0) {
     pass("Python backend", `${firstLine(importCheck.stdout)} (${source})`);
@@ -83,17 +83,17 @@ function checkPythonBackend(command, source) {
 
   const detail = importCheck.error?.code === "ENOENT"
     ? `${source} could not be executed: ${command}`
-    : `${source} cannot import echoflow`;
+    : `${source} cannot import scholion`;
   fail(
     "Python backend",
     detail,
-    source === "ECHOFLOW_PYTHON"
-      ? "Fix or unset ECHOFLOW_PYTHON, or create the repository environment with: uv sync --locked --extra transcription"
+    source === "SCHOLION_PYTHON"
+      ? "Fix or unset SCHOLION_PYTHON, or create the repository environment with: uv sync --locked --extra transcription"
       : "From the repository root run: uv sync --locked --extra transcription",
   );
 }
 
-console.log("EchoFlow desktop doctor");
+console.log("Scholion desktop doctor");
 console.log(`Mode: ${mode === "mock" ? "browser mock" : "native Tauri source build"}\n`);
 
 if (supportedNodeVersion()) {
@@ -101,7 +101,7 @@ if (supportedNodeVersion()) {
 } else {
   fail(
     "Node.js",
-    `v${process.versions.node} is outside EchoFlow's supported range (^20.19.0 or >=22.12.0)`,
+    `v${process.versions.node} is outside Scholion's supported range (^20.19.0 or >=22.12.0)`,
     "Install a supported Node.js release, then run npm ci again.",
   );
 }
@@ -167,7 +167,7 @@ if (mode === "mock") {
     fail(
       "Rust lockfile",
       "Cargo.lock is missing",
-      "Restore the committed lockfile from Git. EchoFlow source builds are intentionally locked.",
+      "Restore the committed lockfile from Git. Scholion source builds are intentionally locked.",
     );
   }
 
@@ -182,12 +182,12 @@ if (mode === "mock") {
     );
   }
 
-  const overridePython = process.env.ECHOFLOW_PYTHON?.trim();
+  const overridePython = process.env.SCHOLION_PYTHON?.trim();
   const venvPython = process.platform === "win32"
     ? resolve(repoDir, ".venv", "Scripts", "python.exe")
     : resolve(repoDir, ".venv", "bin", "python");
   if (overridePython) {
-    checkPythonBackend(overridePython, "ECHOFLOW_PYTHON");
+    checkPythonBackend(overridePython, "SCHOLION_PYTHON");
   } else if (existsSync(venvPython)) {
     checkPythonBackend(venvPython, "repository .venv");
   } else {

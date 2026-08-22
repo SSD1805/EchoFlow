@@ -160,13 +160,13 @@ def _environment(root: Path, output_dir: Path) -> dict[str, str]:
     env = os.environ.copy()
     env.update(
         {
-            "ECHOFLOW_STATE_DIR": str(root / "state"),
-            "ECHOFLOW_CACHE_DIR": str(root / "cache"),
-            "ECHOFLOW_MODEL_DIR": str(root / "cache" / "models"),
-            "ECHOFLOW_OUTPUT_DIR": str(output_dir),
-            "ECHOFLOW_MAX_CPU_THREADS": "2",
-            "ECHOFLOW_MIN_FREE_DISK_BYTES": "0",
-            "ECHOFLOW_WARN_FREE_DISK_BYTES": "0",
+            "SCHOLION_STATE_DIR": str(root / "state"),
+            "SCHOLION_CACHE_DIR": str(root / "cache"),
+            "SCHOLION_MODEL_DIR": str(root / "cache" / "models"),
+            "SCHOLION_OUTPUT_DIR": str(output_dir),
+            "SCHOLION_MAX_CPU_THREADS": "2",
+            "SCHOLION_MIN_FREE_DISK_BYTES": "0",
+            "SCHOLION_WARN_FREE_DISK_BYTES": "0",
         }
     )
     return env
@@ -174,10 +174,10 @@ def _environment(root: Path, output_dir: Path) -> dict[str, str]:
 
 def _initialize(env: dict[str, str]) -> None:
     payload = _json_command(
-        [sys.executable, "-m", "echoflow", "init", "--json"], env=env
+        [sys.executable, "-m", "scholion", "init", "--json"], env=env
     )
     if not payload:
-        raise RuntimeError("EchoFlow init returned no directory state")
+        raise RuntimeError("Scholion init returned no directory state")
 
 
 def _install_tiny(env: dict[str, str]) -> str:
@@ -185,7 +185,7 @@ def _install_tiny(env: dict[str, str]) -> str:
         [
             sys.executable,
             "-m",
-            "echoflow",
+            "scholion",
             "models",
             "install",
             "tiny",
@@ -212,7 +212,7 @@ def _transcribe(
     command = [
         sys.executable,
         "-m",
-        "echoflow",
+        "scholion",
         "transcribe",
         str(input_path),
         "--profile",
@@ -405,7 +405,7 @@ def _validate_private_cleanup(root: Path) -> None:
 
 
 def verify_engine() -> None:
-    with tempfile.TemporaryDirectory(prefix="echoflow-engine-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="scholion-engine-") as temporary:
         root = Path(temporary).resolve()
         model_dir = root / "cache" / "models"
         english = _synthesize(

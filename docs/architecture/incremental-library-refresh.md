@@ -1,6 +1,6 @@
 # Incremental library refresh
 
-EchoFlow's canonical transcript JSON is durable evidence. The lexical and semantic
+Scholion's canonical transcript JSON is durable evidence. The lexical and semantic
 indexes are private, rebuildable views over that evidence.
 
 Normal library maintenance should therefore be cheap when nothing changed and exact when
@@ -27,7 +27,7 @@ The authoritative generation identity remains:
 
 A SHA-256 requires reading the file. Re-hashing every transcript on every normal refresh
 would make the database writes incremental while leaving canonical I/O whole-corpus.
-EchoFlow therefore stores two additional **derived change-detector fields** in the lexical
+Scholion therefore stores two additional **derived change-detector fields** in the lexical
 projection:
 
 ```text
@@ -55,7 +55,7 @@ same modification time.
 `--verify` exists for the case where the user wants an exact corpus check:
 
 ```bash
-echoflow library refresh --verify
+scholion library refresh --verify
 ```
 
 Verified refresh bypasses the metadata fast path, reads every tracked canonical, validates
@@ -86,7 +86,7 @@ present but cannot be validated, refresh fails closed rather than silently dropp
 old indexed evidence. Untracked JSON encountered through a directory scan can still be
 skipped as unrelated noise, matching full rebuild behavior.
 
-If a tracked canonical changes availability during the refresh itself, EchoFlow refuses
+If a tracked canonical changes availability during the refresh itself, Scholion refuses
 the reconciliation and asks for a retry rather than guessing which filesystem state was
 intended.
 
@@ -108,7 +108,7 @@ identity instead of choosing one arbitrarily.
 The current semantic index has a whole-corpus fingerprint and does not expose an atomic
 per-document mutation contract.
 
-When refresh changes semantic-relevant corpus identity, EchoFlow clears the semantic
+When refresh changes semantic-relevant corpus identity, Scholion clears the semantic
 projection before applying the lexical delta. Semantic or hybrid search then remains
 unavailable until embeddings are rebuilt. This is preferable to retaining vectors whose
 stored corpus fingerprint describes evidence that is no longer in the lexical corpus.

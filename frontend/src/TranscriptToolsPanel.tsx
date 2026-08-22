@@ -70,7 +70,7 @@ export function TranscriptToolsPanel({
       .catch((caught) => {
         if (!active) return;
         setError(
-          caught instanceof Error ? caught.message : "EchoFlow could not open transcript tools.",
+          caught instanceof Error ? caught.message : "Scholion could not open transcript tools.",
         );
         setStatus("Transcript tools could not be opened.");
       })
@@ -114,7 +114,7 @@ export function TranscriptToolsPanel({
       replaceSpeaker(next);
       setStatus(`${speakerRef} is now shown as ${next.display_label}.`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not save that name.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not save that name.");
     } finally {
       setBusy(false);
     }
@@ -132,7 +132,7 @@ export function TranscriptToolsPanel({
       });
       setStatus(`Removed the display name for ${speakerRef}. The anonymous evidence ref remains.`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "EchoFlow could not remove that name.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not remove that name.");
     } finally {
       setBusy(false);
     }
@@ -147,7 +147,7 @@ export function TranscriptToolsPanel({
       setStatus(`Opened ${next.length} speaker-aware transcript span${next.length === 1 ? "" : "s"}.`);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not open the speaker transcript.",
+        caught instanceof Error ? caught.message : "Scholion could not open the speaker transcript.",
       );
     } finally {
       setBusy(false);
@@ -177,7 +177,7 @@ export function TranscriptToolsPanel({
       setStatus(`Published ${result.publications.length} file${result.publications.length === 1 ? "" : "s"}: ${filenames}.`);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "EchoFlow could not publish those transcript views.",
+        caught instanceof Error ? caught.message : "Scholion could not publish those transcript views.",
       );
     } finally {
       setBusy(false);
@@ -235,7 +235,7 @@ export function TranscriptToolsPanel({
               </button>
             </div>
             <p className="transcript-tools-explainer">
-              Names are your private labels. EchoFlow keeps the anonymous speaker reference beside them as evidence.
+              Names are your private labels. Scholion keeps the anonymous speaker reference beside them as evidence.
             </p>
             <div className="speaker-roster">
               {snapshot.speakers.length === 0 ? (

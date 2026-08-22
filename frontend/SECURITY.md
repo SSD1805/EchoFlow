@@ -1,6 +1,6 @@
-# EchoFlow desktop frontend security
+# Scholion desktop frontend security
 
-The desktop client is a presentation and native-host boundary over EchoFlow's local Python application. It is not a second source of business authority.
+The desktop client is a presentation and native-host boundary over Scholion's local Python application. It is not a second source of business authority.
 
 ## Trust boundary
 
@@ -8,11 +8,11 @@ The React/WebView layer may display sensitive transcript text, research notes, t
 
 The frontend does not receive arbitrary SQL, shell, database, model-provider, media-probe, or filesystem capabilities. Tauri exposes narrow commands for specific human workflows. Python validates versioned, size-bounded requests with closed schemas before application services run.
 
-The ordinary desktop bridge is fixed to `python -m echoflow.desktop.bridge`. Transcript inspection and speaker management use the separate fixed `python -m echoflow.desktop.transcript_tools_bridge` entry point through Tauri's `transcript_tools_request` command. The webview cannot choose either Python module, substitute a shell command, or provide an arbitrary backend method. The transcript-tools bridge currently allowlists only inspect, speaker presentation, speaker-label set/remove, and deterministic publication operations.
+The ordinary desktop bridge is fixed to `python -m scholion.desktop.bridge`. Transcript inspection and speaker management use the separate fixed `python -m scholion.desktop.transcript_tools_bridge` entry point through Tauri's `transcript_tools_request` command. The webview cannot choose either Python module, substitute a shell command, or provide an arbitrary backend method. The transcript-tools bridge currently allowlists only inspect, speaker presentation, speaker-label set/remove, and deterministic publication operations.
 
-Verified playback has a stricter split. The Python `echoflow.desktop.playback_bridge` is **not** exposed as a Tauri command. Only Rust's fixed `playback_prepare` implementation may call it. That private bridge returns the verified source path to Rust so Rust can open the file, but the raw grant never crosses into the webview.
+Verified playback has a stricter split. The Python `scholion.desktop.playback_bridge` is **not** exposed as a Tauri command. Only Rust's fixed `playback_prepare` implementation may call it. That private bridge returns the verified source path to Rust so Rust can open the file, but the raw grant never crosses into the webview.
 
-Lifecycle/storage operations use another fixed boundary. Tauri's `lifecycle_request` can invoke only `python -m echoflow.desktop.custody_bridge`. The bridge's closed protocol allows only document listing, deletion plan/apply, and retention plan/apply. It delegates custody policy to `LibraryCustodyService` and strips destructive filesystem paths before returning presentation DTOs.
+Lifecycle/storage operations use another fixed boundary. Tauri's `lifecycle_request` can invoke only `python -m scholion.desktop.custody_bridge`. The bridge's closed protocol allows only document listing, deletion plan/apply, and retention plan/apply. It delegates custody policy to `LibraryCustodyService` and strips destructive filesystem paths before returning presentation DTOs.
 
 Adding a desktop capability requires all three layers to agree deliberately:
 
@@ -46,7 +46,7 @@ A long-lived desktop view can become stale while the library changes. Speaker nu
 
 Playback carries the same exact generation identity plus a finite non-negative source-relative coordinate. Python verifies canonical bytes, source identity, current source SHA-256/size, duration bounds, and audio-stream identity before playback can be granted. A stale desktop view or changed source is rejected rather than reconciled in React.
 
-Multi-audio **playback** currently fails closed. Canonical evidence records which audio stream was transcribed, but the system WebView cannot portably guarantee that it will render that exact track from every multi-track container. EchoFlow therefore refuses ambiguous playback instead of presenting one track as evidence for another.
+Multi-audio **playback** currently fails closed. Canonical evidence records which audio stream was transcribed, but the system WebView cannot portably guarantee that it will render that exact track from every multi-track container. Scholion therefore refuses ambiguous playback instead of presenting one track as evidence for another.
 
 This does not conflict with multi-track transcription. Transcription owns explicit FFmpeg extraction and can prove which selected stream entered ASR; current WebView playback cannot yet prove its rendered embedded track.
 
@@ -67,13 +67,13 @@ Document listing exposes at most a source basename as human identification. It n
 
 Retention cleanup is limited by backend policy to private job workspaces. Running jobs are never candidates. Failed/interrupted candidates are included only when the user opts in, and the backend-provided `resume_capability_lost` flag is rendered before application.
 
-EchoFlow does not claim filesystem removal is forensic secure erasure.
+Scholion does not claim filesystem removal is forensic secure erasure.
 
 ## Opaque native media capability
 
 Rust immediately opens the source authorized by Python and rechecks its size and modification timestamp to narrow the verification/open race. The opened `File` is stored behind an opaque active-session token.
 
-The `echoflow-media` protocol accepts only active closed-format session IDs. It does not accept paths. Its transport boundary is deliberately narrow:
+The `scholion-media` protocol accepts only active closed-format session IDs. It does not accept paths. Its transport boundary is deliberately narrow:
 
 - `GET` and `HEAD` only;
 - no arbitrary path lookup or filesystem scope;
@@ -114,7 +114,7 @@ Playback responses to React contain only an opaque session/token, media kind, ve
 
 Lifecycle responses expose document IDs, canonical digests, safe source basenames, counts, typed scopes/targets, backend descriptions, retention status/timestamps, resume-loss flags, and plan tokens. Full source/canonical/workspace paths stay behind Python.
 
-The frontend must not copy path-bearing values into routine logs. EchoFlow currently has no application telemetry.
+The frontend must not copy path-bearing values into routine logs. Scholion currently has no application telemetry.
 
 ## Derived publication
 
@@ -124,9 +124,9 @@ TXT, SRT, and WebVTT are derived views, not transcript authority. React chooses 
 
 Production and development Content Security Policies are separate. Production does not permit the Vite development WebSocket endpoint. Development may allow the local HMR WebSocket required by Vite. Script execution remains restricted to the application origin.
 
-Media is restricted to the application origin and EchoFlow's dedicated `echoflow-media` protocol, including the localhost representation Tauri uses on platforms that require it. EchoFlow does not add general `file:`, `blob:`, or arbitrary localhost media access.
+Media is restricted to the application origin and Scholion's dedicated `scholion-media` protocol, including the localhost representation Tauri uses on platforms that require it. Scholion does not add general `file:`, `blob:`, or arbitrary localhost media access.
 
-The main window capability grants Tauri's core defaults plus the native open dialog and explicit EchoFlow commands. New permissions should be added one at a time with a concrete user workflow and security rationale. Broad shell, filesystem, process, or database permissions are not acceptable substitutes for a typed application method.
+The main window capability grants Tauri's core defaults plus the native open dialog and explicit Scholion commands. New permissions should be added one at a time with a concrete user workflow and security rationale. Broad shell, filesystem, process, or database permissions are not acceptable substitutes for a typed application method.
 
 ## Frontend dependency supply chain
 

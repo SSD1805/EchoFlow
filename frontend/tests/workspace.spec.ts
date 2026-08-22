@@ -11,7 +11,7 @@ async function searchWorkspace(
   page: import("@playwright/test").Page,
   query = "ABC",
 ) {
-  const search = page.getByRole("searchbox", { name: "Search EchoFlow" });
+  const search = page.getByRole("searchbox", { name: "Search Scholion" });
   await search.fill(query);
   await page.getByRole("button", { name: "Search", exact: true }).click();
 }
@@ -99,7 +99,7 @@ test("workspace search is keyboard reachable and accessible after results render
   await openLibrary(page);
 
   await page.keyboard.press("Control+K");
-  const search = page.getByRole("searchbox", { name: "Search EchoFlow" });
+  const search = page.getByRole("searchbox", { name: "Search Scholion" });
   await expect(search).toBeFocused();
   await search.fill("ABC");
   await page.keyboard.press("Enter");

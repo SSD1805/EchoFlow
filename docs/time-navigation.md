@@ -3,10 +3,10 @@
 A transcript is much more useful when “where did they say that?” has an answer a human can
 actually use.
 
-EchoFlow keeps **one durable numeric source-relative timeline** and derives familiar
+Scholion keeps **one durable numeric source-relative timeline** and derives familiar
 clock-style coordinates from it.
 
-If a passage begins `4788.37` seconds into a recording, EchoFlow can present:
+If a passage begins `4788.37` seconds into a recording, Scholion can present:
 
 ```text
 01:19:48.370
@@ -60,7 +60,7 @@ For lexical search, matching aligned words can become exact highlighted evidence
 first matched word becomes the preferred source seek coordinate.
 
 Semantic-only retrieval is intentionally less precise. An embedding can say “this passage
-is related” without identifying one exact matching word, so EchoFlow exposes the verified
+is related” without identifying one exact matching word, so Scholion exposes the verified
 passage and its start time rather than fabricating a word highlight.
 
 ## Can I click a word and jump around now?
@@ -78,7 +78,7 @@ behind an opaque local media session. React receives playback state and coordina
 raw source path or general filesystem authority.
 
 Normal media transport and seeking stay in the native/WebView media layer after the
-session is authorized. EchoFlow does not re-hash a multi-gigabyte source on every seek.
+session is authorized. Scholion does not re-hash a multi-gigabyte source on every seek.
 See **[Verified native playback](native-playback.md)** for the authorization and range-stream
 contract.
 
@@ -98,7 +98,7 @@ numeric start/end seconds
 The CLI can add a note to a canonical segment:
 
 ```bash
-echoflow library notes add JOB_ID segment-000042 \
+scholion library notes add JOB_ID segment-000042 \
   --body "Compare this with the 2024 survey."
 ```
 
@@ -112,12 +112,12 @@ presentation. It also should not anchor only to a semantic-search chunk ID becau
 and indexes are rebuildable.
 
 If an index is rebuilt, the note remains attached to durable evidence. If the canonical
-transcript changes, EchoFlow keeps the note but treats its old generation as stale rather
+transcript changes, Scholion keeps the note but treats its old generation as stale rather
 than silently moving the annotation.
 
 ## Do internal work chunks reset the clock?
 
-No. EchoFlow uses application-owned work windows so long recordings can be processed and
+No. Scholion uses application-owned work windows so long recordings can be processed and
 checkpointed safely. Those windows are implementation detail.
 
 When a work window starts at `4200` seconds and faster-whisper reports a word at `588.37`
@@ -129,13 +129,13 @@ seconds inside that window, assembly rebases it onto the source timeline:
                  01:19:48.370
 ```
 
-The published coordinate never resets to zero because EchoFlow created a new work file.
+The published coordinate never resets to zero because Scholion created a new work file.
 
 ## What if the media already declares a timecode?
 
 That is a **different clock**.
 
-Some media may declare `timecode` and `creation_time`. EchoFlow preserves those declarations
+Some media may declare `timecode` and `creation_time`. Scholion preserves those declarations
 with their format/stream origin. It does not silently decide that a device tag is true.
 Devices can have wrong clocks, copied metadata, conflicting tags, or SMPTE semantics that
 require more information before arithmetic is safe.
@@ -169,7 +169,7 @@ Those are useful together. They are dangerous when collapsed into one mystery fi
 ## Why not immediately add elapsed time to SMPTE timecode?
 
 Because SMPTE-style timecode can depend on frame rate and drop-frame/non-drop-frame
-semantics. EchoFlow preserves source declarations **without inventing a mapping it cannot
+semantics. Scholion preserves source declarations **without inventing a mapping it cannot
 yet qualify**.
 
 ## What you get now

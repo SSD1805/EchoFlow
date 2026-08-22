@@ -6,7 +6,7 @@ Tauri/React import/Library/evidence-reader presentation are implemented. A dedic
 Research desktop workspace is next.  
 Last updated: August 19, 2026
 
-EchoFlow is not one giant transcription function. It composes small local capabilities
+Scholion is not one giant transcription function. It composes small local capabilities
 into a reproducible workflow whose source, execution choices, recovery state, transcript,
 search projections, navigation views, research state, and desktop presentation remain
 explainable afterward.
@@ -93,7 +93,7 @@ The original recording remains authoritative.
 
 ## 4. Segmentation, word timing, and checkpoints
 
-EchoFlow owns deterministic PCM-frame work windows, stable work IDs, one job-scoped ASR
+Scholion owns deterministic PCM-frame work windows, stable work IDs, one job-scoped ASR
 session, ordered checkpoints, and source-relative rebasing of native word timing.
 
 Resume restores the source/model/device/decode/enhancement/segmentation/alignment contract
@@ -152,7 +152,7 @@ the versioned bridge.
 ```text
 React + TypeScript + Vite   presentation
 Tauri / Rust                native capability host
-Python EchoFlow             application/evidence authority
+Python Scholion             application/evidence authority
 ```
 
 The bridge exposes only allowlisted operations. React does not own SQL, DuckDB/SQLite,
@@ -203,7 +203,7 @@ These are filesystem access controls, not application encryption or secure erasu
 
 ## Current deliberate limits
 
-EchoFlow does not currently claim calibrated performance across representative consumer
+Scholion does not currently claim calibrated performance across representative consumer
 hardware, arbitrary alternate ASR engines, forced alignment, biometric speaker identity,
 source separation, generative restoration, trusted SMPTE mapping, secure erasure, a normal
 packaged semantic dependency path, ANN/HNSW, generated corpus answers, selected/citable

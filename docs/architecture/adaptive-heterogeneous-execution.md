@@ -5,21 +5,21 @@ Last updated: August 17, 2026
 
 ## The human version
 
-EchoFlow should use the computer in front of it **without asking the user to become a
+Scholion should use the computer in front of it **without asking the user to become a
 hardware scheduler**.
 
 A small Windows laptop, an Apple Silicon machine, a desktop with a discrete GPU, and a
 large workstation do not have the same resources. More importantly, “a GPU exists” does
 not mean the installed speech engine can actually use it.
 
-So EchoFlow separates the problem into four questions:
+So Scholion separates the problem into four questions:
 
 1. **What compute and memory can this process really see?**
 2. **What can the installed engine/runtime really execute on?**
 3. **Which concrete strategy safely fits the current budgets?**
 4. **Can we overlap a little preparation work without breaking resume or ordering?**
 
-For an ordinary user, the intended outcome is simple: EchoFlow chooses a sensible local
+For an ordinary user, the intended outcome is simple: Scholion chooses a sensible local
 strategy, refuses impossible explicit requests, and does not pretend that a detected
 accelerator is magic extra RAM.
 
@@ -55,7 +55,7 @@ capacity for model weights, buffers, audio, queues, and intermediate state. Thos
 are related but not interchangeable.
 
 A machine with 16 GiB of unified memory does not suddenly contain 32 GiB because the GPU
-can also see it. EchoFlow models the physical budget rather than summoning fictional
+can also see it. Scholion models the physical budget rather than summoning fictional
 memory from the spreadsheet dimension.
 
 ## Resource discovery
@@ -86,7 +86,7 @@ an accelerator API reports a second view of the same pool.
 A visible accelerator is necessary but not sufficient for accelerated execution.
 
 The runtime may not support the driver, operating system, device API, or compute type.
-EchoFlow therefore keeps engine-specific capability knowledge behind
+Scholion therefore keeps engine-specific capability knowledge behind
 `EngineCapabilityRegistry` providers.
 
 The planner receives concrete execution targets such as:
@@ -103,13 +103,13 @@ OpenVINO policy.
 The first physical accelerator probe uses `nvidia-smi` because faster-whisper's
 CTranslate2 runtime can consume CUDA. Discovery is optional and lightweight. A missing
 command, broken driver, timeout, malformed response, or runtime import failure degrades
-to a CPU-capable machine instead of preventing EchoFlow from starting.
+to a CPU-capable machine instead of preventing Scholion from starting.
 
 CTranslate2 capability inspection remains separate. A CUDA strategy is eligible only
 when physical device evidence **and** installed runtime capability agree on the exact
 device and compute type.
 
-🦝 A GPU may live under the floorboards. EchoFlow still asks whether it has a job.
+🦝 A GPU may live under the floorboards. Scholion still asks whether it has a job.
 
 ## Strategy admission
 
@@ -128,7 +128,7 @@ device and compute type.
 `StrategyEvaluator` is deterministic. It does not benchmark during planning and does not
 infer performance from marketing names.
 
-For dedicated accelerator memory, EchoFlow reserves headroom before admission. The
+For dedicated accelerator memory, Scholion reserves headroom before admission. The
 initial budget is **80% of currently free device memory**. This is a conservative
 heuristic pending representative-device measurements.
 
@@ -137,7 +137,7 @@ RAM. Unknown device-memory availability is not treated as safe.
 
 ### Explicit means explicit
 
-If a user explicitly selects a strategy and it is no longer available or safe, EchoFlow
+If a user explicitly selects a strategy and it is no longer available or safe, Scholion
 returns a typed resource-admission failure.
 
 It does **not** silently swap the explicit request for something else.
@@ -147,7 +147,7 @@ CPU/int8 remains the reference compatibility path.
 
 ## Why bounded pipeline overlap comes before model sharding
 
-EchoFlow owns media preparation, deterministic segmentation, checkpointing, transcript
+Scholion owns media preparation, deterministic segmentation, checkpointing, transcript
 assembly, enrichment, and publication. It does not own the tensor graph inside every
 speech engine.
 
@@ -186,11 +186,11 @@ The invariants are:
 
 Prefetch is not free.
 
-When an accelerated strategy has more than one safe CPU thread, EchoFlow may reserve one
+When an accelerated strategy has more than one safe CPU thread, Scholion may reserve one
 thread for segment preparation and give the remaining threads to inference.
 
 If only one effective CPU thread is available, acceleration may still run, but prefetch
-depth becomes zero and materialization stays sequential. EchoFlow does not oversubscribe
+depth becomes zero and materialization stays sequential. Scholion does not oversubscribe
 a cgroup or affinity-constrained CPU budget merely so a diagram can contain the word
 “parallel.”
 
@@ -220,7 +220,7 @@ state.
 
 Planning is not a permanent reservation.
 
-Before model initialization, EchoFlow rechecks CPU/system-memory capacity. Accelerated
+Before model initialization, Scholion rechecks CPU/system-memory capacity. Accelerated
 execution also performs fresh accelerator and engine-capability checks.
 
 A GPU that disappears, loses enough free VRAM, or becomes unsupported after planning
@@ -253,7 +253,7 @@ The intended future rule is **measure the machine, not the logo on the machine**
 
 ## Privacy and security
 
-Topology and capability detection are local. EchoFlow does not need to upload hardware
+Topology and capability detection are local. Scholion does not need to upload hardware
 inventory, recordings, transcripts, or benchmark results to choose a strategy.
 
 Accelerator discovery uses fixed argument vectors without a shell. Routine user-facing

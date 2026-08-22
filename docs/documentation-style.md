@@ -1,6 +1,6 @@
-# EchoFlow documentation voice 🦝🧜‍♀️✨
+# Scholion documentation voice 🦝🧜‍♀️✨
 
-EchoFlow documentation should be **rigorous enough to maintain and pleasant enough to
+Scholion documentation should be **rigorous enough to maintain and pleasant enough to
 finish reading**.
 
 The project deals with privacy, provenance, media pipelines, model custody, recovery,
@@ -58,7 +58,7 @@ These documents should:
 - use examples drawn from recordings, interviews, meetings, lectures, and research;
 - use occasional playful headings or visual punctuation;
 - prefer diagrams over long prose when the idea is structural; and
-- tell the reader *why* EchoFlow behaves a certain way, not merely which command exists.
+- tell the reader *why* Scholion behaves a certain way, not merely which command exists.
 
 The user should not have to know what CTranslate2, BM25, RRF, a vector dimension, a
 projection watermark, or a cgroup is unless they deliberately open the maintenance hatch.
@@ -117,7 +117,7 @@ The diagram should communicate structure first.
 GitHub renders Mermaid when the syntax is placed directly inside a fenced code block whose
 language identifier is `mermaid`. GitHub's own documentation uses the classic
 `graph TD;` spelling. Mermaid's `flowchart LR` / `flowchart TD` spelling is also used
-throughout EchoFlow. **Do not mechanically rewrite one valid spelling into the other.**
+throughout Scholion. **Do not mechanically rewrite one valid spelling into the other.**
 Portability is about the whole diagram, not a cosmetic keyword preference.
 
 The August 2026 documentation regression had two separate causes:
@@ -142,11 +142,11 @@ For high-traffic and load-bearing diagrams:
   current GitHub Mermaid version has been deliberately qualified;
 - keep node labels short and literal;
 - put the important relationship in edge/node text, not only visual styling;
-- use the EchoFlow palette when color improves hierarchy; and
+- use the Scholion palette when color improves hierarchy; and
 - keep nearby prose sufficient to understand the architectural point if Mermaid is not
   available at all.
 
-Color is **not** forbidden. It is part of EchoFlow's documentation language. It simply may
+Color is **not** forbidden. It is part of Scholion's documentation language. It simply may
 not be the only carrier of meaning.
 
 ### Documentation Mermaid palette
@@ -195,7 +195,7 @@ renderer itself is unavailable. It must follow these rules:
 - Mermaid remains the **primary, directly visible** source in Markdown;
 - the SVG appears only afterward, preferably inside a disclosure labelled as a static
   fallback;
-- the SVG uses the same EchoFlow palette and explicit fixed colors rather than
+- the SVG uses the same Scholion palette and explicit fixed colors rather than
   `currentColor` inheritance;
 - text and arrows remain legible on both light and dark GitHub pages without depending on
   page CSS;
@@ -215,7 +215,7 @@ Instead of:
 
 Prefer:
 
-> EchoFlow keeps semantic vectors as numeric data that the search backend can inspect
+> Scholion keeps semantic vectors as numeric data that the search backend can inspect
 > directly. In the current DuckDB adapter, those vectors are stored as `FLOAT[]` rather
 > than opaque BLOBs.
 
@@ -276,7 +276,7 @@ The latter may be funny in prose. They are poor anchors for someone searching a 
 
 ## The desired reader experience
 
-A reader should be able to enter EchoFlow knowing almost nothing about local ML and leave
+A reader should be able to enter Scholion knowing almost nothing about local ML and leave
 understanding:
 
 - what the application does;

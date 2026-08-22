@@ -7,7 +7,7 @@ import "./styles.css";
 
 const root = document.getElementById("root");
 if (!root) {
-  throw new Error("EchoFlow desktop root is unavailable");
+  throw new Error("Scholion desktop root is unavailable");
 }
 
 const params = new URLSearchParams(window.location.search);

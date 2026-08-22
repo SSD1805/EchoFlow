@@ -10,7 +10,7 @@ Last updated: August 19, 2026
 A transcript library should help you find **what was said** without quietly replacing your
 evidence with a database, vector store, or generated answer.
 
-EchoFlow supports three transcript retrieval modes:
+Scholion supports three transcript retrieval modes:
 
 | Mode | Best when… | Example |
 |---|---|---|
@@ -78,7 +78,7 @@ searches.
 **Rebuildable views:** lexical/semantic indexes, chunks/vectors, derived research
 relationships, retrieval statistics, and presentation context/highlights.
 
-If every DuckDB file disappeared, EchoFlow should reconstruct query acceleration without
+If every DuckDB file disappeared, Scholion should reconstruct query acceleration without
 losing unique evidence or human-authored research.
 
 ## Canonical hashing and stale-state refusal
@@ -124,7 +124,7 @@ parameterized; the storage adapter owns SQL.
 
 ## Semantic and hybrid retrieval
 
-ASR segments are evidence coordinates, not automatically ideal retrieval units. EchoFlow
+ASR segments are evidence coordinates, not automatically ideal retrieval units. Scholion
 combines adjacent canonical segments into deterministic search chunks that retain complete
 segment identity and source-relative time.
 

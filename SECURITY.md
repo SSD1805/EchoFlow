@@ -2,19 +2,19 @@
 
 ## Current boundary
 
-EchoFlow is a local-first application. It has no cloud transcription integration or
+Scholion is a local-first application. It has no cloud transcription integration or
 application telemetry. It executes locally resolved FFprobe for inspection, FFmpeg for
 canonicalization and optional noise suppression, faster-whisper/CTranslate2 for ASR,
 and optional local enrichment dependencies such as pyannote when their security gate
 permits execution.
 
-Local-first describes where EchoFlow performs work. It is not a claim that the host
+Local-first describes where Scholion performs work. It is not a claim that the host
 operating system, selected storage, third-party libraries, model files, native media
 parsers, or external executables are trusted.
 
 Recording names, transcript content, research notes, tags/collections, and local paths
 may all be sensitive. Routine logs redact paths by default. Full path logging requires
-explicit `ECHOFLOW_LOG_PATHS=full`.
+explicit `SCHOLION_LOG_PATHS=full`.
 
 Public failure messages omit input/artifact paths and should not expose note bodies or
 other unexpected internal research content. Human and JSON command results may include
@@ -25,7 +25,7 @@ result; callers control where those results are stored or forwarded.
 
 Private state, cache, model, per-job, and research-state directories use platform-specific
 access controls. POSIX private directories/files are tightened and verified as
-`0700`/`0600`. On Windows, EchoFlow uses built-in identity/ACL utilities to resolve the
+`0700`/`0600`. On Windows, Scholion uses built-in identity/ACL utilities to resolve the
 current user, remove inherited access, grant the current SID access, and verify the
 resulting DACL. A private operation fails rather than silently continuing when the
 required identity or ACL enforcement cannot be established.
@@ -33,7 +33,7 @@ required identity or ACL enforcement cannot be established.
 These controls protect the normal current-user filesystem boundary. They are not
 application-level encryption. Local administrators, equivalent privileged processes,
 a compromised user session, backups, snapshots, swap, or storage remapping may expose
-private state. EchoFlow does not claim secure erasure.
+private state. Scholion does not claim secure erasure.
 
 Public transcript artifacts remain ordinary user files. At-rest encryption is an OS,
 volume, or storage responsibility today.
@@ -44,7 +44,7 @@ Normal transcription, indexing, research, navigation, and playback preparation c
 to treat the original recording as read-only source evidence. Deletion is a separate
 explicit custody operation, not a side effect of processing, playback, or library rebuild.
 
-`echoflow library delete` is plan-first. Without `--confirm`, it reports the exact current
+`scholion library delete` is plan-first. Without `--confirm`, it reports the exact current
 canonical generation, effective deletion scopes, concrete mutations, preserved attached
 notes, affected document-scoped saved searches, and a confirmation value. Execution
 recomputes the plan and refuses a stale confirmation.
@@ -61,11 +61,11 @@ Deleting the original recording requires all of the following:
 - an available source path; and
 - current source integrity equal to the source SHA-256 recorded for transcription.
 
-If bytes at the source path changed, EchoFlow refuses to delete them. A historical
+If bytes at the source path changed, Scholion refuses to delete them. A historical
 transcription provenance record is therefore not treated as authorization to delete new
 bytes that later occupied the same path.
 
-Immediately before canonical deletion, EchoFlow re-reads the canonical JSON and verifies
+Immediately before canonical deletion, Scholion re-reads the canonical JSON and verifies
 its SHA-256 against the indexed generation. A changed or missing canonical artifact fails
 closed before any mutation.
 
@@ -84,7 +84,7 @@ unique research first and hope filesystem cleanup succeeds afterward.
 The confirmation value is a plan-change detection primitive, not an authentication secret.
 It does not authorize a caller who lacks normal filesystem/application access.
 
-EchoFlow's deletion APIs remove paths/state through normal operating-system and database
+Scholion's deletion APIs remove paths/state through normal operating-system and database
 mechanisms. They do **not** claim cryptographically or physically verifiable secure erasure
 from SSD wear-levelled blocks, copy-on-write history, snapshots, backups, sync/version
 history, controller caches, or forensic recovery outside the active namespace.
@@ -96,7 +96,7 @@ user-authored state. They may reveal participant identities, research hypotheses
 interpretations, case themes, or other information that is at least as sensitive as
 transcript text.
 
-EchoFlow stores research state in an authoritative private SQLite database. The database
+Scholion stores research state in an authoritative private SQLite database. The database
 may contain:
 
 - note prose;
@@ -117,11 +117,11 @@ mutations commit only to authoritative SQLite with their journal event; a determ
 projector later updates DuckDB. Deleting or rebuilding the DuckDB research projection must
 never delete SQLite user state.
 
-Neither database is encrypted by EchoFlow today. They rely on the private filesystem
+Neither database is encrypted by Scholion today. They rely on the private filesystem
 boundary described above and any OS/volume encryption the user configures.
 
 Research indexing/search does not upload notes, tags, collections, evidence anchors,
-saved searches, or projection contents. EchoFlow has no hosted note synchronization or
+saved searches, or projection contents. Scholion has no hosted note synchronization or
 research telemetry.
 
 If a canonical transcript generation changes or is explicitly deleted, existing notes
@@ -131,7 +131,7 @@ also preserved unless their own explicit deletion scope is selected.
 
 ## Supported versions
 
-EchoFlow is pre-release software. Security fixes apply to current `main`.
+Scholion is pre-release software. Security fixes apply to current `main`.
 
 Because the project has not been released or meaningfully dogfooded, internal durable
 contracts currently use one canonical schema rather than migration branches for
@@ -173,13 +173,13 @@ protocols to `file`, do not invoke a shell, select bounded metadata fields, enfo
 and parser-output limits, and suppress native stderr from public errors.
 
 The primary FFprobe query remains the normal inspection contract. If that bounded query
-discovers more than one audio stream, EchoFlow performs one additional bounded,
+discovers more than one audio stream, Scholion performs one additional bounded,
 file-protocol-only metadata query for stream index, title, language, and default disposition.
 Title and language are length-bounded before they can enter the media model or desktop DTO.
 They remain untrusted source-declared display metadata, not a recommendation or source
 identity claim.
 
-EchoFlow fingerprints the complete input with SHA-256 and rejects a file whose observed
+Scholion fingerprints the complete input with SHA-256 and rejects a file whose observed
 filesystem identity changes during inspection. `AudioStreamSelector` then selects the
 first audio stream by low-level deterministic default or a validated explicit
 `--audio-stream INDEX`/desktop stream index. The selected stream becomes part of
@@ -196,7 +196,7 @@ operating on user-selected input.
 
 ## Decode and preprocessing boundary
 
-For media not already canonical mono 16 kHz PCM16 WAV, EchoFlow invokes FFmpeg without
+For media not already canonical mono 16 kHz PCM16 WAV, Scholion invokes FFmpeg without
 a shell/stdin, restricts input protocols to `file`, maps exactly the selected audio
 stream, discards video/subtitle/data and unrelated audio streams from the working path,
 suppresses native diagnostics from public failures, and enforces a configurable process
@@ -205,7 +205,7 @@ timeout.
 Normalized audio is private derived state in the job workspace and is removed after the
 attempt where possible.
 
-With explicit `--enhance`, EchoFlow runs a second local FFmpeg transform using the
+With explicit `--enhance`, Scholion runs a second local FFmpeg transform using the
 application-owned `afftdn=nf=-50:nr=12` contract. Enhanced audio is also private derived
 state and is never published automatically or treated as source truth.
 
@@ -215,7 +215,7 @@ fails, or the result changes channel count, sample width, sample rate, or frame 
 These checks protect the source-relative timeline contract from hidden trimming,
 padding, resampling, or channel changes.
 
-ASR consumes enhanced audio only when enhancement succeeded. EchoFlow does not silently
+ASR consumes enhanced audio only when enhancement succeeded. Scholion does not silently
 fall back to raw ASR after a requested enhancement failure. Anonymous diarization still
 consumes the unmodified canonical decode in enhancement v1.
 
@@ -236,7 +236,7 @@ general Tauri command. Rust opens the approved source, narrows the verify/open r
 metadata checks, and stores the opened file behind an opaque active session ID. React
 receives only opaque session/media state and safe coordinates.
 
-The dedicated `echoflow-media` protocol accepts active closed-shape session IDs rather than
+The dedicated `scholion-media` protocol accepts active closed-shape session IDs rather than
 paths, permits only `GET`/`HEAD`, rejects multipart/invalid ranges, caps each response body
 at 1 MiB, limits active sessions, and uses `Cache-Control: no-store`. The CSP allows this
 dedicated media protocol rather than general `file:`, `blob:`, or arbitrary localhost media.
@@ -272,7 +272,7 @@ A model becomes managed only after:
 - catalog identity is resolved;
 - disk admission succeeds;
 - provider acquisition completes;
-- returned snapshot path is proven inside EchoFlow's private model cache and bound to
+- returned snapshot path is proven inside Scholion's private model cache and bound to
   the expected provider repository;
 - resolved revision agrees with snapshot identity;
 - required provider files exist and are non-empty; and
@@ -290,7 +290,7 @@ The current verification method proves expected provider layout,
 repository/revision identity, and required non-empty files. It does **not** claim an
 independent cryptographic allowlist/signature for upstream model weights.
 
-`echoflow models install MODEL` is the explicit network-bearing ASR model action. Model
+`scholion models install MODEL` is the explicit network-bearing ASR model action. Model
 management never uploads recordings, transcripts, job metadata, or telemetry.
 
 ## Checkpoint and resume privacy boundary
@@ -343,11 +343,11 @@ command results.
 
 ## Diarization security hold
 
-Anonymous speaker diarization is optional. EchoFlow does not perform biometric identity
+Anonymous speaker diarization is optional. Scholion does not perform biometric identity
 or cross-recording speaker linking.
 
 The locked pyannote dependency graph currently includes Lightning 2.6.5, affected by
-CVE-2026-58659. EchoFlow blocks diarization before pyannote import or model acquisition
+CVE-2026-58659. Scholion blocks diarization before pyannote import or model acquisition
 until a compatible patched Lightning release is available. The dependency-audit
 exception is restricted to the exact advisory/version so dependency drift forces
 re-evaluation.
@@ -363,12 +363,12 @@ policy before sensitive bytes are written and again to the final destination. Pu
 artifact names are exclusively reserved so concurrent processes do not silently
 overwrite each other.
 
-Job workspace paths derive only from EchoFlow's private jobs directory and validated job
+Job workspace paths derive only from Scholion's private jobs directory and validated job
 IDs. Planning validates normalized paths before creation/resume mutates the filesystem,
 so a pre-existing symlink resolving a planned job path outside the configured jobs root
 is rejected.
 
-EchoFlow does not currently perform a cross-platform directory `fsync` after every
+Scholion does not currently perform a cross-platform directory `fsync` after every
 atomic replace, so it does not claim that a just-renamed file survives sudden power or
 filesystem metadata loss. Process-crash recovery and power-loss durability are separate
 guarantees.
@@ -377,7 +377,7 @@ guarantees.
 
 FFmpeg, FFprobe, ASR, optional model/native dependencies, SQLite, DuckDB, Tauri, and the
 system WebView execute in the current process/user security context rather than an OS
-sandbox. EchoFlow does not currently provide:
+sandbox. Scholion does not currently provide:
 
 - independent upstream model signatures/allowlists;
 - process-wide network egress enforcement;

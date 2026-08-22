@@ -1,6 +1,6 @@
 # Verified native playback
 
-EchoFlow can play the original local audio or video from a verified transcript coordinate without turning the webview into a filesystem client.
+Scholion can play the original local audio or video from a verified transcript coordinate without turning the webview into a filesystem client.
 
 Playback is deliberately evidence-bound. A browser media element is not allowed to decide that a path, transcript generation, source file, or audio track is trustworthy. Python verifies those facts first, Rust opens the authorized file and owns the resulting native capability, and React receives only an opaque session plus safe playback coordinates.
 
@@ -18,7 +18,7 @@ Before granting playback, Python verifies that:
 2. the canonical JSON bytes still hash to that generation;
 3. canonical job/source identity still agrees with the library index;
 4. the remembered original source still exists;
-5. FFprobe can inspect the source using EchoFlow's file-only media policy;
+5. FFprobe can inspect the source using Scholion's file-only media policy;
 6. the current source SHA-256 and size still match canonical provenance;
 7. the requested coordinate is inside the verified recording duration; and
 8. the source has exactly one audio stream and that stream is the one recorded by canonical evidence.
@@ -27,11 +27,11 @@ A stale view, changed file, missing file, incompatible canonical generation, inv
 
 ## Why multi-audio playback is refused for now
 
-Canonical evidence records which audio stream EchoFlow transcribed. A generic WebView media element does not give EchoFlow a portable guarantee that it will render that same audio track from every multi-track container.
+Canonical evidence records which audio stream Scholion transcribed. A generic WebView media element does not give Scholion a portable guarantee that it will render that same audio track from every multi-track container.
 
 Playing a different track while presenting transcript evidence would be a provenance error, not merely a UX inconvenience. Therefore first-release playback rejects sources with more than one audio stream instead of guessing. A future multi-track playback implementation must make track selection explicit and verifiable at the native media layer before this restriction can be relaxed.
 
-This restriction is **playback-specific**. EchoFlow already supports transcription from a file with several embedded audio streams. Processing Center requires an explicit user choice when preflight discovers multiple tracks, Python re-plans with that exact stream index, FFmpeg maps only that stream into canonical working audio, canonical source provenance records the index, and resume restores it. See **[Audio tracks](audio-tracks.md)**.
+This restriction is **playback-specific**. Scholion already supports transcription from a file with several embedded audio streams. Processing Center requires an explicit user choice when preflight discovers multiple tracks, Python re-plans with that exact stream index, FFmpeg maps only that stream into canonical working audio, canonical source provenance records the index, and resume restores it. See **[Audio tracks](audio-tracks.md)**.
 
 The distinction is intentional: transcription owns extraction and can prove which stream entered ASR; current WebView playback of the original container cannot yet prove which embedded stream the platform media engine rendered.
 
@@ -49,7 +49,7 @@ Rust/Tauri native host
     │ opens file immediately and rechecks size/mtime
     │ stores opened File behind opaque active session ID
     ▼
-echoflow-media protocol
+scholion-media protocol
     │ GET/HEAD only, active session IDs only, bounded byte ranges
     ▼
 React <audio>/<video>
@@ -73,7 +73,7 @@ The session contract is intentionally narrow:
 - responses use `Cache-Control: no-store`;
 - release removes the session and closes the capability when no references remain.
 
-The webview CSP allows media only from EchoFlow's dedicated `echoflow-media` protocol (including its platform-specific localhost representation). It does not add general `file:`, `blob:`, or arbitrary localhost media access.
+The webview CSP allows media only from Scholion's dedicated `scholion-media` protocol (including its platform-specific localhost representation). It does not add general `file:`, `blob:`, or arbitrary localhost media access.
 
 ## Time coordinates
 
@@ -81,19 +81,19 @@ Playback uses the same source-relative coordinate already produced by verified e
 
 Preparing playback verifies the source at the current cursor. There is no re-hash on every seek. This keeps ordinary scrubbing and native media transport lightweight while preserving a strong authorization boundary at session creation.
 
-Older research anchors use the same rule. If a note cites an older canonical generation, playback authorization receives that exact generation identity. EchoFlow never silently substitutes the current transcript.
+Older research anchors use the same rule. If a note cites an older canonical generation, playback authorization receives that exact generation identity. Scholion never silently substitutes the current transcript.
 
 ## Missing, moved, or changed recordings
 
 Canonical transcript evidence remains valid when the original media is temporarily unavailable. Playback is a separate capability and fails with an explicit message.
 
-If a recording has moved, refresh/reconnect the library location so the indexed source path points to the same verified bytes. EchoFlow does not search the machine heuristically during playback. If bytes changed at the remembered path, playback refuses the source even when the filename is unchanged.
+If a recording has moved, refresh/reconnect the library location so the indexed source path points to the same verified bytes. Scholion does not search the machine heuristically during playback. If bytes changed at the remembered path, playback refuses the source even when the filename is unchanged.
 
 ## Codec support
 
 Authorization proves identity, not decoder availability. The operating-system WebView ultimately decodes the authorized media container/codecs. A source can therefore be verified correctly but still be unplayable on a particular system media engine.
 
-EchoFlow reports that as a decoder limitation. It does not transcode or replace the source silently during playback, because doing so would introduce another derived-media/provenance contract that should be designed explicitly.
+Scholion reports that as a decoder limitation. It does not transcode or replace the source silently during playback, because doing so would introduce another derived-media/provenance contract that should be designed explicitly.
 
 ## Performance
 

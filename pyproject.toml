@@ -14,7 +14,7 @@ dependencies = [
     "pydantic>=2.10,<3",
     "pydantic-settings>=2.6,<3",
     "platformdirs>=4.10.1,<5",
-    "structlog>=25,<26",
+    "structlog>=26.1.0,<27",
     "typer>=0.16,<1",
     "rich>=14,<15",
 ]

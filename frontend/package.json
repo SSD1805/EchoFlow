@@ -12,6 +12,7 @@
     "doctor:desktop": "node scripts/desktop-doctor.mjs",
     "check:tauri-versions": "node scripts/check-tauri-versions.mjs",
     "build": "tsc --noEmit && vite build",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "tauri": "tauri"

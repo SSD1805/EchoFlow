@@ -1,6 +1,17 @@
 name: Security
 
 on:
+  pull_request:
+    paths:
+      - "pyproject.toml"
+      - "uv.lock"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/src-tauri/Cargo.toml"
+      - "frontend/src-tauri/Cargo.lock"
+      - "deny.toml"
+      - "osv-scanner.toml"
+      - ".github/workflows/security.yml"
   schedule:
     - cron: "17 9 * * *"
   workflow_dispatch:
@@ -9,17 +20,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: security-audit
+  group: security-audit-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  dependency-audit:
+  python-dependency-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
-      - name: Check out repository
+      - name: Check out repository without persisting credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -35,33 +47,87 @@ jobs:
       - name: Check lockfile
         run: uv lock --check
 
-      - name: Export locked runtime and optional capability dependencies
+      - name: Export complete locked Python dependency graph
         run: >-
           uv export
           --locked
-          --no-dev
+          --all-groups
           --extra transcription
           --extra diarization
           --no-emit-project
           --no-hashes
           --format requirements-txt
-          --output-file ${{ runner.temp }}/echoflow-runtime-requirements.txt
+          --output-file ${{ runner.temp }}/echoflow-all-requirements.txt
 
-      # Lightning 2.6.5 is currently pulled by pyannote and is affected by
-      # CVE-2026-58659 / PYSEC-2026-3624. EchoFlow blocks affected/unproven
-      # Lightning releases before pyannote import or checkpoint/model loading.
-      # The exact-version assertion makes this exception expire on dependency drift.
       - name: Verify compensated Lightning advisory scope
         shell: bash
         run: >-
           grep -Eq '^lightning==2\.6\.5([ ;]|$)'
-          "${{ runner.temp }}/echoflow-runtime-requirements.txt"
+          "${{ runner.temp }}/echoflow-all-requirements.txt"
 
-      - name: Audit locked runtime dependencies
+      - name: Audit complete locked Python dependency graph
         run: >-
           uvx --from pip-audit==2.10.1 pip-audit
-          --requirement ${{ runner.temp }}/echoflow-runtime-requirements.txt
+          --requirement ${{ runner.temp }}/echoflow-all-requirements.txt
           --no-deps
           --disable-pip
           --ignore-vuln PYSEC-2026-3624
           --progress-spinner off
+
+  frontend-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository without persisting credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install locked frontend dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Audit complete locked frontend dependency graph
+        run: npm audit --audit-level=moderate
+
+  rust-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: write
+      issues: write
+    steps:
+      - name: Check out repository without persisting credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Audit locked Rust dependency graph
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: frontend/src-tauri
+
+  osv-cross-ecosystem-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out repository without persisting credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # RustSec owns Cargo advisory semantics above, including RustSec's
+      # informational `unsound` and `unmaintained` categories. OSV remains an
+      # independent advisory backstop for the Python and npm lockfiles rather
+      # than converting those RustSec informational findings into hard failures.
+      - name: Cross-check Python and frontend locked graphs against OSV
+        uses: google/osv-scanner-action/osv-scanner-action@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
+        with:
+          scan-args: |-
+            --config=./osv-scanner.toml
+            --lockfile=./uv.lock
+            --lockfile=./frontend/package-lock.json

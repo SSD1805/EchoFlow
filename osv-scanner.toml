@@ -1,0 +1,4 @@
+[[IgnoredVulns]]
+id = "CVE-2026-58659"
+ignoreUntil = 2026-09-30
+reason = "Lightning 2.6.5 is the latest normal PyPI release; EchoFlow fails closed before pyannote import, checkpoint loading, or model loading for affected or unproven Lightning releases. Remove this exception when upstream ships a fixed release."

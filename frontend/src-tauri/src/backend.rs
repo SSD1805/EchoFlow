@@ -47,8 +47,8 @@ fn python_exit_message() -> String {
 }
 
 fn run_python_request(module: &'static str, request: Value) -> Result<Value, String> {
-    let encoded = serde_json::to_vec(&request)
-        .map_err(|_| "Could not encode desktop request".to_string())?;
+    let encoded =
+        serde_json::to_vec(&request).map_err(|_| "Could not encode desktop request".to_string())?;
     if encoded.len() > MAX_REQUEST_BYTES {
         return Err("Desktop request exceeded the safe size limit".to_string());
     }

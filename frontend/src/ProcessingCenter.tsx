@@ -475,24 +475,30 @@ export function ProcessingCenter({
               <dl className="processing-metrics">
                 <div>
                   <dt>Processor</dt>
-                  <dd>{readiness.resources.processor_name ?? readiness.resources.machine}</dd>
-                  <small>{readiness.resources.effective_cpus} threads available</small>
+                  <dd>
+                    {readiness.resources.processor_name ?? readiness.resources.machine}
+                    <small>{readiness.resources.effective_cpus} threads available</small>
+                  </dd>
                 </div>
                 <div>
                   <dt>Memory</dt>
-                  <dd>{formatBytes(readiness.resources.memory_available_bytes)} available</dd>
-                  <small>{formatBytes(readiness.resources.memory_total_bytes)} installed</small>
+                  <dd>
+                    {formatBytes(readiness.resources.memory_available_bytes)} available
+                    <small>{formatBytes(readiness.resources.memory_total_bytes)} installed</small>
+                  </dd>
                 </div>
                 {readiness.resources.accelerators.length > 0 ? (
                   readiness.resources.accelerators.map((accelerator) => (
                     <div key={accelerator.accelerator_id}>
                       <dt>Graphics</dt>
-                      <dd>{accelerator.name}</dd>
-                      <small>
-                        {accelerator.memory_available_bytes !== null
-                          ? `${formatBytes(accelerator.memory_available_bytes)} graphics memory available`
-                          : "Graphics memory availability unknown"}
-                      </small>
+                      <dd>
+                        {accelerator.name}
+                        <small>
+                          {accelerator.memory_available_bytes !== null
+                            ? `${formatBytes(accelerator.memory_available_bytes)} graphics memory available`
+                            : "Graphics memory availability unknown"}
+                        </small>
+                      </dd>
                     </div>
                   ))
                 ) : (

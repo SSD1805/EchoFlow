@@ -5,7 +5,7 @@ from typing import Protocol
 from echoflow.media.models import MediaInfo
 from echoflow.media.selection import AudioStreamSelector
 from echoflow.runner.inspector import RunnerInspector
-from echoflow.runner.models import ExecutionPolicy, ModelTier, ProcessingProfile
+from echoflow.runner.models import ExecutionPolicy, ProcessingProfile
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.runner.topology import HardwareTopology, HardwareTopologyInspector
 from echoflow.transcription.capabilities import (
@@ -203,11 +203,6 @@ class TranscriptionJobPlanner:
             provisional=settings.provisional,
             cpu_threads=policy_threads,
             memory_budget_bytes=current_policy.memory_budget_bytes,
-            recommended_model_tier=(
-                ModelTier.COMPACT
-                if settings.profile is ProcessingProfile.SCREENING
-                else ModelTier.STRATEGY_SPECIFIC
-            ),
             constraints=current_policy.constraints,
         )
         engine = settings.engine.configuration(

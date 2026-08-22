@@ -177,7 +177,7 @@ The pre-identity audit is closed. It consolidated capability-blind Python stdin/
 
 The audit deliberately does **not** create a generic bridge, arbitrary Python-module selector, dynamic Tauri command dispatcher, frontend policy framework, or universal Pydantic hierarchy. Similar-looking code remains only where security visibility, lifecycle semantics, readability, or compatibility justify it.
 
-`ModelTier` remains a deprecated compatibility marker because the current CLI policy JSON still exposes `recommended_model_tier`. It is not a model-selection authority. Its retirement belongs with the identity/API migration, where compatibility changes are explicit rather than hidden inside a behavior-preserving refactor.
+A pre-package follow-up retired the deprecated runner `ModelTier` and `recommended_model_tier` wire field before they could become a released compatibility contract. Runner policy now describes only processing intent and resource/admission limits; concrete transcription strategy ranking remains the sole model-selection authority. No canonical evidence, authoritative research, or checkpoint format depended on the removed marker.
 
 See **[Architecture and redundancy audit](docs/architecture/redundancy-audit.md)**.
 
@@ -194,8 +194,6 @@ A rename affects more than the GitHub repository label. Audit and intentionally 
 - documentation/examples and generated artifacts;
 - environment variables and integration points; and
 - migration/compatibility behavior for existing local EchoFlow workspaces.
-
-This is also the correct point to retire compatibility wire names that are no longer product truth, including the deprecated runner `ModelTier` marker if the identity/API migration intentionally changes that CLI shape.
 
 Choose the replacement name first, verify pronunciation/searchability/legal/package-namespace collisions, then perform one deliberate identity migration before installers exist. If EchoFlow remains the name, record that decision and freeze the identity surface.
 

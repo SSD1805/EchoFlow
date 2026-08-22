@@ -12,12 +12,7 @@ from echoflow.core.file_manager_facade import FileManagerFacade
 from echoflow.core.performance_tracker import PerformanceTracker
 from echoflow.interfaces.local_file_manager import LocalFileManager
 from echoflow.media.models import InputIdentity, MediaInfo, MediaStream, StreamKind
-from echoflow.runner.models import (
-    ExecutionPolicy,
-    ModelTier,
-    ProcessingProfile,
-    RunnerResources,
-)
+from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
 from echoflow.transcription.models import (
     CanonicalTranscript,
     CpuEngineConfiguration,
@@ -102,11 +97,10 @@ def _plan(tmp_path: Path) -> tuple[TranscriptionJobPlan, WorkspacePaths]:
         effective_memory_available_bytes=6 * GIB,
     )
     policy = ExecutionPolicy(
-        ProcessingProfile.BALANCED,
-        False,
-        4,
-        4 * GIB,
-        ModelTier.STANDARD,
+        profile=ProcessingProfile.BALANCED,
+        provisional=False,
+        cpu_threads=4,
+        memory_budget_bytes=4 * GIB,
     )
     engine = CpuEngineConfiguration(
         "faster-whisper",

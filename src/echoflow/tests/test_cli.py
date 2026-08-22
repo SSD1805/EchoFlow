@@ -14,12 +14,7 @@ from echoflow.core.health_check import (
 )
 from echoflow.media.errors import UnsupportedMediaError
 from echoflow.media.models import InputIdentity, MediaInfo, MediaStream, StreamKind
-from echoflow.runner.models import (
-    ExecutionPolicy,
-    ModelTier,
-    ProcessingProfile,
-    RunnerResources,
-)
+from echoflow.runner.models import ExecutionPolicy, ProcessingProfile, RunnerResources
 from echoflow.runner.policy import RunnerPolicyPlanner
 from echoflow.transcription.models import (
     CanonicalTranscript,
@@ -159,11 +154,10 @@ def transcription_plan() -> TranscriptionJobPlan:
         constraints=("cpu_affinity",),
     )
     policy = ExecutionPolicy(
-        ProcessingProfile.BALANCED,
-        False,
-        4,
-        4 * 1024**3,
-        ModelTier.STANDARD,
+        profile=ProcessingProfile.BALANCED,
+        provisional=False,
+        cpu_threads=4,
+        memory_budget_bytes=4 * 1024**3,
     )
     engine = CpuEngineConfiguration(
         "faster-whisper",
@@ -320,7 +314,8 @@ def test_runner_json_reports_effective_limits_and_screening_semantics():
     assert payload["resources"]["effective_cpus"] == 4
     assert payload["policy"]["profile"] == "screening"
     assert payload["policy"]["provisional"] is True
-    assert payload["policy"]["recommended_model_tier"] == "compact"
+    assert payload["policy"]["cpu_threads"] == 4
+    assert payload["policy"]["memory_budget_bytes"] == 6 * 1024**3
 
 
 def test_runner_human_output_explains_policy():

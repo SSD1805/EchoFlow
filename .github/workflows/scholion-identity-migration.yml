@@ -60,4 +60,4 @@ jobs:
           git commit -m "chore(deps): refresh combined dependency locks"
           git push origin HEAD:agent/rename-scholion-doc-audit
 
-# One-shot trigger after reconciling the identity branch with current main.
+# One-shot retry after keeping TypeScript within the supported eslint peer range.

@@ -1,0 +1,58 @@
+name: Dependency refresh
+
+on:
+  push:
+    branches: [agent/security-dependency-refresh]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: agent/security-dependency-refresh
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+          enable-cache: true
+
+      - name: Refresh Python lock
+        run: uv lock --upgrade
+
+      - name: Refresh frontend lock
+        working-directory: frontend
+        run: npm update --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Refresh Rust lock
+        run: cargo update --manifest-path frontend/src-tauri/Cargo.toml
+
+      - name: Show frontend moderate advisories
+        working-directory: frontend
+        run: npm audit --audit-level=moderate || true
+
+      - name: Commit refreshed locks
+        shell: bash
+        run: |
+          git add uv.lock frontend/package-lock.json frontend/src-tauri/Cargo.lock
+          if git diff --cached --quiet; then
+            echo "Lock files are already current within declared constraints."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(deps): refresh dependency locks"
+          git push origin HEAD:agent/security-dependency-refresh

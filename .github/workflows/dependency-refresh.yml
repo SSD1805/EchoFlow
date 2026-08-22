@@ -38,8 +38,12 @@ jobs:
         working-directory: frontend
         run: npm update --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      - name: Refresh Rust lock
-        run: cargo update --manifest-path frontend/src-tauri/Cargo.toml
+      - name: Refresh Rust lock within the qualified Tauri family
+        shell: bash
+        run: |
+          cargo update --manifest-path frontend/src-tauri/Cargo.toml
+          cargo update --manifest-path frontend/src-tauri/Cargo.toml -p tauri-runtime-wry --precise 2.8.0
+          cargo update --manifest-path frontend/src-tauri/Cargo.toml -p tauri-runtime --precise 2.8.0
 
       - name: Commit refreshed locks
         shell: bash

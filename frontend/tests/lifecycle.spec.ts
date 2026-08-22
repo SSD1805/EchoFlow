@@ -56,7 +56,7 @@ test("source deletion requires a second explicit guard and never exposes source 
   await expect(page.getByLabel("Deletion preview")).toContainText(
     "Delete the original recording",
   );
-  await expect(page.getByText(/forensic secure erasure/)).toBeVisible();
+  await expect(page.getByText(/not secure forensic erasure/)).toBeVisible();
   await expect(page.getByText("source_path")).toHaveCount(0);
   await expect(page.getByText("canonical_path")).toHaveCount(0);
   await expect(page.getByText("/secret/")).toHaveCount(0);

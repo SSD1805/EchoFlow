@@ -1,0 +1,86 @@
+name: Temporary Scholion identity migration
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/scholion-identity-migration.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-identity:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'agent/rename-scholion-doc-audit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out identity branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: agent/rename-scholion-doc-audit
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.33"
+
+      - name: Rename tracked product identity
+        shell: bash
+        run: |
+          git mv src/echoflow src/scholion
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          replacements = (
+              (b"ECHOFLOW", b"SCHOLION"),
+              (b"EchoFlow", b"Scholion"),
+              (b"echoflow", b"scholion"),
+          )
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          for raw_path in tracked:
+              if not raw_path:
+                  continue
+              path = Path(raw_path.decode())
+              if not path.is_file():
+                  continue
+              data = path.read_bytes()
+              try:
+                  data.decode("utf-8")
+              except UnicodeDecodeError:
+                  continue
+              updated = data
+              for old, new in replacements:
+                  updated = updated.replace(old, new)
+              if updated != data:
+                  path.write_bytes(updated)
+          PY
+
+      - name: Refresh Python lock metadata
+        run: uv lock
+
+      - name: Refresh frontend lock metadata
+        working-directory: frontend
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Verify Rust lock coherence
+        run: cargo metadata --locked --format-version 1 --manifest-path frontend/src-tauri/Cargo.toml --no-deps >/dev/null
+
+      - name: Verify old identity is absent from tracked text
+        shell: bash
+        run: |
+          if git grep -n -I -E 'EchoFlow|ECHOFLOW|echoflow' -- ':!LICENSE'; then
+            echo "Old identity remains in tracked text." >&2
+            exit 1
+          fi
+
+      - name: Commit identity migration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "refactor(identity): rename EchoFlow to Scholion"
+          git push origin HEAD:agent/rename-scholion-doc-audit

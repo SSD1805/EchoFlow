@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { parseNativeProtocolResponse } from "../src/api/nativeProtocol";
+import {
+  nativeInvokeErrorMessage,
+  parseNativeProtocolResponse,
+} from "../src/api/nativeProtocol";
 import { formatEvidenceTime } from "../src/format";
 import { DEFAULT_THEME, isTheme, THEMES } from "../src/themes";
 
@@ -83,4 +86,20 @@ test("native protocol parser accepts version one and rejects malformed envelopes
       messages,
     ),
   ).toThrow("incompatible native response");
+});
+
+test("native invoke errors preserve controlled Rust messages", () => {
+  expect(
+    nativeInvokeErrorMessage(
+      "Scholion's local Python service exited unexpectedly",
+      "fallback",
+    ),
+  ).toBe("Scholion's local Python service exited unexpectedly");
+  expect(nativeInvokeErrorMessage(new Error("native command failed"), "fallback")).toBe(
+    "native command failed",
+  );
+  expect(nativeInvokeErrorMessage({ message: "structured native failure" }, "fallback")).toBe(
+    "structured native failure",
+  );
+  expect(nativeInvokeErrorMessage({ code: "unknown" }, "fallback")).toBe("fallback");
 });

@@ -124,7 +124,7 @@ jobs:
         run: npm run build
 
       - name: Audit complete locked frontend dependency graph
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
 
   native-tauri:
     needs: [frontend-static]

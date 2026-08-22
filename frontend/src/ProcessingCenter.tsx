@@ -29,15 +29,15 @@ const PROFILE_COPY: Record<
 > = {
   screening: {
     label: "Quick draft",
-    detail: "Fastest locally safe pass. Marked provisional in canonical provenance.",
+    detail: "Fastest option for a first pass. The resulting transcript is marked as a draft.",
   },
   balanced: {
     label: "Balanced",
-    detail: "Default. Scholion chooses the safest quality/performance fit for this machine.",
+    detail: "Recommended for most recordings. Balances speed and transcription quality for this computer.",
   },
   accuracy: {
-    label: "Best locally safe",
-    detail: "Use the highest-quality strategy Scholion can admit on this machine.",
+    label: "Best quality",
+    detail: "Prioritize transcription quality using the strongest option this computer can run safely.",
   },
 };
 
@@ -67,16 +67,28 @@ function formatDuration(seconds: number): string {
 }
 
 function progressText(job: ProcessingJob): string {
-  if (job.total_segments === null) return "Preparing local work";
-  return `${job.completed_segments}/${job.total_segments} segments`;
+  if (job.total_segments === null) return "Preparing";
+  return `${job.completed_segments}/${job.total_segments} sections`;
 }
 
 function taskLabel(task: ProcessingTaskStatus | null): string {
-  if (!task) return "No supervised task is active.";
-  if (task.state === "running") return "Running locally under Scholion supervision.";
-  if (task.state === "completed") return "Local task completed.";
-  if (task.state === "cancelled") return "Local task cancelled. Valid checkpoints remain private.";
-  return "Local task stopped before completion. Refresh readiness or job state for details.";
+  if (!task) return "No task is running.";
+  if (task.state === "running") return "Running on this computer.";
+  if (task.state === "completed") return "Completed.";
+  if (task.state === "cancelled") return "Cancelled. Resumable progress was kept when possible.";
+  return "Stopped before completion. Refresh to see whether it can be resumed.";
+}
+
+function readinessLabel(status: ProcessingReadiness["health"]["status"]): string {
+  if (status === "healthy") return "Ready";
+  if (status === "degraded") return "Needs attention";
+  return "Not ready";
+}
+
+function deviceLabel(device: string): string {
+  if (device === "cuda") return "NVIDIA GPU";
+  if (device === "cpu") return "CPU";
+  return device.toUpperCase();
 }
 
 function defaultExecutionOptions(): ExecutionOptions {
@@ -113,7 +125,7 @@ export function ProcessingCenter({
   const [pendingDiscard, setPendingDiscard] = useState<ProcessingJob | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(
-    "Scholion will inspect this machine before it offers a processing path.",
+    "Checking this computer so Scholion can choose transcription settings that will run safely.",
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -140,7 +152,7 @@ export function ProcessingCenter({
         setError(
           caught instanceof Error
             ? caught.message
-            : "Scholion could not inspect local processing readiness.",
+            : "Scholion could not check this computer for local transcription.",
         );
       })
       .finally(() => setBusy(false));
@@ -189,7 +201,7 @@ export function ProcessingCenter({
     setAudioStreamIndex(null);
     setPreflight(null);
     setRetrySourceJobId(null);
-    setStatus("Profile changed. Scholion is recalculating the safest local path.");
+    setStatus("Transcription preference changed. Scholion is checking the best local setup again.");
   }
 
   async function chooseRecording() {
@@ -201,7 +213,7 @@ export function ProcessingCenter({
     setRetrySourceJobId(null);
     setAudioStreamIndex(null);
     setPreflight(null);
-    setStatus(`${basename(path)} selected. Run preflight before starting.`);
+    setStatus(`${basename(path)} selected. Check the recording before starting.`);
   }
 
   async function planRecording(path = selectedPath) {
@@ -217,15 +229,15 @@ export function ProcessingCenter({
       setRetrySourceJobId(null);
       setStatus(
         plan.audio_stream_selection_required
-          ? `Preflight found ${plan.audio_streams.length} audio tracks. Choose the track Scholion should transcribe.`
-          : `Preflight complete. Scholion admitted ${plan.model} on ${plan.device}/${plan.compute_type}.`,
+          ? `Found ${plan.audio_streams.length} audio tracks. Choose the one you want to transcribe.`
+          : `Ready to transcribe ${plan.recording_name} with the ${plan.model} model using ${deviceLabel(plan.device)}.`,
       );
     } catch (caught) {
       setPreflight(null);
       setError(
         caught instanceof Error
           ? caught.message
-          : "Scholion could not safely plan this recording.",
+          : "Scholion could not prepare this recording for transcription.",
       );
     } finally {
       setBusy(false);
@@ -251,11 +263,11 @@ export function ProcessingCenter({
       );
       setStatus(
         plan.audio_stream_selection_required
-          ? `Fresh retry preflight found ${plan.audio_streams.length} audio tracks. Choose the track Scholion should transcribe.`
-          : `Fresh retry preflight complete for ${job.recording_name}. The interrupted job was not changed.`,
+          ? `Found ${plan.audio_streams.length} audio tracks. Choose the one you want to transcribe.`
+          : `A fresh retry is ready for ${job.recording_name}. The earlier job has not been changed.`,
       );
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Scholion could not plan a fresh retry.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not prepare a fresh retry.");
     } finally {
       setBusy(false);
     }
@@ -275,15 +287,13 @@ export function ProcessingCenter({
         : await processing.preflight(selectedPath ?? "", options);
       setPreflight(plan);
       setAudioStreamIndex(plan.selected_audio_stream_index);
-      setStatus(
-        `Audio track #${plan.selected_audio_stream_index} confirmed. Scholion re-ran backend preflight with that exact stream.`,
-      );
+      setStatus(`Audio track #${plan.selected_audio_stream_index} selected.`);
     } catch (caught) {
       setAudioStreamIndex(previousIndex);
       setError(
         caught instanceof Error
           ? caught.message
-          : "Scholion could not safely bind that audio track.",
+          : "Scholion could not use that audio track.",
       );
     } finally {
       setBusy(false);
@@ -311,12 +321,10 @@ export function ProcessingCenter({
           );
       setTask(started);
       setTaskDescription(`Transcribing ${preflight.recording_name}`);
-      setStatus(
-        "Transcription launched as a supervised local process. Closing the browser view does not turn it into a browser request.",
-      );
+      setStatus("Transcription started on this computer.");
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Scholion could not launch this local job.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not start this transcription.");
     } finally {
       setBusy(false);
     }
@@ -329,12 +337,10 @@ export function ProcessingCenter({
       const started = await processing.resumeTranscription(job, execution);
       setTask(started);
       setTaskDescription(`Resuming ${job.recording_name}`);
-      setStatus(
-        "Resume launched. Python restored the checkpointed execution contract and re-admitted current hardware before continuing.",
-      );
+      setStatus(`Resuming ${job.recording_name} from saved progress.`);
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Scholion could not resume this job safely.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not resume this job.");
     } finally {
       setBusy(false);
     }
@@ -346,12 +352,10 @@ export function ProcessingCenter({
     try {
       const started = await processing.installModel(model.model_id);
       setTask(started);
-      setTaskDescription(`Installing verified ${model.model_id} model`);
-      setStatus(
-        `Model acquisition started locally. Scholion will not register ${model.model_id} until the snapshot passes verification.`,
-      );
+      setTaskDescription(`Downloading ${model.model_id} transcription model`);
+      setStatus(`Downloading the ${model.model_id} transcription model to this device. Scholion will check it before using it.`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Scholion could not start model installation.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not start the model download.");
     } finally {
       setBusy(false);
     }
@@ -363,13 +367,11 @@ export function ProcessingCenter({
     try {
       const started = await processing.removeModel(model);
       setTask(started);
-      setTaskDescription(`Removing ${model.model_id} model`);
+      setTaskDescription(`Removing ${model.model_id} transcription model`);
       setPendingRemove(null);
-      setStatus(
-        "Model removal started. The expected verified revision is bound to this request; changed model state will be rejected.",
-      );
+      setStatus(`Removing the ${model.model_id} transcription model from this device.`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Scholion could not remove that model safely.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not remove that model.");
     } finally {
       setBusy(false);
     }
@@ -382,12 +384,12 @@ export function ProcessingCenter({
       const verified = await processing.verifyModel(model.model_id);
       setStatus(
         verified.installed
-          ? `${model.model_id} is still a verified Scholion-managed revision.`
-          : `${model.model_id} is not currently installed under Scholion custody.`,
+          ? `The ${model.model_id} transcription model is ready to use.`
+          : `The ${model.model_id} transcription model is not installed.`,
       );
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Scholion could not verify that model.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not check that model.");
     } finally {
       setBusy(false);
     }
@@ -399,12 +401,10 @@ export function ProcessingCenter({
     try {
       await processing.discardJob(job);
       setPendingDiscard(null);
-      setStatus(
-        "Private checkpoint and lifecycle state discarded. Published transcript evidence was not part of that operation.",
-      );
+      setStatus("Temporary processing files were removed. Your recording and finished transcripts were left alone.");
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Scholion could not discard that private state.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not remove those temporary files.");
     } finally {
       setBusy(false);
     }
@@ -417,12 +417,10 @@ export function ProcessingCenter({
     try {
       const cancelled = await processing.cancelTask(task.task_id);
       setTask(cancelled);
-      setStatus(
-        "Local task cancelled. A transcription job will reconcile to interrupted state and preserve valid checkpoints on refresh.",
-      );
+      setStatus("Transcription stopped. Resumable progress was kept when possible.");
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Scholion could not cancel that local task.");
+      setError(caught instanceof Error ? caught.message : "Scholion could not stop that task.");
     } finally {
       setBusy(false);
     }
@@ -441,18 +439,18 @@ export function ProcessingCenter({
     <>
       <WorkspaceHeader
         eyebrow="Processing center"
-        title="Turn recordings into durable evidence."
+        title="Transcribe recordings."
         theme={theme}
         onThemeChange={onThemeChange}
       />
 
       <section className="processing-intro" aria-labelledby="processing-title">
         <div>
-          <p className="section-kicker">02 · Plan, admit, run, recover</p>
-          <h2 id="processing-title">Scholion chooses a safe local path before it spends your machine.</h2>
+          <p className="section-kicker">02 · Transcribe</p>
+          <h2 id="processing-title">Choose a recording and review the setup.</h2>
         </div>
         <p>
-          Machine limits, model custody, transcription planning, and checkpoint recovery stay in Python. Tauri supervises long work. This screen only presents and submits your intent.
+          Scholion checks this computer so it can choose transcription settings that fit the available memory and hardware. This check stays on this device. Scholion does not send hardware information or telemetry anywhere.
         </p>
       </section>
 
@@ -465,37 +463,65 @@ export function ProcessingCenter({
         <article className="processing-card readiness-card">
           <div className="processing-card-heading">
             <div>
-              <p className="mini-label">Machine readiness</p>
-              <h3>{readiness ? readiness.health.status : "Inspecting…"}</h3>
+              <p className="mini-label">This computer</p>
+              <h3>{readiness ? readinessLabel(readiness.health.status) : "Checking…"}</h3>
             </div>
             <button type="button" className="secondary-action" onClick={() => void refresh()} disabled={busy}>
-              Refresh
+              Check again
             </button>
           </div>
           {readiness && (
             <>
               <dl className="processing-metrics">
-                <div><dt>Effective CPU</dt><dd>{readiness.resources.effective_cpus} threads visible</dd></div>
-                <div><dt>Available memory</dt><dd>{formatBytes(readiness.resources.effective_memory_available_bytes)}</dd></div>
-                <div><dt>Safe memory budget</dt><dd>{formatBytes(readiness.policy.memory_budget_bytes)}</dd></div>
+                <div>
+                  <dt>Processor</dt>
+                  <dd>{readiness.resources.processor_name ?? readiness.resources.machine}</dd>
+                  <small>{readiness.resources.effective_cpus} threads available</small>
+                </div>
+                <div>
+                  <dt>Memory</dt>
+                  <dd>{formatBytes(readiness.resources.memory_available_bytes)} available</dd>
+                  <small>{formatBytes(readiness.resources.memory_total_bytes)} installed</small>
+                </div>
+                {readiness.resources.accelerators.length > 0 ? (
+                  readiness.resources.accelerators.map((accelerator) => (
+                    <div key={accelerator.accelerator_id}>
+                      <dt>Graphics</dt>
+                      <dd>{accelerator.name}</dd>
+                      <small>
+                        {accelerator.memory_available_bytes !== null
+                          ? `${formatBytes(accelerator.memory_available_bytes)} graphics memory available`
+                          : "Graphics memory availability unknown"}
+                      </small>
+                    </div>
+                  ))
+                ) : (
+                  <div><dt>Graphics</dt><dd>No supported accelerator detected</dd></div>
+                )}
               </dl>
-              <ul className="readiness-checks" aria-label="Local health checks">
-                {readiness.health.checks.map((check) => (
-                  <li key={check.check_id} data-status={check.status}>
-                    <span className="health-dot" aria-hidden="true" />
-                    <span><strong>{check.summary}</strong><small>{check.required ? "Required" : "Advisory"}</small></span>
-                  </li>
-                ))}
-              </ul>
+              <details className="advanced-card processing-advanced">
+                <summary>How Scholion chose these limits</summary>
+                <p>
+                  Scholion currently reserves part of the available memory and will use at most {formatBytes(readiness.policy.memory_budget_bytes)} for this transcription setup.
+                </p>
+                <ul className="readiness-checks" aria-label="Local health checks">
+                  {readiness.health.checks.map((check) => (
+                    <li key={check.check_id} data-status={check.status}>
+                      <span className="health-dot" aria-hidden="true" />
+                      <span><strong>{check.summary}</strong><small>{check.required ? "Required" : "Optional"}</small></span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             </>
           )}
         </article>
 
         <article className="processing-card profile-card">
-          <p className="mini-label">Processing intent</p>
-          <h3>Tell Scholion the outcome, not the thread count.</h3>
+          <p className="mini-label">Transcription preference</p>
+          <h3>Choose what matters most for this recording.</h3>
           <fieldset className="profile-options">
-            <legend>Processing profile</legend>
+            <legend>Transcription style</legend>
             {(Object.keys(PROFILE_COPY) as ProcessingProfile[]).map((value) => (
               <label key={value} className={profile === value ? "profile-option profile-option-active" : "profile-option"}>
                 <input
@@ -511,7 +537,7 @@ export function ProcessingCenter({
           </fieldset>
           {recommendedStrategy && (
             <p className="backend-choice" aria-label="Scholion recommendation">
-              <strong>Scholion currently recommends:</strong> {recommendedStrategy.model} · {recommendedStrategy.device}/{recommendedStrategy.compute_type}
+              <strong>Recommended setup:</strong> {recommendedStrategy.model} model · {deviceLabel(recommendedStrategy.device)}
             </p>
           )}
         </article>
@@ -520,30 +546,31 @@ export function ProcessingCenter({
       <section className="processing-card models-card" aria-labelledby="models-title">
         <div className="processing-card-heading">
           <div>
-            <p className="mini-label">Local model custody</p>
-            <h3 id="models-title">Verified models, explicit downloads.</h3>
+            <p className="mini-label">Transcription models</p>
+            <h3 id="models-title">Models used for local transcription.</h3>
           </div>
           {recommendedModel && (
             <span className={readiness?.recommended_model_installed ? "model-ready" : "model-needed"}>
-              {readiness?.recommended_model_installed ? "Recommended model ready" : "Recommended model needed"}
+              {readiness?.recommended_model_installed ? "Recommended model installed" : "Recommended model needs download"}
             </span>
           )}
         </div>
+        <p>Models are downloaded only when you choose. Once installed, transcription can run without an internet connection.</p>
         <div className="model-list">
           {readiness?.models.map((model) => (
             <article key={model.model_id} className="model-row">
               <div>
                 <strong>{model.model_id}</strong>
-                <span>{model.installed ? `Verified · ${formatBytes(model.installed_size_bytes ?? model.estimated_cache_bytes)}` : `Download cost about ${formatBytes(model.estimated_cache_bytes)}`}</span>
+                <span>{model.installed ? `Installed · ${formatBytes(model.installed_size_bytes ?? model.estimated_cache_bytes)}` : `Download size about ${formatBytes(model.estimated_cache_bytes)}`}</span>
               </div>
               <div className="model-actions">
                 {model.installed ? (
                   <>
-                    <button type="button" onClick={() => void verifyModel(model)} disabled={busy}>Revalidate</button>
+                    <button type="button" onClick={() => void verifyModel(model)} disabled={busy}>Check files</button>
                     <button type="button" className="danger-link" onClick={() => setPendingRemove(model)} disabled={busy}>Remove</button>
                   </>
                 ) : (
-                  <button type="button" className="secondary-action" onClick={() => void installModel(model)} disabled={busy}>Install explicitly</button>
+                  <button type="button" className="secondary-action" onClick={() => void installModel(model)} disabled={busy}>Download model</button>
                 )}
               </div>
             </article>
@@ -552,11 +579,11 @@ export function ProcessingCenter({
         {pendingRemove && (
           <div className="confirmation-panel" aria-label={`Remove ${pendingRemove.model_id} confirmation`}>
             <p>
-              Remove Scholion's managed <strong>{pendingRemove.model_id}</strong> revision from the local model cache? Transcript evidence and recordings are not part of this operation.
+              Remove the <strong>{pendingRemove.model_id}</strong> transcription model from this device? Recordings and transcripts will not be deleted.
             </p>
             <div>
               <button type="button" onClick={() => setPendingRemove(null)}>Keep model</button>
-              <button type="button" className="danger-action" onClick={() => void removeModel(pendingRemove)}>Remove verified revision</button>
+              <button type="button" className="danger-action" onClick={() => void removeModel(pendingRemove)}>Remove model</button>
             </div>
           </div>
         )}
@@ -565,8 +592,8 @@ export function ProcessingCenter({
       <section className="processing-card plan-card" aria-labelledby="preflight-title">
         <div className="processing-card-heading">
           <div>
-            <p className="mini-label">Transcription preflight</p>
-            <h3 id="preflight-title">Review the plan before Scholion starts.</h3>
+            <p className="mini-label">Recording setup</p>
+            <h3 id="preflight-title">Review before starting.</h3>
           </div>
           <button type="button" className="secondary-action" onClick={() => void chooseRecording()} disabled={busy}>
             Choose recording
@@ -605,27 +632,27 @@ export function ProcessingCenter({
             disabled={busy || (!selectedPath && !retrySourceJobId)}
             onClick={() => retrySourceJobId ? void prepareRetry(jobs.find((job) => job.job_id === retrySourceJobId) ?? jobs[0]!) : void planRecording()}
           >
-            {busy ? "Checking…" : preflight ? "Re-run preflight" : "Run preflight"}
+            {busy ? "Checking…" : preflight ? "Check again" : "Check recording"}
           </button>
         </div>
 
         {preflight && (
-          <div className="preflight-result" aria-label="Backend transcription preflight">
+          <div className="preflight-result" aria-label="Transcription setup">
             <div className="preflight-hero">
               <div>
-                <span className="mini-label">Admitted by Scholion</span>
+                <span className="mini-label">Ready to transcribe</span>
                 <strong>{PROFILE_COPY[preflight.profile].label} · {preflight.model}</strong>
-                <p>{preflight.engine} · {preflight.device}/{preflight.compute_type} · {preflight.decode_strategy}</p>
+                <p>{deviceLabel(preflight.device)} · {formatDuration(preflight.duration_seconds)}</p>
               </div>
               <span className={preflight.fits_memory_budget ? "plan-safe" : "plan-blocked"}>
-                {preflight.fits_memory_budget ? "Fits safe budget" : "Blocked"}
+                {preflight.fits_memory_budget ? "Ready" : "Cannot run safely"}
               </span>
             </div>
             <dl className="processing-metrics preflight-metrics">
               <div><dt>Duration</dt><dd>{formatDuration(preflight.duration_seconds)}</dd></div>
-              <div><dt>Peak memory estimate</dt><dd>{formatBytes(preflight.estimated_peak_memory_bytes)}</dd></div>
-              <div><dt>Disk estimate</dt><dd>{formatBytes(preflight.estimated_disk_bytes)}</dd></div>
-              <div><dt>Audio stream</dt><dd>#{preflight.selected_audio_stream_index}</dd></div>
+              <div><dt>Estimated memory use</dt><dd>{formatBytes(preflight.estimated_peak_memory_bytes)}</dd></div>
+              <div><dt>Temporary disk space</dt><dd>{formatBytes(preflight.estimated_disk_bytes)}</dd></div>
+              <div><dt>Audio track</dt><dd>#{preflight.selected_audio_stream_index}</dd></div>
             </dl>
             <AudioTrackChooser
               streams={preflight.audio_streams}
@@ -635,10 +662,10 @@ export function ProcessingCenter({
               onSelect={(index) => void chooseAudioStream(index)}
             />
             <details className="advanced-card processing-advanced">
-              <summary>Expert controls and optional processing</summary>
+              <summary>Advanced options</summary>
               <div className="advanced-processing-grid">
                 <label>
-                  <span>Safe strategy override</span>
+                  <span>Processing method</span>
                   <select
                     value={strategyId ?? ""}
                     onChange={(event) => {
@@ -655,7 +682,7 @@ export function ProcessingCenter({
               </div>
               <label className="checkbox-row">
                 <input type="checkbox" checked={enhance} onChange={(event) => { setEnhance(event.target.checked); setPreflight(null); }} />
-                <span><strong>Deterministic noise suppression</strong><small>Changes the planned audio preprocessing contract and requires a new preflight.</small></span>
+                <span><strong>Reduce steady background noise</strong><small>Applies local noise reduction before transcription. Changing this setting requires another recording check.</small></span>
               </label>
               <label className="checkbox-row">
                 <input
@@ -663,7 +690,7 @@ export function ProcessingCenter({
                   checked={execution.diarize}
                   onChange={(event) => setExecution((current) => ({ ...current, diarize: event.target.checked, allowDiarizationModelDownload: event.target.checked ? current.allowDiarizationModelDownload : false }))}
                 />
-                <span><strong>Anonymous local speaker labeling</strong><small>Optional post-ASR diarization. Speaker identities remain recording-scoped labels.</small></span>
+                <span><strong>Label speakers automatically</strong><small>Adds recording-specific labels such as Speaker 1 and Speaker 2 after transcription.</small></span>
               </label>
               {execution.diarize && (
                 <label className="checkbox-row">
@@ -672,11 +699,11 @@ export function ProcessingCenter({
                     checked={execution.allowDiarizationModelDownload}
                     onChange={(event) => setExecution((current) => ({ ...current, allowDiarizationModelDownload: event.target.checked }))}
                   />
-                  <span><strong>Allow diarization model acquisition if missing</strong><small>Separate explicit network consent. Transcription model downloads are never implied by Start.</small></span>
+                  <span><strong>Download the speaker-labeling model if needed</strong><small>This is a separate download and only happens when you enable it.</small></span>
                 </label>
               )}
               <fieldset className="export-options">
-                <legend>Derived publication after canonical JSON succeeds</legend>
+                <legend>Create extra copies after the Scholion transcript is saved</legend>
                 {(["txt", "srt", "vtt"] as ExportFormat[]).map((format) => (
                   <label key={format}><input type="checkbox" checked={execution.exportFormats.includes(format)} onChange={() => toggleExport(format)} />{format.toUpperCase()}</label>
                 ))}
@@ -685,8 +712,8 @@ export function ProcessingCenter({
             <div className="launch-row">
               <p>
                 {preflight.audio_stream_selection_required
-                  ? "Choose an audio track above before starting. Scholion will not treat the container's first track as user intent."
-                  : "Start re-runs backend admission immediately before execution. A changed machine, model, source, or strategy fails closed instead of trusting this displayed plan."}
+                  ? "Choose an audio track above before starting."
+                  : "Scholion checks the recording and current machine resources once more when you start."}
               </p>
               <button
                 type="button"
@@ -698,7 +725,7 @@ export function ProcessingCenter({
                 }
                 onClick={() => void startPlannedJob()}
               >
-                Start local transcription
+                Start transcription
               </button>
             </div>
           </div>
@@ -706,15 +733,15 @@ export function ProcessingCenter({
       </section>
 
       {task && (
-        <section className="processing-card task-card" aria-label="Supervised local task">
+        <section className="processing-card task-card" aria-label="Current local task">
           <div>
-            <p className="mini-label">Native task supervisor</p>
+            <p className="mini-label">Current task</p>
             <h3>{taskDescription ?? "Local processing task"}</h3>
             <p role="status">{taskLabel(task)}</p>
           </div>
           <div className="task-actions">
-            <button type="button" onClick={() => void processing.taskStatus(task.task_id).then(setTask)}>Refresh task</button>
-            {task.state === "running" && <button type="button" className="danger-link" onClick={() => void cancelTask()}>Cancel local task</button>}
+            <button type="button" onClick={() => void processing.taskStatus(task.task_id).then(setTask)}>Refresh</button>
+            {task.state === "running" && <button type="button" className="danger-link" onClick={() => void cancelTask()}>Stop</button>}
           </div>
         </section>
       )}
@@ -722,10 +749,10 @@ export function ProcessingCenter({
       <section className="processing-card jobs-card" aria-labelledby="jobs-title">
         <div className="processing-card-heading">
           <div>
-            <p className="mini-label">Private job lifecycle</p>
-            <h3 id="jobs-title">Recover work without guessing what survived.</h3>
+            <p className="mini-label">Previous transcription jobs</p>
+            <h3 id="jobs-title">Resume or retry unfinished work.</h3>
           </div>
-          <button type="button" className="secondary-action" onClick={() => void refresh()} disabled={busy}>Refresh jobs</button>
+          <button type="button" className="secondary-action" onClick={() => void refresh()} disabled={busy}>Refresh</button>
         </div>
         <div className="job-list">
           {jobs.length === 0 && <p className="empty-state">No local transcription jobs yet.</p>}
@@ -743,26 +770,26 @@ export function ProcessingCenter({
               </div>
               <div className="job-actions">
                 {job.resumable && job.status !== "running" && (
-                  <button type="button" className="primary-action compact-action" onClick={() => void resumeJob(job)}>Resume checkpoint</button>
+                  <button type="button" className="primary-action compact-action" onClick={() => void resumeJob(job)}>Resume</button>
                 )}
                 {job.status !== "running" && (
-                  <button type="button" onClick={() => void prepareRetry(job, null)}>Plan fresh retry</button>
+                  <button type="button" onClick={() => void prepareRetry(job, null)}>Retry from beginning</button>
                 )}
                 {job.status !== "running" && (
-                  <button type="button" className="danger-link" onClick={() => setPendingDiscard(job)}>Discard private state</button>
+                  <button type="button" className="danger-link" onClick={() => setPendingDiscard(job)}>Remove temporary files</button>
                 )}
               </div>
             </article>
           ))}
         </div>
         {pendingDiscard && (
-          <div className="confirmation-panel" aria-label={`Discard ${pendingDiscard.recording_name} job confirmation`}>
+          <div className="confirmation-panel" aria-label={`Remove temporary files for ${pendingDiscard.recording_name}`}>
             <p>
-              Discard private checkpoints and lifecycle state for <strong>{pendingDiscard.recording_name}</strong>? Published transcript artifacts, canonical evidence, research notes, and the original recording are not part of this operation.
+              Remove saved progress and temporary processing files for <strong>{pendingDiscard.recording_name}</strong>? The original recording and any finished transcripts will stay in place.
             </p>
             <div>
-              <button type="button" onClick={() => setPendingDiscard(null)}>Keep state</button>
-              <button type="button" className="danger-action" onClick={() => void discardJob(pendingDiscard)}>Discard private state</button>
+              <button type="button" onClick={() => setPendingDiscard(null)}>Keep files</button>
+              <button type="button" className="danger-action" onClick={() => void discardJob(pendingDiscard)}>Remove temporary files</button>
             </div>
           </div>
         )}

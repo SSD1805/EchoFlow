@@ -1,0 +1,48 @@
+name: Temporary Tauri security lock refresh
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/tauri-security-lock-refresh.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-locks:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'agent/security-dependency-refresh'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out security branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: agent/security-dependency-refresh
+
+      - name: Regenerate frontend lockfile
+        working-directory: frontend
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Regenerate Rust lockfile
+        run: |
+          cargo update --manifest-path frontend/src-tauri/Cargo.toml
+          cargo update --manifest-path frontend/src-tauri/Cargo.toml -p tauri-runtime-wry --precise 2.11.4
+          cargo update --manifest-path frontend/src-tauri/Cargo.toml -p tauri-runtime --precise 2.11.3
+
+      - name: Verify qualified Tauri family
+        working-directory: frontend
+        run: npm run check:tauri-versions
+
+      - name: Commit generated lockfiles
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/package-lock.json frontend/src-tauri/Cargo.lock
+          if git diff --cached --quiet; then
+            echo "Lockfiles already current."
+            exit 0
+          fi
+          git commit -m "fix(security): regenerate Tauri 2.11 dependency locks"
+          git push origin HEAD:agent/security-dependency-refresh

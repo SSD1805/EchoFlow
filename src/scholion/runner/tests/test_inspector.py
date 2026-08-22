@@ -9,6 +9,7 @@ from scholion.runner.inspector import (
     _affinity_count,
     _cpu_quota_cores,
     _finite_bytes,
+    _processor_name,
     _read_text,
 )
 
@@ -26,6 +27,7 @@ def _inspector(*, texts, logical=16, physical=8, affinity=8, available=20, total
         text_reader=lambda path: texts.get(path.name),
         platform_name=lambda: "TestOS",
         machine_name=lambda: "test-machine",
+        processor_name=lambda: "AMD Ryzen Test Processor",
     )
 
 
@@ -42,6 +44,7 @@ def test_inspector_respects_affinity_cpu_quota_and_memory_limit():
 
     assert resources.platform == "TestOS"
     assert resources.machine == "test-machine"
+    assert resources.processor_name == "AMD Ryzen Test Processor"
     assert resources.logical_cpus == 16
     assert resources.physical_cpus == 8
     assert resources.affinity_cpus == 8
@@ -176,10 +179,31 @@ def test_default_virtual_memory_provider_is_used_when_not_injected():
             text_reader=lambda _path: None,
             platform_name=lambda: "TestOS",
             machine_name=lambda: "test-machine",
+            processor_name=lambda: "Test Processor",
         ).inspect()
     virtual_memory.assert_called_once_with()
     assert resources.memory_available_bytes == 1234
     assert resources.memory_total_bytes == 5678
+    assert resources.processor_name == "Test Processor"
+
+
+def test_processor_name_prefers_meaningful_platform_value():
+    with (
+        patch("scholion.runner.inspector.platform.processor", return_value="AMD Ryzen 7"),
+        patch("scholion.runner.inspector.platform.machine", return_value="x86_64"),
+    ):
+        assert _processor_name() == "AMD Ryzen 7"
+
+
+def test_processor_name_falls_back_to_local_cpuinfo_without_network_access():
+    cpuinfo = "processor : 0\nmodel name : AMD Ryzen 7 7700X 8-Core Processor\n"
+    with (
+        patch("scholion.runner.inspector.platform.processor", return_value="x86_64"),
+        patch("scholion.runner.inspector.platform.machine", return_value="x86_64"),
+        patch.dict(os.environ, {"PROCESSOR_IDENTIFIER": ""}),
+        patch("scholion.runner.inspector._read_text", return_value=cpuinfo),
+    ):
+        assert _processor_name() == "AMD Ryzen 7 7700X 8-Core Processor"
 
 
 def test_text_reader_strips_utf8_and_returns_none_for_io_or_unicode_errors(tmp_path):

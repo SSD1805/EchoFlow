@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  dependency-audit:
+  python-dependency-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -65,3 +65,56 @@ jobs:
           --disable-pip
           --ignore-vuln PYSEC-2026-3624
           --progress-spinner off
+
+      - name: Export complete locked Python dependency graph
+        run: >-
+          uv export
+          --locked
+          --all-groups
+          --extra transcription
+          --extra diarization
+          --no-emit-project
+          --no-hashes
+          --format requirements-txt
+          --output-file ${{ runner.temp }}/echoflow-all-requirements.txt
+
+      - name: Audit complete locked Python dependency graph
+        run: >-
+          uvx --from pip-audit==2.10.1 pip-audit
+          --requirement ${{ runner.temp }}/echoflow-all-requirements.txt
+          --no-deps
+          --disable-pip
+          --ignore-vuln PYSEC-2026-3624
+          --progress-spinner off
+
+  frontend-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install locked frontend dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Audit complete locked frontend dependency graph
+        run: npm audit --audit-level=moderate
+
+  rust-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install pinned RustSec cargo-audit
+        run: cargo install cargo-audit --locked --version 0.22.2
+
+      - name: Audit locked Rust dependency graph
+        run: cargo audit --file frontend/src-tauri/Cargo.lock

@@ -20,7 +20,8 @@ test("Susan can stage multiple recordings without remembering their folder", asy
   await page.getByRole("button", { name: "Use this selection" }).click();
 
   await expect(page.getByRole("status")).toContainText("folder was not saved");
-  await expect(page.getByText("Remembered folders").locator("..")).toContainText("0");
+  const rememberedFolders = page.locator(".info-card").filter({ hasText: "Remembered folders" });
+  await expect(rememberedFolders).toContainText("0");
 });
 
 test("remembered recording folder makes discovery explicit and separate from transcription", async ({ page }) => {

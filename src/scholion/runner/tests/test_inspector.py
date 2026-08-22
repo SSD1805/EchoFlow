@@ -189,7 +189,9 @@ def test_default_virtual_memory_provider_is_used_when_not_injected():
 
 def test_processor_name_prefers_meaningful_platform_value():
     with (
-        patch("scholion.runner.inspector.platform.processor", return_value="AMD Ryzen 7"),
+        patch(
+            "scholion.runner.inspector.platform.processor", return_value="AMD Ryzen 7"
+        ),
         patch("scholion.runner.inspector.platform.machine", return_value="x86_64"),
     ):
         assert _processor_name() == "AMD Ryzen 7"

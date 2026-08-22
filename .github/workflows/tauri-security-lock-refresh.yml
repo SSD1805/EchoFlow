@@ -1,9 +1,7 @@
 name: Temporary Tauri security lock refresh
 
 on:
-  push:
-    branches:
-      - agent/security-dependency-refresh
+  pull_request:
     paths:
       - ".github/workflows/tauri-security-lock-refresh.yml"
 
@@ -12,6 +10,9 @@ permissions:
 
 jobs:
   refresh-locks:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'agent/security-dependency-refresh'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

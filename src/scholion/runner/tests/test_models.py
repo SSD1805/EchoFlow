@@ -33,6 +33,7 @@ def test_runner_resources_have_a_stable_machine_readable_shape():
         "memory_limit_bytes": 8,
         "effective_memory_available_bytes": 6,
         "constraints": ("cpu_quota",),
+        "processor_name": None,
     }
     with pytest.raises(FrozenInstanceError):
         resources.effective_cpus = 9

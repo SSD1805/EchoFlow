@@ -44,6 +44,8 @@ jobs:
               if not raw_path:
                   continue
               path = Path(raw_path.decode())
+              if path.parts[:2] == (".github", "workflows"):
+                  continue
               if not path.is_file():
                   continue
               data = path.read_bytes()
@@ -68,13 +70,36 @@ jobs:
       - name: Verify Rust lock coherence
         run: cargo metadata --locked --format-version 1 --manifest-path frontend/src-tauri/Cargo.toml --no-deps >/dev/null
 
-      - name: Verify old identity is absent from tracked text
+      - name: Verify old identity outside permanent workflows is absent
         shell: bash
         run: |
-          if git grep -n -I -E 'EchoFlow|ECHOFLOW|echoflow' -- ':!LICENSE'; then
-            echo "Old identity remains in tracked text." >&2
-            exit 1
-          fi
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          old = (b"EchoFlow", b"ECHOFLOW", b"echoflow")
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          failures = []
+          for raw_path in tracked:
+              if not raw_path:
+                  continue
+              path = Path(raw_path.decode())
+              if path.parts[:2] == (".github", "workflows") or path.name == "LICENSE":
+                  continue
+              if not path.is_file():
+                  continue
+              data = path.read_bytes()
+              try:
+                  data.decode("utf-8")
+              except UnicodeDecodeError:
+                  continue
+              if any(token in data for token in old):
+                  failures.append(str(path))
+          if failures:
+              print("Old identity remains outside workflows:", *failures, sep="\n", file=sys.stderr)
+              sys.exit(1)
+          PY
 
       - name: Commit identity migration
         shell: bash

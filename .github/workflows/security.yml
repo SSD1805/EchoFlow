@@ -57,18 +57,18 @@ jobs:
           --no-emit-project
           --no-hashes
           --format requirements-txt
-          --output-file ${{ runner.temp }}/echoflow-all-requirements.txt
+          --output-file ${{ runner.temp }}/scholion-all-requirements.txt
 
       - name: Verify compensated Lightning advisory scope
         shell: bash
         run: >-
           grep -Eq '^lightning==2\.6\.5([ ;]|$)'
-          "${{ runner.temp }}/echoflow-all-requirements.txt"
+          "${{ runner.temp }}/scholion-all-requirements.txt"
 
       - name: Audit complete locked Python dependency graph
         run: >-
           uvx --from pip-audit==2.10.1 pip-audit
-          --requirement ${{ runner.temp }}/echoflow-all-requirements.txt
+          --requirement ${{ runner.temp }}/scholion-all-requirements.txt
           --no-deps
           --disable-pip
           --ignore-vuln PYSEC-2026-3624
